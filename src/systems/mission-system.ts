@@ -393,7 +393,7 @@ class MissionSystem {
 				);
 				break;
 
-			case RewardType.GATE_ADDRESS:
+			case RewardType.GATE_ADDRESS: {
 				// Generate a random gate address
 				const gateAddress = Array.from({ length: 6 }, () =>
 					Math.floor(Math.random() * 36).toString(36),
@@ -417,6 +417,7 @@ class MissionSystem {
 					NotificationType.INFO,
 				);
 				break;
+			}
 
 			case RewardType.ALLY:
 				// Ally rewards would be handled by another system
@@ -536,22 +537,26 @@ class MissionSystem {
 
 				// Boost skills based on specialization
 				switch (specialization) {
-				case 'SCIENTIST':
+				case 'SCIENTIST': {
 					skills[SkillType.SCIENCE] = 6;
 					skills[SkillType.MEDICINE] = 4;
 					break;
-				case 'ENGINEER':
+				}
+				case 'ENGINEER': {
 					skills[SkillType.ENGINEERING] = 6;
 					skills[SkillType.SCIENCE] = 4;
 					break;
-				case 'MILITARY':
+				}
+				case 'MILITARY': {
 					skills[SkillType.COMBAT] = 6;
 					skills[SkillType.LEADERSHIP] = 4;
 					break;
-				case 'DIPLOMAT':
+				}
+				case 'DIPLOMAT': {
 					skills[SkillType.DIPLOMACY] = 6;
 					skills[SkillType.LEADERSHIP] = 4;
 					break;
+				}
 				}
 
 				newTeam.members.push({

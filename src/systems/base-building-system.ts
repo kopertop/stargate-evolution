@@ -7,7 +7,7 @@ import {
 	PersonnelType,
 	NotificationType,
 } from '../types/game-types';
-import { generateId, generateEntityId } from '../utils/id-generator';
+import { generateId } from '../utils/id-generator';
 
 import GameStateManager from './game-state-manager';
 
@@ -430,7 +430,7 @@ class BaseBuildingSystem {
 				if (!base.constructionComplete) {
 					// Increase progress by 10% per day
 					let newProgress = base.constructionProgress + 10;
-					let newConstructionComplete = base.constructionComplete;
+					let newConstructionComplete: boolean = base.constructionComplete;
 
 					if (newProgress >= 100) {
 						newProgress = 100;
@@ -463,9 +463,9 @@ class BaseBuildingSystem {
 						const buildingCost = this.buildingCosts[building.type];
 						const progressPerDay = 100 / buildingCost.constructionTime;
 
-						let newProgress = building.constructionProgress + progressPerDay;
-						let newConstructionComplete = building.constructionComplete;
-						let newActive = building.active;
+						let newProgress: number = building.constructionProgress + progressPerDay;
+						let newConstructionComplete: boolean = building.constructionComplete;
+						let newActive: boolean = building.active;
 
 						if (newProgress >= 100) {
 							newProgress = 100;
@@ -568,12 +568,10 @@ class BaseBuildingSystem {
 				switch (building.type) {
 				case BuildingType.MINING_FACILITY:
 					// Find minerals on planet
-					const mineralDeposits = planet.resources.filter(
-						r => r.type === ResourceType.MINERAL && r.discovered,
-					);
-
 					// Bonus based on mineral deposits
-					for (const deposit of mineralDeposits) {
+					for (const deposit of planet.resources.filter(
+						(r) => Boolean(r.type === ResourceType.MINERAL && r.discovered),
+					)) {
 						production[ResourceType.MINERAL] +=
 								Math.floor(5 * deposit.abundance * (1 - deposit.difficulty * 0.5));
 					}

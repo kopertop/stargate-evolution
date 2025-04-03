@@ -323,7 +323,7 @@ class PlanetExplorationSystem {
 		let discoveryMessage = '';
 
 		switch (focus) {
-		case 'resources':
+		case 'resources': {
 			// Discover more resources
 			const updatedResources = planet.resources.map(resource => ({
 				...resource,
@@ -336,6 +336,7 @@ class PlanetExplorationSystem {
 			updatedPlanet.resources = updatedResources;
 			discoveryMessage = `Team discovered ${newlyDiscovered} new resource deposits.`;
 			break;
+		}
 
 		case 'technology':
 			// Chance to discover technology
@@ -350,15 +351,16 @@ class PlanetExplorationSystem {
 			}
 			break;
 
-		case 'threats':
+		case 'threats': {
 			// Update threat assessment
 			const threatAssessment = Math.random();
 			updatedPlanet.threatLevel = (planet.threatLevel + threatAssessment) / 2;
 			discoveryMessage = `Team assessed threat level at ${Math.round(updatedPlanet.threatLevel * 100)}%.`;
 			break;
+		}
 
 		case 'general':
-		default:
+		default: {
 			// Mix of discoveries
 			// Update resources
 			const generalResources = planet.resources.map(resource => ({
@@ -378,6 +380,7 @@ class PlanetExplorationSystem {
 				discoveryMessage = 'Team completed general exploration of the planet.';
 			}
 			break;
+		}
 		}
 
 		// Calculate new exploration status

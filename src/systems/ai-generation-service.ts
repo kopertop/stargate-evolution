@@ -538,7 +538,7 @@ class AIGenerationService {
 			if (Math.random() < probability) {
 				// Create reward based on type
 				switch (rewardType) {
-				case RewardType.RESOURCE:
+				case RewardType.RESOURCE: {
 					const resourceTypes = Object.values(ResourceType);
 					const resourceType = resourceTypes[Math.floor(Math.random() * resourceTypes.length)];
 					const amount = 10 + Math.floor(Math.random() * 40); // 10-50
@@ -549,6 +549,7 @@ class AIGenerationService {
 						amount,
 					});
 					break;
+				}
 
 				case RewardType.TECHNOLOGY:
 					rewards.push({

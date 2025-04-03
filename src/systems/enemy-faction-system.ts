@@ -5,7 +5,7 @@ import {
 	ResourceType,
 	SkillType,
 } from '../types/game-types';
-import { generateId, generateEntityId } from '../utils/id-generator';
+import { generateId } from '../utils/id-generator';
 
 import GameStateManager from './game-state-manager';
 import MissionSystem from './mission-system';
@@ -290,7 +290,7 @@ class EnemyFactionSystem {
 
 		// Process effects based on activity type
 		switch (activity.type) {
-		case 'SCOUT':
+		case 'SCOUT': {
 			// Scouts increase knowledge but have minimal direct impact
 			// Add planet to Goa'uld known worlds
 			this.gameStateManager.updateState(state => ({
@@ -310,8 +310,9 @@ class EnemyFactionSystem {
 			// Small threat level increase
 			this.updatePlanetThreatLevel(planet.id, 0.1);
 			break;
+		}
 
-		case 'ATTACK':
+		case 'ATTACK': {
 			// Attacks damage bases if present
 			if (planet.bases.length > 0) {
 				// Calculate damage to bases
@@ -369,8 +370,9 @@ class EnemyFactionSystem {
 			// Significant threat level increase
 			this.updatePlanetThreatLevel(planet.id, 0.3);
 			break;
+		}
 
-		case 'COLONIZE':
+		case 'COLONIZE': {
 			// Colonization establishes Goa'uld presence
 			this.gameStateManager.updateState(state => {
 				// Add planet to Goa'uld worlds
@@ -397,8 +399,9 @@ class EnemyFactionSystem {
 			// Major threat level increase
 			this.updatePlanetThreatLevel(planet.id, 0.5);
 			break;
+		}
 
-		case 'OCCUPATION':
+		case 'OCCUPATION': {
 			// Occupation is the most severe, effectively taking over the planet
 			this.gameStateManager.updateState(state => {
 				// Add planet to Goa'uld worlds
@@ -435,6 +438,7 @@ class EnemyFactionSystem {
 				NotificationType.DANGER,
 			);
 			break;
+		}
 		}
 	}
 
