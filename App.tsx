@@ -1,20 +1,37 @@
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+import React, { useEffect } from 'react';
+import { StyleSheet, SafeAreaView } from 'react-native';
+
+import TradeScreen from './src/screens/trade-screen';
+import { GameStateManager, GameLoop } from './src/systems';
 
 export default function App() {
-  return (
-    <View style={styles.container}>
-      <Text>Open up App.tsx to start working on your app!</Text>
-      <StatusBar style="auto" />
-    </View>
-  );
+	// Initialize game systems
+	useEffect(() => {
+		// Initialize game state and start the game loop
+		const gameStateManager = GameStateManager.getInstance();
+		const gameLoop = GameLoop.getInstance();
+
+		// Start the game loop with a tick every 5 seconds
+		gameLoop.start();
+
+		// Clean up on unmount
+		return () => {
+			gameLoop.stop();
+		};
+	}, []);
+
+	return (
+		<SafeAreaView style={styles.container}>
+			<TradeScreen />
+			<StatusBar style="auto" />
+		</SafeAreaView>
+	);
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+	container: {
+		flex: 1,
+		backgroundColor: '#fff',
+	},
 });

@@ -4,9 +4,14 @@
   "main": "index.ts",
   "scripts": {
     "start": "expo start",
+    "dev": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
+    "lint:fix": "eslint . --ext .js,.jsx,.ts,.tsx --fix",
+    "replace-uuid": "node scripts/replace-uuid.js",
+    "fix:case-declarations": "node scripts/fix-case-declarations.js"
   },
   "dependencies": {
     "expo": "~52.0.43",
@@ -15,8 +20,15 @@
     "react-native": "0.76.9"
   },
   "devDependencies": {
-    "@babel/core": "^7.25.2",
+    "@babel/core": "^7.20.0",
     "@types/react": "~18.3.12",
+    "@typescript-eslint/eslint-plugin": "^5.62.0",
+    "@typescript-eslint/parser": "^5.62.0",
+    "eslint": "^8.57.1",
+    "eslint-plugin-import": "^2.31.0",
+    "eslint-plugin-react": "^7.37.4",
+    "eslint-plugin-react-hooks": "^4.6.2",
+    "eslint-plugin-react-native": "^4.1.0",
     "typescript": "^5.3.3"
   },
   "private": true
