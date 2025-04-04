@@ -3,6 +3,7 @@ import { Canvas, useFrame } from '@react-three/fiber';
 import { OrthographicCamera, OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 import { GameStateManager, GameLoop, TurnPhase } from './systems';
+import TradeScreen from './screens/trade-screen';
 
 // Basic mesh component for testing
 function Box(props: any) {
@@ -40,6 +41,7 @@ export default function App() {
 	const [currentPhase, setCurrentPhase] = useState<TurnPhase>(TurnPhase.PLAYER_ACTION);
 	const [turnNumber, setTurnNumber] = useState<number>(1);
 	const gameLoopRef = useRef<GameLoop | null>(null);
+	const [showTradeScreen, setShowTradeScreen] = useState(false);
 
 	// Initialize game systems
 	useEffect(() => {
@@ -95,7 +97,13 @@ export default function App() {
 				<h3>Stargate Evolution</h3>
 				<p>Turn: {turnNumber}</p>
 				<p>Phase: {currentPhase}</p>
+				<button onClick={() => setShowTradeScreen(!showTradeScreen)} style={{ marginTop: '10px' }}>
+					{showTradeScreen ? 'Hide Trade' : 'Show Trade'}
+				</button>
 			</div>
+
+			{/* Trade UI */}
+			{showTradeScreen && <TradeScreen />}
 
 			{/* Turn controls */}
 			<div className="turn-controls">

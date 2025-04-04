@@ -12,7 +12,17 @@ import {
 import { TradeSystem, GameStateManager } from '../systems';
 import { Planet, ResourceType } from '../types/game-types';
 
-const TradeRouteCreator: React.FC = () => {
+interface Planet {
+	id: string;
+	name: string;
+}
+
+interface TradeRouteCreatorProps {
+	onCreateRoute: (sourceId: string, targetId: string, value: number) => void;
+	planets: Planet[];
+}
+
+const TradeRouteCreator: React.FC<TradeRouteCreatorProps> = ({ onCreateRoute, planets }) => {
 	const [planets, setPlanets] = useState<Record<string, Planet>>({});
 	const [sourcePlanetId, setSourcePlanetId] = useState<string | null>(null);
 	const [destinationPlanetId, setDestinationPlanetId] = useState<string | null>(null);
@@ -24,6 +34,7 @@ const TradeRouteCreator: React.FC = () => {
 		[ResourceType.NAQUADAH]: '0',
 	});
 	const [selectingSource, setSelectingSource] = useState(true);
+	const [routeValue, setRouteValue] = useState(1);
 
 	// Load planets on mount
 	useEffect(() => {
@@ -78,36 +89,13 @@ const TradeRouteCreator: React.FC = () => {
 			[ResourceType.EXOTIC]: '0',
 			[ResourceType.NAQUADAH]: '0',
 		});
+		setRouteValue(1);
 	};
 
 	// Create the trade route
-	const createTradeRoute = () => {
-		if (!sourcePlanetId || !destinationPlanetId) {
-			Alert.alert('Error', 'Please select both source and destination planets');
-			return;
-		}
-
-		// Convert resource amounts to numbers
-		const resources: Record<ResourceType, number> = {} as Record<ResourceType, number>;
-
-		Object.entries(resourceAmounts).forEach(([type, value]) => {
-			resources[type as ResourceType] = parseInt(value) || 0;
-		});
-
-		// Check if any resources are being traded
-		const hasResources = Object.values(resources).some(amount => amount > 0);
-
-		if (!hasResources) {
-			Alert.alert('Error', 'Please specify at least one resource to trade');
-			return;
-		}
-
-		// Create the trade route
-		const tradeSystem = TradeSystem.getInstance();
-		const success = tradeSystem.createTradeRoute(sourcePlanetId, destinationPlanetId, resources);
-
-		if (success) {
-			Alert.alert('Success', 'Trade route established successfully');
+	const handleCreateRoute = () => {
+		if (sourcePlanetId && destinationPlanetId) {
+			onCreateRoute(sourcePlanetId, destinationPlanetId, routeValue);
 			resetForm();
 		}
 	};
@@ -212,10 +200,23 @@ const TradeRouteCreator: React.FC = () => {
 				renderPlanetSelection()
 			)}
 
+			<div className="form-group">
+				<label htmlFor="value">Route Value:</label>
+				<input
+					id="value"
+					type="number"
+					min="1"
+					max="10"
+					value={routeValue}
+					onChange={(e) => setRouteValue(Number(e.target.value))}
+				/>
+			</div>
+
 			{sourcePlanetId && destinationPlanetId && (
 				<TouchableOpacity
 					style={styles.createButton}
-					onPress={createTradeRoute}
+					onPress={handleCreateRoute}
+					disabled={!sourcePlanetId || !destinationPlanetId || sourcePlanetId === destinationPlanetId}
 				>
 					<Text style={styles.createButtonText}>Create Trade Route</Text>
 				</TouchableOpacity>

@@ -55,3 +55,115 @@ button:hover {
 button:active {
 	background-color: #1f64b0;
 }
+
+/* Trade Screen Styles */
+.trade-screen {
+	position: absolute;
+	top: 60px;
+	left: 10px;
+	z-index: 10;
+	padding: 15px;
+	background-color: rgba(0, 0, 0, 0.7);
+	border-radius: 5px;
+	color: white;
+	width: 300px;
+	max-height: calc(100vh - 120px);
+	overflow-y: auto;
+}
+
+.trade-header {
+	margin-bottom: 15px;
+}
+
+.trade-header h2 {
+	margin-bottom: 10px;
+}
+
+.trade-tabs {
+	display: flex;
+	gap: 10px;
+	margin-bottom: 15px;
+}
+
+.trade-tabs button {
+	flex: 1;
+	padding: 8px;
+}
+
+.trade-tabs button.active {
+	background-color: #3f84d0;
+}
+
+.trade-content {
+	min-height: 200px;
+}
+
+/* Trade route creator styles */
+.trade-route-creator {
+	padding: 15px;
+}
+
+.form-group {
+	margin-bottom: 15px;
+}
+
+.form-group label {
+	display: block;
+	margin-bottom: 5px;
+	font-weight: bold;
+}
+
+.form-group select,
+.form-group input {
+	width: 100%;
+	padding: 8px;
+	border-radius: 4px;
+	border: 1px solid #444;
+	background-color: #222;
+	color: white;
+}
+
+.create-button {
+	padding: 10px 15px;
+	background-color: #2c5282;
+	border: none;
+	border-radius: 4px;
+	color: white;
+	font-weight: bold;
+	cursor: pointer;
+	transition: background-color 0.3s;
+}
+
+.create-button:hover:not(:disabled) {
+	background-color: #3182ce;
+}
+
+.create-button:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+/* Trade routes list styles */
+.routes-list {
+	list-style: none;
+	padding: 0;
+	margin: 0;
+}
+
+.route-item {
+	display: flex;
+	justify-content: space-between;
+	padding: 10px;
+	margin-bottom: 8px;
+	background-color: #2d3748;
+	border-radius: 4px;
+	border-left: 4px solid #3182ce;
+}
+
+.route-planets {
+	font-weight: bold;
+}
+
+.route-value {
+	color: #90cdf4;
+}
