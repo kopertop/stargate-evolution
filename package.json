@@ -12,29 +12,29 @@
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
     "lint:fix": "eslint . --ext .js,.jsx,.ts,.tsx --fix"
   },
+  "private": true,
   "dependencies": {
-    "expo": "~52.0.43",
-    "expo-status-bar": "~2.0.1",
-    "react": "18.3.1",
-    "react-native": "0.76.9"
+    "@react-three/fiber": "^9.1.1",
+    "@types/three": "^0.175.0",
+    "expo": "^52.0.44",
+    "expo-status-bar": "^2.0.1",
+    "react": "^19.1.0",
+    "react-native": "^0.78.2",
+    "three": "^0.175.0"
   },
   "devDependencies": {
-    "@babel/core": "^7.20.0",
     "@eslint/compat": "^1.2.8",
     "@eslint/eslintrc": "^3.3.1",
-    "@eslint/js": "^9.23.0",
-    "@types/react": "~18.3.12",
+    "@types/react": "^19.1.0",
     "@typescript-eslint/eslint-plugin": "^8.29.0",
     "@typescript-eslint/parser": "^8.29.0",
-    "eslint": "^9.23.0",
+    "eslint": "^9.24.0",
     "eslint-plugin-import": "^2.31.0",
-    "eslint-plugin-react": "^7.37.4",
-    "eslint-plugin-react-hooks": "^4.6.2",
-    "eslint-plugin-react-native": "^4.1.0",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-plugin-react-native": "^5.0.0",
     "eslint-plugin-unicorn": "^58.0.0",
-    "globals": "^16.0.0",
-    "typescript": "^5.3.3",
+    "typescript": "^5.8.2",
     "typescript-eslint": "^8.29.0"
-  },
-  "private": true
+  }
 }

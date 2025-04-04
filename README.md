@@ -1,6 +1,6 @@
-# Stargate Universe: Exploration & Discovery
+# Stargate Evolution: Exploration & Discovery
 
-A mobile game based on the Stargate universe, focusing on exploration, resource management, and base building.
+A web-based, top-down, turn-based game based on the Stargate universe, focusing on exploration, resource management, and base building, powered by React Three Fiber.
 
 ## Game Features
 
@@ -10,6 +10,9 @@ A mobile game based on the Stargate universe, focusing on exploration, resource 
 - **Trade System**: Create trade routes between planets with stargates
 - **Combat**: Defend against enemy factions like the Goa'uld
 - **Research**: Discover new technologies to advance your capabilities
+- **Cross-Platform Support**: Play on web and iOS devices with controller, keyboard, and mouse input
+- **Turn-Based Gameplay**: Engage in strategic exploration and combat with a turn-based system.
+- **Top-Down Perspective**: Experience the game from a classic tabletop-style viewpoint.
 
 ## Running Locally
 
@@ -17,30 +20,35 @@ A mobile game based on the Stargate universe, focusing on exploration, resource 
 
 - Node.js (v14 or later)
 - npm or yarn
+- (Ensure you have a compatible browser with WebGL support)
 
 ### Installation
 
 1. Clone the repository:
 ```
 git clone <repository-url>
-cd stargate-universe
+cd stargate-evolution
 ```
 
 2. Install dependencies:
 ```
 npm install
+# Also install three.js and react-three-fiber
+npm install three @react-three/fiber
+# Optionally, install @react-three/drei for useful helpers
+npm install @react-three/drei
 ```
 
 3. Start the development server:
 ```
-npx expo start
+# Assuming you are using Create React App or Vite
+npm start 
+# or
+npm run dev
 ```
 
 4. Run on your preferred platform:
-   - Press `a` to run on Android emulator
-   - Press `i` to run on iOS simulator
-   - Scan the QR code with the Expo Go app on your physical device
-   - Press `w` to run in a web browser
+   - Open the game in your web browser via the provided localhost URL.
 
 ## Linting
 
@@ -48,7 +56,7 @@ The project uses ESLint with TypeScript support to maintain code quality. Key fe
 
 - Tab-based indentation
 - TypeScript type checking
-- React and React Native best practices enforcement
+- Best practices enforcement for web development
 - Import order management
 - Banning of the `uuid` library (use our custom ID generator instead)
 
@@ -71,7 +79,17 @@ If you encounter the error `crypto.getRandomValues() is not supported`, the app 
 ## Project Structure
 
 - `src/systems/`: Core game systems (trade, missions, combat, etc.)
-- `src/components/`: React Native UI components
+- `src/components/`: UI components
 - `src/screens/`: Game screens
 - `src/types/`: TypeScript type definitions
-- `src/utils/`: Utility functions 
+- `src/utils/`: Utility functions
+- `src/rendering/`: React Three Fiber visualization components 
+
+## Development Guidelines
+
+*   **Turn-Based First**: All game logic (combat, exploration events, resource updates) must adhere to the turn-based structure outlined in `PROMPT.md`. Avoid real-time updates (`useFrame`) for core mechanics.
+*   **Top-Down Design**: UI, interactions, and rendering should prioritize clarity and usability from a top-down perspective (likely using an `<OrthographicCamera>`).
+*   **React Components**: Leverage React functional components, hooks (`useState`, `useEffect`, `useRef`), and R3F components/hooks (`<Canvas>`, `<mesh>`, `useFrame` sparingly) for building the scene and UI.
+*   **TypeScript & Modularity**: Maintain strong typing and break down systems into modular, reusable components/functions.
+
+ 
