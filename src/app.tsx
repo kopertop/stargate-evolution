@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrthographicCamera, OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
-import { GameStateManager, GameLoop, TurnPhase } from './src/systems';
+import { GameStateManager, GameLoop, TurnPhase } from './systems';
 
 // Basic mesh component for testing
 function Box(props: any) {
