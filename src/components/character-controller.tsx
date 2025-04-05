@@ -344,7 +344,10 @@ const CharacterController = forwardRef<THREE.Group, CharacterControllerProps>(
 		useFrame((state: RootState, delta: number) => {
 			if (!groupRef.current) return;
 
-			// Check for camera rotation keys
+			// Get the current camera rotation from userData (if set by stargate travel)
+			const currentCameraRotation = groupRef.current.userData.cameraRotation || 0;
+
+			// Apply camera rotation if enabled
 			if (allowCameraRotation) {
 				// Check for Q and E keys in keyboard hook (more reliable than keysPressed)
 				if (keyboard.keys.has('KeyQ')) {
@@ -361,8 +364,10 @@ const CharacterController = forwardRef<THREE.Group, CharacterControllerProps>(
 					delta * 10 // Increased from 5 to 10 for faster response
 				);
 
-				// Store camera rotation in userData for the CameraController to access
-				groupRef.current.userData.cameraRotation = cameraRotationRef.current;
+				// Always update the camera rotation, combining existing rotation from stargate travel
+				// with manual rotation input
+				groupRef.current.userData.cameraRotation = cameraRotationRef.current +
+					(groupRef.current.userData.stargateRotation || 0);
 			}
 
 			// Calculate movement direction
@@ -390,10 +395,10 @@ const CharacterController = forwardRef<THREE.Group, CharacterControllerProps>(
 				let rotatedX = normalizedX;
 				let rotatedZ = normalizedZ;
 
-				if (allowCameraRotation) {
-					// Rotate movement direction based on camera rotation
-					const cos = Math.cos(cameraRotationRef.current);
-					const sin = Math.sin(cameraRotationRef.current);
+				if (allowCameraRotation || currentCameraRotation !== 0) {
+					// Apply current camera rotation to movement direction
+					const cos = Math.cos(currentCameraRotation);
+					const sin = Math.sin(currentCameraRotation);
 					rotatedX = normalizedX * cos - normalizedZ * sin;
 					rotatedZ = normalizedX * sin + normalizedZ * cos;
 				}
@@ -424,16 +429,9 @@ const CharacterController = forwardRef<THREE.Group, CharacterControllerProps>(
 					}
 				}
 
-				// Face direction of movement (either with or without camera rotation)
-				if (allowCameraRotation) {
-					// In camera rotation mode, the character faces the direction of movement relative to camera
-					const angle = Math.atan2(rotatedX, rotatedZ);
-					groupRef.current.rotation.y = angle;
-				} else {
-					// In fixed camera mode, the character just faces movement direction
-					const angle = Math.atan2(normalizedX, normalizedZ);
-					groupRef.current.rotation.y = angle;
-				}
+				// Face direction of movement
+				const angle = Math.atan2(rotatedX, rotatedZ);
+				groupRef.current.rotation.y = angle;
 
 				// Increment animation time for bobbing effect
 				animationTimeRef.current += delta * 10;

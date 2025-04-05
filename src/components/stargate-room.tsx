@@ -55,17 +55,94 @@ const StargateRoom: React.FC = () => {
 			const spawnPosition = SPAWN_POSITIONS[planet as keyof typeof SPAWN_POSITIONS] ||
 				new THREE.Vector3(0, 0.5, -6);
 
-			// Position player and make them face away from the gate
+			// Position player in front of the gate (from gate's perspective)
 			characterRef.current.position.copy(spawnPosition);
-			characterRef.current.rotation.y = Math.PI; // Face opposite direction from gate
+			characterRef.current.rotation.y = 0; // Initially face the gate
+
+			// Activate the stargate since we just arrived through it
+			setStargateActive(true);
 
 			// Mark as just arrived to prevent multiple repositioning
 			setJustArrived(true);
 
-			// Clear the just arrived flag after a short delay
+			// After a short delay, start the gate shutdown animation
 			setTimeout(() => {
-				setJustArrived(false);
+				// Trigger stargate shutdown animation
+				triggerGateShutdown();
 			}, 1000);
+
+			// After a longer delay, rotate the camera to face away from the gate
+			setTimeout(() => {
+				rotateCamera();
+			}, 2000);
+
+			// Function to rotate the camera 180 degrees
+			const rotateCamera = () => {
+				if (!characterRef.current) return;
+
+				// Set up rotation animation
+				let startTime = performance.now();
+				const duration = 1200; // 1.2 seconds for the rotation
+				const initialRotation = 0; // Start at 0
+				const targetRotation = Math.PI; // Rotate 180 degrees (PI radians)
+
+				// Animation function
+				const animateRotation = () => {
+					const now = performance.now();
+					const elapsed = now - startTime;
+					const progress = Math.min(elapsed / duration, 1);
+
+					// Use easeInOut function for smooth rotation
+					const easeInOut = (t: number) => t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+					const easedProgress = easeInOut(progress);
+
+					if (characterRef.current) {
+						// Rotate the character
+						characterRef.current.rotation.y = initialRotation + targetRotation * easedProgress;
+
+						// Store the stargate-induced rotation in a separate property
+						characterRef.current.userData.stargateRotation = -targetRotation * easedProgress;
+
+						// Update the camera rotation (this will be combined with manual rotation in the character controller)
+						characterRef.current.userData.cameraRotation = characterRef.current.userData.stargateRotation;
+					}
+
+					if (progress < 1) {
+						requestAnimationFrame(animateRotation);
+					} else {
+						// Ensure final rotation is exactly 180 degrees
+						if (characterRef.current) {
+							characterRef.current.rotation.y = targetRotation;
+							characterRef.current.userData.stargateRotation = -targetRotation;
+							characterRef.current.userData.cameraRotation = characterRef.current.userData.stargateRotation;
+						}
+
+						// Clear just arrived flag
+						setTimeout(() => {
+							setJustArrived(false);
+						}, 300);
+					}
+				};
+
+				// Start the rotation animation
+				requestAnimationFrame(animateRotation);
+			};
+
+			// Function to trigger the gate shutdown animation
+			const triggerGateShutdown = () => {
+				// Create a custom event for the stargate to pick up
+				const shutdownEvent = new CustomEvent('stargate-shutdown', {
+					detail: { duration: 2000 } // 2 seconds for shutdown
+				});
+
+				// Dispatch the event for the stargate component
+				document.body.dispatchEvent(shutdownEvent);
+
+				// Actually deactivate the gate after the animation completes
+				setTimeout(() => {
+					setStargateActive(false);
+				}, 2000);
+			};
 		}
 	}, [planet, justArrived]);
 
@@ -196,7 +273,7 @@ const StargateRoom: React.FC = () => {
 
 	// Function to travel through the stargate
 	const travel = () => {
-		if (stargateActive) {
+		if (stargateActive && characterRef.current) {
 			// Clear any pending deactivation timer
 			if ((window as any).deactivationTimer) {
 				clearTimeout((window as any).deactivationTimer);
@@ -206,8 +283,56 @@ const StargateRoom: React.FC = () => {
 			// Update the message for a moment to show "Traveling..."
 			setInteractionHint('Entering wormhole...');
 
-			// Start the travel effect
-			setTimeout(() => {
+			// Get current position and calculate the direction vector to the stargate
+			const characterPosition = characterRef.current.position.clone();
+			const stargatePosition = stargatePositionRef.current;
+			const directionToGate = stargatePosition.clone().sub(characterPosition).normalize();
+
+			// Create the "pull" effect toward the gate
+			let startTime = performance.now();
+			const pullDuration = 600; // 0.6 seconds for the pull effect
+
+			// Store initial position
+			const initialPosition = characterPosition.clone();
+
+			// Calculate a target position slightly past the gate
+			const targetPosition = stargatePosition.clone().add(
+				directionToGate.clone().multiplyScalar(-0.5) // Slightly inside/past the gate
+			);
+
+			// Animation function for the pull effect
+			const animatePull = () => {
+				const now = performance.now();
+				const elapsed = now - startTime;
+				const progress = Math.min(elapsed / pullDuration, 1);
+
+				// Use easeIn function for accelerating pull effect
+				const easeIn = (t: number) => t * t;
+				const easedProgress = easeIn(progress);
+
+				// Apply position change
+				if (characterRef.current) {
+					// Interpolate between initial and target position
+					const newPosition = initialPosition.clone().lerp(targetPosition, easedProgress);
+					characterRef.current.position.copy(newPosition);
+
+					// Make player face the gate as they're pulled in
+					const lookAtGate = new THREE.Vector3().subVectors(stargatePosition, newPosition).normalize();
+					const angleToGate = Math.atan2(lookAtGate.x, lookAtGate.z);
+					characterRef.current.rotation.y = angleToGate;
+				}
+
+				// Continue animation until complete
+				if (progress < 1) {
+					requestAnimationFrame(animatePull);
+				} else {
+					// Start the travel effect after pull animation completes
+					startTravelEffect();
+				}
+			};
+
+			// Function to start the actual travel sequence
+			const startTravelEffect = () => {
 				startTravel(); // This triggers the wormhole effect
 
 				// Set the flag to indicate arrival through stargate
@@ -227,7 +352,10 @@ const StargateRoom: React.FC = () => {
 					deactivateGate();
 					setInteractionHint('');
 				}, 1000);
-			}, 500);
+			};
+
+			// Start pull animation
+			requestAnimationFrame(animatePull);
 		}
 	};
 

@@ -58,11 +58,6 @@ export default function CameraController({
 		// Check if target has a cameraRotation property (added in CharacterController)
 		const cameraRotation = target.current.userData?.cameraRotation || 0;
 
-		// Debug the camera rotation value periodically
-		if (Math.random() < 0.01) { // Limit debug printing to avoid console spam
-			console.log('Camera Controller - rotation value:', cameraRotation);
-		}
-
 		// Calculate camera position based on target position and rotation
 		let cameraOffset = new THREE.Vector3(offset[0], offset[1], offset[2]);
 
@@ -76,8 +71,12 @@ export default function CameraController({
 		// Calculate target camera position by adding rotated offset to target position
 		const cameraTargetPosition = targetPosition.clone().add(cameraOffset);
 
-		// Use a higher lerp value for faster camera response
-		const responsiveLerp = Math.min(lerp * 1.5, 1.0);
+		// Use a higher lerp value for faster camera response when rotating
+		// The larger the camera rotation, the faster we should move
+		const isRotating = Math.abs(cameraRotation) > 0.1;
+		const responsiveLerp = isRotating ?
+			Math.min(lerp * 3, 1.0) : // Faster during rotation
+			Math.min(lerp * 1.5, 1.0); // Standard follow
 
 		// Smoothly interpolate current camera position toward target position
 		camera.position.lerp(cameraTargetPosition, responsiveLerp);

@@ -21,11 +21,18 @@ const Stargate: React.FC<StargateProps> = ({
 	const [eventHorizonScale, setEventHorizonScale] = useState(0);
 	const lastActiveState = useRef(isActive);
 
+	// Add shutdown animation state
+	const [isShuttingDown, setIsShuttingDown] = useState(false);
+	const shutdownStartTimeRef = useRef(0);
+	const shutdownDurationRef = useRef(2000); // Default 2 seconds
+
 	// Handle activation stages
 	useEffect(() => {
 		if (isActive && !lastActiveState.current) {
 			// Starting the activation sequence
 			setActivationStage(1);
+			// Reset shutdown state when activating
+			setIsShuttingDown(false);
 
 			// Chevrons lighting up
 			const chevronInterval = setInterval(() => {
@@ -38,17 +45,88 @@ const Stargate: React.FC<StargateProps> = ({
 
 			return () => clearInterval(chevronInterval);
 		} else if (!isActive && lastActiveState.current) {
-			// Immediate deactivation
-			setActivationStage(0);
-			setEventHorizonScale(0);
+			// Only deactivate immediately if not in shutdown mode
+			if (!isShuttingDown) {
+				setActivationStage(0);
+				setEventHorizonScale(0);
+			}
 		}
 
 		lastActiveState.current = isActive;
+	}, [isActive, isShuttingDown]);
+
+	// Listen for shutdown event
+	useEffect(() => {
+		const handleShutdown = (event: Event) => {
+			if (isActive) {
+				console.log('Stargate shutdown initiated');
+				setIsShuttingDown(true);
+				shutdownStartTimeRef.current = performance.now();
+				// Get duration from custom event or use default
+				const customEvent = event as CustomEvent;
+				shutdownDurationRef.current = customEvent.detail?.duration || 2000;
+			}
+		};
+
+		// Add event listener with type assertion
+		document.body.addEventListener('stargate-shutdown',
+			handleShutdown as EventListener);
+
+		return () => {
+			document.body.removeEventListener('stargate-shutdown',
+				handleShutdown as EventListener);
+		};
 	}, [isActive]);
 
 	// Animation for the event horizon and chevrons
 	useFrame((state, delta) => {
-		// Event horizon animations
+		// Handle shutdown animation
+		if (isShuttingDown && isActive) {
+			const elapsed = performance.now() - shutdownStartTimeRef.current;
+			const progress = Math.min(elapsed / shutdownDurationRef.current, 1);
+
+			// Reverse animation for shutdown - ease out function
+			const reverseProgress = 1 - Math.pow(progress, 2);
+
+			if (eventHorizonRef.current) {
+				// Shrink the event horizon
+				eventHorizonRef.current.scale.set(reverseProgress, reverseProgress, 1);
+
+				// Fade out the opacity
+				const material = eventHorizonRef.current.material as THREE.MeshStandardMaterial;
+				material.opacity = reverseProgress * 0.7;
+				material.emissiveIntensity = reverseProgress * 0.5;
+			}
+
+			// Turn off chevrons in reverse order
+			if (chevronsRef.current && progress > 0.5) {
+				// Start turning off chevrons halfway through the animation
+				const chevronProgress = (progress - 0.5) * 2; // rescale from 0-1
+				const activeChevrons = Math.floor(9 * (1 - chevronProgress));
+
+				chevronsRef.current.children.forEach((chevron, i) => {
+					const material = (chevron as THREE.Mesh).material as THREE.MeshStandardMaterial;
+
+					// Gradually turn off chevrons in reverse order
+					if (i >= activeChevrons) {
+						material.emissiveIntensity = 0;
+						material.emissive.set("#000000");
+						material.color.set("#cc3300");
+					}
+				});
+			}
+
+			// When shutdown is complete
+			if (progress === 1) {
+				setIsShuttingDown(false);
+				setActivationStage(0);
+				setEventHorizonScale(0);
+			}
+
+			return; // Skip regular animation during shutdown
+		}
+
+		// Regular event horizon animations
 		if (eventHorizonRef.current) {
 			const material = eventHorizonRef.current.material as THREE.MeshStandardMaterial;
 
