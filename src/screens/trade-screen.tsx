@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import TradeRouteCreator from '../components/trade-route-creator';
+import TradeRoutesList from '../components/trade-routes-list';
 
 // Sample planet data - in a real app, this would come from game state
 const samplePlanets = [
@@ -20,6 +21,7 @@ interface TradeRoute {
 const TradeScreen = () => {
 	const [activeTab, setActiveTab] = useState<'list' | 'create'>('list');
 	const [routes, setRoutes] = useState<TradeRoute[]>([]);
+	const [editingRoute, setEditingRoute] = useState<TradeRoute | null>(null);
 
 	const handleCreateRoute = (sourceId: string, targetId: string, value: number) => {
 		const newRoute: TradeRoute = {
@@ -34,10 +36,13 @@ const TradeScreen = () => {
 		setActiveTab('list');
 	};
 
-	// Find planet name by id
-	const getPlanetName = (id: string): string => {
-		const planet = samplePlanets.find(p => p.id === id);
-		return planet ? planet.name : 'Unknown';
+	const handleEditRoute = (route: TradeRoute) => {
+		setEditingRoute(route);
+		setActiveTab('create');
+	};
+
+	const handleDeleteRoute = (routeId: string) => {
+		setRoutes(routes.filter(route => route.id !== routeId));
 	};
 
 	return (
@@ -62,25 +67,11 @@ const TradeScreen = () => {
 
 			<div className="trade-content">
 				{activeTab === 'list' ? (
-					<div className="trade-routes-list">
-						{routes.length === 0 ? (
-							<p>No trade routes established yet.</p>
-						) : (
-							<div>
-								<h3>Established Routes</h3>
-								<ul className="routes-list">
-									{routes.map(route => (
-										<li key={route.id} className="route-item">
-											<div className="route-planets">
-												{getPlanetName(route.sourcePlanetId)} → {getPlanetName(route.targetPlanetId)}
-											</div>
-											<div className="route-value">Value: {route.value}</div>
-										</li>
-									))}
-								</ul>
-							</div>
-						)}
-					</div>
+					<TradeRoutesList
+						planets={samplePlanets}
+						onEditRoute={handleEditRoute}
+						onDeleteRoute={handleDeleteRoute}
+					/>
 				) : (
 					<TradeRouteCreator
 						planets={samplePlanets}

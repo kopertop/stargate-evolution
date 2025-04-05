@@ -167,3 +167,127 @@ button:active {
 .route-value {
 	color: #90cdf4;
 }
+
+.trade-routes-container {
+	padding: 15px;
+}
+
+.trade-routes-loading,
+.trade-routes-empty {
+	text-align: center;
+	padding: 20px;
+	color: #aaa;
+	font-style: italic;
+}
+
+.route-info {
+	flex: 1;
+}
+
+.route-actions {
+	display: flex;
+	gap: 5px;
+}
+
+.edit-button,
+.delete-button {
+	padding: 5px 10px;
+	border: none;
+	border-radius: 4px;
+	color: white;
+	font-weight: bold;
+	cursor: pointer;
+	transition: background-color 0.3s;
+}
+
+.edit-button {
+	background-color: #3182ce;
+}
+
+.edit-button:hover {
+	background-color: #4299e1;
+}
+
+.delete-button {
+	background-color: #e53e3e;
+}
+
+.delete-button:hover {
+	background-color: #f56565;
+}
+
+/* Character control styles */
+.control-hint {
+	margin-top: 20px;
+	padding: 8px 12px;
+	background-color: rgba(0, 0, 0, 0.5);
+	border-radius: 4px;
+	display: inline-block;
+	font-weight: bold;
+	color: #fff;
+	border: 1px solid #666;
+}
+
+.game-controls {
+	margin-top: 15px;
+}
+
+/* Movement tutorial overlay - appears at the start */
+.movement-tutorial {
+	position: fixed;
+	bottom: 20px;
+	left: 50%;
+	transform: translateX(-50%);
+	background-color: rgba(0, 0, 0, 0.7);
+	padding: 15px 20px;
+	border-radius: 8px;
+	text-align: center;
+	color: white;
+	z-index: 1000;
+	box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+	animation: fadeInOut 6s forwards;
+}
+
+.movement-tutorial h3 {
+	margin-top: 0;
+	color: #4299e1;
+}
+
+.movement-tutorial .keys {
+	display: flex;
+	justify-content: center;
+	gap: 10px;
+	margin: 15px 0;
+}
+
+.movement-tutorial .key {
+	background-color: #2d3748;
+	color: white;
+	border-radius: 4px;
+	padding: 8px 12px;
+	font-weight: bold;
+	border: 1px solid #718096;
+	min-width: 20px;
+	text-align: center;
+}
+
+@keyframes fadeInOut {
+	0% { opacity: 0; }
+	10% { opacity: 1; }
+	80% { opacity: 1; }
+	100% { opacity: 0; }
+}
+
+/* Trade screen placeholder */
+.trade-screen-placeholder {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+	background-color: rgba(45, 55, 72, 0.9);
+	border-radius: 8px;
+	padding: 20px;
+	width: 400px;
+	text-align: center;
+	color: white;
+}

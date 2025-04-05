@@ -1,16 +1,18 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
-import { OrthographicCamera, OrbitControls } from '@react-three/drei';
+import { Canvas, useFrame, RootState } from '@react-three/fiber';
 import * as THREE from 'three';
 import { GameStateManager, GameLoop, TurnPhase } from './systems';
-import TradeScreen from './screens/trade-screen';
+import CharacterController from './components/character-controller';
+import StargateRoom from './components/stargate-room';
+import CameraController from './components/camera-controller';
+import MovementTutorial from './components/movement-tutorial';
 
 // Basic mesh component for testing
 function Box(props: any) {
 	const meshRef = useRef<THREE.Mesh>(null!);
 
 	// This effect is just for visuals, not game logic
-	useFrame((state, delta) => {
+	useFrame((state: RootState, delta: number) => {
 		if (meshRef.current) {
 			meshRef.current.rotation.x += delta * 0.2;
 		}
@@ -42,6 +44,7 @@ export default function App() {
 	const [turnNumber, setTurnNumber] = useState<number>(1);
 	const gameLoopRef = useRef<GameLoop | null>(null);
 	const [showTradeScreen, setShowTradeScreen] = useState(false);
+	const characterRef = useRef<THREE.Mesh>(null);
 
 	// Initialize game systems
 	useEffect(() => {
@@ -92,18 +95,28 @@ export default function App() {
 
 	return (
 		<div style={{ width: '100vw', height: '100vh', backgroundColor: '#111' }}>
+			{/* Movement tutorial */}
+			<MovementTutorial />
+
 			{/* Game info UI */}
 			<div className="game-ui">
 				<h3>Stargate Evolution</h3>
 				<p>Turn: {turnNumber}</p>
 				<p>Phase: {currentPhase}</p>
-				<button onClick={() => setShowTradeScreen(!showTradeScreen)} style={{ marginTop: '10px' }}>
-					{showTradeScreen ? 'Hide Trade' : 'Show Trade'}
-				</button>
+
+				<div className="game-controls">
+					<p className="control-hint">WASD or Arrow Keys to move</p>
+					<button
+						onClick={() => setShowTradeScreen(!showTradeScreen)}
+						style={{ marginTop: '10px' }}
+					>
+						{showTradeScreen ? 'Hide Trade' : 'Show Trade'}
+					</button>
+				</div>
 			</div>
 
 			{/* Trade UI */}
-			{showTradeScreen && <TradeScreen />}
+			{showTradeScreen && <div className="trade-screen-placeholder">Trade UI goes here</div>}
 
 			{/* Turn controls */}
 			<div className="turn-controls">
@@ -114,30 +127,36 @@ export default function App() {
 			</div>
 
 			{/* Main 3D Canvas */}
-			<Canvas>
-				{/* Use orthographic camera for top-down view */}
-				<OrthographicCamera makeDefault position={[0, 10, 0]} zoom={50} />
-
+			<Canvas shadows>
 				{/* Lighting */}
 				<ambientLight intensity={0.3} />
-				<directionalLight position={[10, 10, 5]} intensity={1} />
-
-				{/* Controls for panning and zooming */}
-				<OrbitControls
-					enableRotate={true}
-					maxPolarAngle={Math.PI / 2.1}
-					minPolarAngle={Math.PI / 3}
+				<directionalLight
+					position={[10, 15, 5]}
+					intensity={1}
+					castShadow
+					shadow-mapSize-width={2048}
+					shadow-mapSize-height={2048}
+					shadow-camera-far={50}
+					shadow-camera-left={-20}
+					shadow-camera-right={20}
+					shadow-camera-top={20}
+					shadow-camera-bottom={-20}
 				/>
 
-				{/* Planet representation - Earth */}
-				<Planet position={[0, 0, 0]} color="#2060ff" />
+				{/* Stargate room environment */}
+				<StargateRoom />
 
-				{/* Test Box - can be removed later */}
-				<Box position={[2, 0, 0]} />
+				{/* Character with keyboard controls */}
+				<CharacterController ref={characterRef} speed={0.1} />
+
+				{/* Camera that follows the character */}
+				{characterRef.current && (
+					<CameraController target={characterRef.current} offset={[0, 5, 5]} lerp={0.05} />
+				)}
 
 				{/* Coordinate helpers */}
 				<axesHelper args={[5]} />
-				<gridHelper args={[20, 20]} rotation={[Math.PI / 2, 0, 0]} />
+				<gridHelper args={[20, 20]} />
 			</Canvas>
 		</div>
 	);
