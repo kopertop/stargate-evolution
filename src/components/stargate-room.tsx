@@ -9,6 +9,7 @@ const StargateRoom: React.FC = () => {
 	const [stargateActive, setStargateActive] = useState(false);
 	const characterRef = useRef<THREE.Mesh>(null);
 	const [interactionHint, setInteractionHint] = useState('');
+	const [interactableObject, setInteractableObject] = useState<string | null>(null);
 
 	// Add interaction hint to DOM
 	useEffect(() => {
@@ -34,6 +35,22 @@ const StargateRoom: React.FC = () => {
 		};
 	}, [interactionHint]);
 
+	// Listen for spacebar press to trigger interaction
+	useEffect(() => {
+		const handleKeyDown = (e: KeyboardEvent) => {
+			if (e.code === 'Space' && interactableObject) {
+				if (interactableObject === 'dhd' || interactableObject === 'stargate') {
+					simulateTravel();
+				}
+			}
+		};
+
+		window.addEventListener('keydown', handleKeyDown);
+		return () => {
+			window.removeEventListener('keydown', handleKeyDown);
+		};
+	}, [interactableObject]);
+
 	// Function to simulate traveling to a new planet
 	const simulateTravel = () => {
 		if (!stargateActive) {
@@ -56,6 +73,7 @@ const StargateRoom: React.FC = () => {
 	const handleInteraction = (target: THREE.Object3D | null) => {
 		if (!target) {
 			setInteractionHint('');
+			setInteractableObject(null);
 			return;
 		}
 
@@ -67,12 +85,13 @@ const StargateRoom: React.FC = () => {
 
 		if (current.name === 'dhd') {
 			setInteractionHint('Press Space to activate DHD');
-			simulateTravel(); // Activate the DHD directly
+			setInteractableObject('dhd');
 		} else if (current.name === 'stargate') {
 			setInteractionHint('Press Space to enter Stargate');
-			simulateTravel(); // Activate the stargate directly
+			setInteractableObject('stargate');
 		} else {
 			setInteractionHint('');
+			setInteractableObject(null);
 		}
 	};
 
@@ -95,8 +114,13 @@ const StargateRoom: React.FC = () => {
 				onActivate={simulateTravel}
 			/>
 
-			{/* Character controller */}
-			<CharacterController ref={characterRef} onInteract={handleInteraction} />
+			{/* Character controller with configurable interaction parameters */}
+			<CharacterController
+				ref={characterRef}
+				onInteract={handleInteraction}
+				interactionRadius={4.5}   // Adjust this to make it easier/harder to interact
+				interactionAngle={75}     // Adjust this to widen/narrow the interaction field of view
+			/>
 
 			{/* Room lighting */}
 			<pointLight position={[0, 4, 0]} intensity={0.5} />

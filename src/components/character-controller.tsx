@@ -5,6 +5,8 @@ import * as THREE from 'three';
 interface CharacterControllerProps {
 	speed?: number;
 	onInteract?: (target: THREE.Object3D | null) => void;
+	interactionRadius?: number; // How close the player needs to be to interact
+	interactionAngle?: number; // Field of view angle for interaction (in degrees)
 }
 
 // Define wall boundaries as rectangular zones
@@ -22,11 +24,23 @@ const WALLS = [
 
 // Character radius for collision
 const CHARACTER_RADIUS = 0.5;
-// Interaction range
-const INTERACTION_RANGE = 3;
+
+// Distance at which an object is considered "extremely close" and direction check is skipped
+const EXTREMELY_CLOSE_DISTANCE = 2.5;
+
+// Interactive objects data
+const INTERACTIVE_OBJECTS = [
+	{ name: 'dhd', position: new THREE.Vector3(8, 0.5, 0), radius: 1.5 },
+	{ name: 'stargate', position: new THREE.Vector3(0, 2.5, -9), radius: 3 }
+];
 
 const CharacterController = forwardRef<THREE.Mesh, CharacterControllerProps>(
-	({ speed = 0.12, onInteract = () => {} }, ref) => {
+	({
+		speed = 0.12,
+		onInteract = () => {},
+		interactionRadius = 3.5, // Default interaction radius
+		interactionAngle = 60    // Default field of view angle in degrees
+	}, ref) => {
 		const characterRef = useRef<THREE.Mesh>(null!);
 		const keysPressed = useRef<Record<string, boolean>>({});
 		const [isMoving, setIsMoving] = useState(false);
@@ -35,39 +49,123 @@ const CharacterController = forwardRef<THREE.Mesh, CharacterControllerProps>(
 		const raycaster = useRef(new THREE.Raycaster());
 		const lookDirection = useRef(new THREE.Vector3(0, 0, -1));
 
+		// Keep track of the last frame we checked for interactions
+		const lastInteractionCheckRef = useRef(0);
+		// How often to check for interactions (in seconds)
+		const INTERACTION_CHECK_INTERVAL = 0.1;
+
 		// Expose the internal mesh ref to parent components via forwarded ref
 		useImperativeHandle(ref, () => characterRef.current);
 
-		// Handle spacebar interaction
-		const handleInteraction = () => {
+		// Check what's in front of the character
+		const checkInteraction = () => {
 			if (!characterRef.current) return;
 
-			// Update raycaster position and direction
-			const position = characterRef.current.position.clone();
-			// Adjust y position to be at the "head" level
-			position.y = 1.0;
+			// Get character position and facing direction
+			const characterPosition = characterRef.current.position.clone();
+			const facingDirection = new THREE.Vector3(0, 0, -1).applyQuaternion(characterRef.current.quaternion);
+			lookDirection.current = facingDirection;
 
-			// Use character's facing direction for the ray
-			const facing = new THREE.Vector3(0, 0, -1).applyQuaternion(characterRef.current.quaternion);
-			lookDirection.current = facing;
+			// Convert interaction angle to radians and calculate the cosine of half the angle
+			// This will be used to check if an object is within our field of view
+			const halfInteractionAngleRadians = THREE.MathUtils.degToRad(interactionAngle / 2);
+			const cosHalfAngle = Math.cos(halfInteractionAngleRadians);
 
-			raycaster.current.set(position, facing);
+			// Initialize variables to track the closest interactive object
+			let closestObject: THREE.Object3D | null = null;
+			let closestDistance = Infinity;
+			let closestObjectName = '';
 
-			// Find intersections with scene objects
-			const intersects = raycaster.current.intersectObjects(scene.children, true);
+			// Check each interactive object
+			for (const object of INTERACTIVE_OBJECTS) {
+				// Calculate vector to the object
+				const toObject = object.position.clone().sub(characterPosition);
 
-			// Filter for interactive objects within range
-			const interactiveObject = intersects.find(intersect =>
-				intersect.distance < INTERACTION_RANGE &&
-				(intersect.object.parent?.name === 'dhd' ||
-				 intersect.object.parent?.name === 'stargate')
-			);
+				// Ignore Y axis for distance calculation (2D distance)
+				const toObject2D = new THREE.Vector2(toObject.x, toObject.z);
+				const distance2D = toObject2D.length();
 
-			if (interactiveObject) {
-				onInteract(interactiveObject.object);
+				// Check if the object is within interaction radius
+				if (distance2D <= interactionRadius) {
+					// Check if we're extremely close to the object
+					const extremelyClose = distance2D <= EXTREMELY_CLOSE_DISTANCE;
+
+					// If we're extremely close OR the object is in our field of view
+					if (extremelyClose || isDotProductInFieldOfView(facingDirection, toObject, cosHalfAngle)) {
+						// If this object is closer than the previously found closest object, update
+						if (distance2D < closestDistance) {
+							// Use raycasting to find the actual mesh within the interactive object
+							const rayDirection = extremelyClose ? toObject.normalize() : facingDirection;
+							raycaster.current.set(characterPosition, rayDirection);
+							const intersects = raycaster.current.intersectObjects(scene.children, true);
+
+							// Find the first intersection that belongs to our target object
+							const targetName = object.name;
+							const objectIntersect = findObjectIntersection(intersects, targetName, extremelyClose);
+
+							if (objectIntersect) {
+								closestObject = objectIntersect.object;
+								closestDistance = distance2D;
+								closestObjectName = object.name;
+							}
+						}
+					}
+				}
+			}
+
+			// If we found an interactive object within range and field of view, notify via callback
+			if (closestObject) {
+				onInteract(closestObject);
 			} else {
 				onInteract(null);
 			}
+		};
+
+		// Check if dot product indicates the object is in our field of view
+		const isDotProductInFieldOfView = (facingDirection: THREE.Vector3, toObject: THREE.Vector3, cosHalfAngle: number): boolean => {
+			// Normalize the vectors for the dot product
+			const normalizedToObject = toObject.clone().normalize();
+
+			// Calculate dot product between facing direction and direction to object
+			// This tells us if the object is in front of the character
+			const dotProduct = facingDirection.dot(normalizedToObject);
+
+			// If dot product is greater than the cosine of half the interaction angle,
+			// the object is within our field of view
+			return dotProduct > cosHalfAngle;
+		};
+
+		// Find an object intersection considering the extremely close case
+		const findObjectIntersection = (
+			intersects: THREE.Intersection[],
+			targetName: string,
+			extremelyClose: boolean
+		): THREE.Intersection | undefined => {
+			// If we're extremely close, we need a more lenient check
+			if (extremelyClose) {
+				// Find any intersection with the target name
+				return intersects.find(intersect => {
+					let current = intersect.object;
+					while (current && !current.name && current.parent) {
+						current = current.parent;
+					}
+					return current.name === targetName;
+				});
+			} else {
+				// Standard case - find the first intersection with the target name
+				return intersects.find(intersect => {
+					let current = intersect.object;
+					while (current && !current.name && current.parent) {
+						current = current.parent;
+					}
+					return current.name === targetName;
+				});
+			}
+		};
+
+		// Handle spacebar interaction
+		const handleInteraction = () => {
+			checkInteraction();
 		};
 
 		// Set up key event listeners
@@ -192,6 +290,13 @@ const CharacterController = forwardRef<THREE.Mesh, CharacterControllerProps>(
 			} else {
 				// Reset height when not moving
 				characterRef.current.position.y = 0.5;
+			}
+
+			// Periodically check for interactive objects in front of the character
+			lastInteractionCheckRef.current += delta;
+			if (lastInteractionCheckRef.current > INTERACTION_CHECK_INTERVAL) {
+				checkInteraction();
+				lastInteractionCheckRef.current = 0;
 			}
 		});
 
