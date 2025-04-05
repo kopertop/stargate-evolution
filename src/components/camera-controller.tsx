@@ -14,11 +14,12 @@ export default function CameraController({
 	lerp = 0.1
 }: CameraControllerProps) {
 	const { camera } = useThree();
-	const camPosRef = useRef(new THREE.Vector3(offset[0], offset[1], offset[2]));
+	const initializedRef = useRef(false);
+	const defaultPosition = useRef(new THREE.Vector3(0, offset[1], offset[2]));
 
-	// Initialize camera position
+	// Initialize camera position as soon as target becomes available
 	useEffect(() => {
-		if (target) {
+		if (target && !initializedRef.current) {
 			const targetPosition = target.position.clone();
 			camera.position.set(
 				targetPosition.x + offset[0],
@@ -26,6 +27,11 @@ export default function CameraController({
 				targetPosition.z + offset[2]
 			);
 			camera.lookAt(targetPosition);
+			initializedRef.current = true;
+		} else if (!target && !initializedRef.current) {
+			// Set a default camera position if target not yet available
+			camera.position.set(defaultPosition.current.x, defaultPosition.current.y, defaultPosition.current.z);
+			camera.lookAt(new THREE.Vector3(0, 0, 0));
 		}
 	}, [target, offset, camera]);
 
