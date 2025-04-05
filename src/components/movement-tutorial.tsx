@@ -1,13 +1,28 @@
 import React, { useState, useEffect } from 'react';
 
-export default function MovementTutorial() {
+const MovementTutorial: React.FC = () => {
 	const [visible, setVisible] = useState(true);
 
-	// Auto-hide the tutorial after 6 seconds
+	// Set up key event listeners to show tutorial on ? key press
+	useEffect(() => {
+		const handleKeyDown = (e: KeyboardEvent) => {
+			if (e.key === '?') {
+				setVisible(true);
+			}
+		};
+
+		window.addEventListener('keydown', handleKeyDown);
+
+		return () => {
+			window.removeEventListener('keydown', handleKeyDown);
+		};
+	}, []);
+
+	// Auto-hide the tutorial after 10 seconds
 	useEffect(() => {
 		const timer = setTimeout(() => {
 			setVisible(false);
-		}, 6000);
+		}, 10000);
 
 		return () => clearTimeout(timer);
 	}, []);
@@ -16,24 +31,18 @@ export default function MovementTutorial() {
 
 	return (
 		<div className="movement-tutorial">
-			<h3>Character Controls</h3>
-			<p>Use the following keys to move around:</p>
-
-			<div className="keys">
-				<div className="key">W</div>
-				<div className="key">A</div>
-				<div className="key">S</div>
-				<div className="key">D</div>
-			</div>
-
-			<p>or Arrow Keys</p>
-
-			<div className="keys">
-				<div className="key">↑</div>
-				<div className="key">←</div>
-				<div className="key">↓</div>
-				<div className="key">→</div>
+			<h3>Movement Controls:</h3>
+			<ul>
+				<li>Use <span className="key">W</span>, <span className="key">A</span>, <span className="key">S</span>, <span className="key">D</span> or arrow keys to move</li>
+				<li>The character will automatically face the direction of movement</li>
+				<li>Collision detection prevents walking through walls, the Stargate, and DHD</li>
+				<li>Press <span className="key">?</span> to show this help again</li>
+			</ul>
+			<div className="close-button" onClick={() => setVisible(false)}>
+				×
 			</div>
 		</div>
 	);
-}
+};
+
+export default MovementTutorial;

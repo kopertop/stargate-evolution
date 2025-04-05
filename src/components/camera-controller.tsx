@@ -1,9 +1,10 @@
-import React, { useRef, useEffect } from 'react';
-import { useThree, useFrame, RootState } from '@react-three/fiber';
+import React, { useRef, useEffect, RefObject } from 'react';
+import { useThree, useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 
+// More flexible interface that accepts any ref to an object with a position
 interface CameraControllerProps {
-	target: THREE.Object3D | null;
+	target: RefObject<any>; // Accept any ref that has a position property
 	offset?: [number, number, number];
 	lerp?: number;
 }
@@ -19,8 +20,8 @@ export default function CameraController({
 
 	// Initialize camera position as soon as target becomes available
 	useEffect(() => {
-		if (target && !initializedRef.current) {
-			const targetPosition = target.position.clone();
+		if (target.current && target.current.position && !initializedRef.current) {
+			const targetPosition = target.current.position.clone();
 			camera.position.set(
 				targetPosition.x + offset[0],
 				targetPosition.y + offset[1],
@@ -28,7 +29,7 @@ export default function CameraController({
 			);
 			camera.lookAt(targetPosition);
 			initializedRef.current = true;
-		} else if (!target && !initializedRef.current) {
+		} else if (!target.current && !initializedRef.current) {
 			// Set a default camera position if target not yet available
 			camera.position.set(defaultPosition.current.x, defaultPosition.current.y, defaultPosition.current.z);
 			camera.lookAt(new THREE.Vector3(0, 0, 0));
@@ -36,11 +37,11 @@ export default function CameraController({
 	}, [target, offset, camera]);
 
 	// Update camera position to follow target
-	useFrame((state: RootState, delta: number) => {
-		if (!target) return;
+	useFrame((state, delta) => {
+		if (!target.current || !target.current.position) return;
 
 		// Calculate target camera position
-		const targetPosition = target.position.clone();
+		const targetPosition = target.current.position.clone();
 		const cameraTargetPosition = new THREE.Vector3(
 			targetPosition.x + offset[0],
 			targetPosition.y + offset[1],

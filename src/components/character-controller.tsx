@@ -6,6 +6,22 @@ interface CharacterControllerProps {
 	speed?: number;
 }
 
+// Define wall boundaries as rectangular zones
+const WALLS = [
+	// Back wall
+	{ minX: -10, maxX: 10, minZ: -10.25, maxZ: -9.75 },
+	// Left wall
+	{ minX: -10.25, maxX: -9.75, minZ: -10, maxZ: 10 },
+	// Right wall
+	{ minX: 9.75, maxX: 10.25, minZ: -10, maxZ: 10 },
+
+	// Stargate (treated as a circular collision zone, handled separately)
+	// DHD (treated as a collision zone, handled separately)
+];
+
+// Character radius for collision
+const CHARACTER_RADIUS = 0.5;
+
 const CharacterController = forwardRef<THREE.Mesh, CharacterControllerProps>(
 	({ speed = 0.05 }, ref) => {
 		const characterRef = useRef<THREE.Mesh>(null!);
@@ -36,6 +52,37 @@ const CharacterController = forwardRef<THREE.Mesh, CharacterControllerProps>(
 			};
 		}, []);
 
+		// Check if a position would collide with walls
+		const checkCollision = (position: THREE.Vector3): boolean => {
+			// Check rectangular wall collisions
+			for (const wall of WALLS) {
+				if (
+					position.x + CHARACTER_RADIUS > wall.minX &&
+					position.x - CHARACTER_RADIUS < wall.maxX &&
+					position.z + CHARACTER_RADIUS > wall.minZ &&
+					position.z - CHARACTER_RADIUS < wall.maxZ
+				) {
+					return true; // Collision detected
+				}
+			}
+
+			// Check stargate collision (circular collision zone)
+			const stargatePosition = new THREE.Vector3(0, 0, -9);
+			const stargateRadius = 3;
+			if (position.distanceTo(stargatePosition) < stargateRadius + CHARACTER_RADIUS) {
+				return true; // Collision with stargate
+			}
+
+			// Check DHD collision
+			const dhdPosition = new THREE.Vector3(0, 0, -5);
+			const dhdRadius = 1.5;
+			if (position.distanceTo(dhdPosition) < dhdRadius + CHARACTER_RADIUS) {
+				return true; // Collision with DHD
+			}
+
+			return false; // No collision
+		};
+
 		// Update character position each frame based on keys pressed
 		useFrame((state: RootState, delta: number) => {
 			if (!characterRef.current) return;
@@ -59,9 +106,31 @@ const CharacterController = forwardRef<THREE.Mesh, CharacterControllerProps>(
 				const normalizedX = moveX / length;
 				const normalizedZ = moveZ / length;
 
-				// Update position
-				characterRef.current.position.x += normalizedX * speed;
-				characterRef.current.position.z += normalizedZ * speed;
+				// Calculate the next position
+				const nextPosition = characterRef.current.position.clone();
+				nextPosition.x += normalizedX * speed;
+				nextPosition.z += normalizedZ * speed;
+
+				// Only update position if there's no collision
+				if (!checkCollision(nextPosition)) {
+					characterRef.current.position.copy(nextPosition);
+				} else {
+					// Try to slide along walls by moving in only one direction at a time
+					const nextPositionX = characterRef.current.position.clone();
+					nextPositionX.x += normalizedX * speed;
+
+					const nextPositionZ = characterRef.current.position.clone();
+					nextPositionZ.z += normalizedZ * speed;
+
+					// Try moving only in X direction
+					if (!checkCollision(nextPositionX)) {
+						characterRef.current.position.copy(nextPositionX);
+					}
+					// Try moving only in Z direction
+					else if (!checkCollision(nextPositionZ)) {
+						characterRef.current.position.copy(nextPositionZ);
+					}
+				}
 
 				// Face direction of movement
 				const angle = Math.atan2(normalizedX, normalizedZ);
