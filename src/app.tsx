@@ -5,6 +5,8 @@ import CharacterController from './components/character-controller';
 import StargateRoom from './components/stargate-room';
 import CameraController from './components/camera-controller';
 import MovementTutorial from './components/movement-tutorial';
+import StargateWormholeEffect from './components/stargate-travel-effect';
+import WormholeOverlay from './components/wormhole-overlay';
 import { OrbitControls } from '@react-three/drei';
 
 // Create a context for location information
@@ -12,12 +14,16 @@ interface LocationContextType {
 	planet: string;
 	location: string;
 	updateLocation: (planet: string, location: string) => void;
+	startTravel: () => void;
+	isInWormhole: boolean;
 }
 
 export const LocationContext = createContext<LocationContextType>({
 	planet: 'Earth',
 	location: 'Stargate Command',
 	updateLocation: () => {},
+	startTravel: () => {},
+	isInWormhole: false
 });
 
 // Hook to easily access and update location
@@ -40,7 +46,10 @@ const HelpReminder = () => {
 
 // Location display component
 const LocationDisplay = () => {
-	const { planet, location } = useLocation();
+	const { planet, location, isInWormhole } = useLocation();
+
+	// Don't show location during wormhole travel
+	if (isInWormhole) return null;
 
 	return (
 		<div className="game-ui">
@@ -55,10 +64,34 @@ export default function App() {
 		planet: 'Earth',
 		location: 'Stargate Command'
 	});
+	const [isInWormhole, setIsInWormhole] = useState(false);
+	const [destinationInfo, setDestinationInfo] = useState<{planet: string, location: string} | null>(null);
 
 	// Function to update location that can be called from game logic
 	const updateLocation = (planet: string, location: string) => {
-		setLocationInfo({ planet, location });
+		// When traveling through the wormhole, store the destination
+		// but don't update the displayed location until after the effect
+		if (isInWormhole) {
+			setDestinationInfo({ planet, location });
+		} else {
+			setLocationInfo({ planet, location });
+		}
+	};
+
+	// Function to start the wormhole travel effect
+	const startTravel = () => {
+		setIsInWormhole(true);
+	};
+
+	// Function called when the wormhole effect completes
+	const handleTravelComplete = () => {
+		setIsInWormhole(false);
+
+		// Update to the destination location if one was set
+		if (destinationInfo) {
+			setLocationInfo(destinationInfo);
+			setDestinationInfo(null);
+		}
 	};
 
 	return (
@@ -66,12 +99,17 @@ export default function App() {
 			value={{
 				planet: locationInfo.planet,
 				location: locationInfo.location,
-				updateLocation
+				updateLocation,
+				startTravel,
+				isInWormhole
 			}}
 		>
 			<div style={{ width: '100vw', height: '100vh', backgroundColor: '#111' }}>
-				{/* Movement tutorial */}
-				<MovementTutorial />
+				{/* DOM-based wormhole overlay effects */}
+				<WormholeOverlay />
+
+				{/* Movement tutorial (hide during wormhole travel) */}
+				{!isInWormhole && <MovementTutorial />}
 
 				{/* Location info */}
 				<LocationDisplay />
@@ -96,11 +134,18 @@ export default function App() {
 						shadow-camera-bottom={-20}
 					/>
 
-					{/* Room and environment */}
-					<StargateRoom />
+					{/* Wormhole travel effect (shown only when traveling) */}
+					<StargateWormholeEffect
+						active={isInWormhole}
+						onComplete={handleTravelComplete}
+						duration={5} // 5 seconds of travel
+					/>
 
-					{/* Character */}
-					<CharacterController ref={characterRef} />
+					{/* Room and environment (hide during wormhole travel) */}
+					{!isInWormhole && <StargateRoom />}
+
+					{/* Character (hide during wormhole travel) */}
+					{!isInWormhole && <CharacterController ref={characterRef} />}
 
 					{/* Camera that follows the character */}
 					<CameraController
@@ -109,12 +154,14 @@ export default function App() {
 						lerp={0.1}
 					/>
 
-					{/* Allow camera control with mouse */}
-					<OrbitControls
-						enablePan={false}
-						maxPolarAngle={Math.PI / 2 - 0.1}
-						minPolarAngle={Math.PI / 6}
-					/>
+					{/* Allow camera control with mouse (disable during wormhole) */}
+					{!isInWormhole && (
+						<OrbitControls
+							enablePan={false}
+							maxPolarAngle={Math.PI / 2 - 0.1}
+							minPolarAngle={Math.PI / 6}
+						/>
+					)}
 				</Canvas>
 			</div>
 		</LocationContext.Provider>

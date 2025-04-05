@@ -5,11 +5,11 @@ import CharacterController from './character-controller';
 import * as THREE from 'three';
 
 const StargateRoom: React.FC = () => {
-	const { updateLocation } = useLocation();
+	const { updateLocation, startTravel } = useLocation();
 	const [dhdActive, setDhdActive] = useState(false);
 	const [stargateActive, setStargateActive] = useState(false);
 	const characterRef = useRef<THREE.Group>(null);
-	const [interactionHint, setInteractionHint] = useState<string|null>(null);
+	const [interactionHint, setInteractionHint] = useState('');
 	const [interactableObject, setInteractableObject] = useState<string | null>(null);
 	const stargatePositionRef = useRef(new THREE.Vector3(0, 2.5, -9));
 	const lastCheckedPositionRef = useRef(new THREE.Vector3());
@@ -151,18 +151,22 @@ const StargateRoom: React.FC = () => {
 			}
 
 			// Update the message for a moment to show "Traveling..."
-			setInteractionHint('Traveling to Abydos...');
+			setInteractionHint('Entering wormhole...');
 
-			// After a short delay (to show the person entering the event horizon), change location
+			// Start the travel effect
 			setTimeout(() => {
-				updateLocation('Abydos', 'Temple of Ra');
+				startTravel(); // This triggers the wormhole effect
 
-				// After a delay, deactivate the gate on the other side
+				// Update location after a brief delay
 				setTimeout(() => {
+					updateLocation('Abydos', 'Temple of Ra');
+
+					// The gate will be deactivated automatically when we return
+					// from the wormhole effect sequence
 					deactivateGate();
 					setInteractionHint('');
-				}, 2000);
-			}, 1000);
+				}, 1000);
+			}, 500);
 		}
 	};
 

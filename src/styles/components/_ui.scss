@@ -1,0 +1,72 @@
+@use '../variables' as *;
+
+// Location display
+.game-ui {
+	position: fixed;
+	top: $spacing-md;
+	left: $spacing-md;
+	z-index: $z-index-overlay;
+	padding: $spacing-sm $spacing-md;
+	background-color: $overlay-dark;
+	border-radius: $border-radius-md;
+	color: $primary;
+	border: 1px solid $border-primary;
+	box-shadow: $shadow-md;
+
+	h3 {
+		margin: 0;
+		font-size: $font-size-lg;
+		font-weight: normal;
+		text-shadow: 0 0 8px rgba($primary, 0.8);
+	}
+
+	p {
+		margin: $spacing-xs 0;
+		font-size: $font-size-sm;
+	}
+}
+
+// Turn controls
+.turn-controls {
+	position: fixed;
+	bottom: $spacing-lg;
+	right: $spacing-lg;
+	z-index: $z-index-controls;
+	display: flex;
+	flex-direction: column;
+	gap: $spacing-sm;
+
+	button {
+		padding: $spacing-sm $spacing-md;
+		background: $overlay-dark;
+		border: 1px solid $primary;
+		color: $primary;
+		border-radius: $border-radius-sm;
+		cursor: pointer;
+		transition: $transition-fast;
+
+		&:hover {
+			background: rgba(0, 40, 60, 0.8);
+			box-shadow: $shadow-sm;
+		}
+	}
+}
+
+// Interaction hint
+.interaction-hint {
+	position: fixed;
+	bottom: 50px;
+	left: 50%;
+	transform: translateX(-50%);
+	background-color: $overlay-dark;
+	color: $primary;
+	padding: $spacing-sm $spacing-lg;
+	border-radius: $border-radius-md;
+	font-size: $font-size-md;
+	text-align: center;
+	z-index: $z-index-hints;
+	pointer-events: none;
+	border: 1px solid $border-primary;
+	box-shadow: $shadow-md;
+	text-shadow: 0 0 8px rgba($primary, 0.8);
+}

@@ -144,7 +144,7 @@ const Stargate: React.FC<StargateProps> = ({
 							position={[
 								Math.sin(angle) * 3.2,
 								Math.cos(angle) * 3.2,
-								0.1
+								0.5
 							]}
 							rotation={[0, 0, -angle - Math.PI / 2]}
 						>

@@ -92,4 +92,55 @@ If you encounter the error `crypto.getRandomValues() is not supported`, the app 
 *   **React Components**: Leverage React functional components, hooks (`useState`, `useEffect`, `useRef`), and R3F components/hooks (`<Canvas>`, `<mesh>`, `useFrame` sparingly) for building the scene and UI.
 *   **TypeScript & Modularity**: Maintain strong typing and break down systems into modular, reusable components/functions.
 
+## Styling System
+
+The project uses a modular SCSS system for styling, organized for better maintainability and scalability.
+
+### Directory Structure
+
+```
+src/styles/
+├── main.scss              # Main entry file that imports all other styles
+├── base/                  # Basic styles, resets, typography
+│   ├── _index.scss        # Forwards all files in the directory
+│   └── _reset.scss        # CSS reset and base styles
+├── components/            # UI component styles
+│   ├── _index.scss        # Forwards all files in the directory
+│   ├── _ui.scss           # Game UI element styles
+│   └── _help.scss         # Help and tutorial styles
+├── effects/               # Visual effects
+│   ├── _index.scss        # Forwards all files in the directory
+│   └── _wormhole.scss     # Wormhole travel effect styles
+├── layout/                # Layout styles (currently empty)
+└── variables/             # SCSS variables
+    ├── _index.scss        # Forwards all files in the directory
+    ├── _colors.scss       # Color variables
+    └── _sizes.scss        # Size, spacing and z-index variables
+```
+
+### Using Variables
+
+When creating a new SCSS file, import the variables at the top:
+
+```scss
+@use '../styles/variables' as *;
+
+.my-component {
+  color: $primary;
+  padding: $spacing-md;
+  border-radius: $border-radius-sm;
+}
+```
+
+### Best Practices
+
+- Create new component-specific styles in the appropriate directory 
+- Always use the defined variables for colors, sizes, z-indices, and transitions
+- Follow the naming pattern of prefixing partial files with underscore (_)
+- Keep nesting to a maximum of 3 levels deep for better CSS output
+- Use the `&` parent selector for modifiers and pseudo-classes
+- Update the corresponding `_index.scss` file when adding new files
+
+For more details on the styling system, see `src/README.md`.
+
  
