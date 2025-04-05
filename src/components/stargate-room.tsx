@@ -1,24 +1,10 @@
-import React, { useState, useRef } from 'react';
-import * as THREE from 'three';
-import { useFrame } from '@react-three/fiber';
+import React, { useState } from 'react';
 import { useLocation } from '../app';
+import { DHD, Stargate, Room } from './assets';
 
 const StargateRoom: React.FC = () => {
 	const { updateLocation } = useLocation();
 	const [stargateActive, setStargateActive] = useState(false);
-	const eventHorizonRef = useRef<THREE.Mesh>(null);
-
-	// Animation for the event horizon
-	useFrame((state, delta) => {
-		if (eventHorizonRef.current && stargateActive) {
-			// Rotate the event horizon when active
-			eventHorizonRef.current.rotation.z += delta * 0.5;
-
-			// Pulse the emissive intensity
-			const material = eventHorizonRef.current.material as THREE.MeshStandardMaterial;
-			material.emissiveIntensity = 0.5 + Math.sin(state.clock.elapsedTime * 2) * 0.3;
-		}
-	});
 
 	// Function to simulate traveling to a new planet
 	const simulateTravel = () => {
@@ -40,110 +26,22 @@ const StargateRoom: React.FC = () => {
 
 	return (
 		<group>
-			{/* Floor */}
-			<mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]}>
-				<planeGeometry args={[20, 20]} />
-				<meshStandardMaterial color="#555555" />
-			</mesh>
-
-			{/* Walls that match our collision boundaries */}
-			{/* Back wall */}
-			<mesh position={[0, 2.5, -10]}>
-				<boxGeometry args={[20, 5, 0.5]} />
-				<meshStandardMaterial color="#777777" />
-			</mesh>
-
-			{/* Left wall */}
-			<mesh position={[-10, 2.5, 0]}>
-				<boxGeometry args={[0.5, 5, 20]} />
-				<meshStandardMaterial color="#777777" />
-			</mesh>
-
-			{/* Right wall */}
-			<mesh position={[10, 2.5, 0]}>
-				<boxGeometry args={[0.5, 5, 20]} />
-				<meshStandardMaterial color="#777777" />
-			</mesh>
+			{/* Basic room structure */}
+			<Room size={[20, 20]} wallHeight={5} />
 
 			{/* Stargate */}
-			<group position={[0, 2.5, -9]}>
-				{/* Outer ring */}
-				<mesh>
-					<torusGeometry args={[3, 0.5, 16, 32]} />
-					<meshStandardMaterial color="#444444" />
-				</mesh>
-
-				{/* Inner part (event horizon placeholder) - Now interactive */}
-				<mesh
-					ref={eventHorizonRef}
-					onClick={simulateTravel}
-					onPointerOver={() => document.body.style.cursor = 'pointer'}
-					onPointerOut={() => document.body.style.cursor = 'auto'}
-				>
-					<circleGeometry args={[2.5, 32]} />
-					<meshStandardMaterial
-						color={stargateActive ? "#66ccff" : "#3399ff"}
-						emissive={stargateActive ? "#00aaff" : "#0066cc"}
-						emissiveIntensity={stargateActive ? 1 : 0.5}
-						transparent={true}
-						opacity={stargateActive ? 0.9 : 0.7}
-					/>
-				</mesh>
-
-				{/* Chevrons */}
-				{Array.from({ length: 9 }).map((_, i) => {
-					const angle = (i * (360 / 9) * Math.PI) / 180;
-					return (
-						<mesh
-							key={`chevron-${i}`}
-							position={[
-								Math.sin(angle) * 3.2,
-								Math.cos(angle) * 3.2,
-								0.1
-							]}
-							rotation={[0, 0, -angle - Math.PI / 2]}
-						>
-							<coneGeometry args={[0.4, 0.6, 3]} />
-							<meshStandardMaterial
-								color={stargateActive && i < 7 ? "#ff6600" : "#cc3300"}
-								emissive={stargateActive && i < 7 ? "#ff3300" : "#00000"}
-								emissiveIntensity={stargateActive && i < 7 ? 0.8 : 0}
-							/>
-						</mesh>
-					);
-				})}
-			</group>
+			<Stargate
+				position={[0, 2.5, -9]}
+				isActive={stargateActive}
+				onActivate={simulateTravel}
+			/>
 
 			{/* DHD (Dial Home Device) */}
-			<group position={[0, 1, -5]}>
-				{/* Base */}
-				<mesh position={[0, 0, 0]}>
-					<cylinderGeometry args={[1.5, 2, 1, 16]} />
-					<meshStandardMaterial color="#555555" />
-				</mesh>
-
-				{/* Console top */}
-				<mesh position={[0, 0.5, 0]} rotation={[0.5, 0, 0]}>
-					<cylinderGeometry args={[1.2, 1.5, 0.3, 16]} />
-					<meshStandardMaterial color="#333333" />
-				</mesh>
-
-				{/* Center control crystal */}
-				<mesh
-					position={[0, 0.7, 0]}
-					rotation={[0.5, 0, 0]}
-					onClick={simulateTravel}
-					onPointerOver={() => document.body.style.cursor = 'pointer'}
-					onPointerOut={() => document.body.style.cursor = 'auto'}
-				>
-					<sphereGeometry args={[0.3, 16, 16]} />
-					<meshStandardMaterial
-						color={stargateActive ? "#ff6600" : "#ff3300"}
-						emissive={stargateActive ? "#ff6600" : "#ff3300"}
-						emissiveIntensity={stargateActive ? 1 : 0.5}
-					/>
-				</mesh>
-			</group>
+			<DHD
+				position={[8, 0.5, 0]}
+				isActive={stargateActive}
+				onActivate={simulateTravel}
+			/>
 
 			{/* Room lighting */}
 			<pointLight position={[0, 4, 0]} intensity={0.5} />

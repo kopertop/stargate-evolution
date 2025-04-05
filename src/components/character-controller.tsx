@@ -23,7 +23,7 @@ const WALLS = [
 const CHARACTER_RADIUS = 0.5;
 
 const CharacterController = forwardRef<THREE.Mesh, CharacterControllerProps>(
-	({ speed = 0.05 }, ref) => {
+	({ speed = 0.12 }, ref) => {
 		const characterRef = useRef<THREE.Mesh>(null!);
 		const keysPressed = useRef<Record<string, boolean>>({});
 		const [isMoving, setIsMoving] = useState(false);
@@ -74,7 +74,7 @@ const CharacterController = forwardRef<THREE.Mesh, CharacterControllerProps>(
 			}
 
 			// Check DHD collision
-			const dhdPosition = new THREE.Vector3(0, 0, -5);
+			const dhdPosition = new THREE.Vector3(8, 0, 0);
 			const dhdRadius = 1.5;
 			if (position.distanceTo(dhdPosition) < dhdRadius + CHARACTER_RADIUS) {
 				return true; // Collision with DHD
