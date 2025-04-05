@@ -6,6 +6,7 @@ import * as THREE from 'three';
 
 const StargateRoom: React.FC = () => {
 	const { updateLocation } = useLocation();
+	const [dhdActive, setDhdActive] = useState(false);
 	const [stargateActive, setStargateActive] = useState(false);
 	const characterRef = useRef<THREE.Mesh>(null);
 	const [interactionHint, setInteractionHint] = useState('');
@@ -39,8 +40,11 @@ const StargateRoom: React.FC = () => {
 	useEffect(() => {
 		const handleKeyDown = (e: KeyboardEvent) => {
 			if (e.code === 'Space' && interactableObject) {
-				if (interactableObject === 'dhd' || interactableObject === 'stargate') {
-					simulateTravel();
+				if (interactableObject === 'dhd') {
+					activateDHD();
+				} else if (interactableObject === 'stargate' && stargateActive) {
+					// Only allow travel through an already active stargate
+					travel();
 				}
 			}
 		};
@@ -49,24 +53,54 @@ const StargateRoom: React.FC = () => {
 		return () => {
 			window.removeEventListener('keydown', handleKeyDown);
 		};
-	}, [interactableObject]);
+	}, [interactableObject, stargateActive]);
 
-	// Function to simulate traveling to a new planet
-	const simulateTravel = () => {
-		if (!stargateActive) {
-			// Activate the stargate
-			setStargateActive(true);
+	// Function to activate the DHD, which then activates the Stargate
+	const activateDHD = () => {
+		if (!dhdActive && !stargateActive) {
+			// Activate the DHD first
+			setDhdActive(true);
 
-			// After 3 seconds, "travel" to Abydos
+			// After a short delay, activate the stargate
+			setTimeout(() => {
+				setStargateActive(true);
+
+				// Set a timer to auto-deactivate if no travel happens
+				const deactivationTimer = setTimeout(() => {
+					deactivateGate();
+				}, 20000); // Auto-deactivate after 20 seconds if not used
+
+				// Store the timer ID to clear it if travel happens
+				(window as any).deactivationTimer = deactivationTimer;
+			}, 2500); // Delay before stargate activates after DHD
+		}
+	};
+
+	// Function to travel through the stargate
+	const travel = () => {
+		if (stargateActive) {
+			// Clear any pending deactivation timer
+			if ((window as any).deactivationTimer) {
+				clearTimeout((window as any).deactivationTimer);
+				(window as any).deactivationTimer = null;
+			}
+
+			// After a short delay (to show the person entering the event horizon), change location
 			setTimeout(() => {
 				updateLocation('Abydos', 'Temple of Ra');
 
-				// After another 2 seconds, deactivate the stargate
+				// After a delay, deactivate the gate on the other side
 				setTimeout(() => {
-					setStargateActive(false);
+					deactivateGate();
 				}, 2000);
-			}, 3000);
+			}, 1000);
 		}
+	};
+
+	// Function to deactivate both the stargate and DHD
+	const deactivateGate = () => {
+		setStargateActive(false);
+		setDhdActive(false);
 	};
 
 	// Handle interactions from character controller
@@ -83,10 +117,10 @@ const StargateRoom: React.FC = () => {
 			current = current.parent;
 		}
 
-		if (current.name === 'dhd') {
+		if (current.name === 'dhd' && !stargateActive) {
 			setInteractionHint('Press Space to activate DHD');
 			setInteractableObject('dhd');
-		} else if (current.name === 'stargate') {
+		} else if (current.name === 'stargate' && stargateActive) {
 			setInteractionHint('Press Space to enter Stargate');
 			setInteractableObject('stargate');
 		} else {
@@ -104,14 +138,18 @@ const StargateRoom: React.FC = () => {
 			<Stargate
 				position={[0, 2.5, -9]}
 				isActive={stargateActive}
-				onActivate={simulateTravel}
+				onActivate={() => {
+					if (stargateActive) {
+						travel();
+					}
+				}}
 			/>
 
 			{/* DHD (Dial Home Device) */}
 			<DHD
 				position={[8, 0.5, 0]}
-				isActive={stargateActive}
-				onActivate={simulateTravel}
+				isActive={dhdActive}
+				onActivate={activateDHD}
 			/>
 
 			{/* Character controller with configurable interaction parameters */}
