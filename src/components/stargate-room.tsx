@@ -1,7 +1,43 @@
-import React from 'react';
+import React, { useState, useRef } from 'react';
 import * as THREE from 'three';
+import { useFrame } from '@react-three/fiber';
+import { useLocation } from '../app';
 
 const StargateRoom: React.FC = () => {
+	const { updateLocation } = useLocation();
+	const [stargateActive, setStargateActive] = useState(false);
+	const eventHorizonRef = useRef<THREE.Mesh>(null);
+
+	// Animation for the event horizon
+	useFrame((state, delta) => {
+		if (eventHorizonRef.current && stargateActive) {
+			// Rotate the event horizon when active
+			eventHorizonRef.current.rotation.z += delta * 0.5;
+
+			// Pulse the emissive intensity
+			const material = eventHorizonRef.current.material as THREE.MeshStandardMaterial;
+			material.emissiveIntensity = 0.5 + Math.sin(state.clock.elapsedTime * 2) * 0.3;
+		}
+	});
+
+	// Function to simulate traveling to a new planet
+	const simulateTravel = () => {
+		if (!stargateActive) {
+			// Activate the stargate
+			setStargateActive(true);
+
+			// After 3 seconds, "travel" to Abydos
+			setTimeout(() => {
+				updateLocation('Abydos', 'Temple of Ra');
+
+				// After another 2 seconds, deactivate the stargate
+				setTimeout(() => {
+					setStargateActive(false);
+				}, 2000);
+			}, 3000);
+		}
+	};
+
 	return (
 		<group>
 			{/* Floor */}
@@ -37,15 +73,20 @@ const StargateRoom: React.FC = () => {
 					<meshStandardMaterial color="#444444" />
 				</mesh>
 
-				{/* Inner part (event horizon placeholder) */}
-				<mesh>
+				{/* Inner part (event horizon placeholder) - Now interactive */}
+				<mesh
+					ref={eventHorizonRef}
+					onClick={simulateTravel}
+					onPointerOver={() => document.body.style.cursor = 'pointer'}
+					onPointerOut={() => document.body.style.cursor = 'auto'}
+				>
 					<circleGeometry args={[2.5, 32]} />
 					<meshStandardMaterial
-						color="#3399ff"
-						emissive="#0066cc"
-						emissiveIntensity={0.5}
+						color={stargateActive ? "#66ccff" : "#3399ff"}
+						emissive={stargateActive ? "#00aaff" : "#0066cc"}
+						emissiveIntensity={stargateActive ? 1 : 0.5}
 						transparent={true}
-						opacity={0.7}
+						opacity={stargateActive ? 0.9 : 0.7}
 					/>
 				</mesh>
 
@@ -63,7 +104,11 @@ const StargateRoom: React.FC = () => {
 							rotation={[0, 0, -angle - Math.PI / 2]}
 						>
 							<coneGeometry args={[0.4, 0.6, 3]} />
-							<meshStandardMaterial color="#cc3300" />
+							<meshStandardMaterial
+								color={stargateActive && i < 7 ? "#ff6600" : "#cc3300"}
+								emissive={stargateActive && i < 7 ? "#ff3300" : "#00000"}
+								emissiveIntensity={stargateActive && i < 7 ? 0.8 : 0}
+							/>
 						</mesh>
 					);
 				})}
@@ -84,12 +129,18 @@ const StargateRoom: React.FC = () => {
 				</mesh>
 
 				{/* Center control crystal */}
-				<mesh position={[0, 0.7, 0]} rotation={[0.5, 0, 0]}>
+				<mesh
+					position={[0, 0.7, 0]}
+					rotation={[0.5, 0, 0]}
+					onClick={simulateTravel}
+					onPointerOver={() => document.body.style.cursor = 'pointer'}
+					onPointerOut={() => document.body.style.cursor = 'auto'}
+				>
 					<sphereGeometry args={[0.3, 16, 16]} />
 					<meshStandardMaterial
-						color="#ff3300"
-						emissive="#ff3300"
-						emissiveIntensity={0.5}
+						color={stargateActive ? "#ff6600" : "#ff3300"}
+						emissive={stargateActive ? "#ff6600" : "#ff3300"}
+						emissiveIntensity={stargateActive ? 1 : 0.5}
 					/>
 				</mesh>
 			</group>
@@ -97,7 +148,11 @@ const StargateRoom: React.FC = () => {
 			{/* Room lighting */}
 			<pointLight position={[0, 4, 0]} intensity={0.5} />
 			<pointLight position={[0, 4, -5]} intensity={0.3} />
-			<pointLight position={[0, 4, -9]} intensity={0.3} color="#66ccff" />
+			<pointLight
+				position={[0, 4, -9]}
+				intensity={stargateActive ? 0.8 : 0.3}
+				color={stargateActive ? "#66eeff" : "#66ccff"}
+			/>
 		</group>
 	);
 };

@@ -21,13 +21,22 @@ body, html {
 
 .game-ui {
 	position: absolute;
-	top: 10px;
-	left: 10px;
-	z-index: 10;
-	padding: 10px;
+	top: 15px;
+	left: 15px;
+	z-index: 1500;
+	padding: 10px 15px;
 	background-color: rgba(0, 0, 0, 0.7);
-	border-radius: 5px;
-	color: white;
+	border-radius: 6px;
+	color: #00ffff;
+	border: 1px solid rgba(0, 255, 255, 0.4);
+	box-shadow: 0 0 10px rgba(0, 255, 255, 0.3);
+}
+
+.game-ui h3 {
+	margin: 0;
+	font-size: 18px;
+	font-weight: 500;
+	text-shadow: 0 0 5px rgba(0, 255, 255, 0.5);
 }
 
 .turn-controls {

@@ -8,6 +8,15 @@ const MovementTutorial: React.FC = () => {
 		const handleKeyDown = (e: KeyboardEvent) => {
 			if (e.key === '?') {
 				setVisible(true);
+
+				// Reset auto-hide timer when showing via key press
+				if (!visible) {
+					const timer = setTimeout(() => {
+						setVisible(false);
+					}, 10000);
+
+					return () => clearTimeout(timer);
+				}
 			}
 		};
 
@@ -16,16 +25,18 @@ const MovementTutorial: React.FC = () => {
 		return () => {
 			window.removeEventListener('keydown', handleKeyDown);
 		};
-	}, []);
+	}, [visible]);
 
-	// Auto-hide the tutorial after 10 seconds
+	// Auto-hide the tutorial after 10 seconds on initial load
 	useEffect(() => {
-		const timer = setTimeout(() => {
-			setVisible(false);
-		}, 10000);
+		if (visible) {
+			const timer = setTimeout(() => {
+				setVisible(false);
+			}, 10000);
 
-		return () => clearTimeout(timer);
-	}, []);
+			return () => clearTimeout(timer);
+		}
+	}, [visible]);
 
 	if (!visible) return null;
 
@@ -36,7 +47,7 @@ const MovementTutorial: React.FC = () => {
 				<li>Use <span className="key">W</span>, <span className="key">A</span>, <span className="key">S</span>, <span className="key">D</span> or arrow keys to move</li>
 				<li>The character will automatically face the direction of movement</li>
 				<li>Collision detection prevents walking through walls, the Stargate, and DHD</li>
-				<li>Press <span className="key">?</span> to show this help again</li>
+				<li>Press <span className="key">?</span> or click the help button to show this help again</li>
 			</ul>
 			<div className="close-button" onClick={() => setVisible(false)}>
 				×
