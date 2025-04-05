@@ -1,9 +1,25 @@
 import React, { useState, useEffect } from 'react';
 
-const MovementTutorial: React.FC = () => {
-	const [isVisible, setIsVisible] = useState(true);
+// Local storage key
+const TUTORIAL_SHOWN_KEY = 'stargate-movement-tutorial-shown';
 
-	// Set up a keyboard listener to show/hide the tutorial
+const MovementTutorial: React.FC = () => {
+	// Initialize to hidden, we'll check localStorage in useEffect
+	const [isVisible, setIsVisible] = useState(false);
+
+	// Check if tutorial has been shown before on component mount
+	useEffect(() => {
+		const hasShownTutorial = localStorage.getItem(TUTORIAL_SHOWN_KEY) === 'true';
+
+		// Only show tutorial if it hasn't been shown before
+		if (!hasShownTutorial) {
+			setIsVisible(true);
+			// Mark as shown for future sessions
+			localStorage.setItem(TUTORIAL_SHOWN_KEY, 'true');
+		}
+	}, []);
+
+	// Set up a keyboard listener to show/hide the tutorial with ? key
 	useEffect(() => {
 		const handleKeyDown = (e: KeyboardEvent) => {
 			if (e.key === '?') {
@@ -34,6 +50,11 @@ const MovementTutorial: React.FC = () => {
 			<div className="close-button" onClick={handleClose}>✕</div>
 		</div>
 	);
+};
+
+// Add a helper function to reset tutorial if needed
+export const resetTutorial = () => {
+	localStorage.removeItem(TUTORIAL_SHOWN_KEY);
 };
 
 export default MovementTutorial;

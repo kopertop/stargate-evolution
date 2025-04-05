@@ -7,6 +7,7 @@ import CameraController from './components/camera-controller';
 import MovementTutorial from './components/movement-tutorial';
 import StargateWormholeEffect from './components/stargate-travel-effect';
 import WormholeOverlay from './components/wormhole-overlay';
+import HelpReminder from './components/help-reminder';
 import { OrbitControls } from '@react-three/drei';
 
 // Create a context for location information
@@ -28,21 +29,6 @@ export const LocationContext = createContext<LocationContextType>({
 
 // Hook to easily access and update location
 export const useLocation = () => useContext(LocationContext);
-
-// Small help reminder component with click functionality
-const HelpReminder = () => {
-	const handleHelpClick = () => {
-		// Simulate pressing the ? key to show the help dialog
-		const event = new KeyboardEvent('keydown', { key: '?' });
-		window.dispatchEvent(event);
-	};
-
-	return (
-		<div className="help-button" onClick={handleHelpClick}>
-			?
-		</div>
-	);
-};
 
 // Location display component
 const LocationDisplay = () => {
