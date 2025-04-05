@@ -1,14 +1,12 @@
 import React, { useRef, useState, createContext, useContext } from 'react';
 import { Canvas } from '@react-three/fiber';
 import * as THREE from 'three';
-import CharacterController from './components/character-controller';
 import StargateRoom from './components/stargate-room';
 import CameraController from './components/camera-controller';
 import MovementTutorial from './components/movement-tutorial';
 import StargateWormholeEffect from './components/stargate-travel-effect';
 import WormholeOverlay from './components/wormhole-overlay';
 import HelpReminder from './components/help-reminder';
-import { OrbitControls } from '@react-three/drei';
 
 // Create a context for location information
 interface LocationContextType {
@@ -44,8 +42,22 @@ const LocationDisplay = () => {
 	);
 };
 
+// Create a context for sharing the character reference
+interface CharacterRefContextType {
+	characterRef: React.RefObject<THREE.Group | null>;
+}
+
+export const CharacterRefContext = createContext<CharacterRefContextType>({
+	characterRef: { current: null }
+});
+
+// Hook to easily access the character reference
+export const useCharacterRef = () => useContext(CharacterRefContext);
+
 export default function App() {
+	// Character reference that will be provided by StargateRoom
 	const characterRef = useRef<THREE.Group>(null);
+
 	const [locationInfo, setLocationInfo] = useState({
 		planet: 'Earth',
 		location: 'Stargate Command'
@@ -90,66 +102,56 @@ export default function App() {
 				isInWormhole
 			}}
 		>
-			<div style={{ width: '100vw', height: '100vh', backgroundColor: '#111' }}>
-				{/* DOM-based wormhole overlay effects */}
-				<WormholeOverlay />
+			<CharacterRefContext.Provider value={{ characterRef }}>
+				<div style={{ width: '100vw', height: '100vh', backgroundColor: '#111' }}>
+					{/* DOM-based wormhole overlay effects */}
+					<WormholeOverlay />
 
-				{/* Movement tutorial (hide during wormhole travel) */}
-				{!isInWormhole && <MovementTutorial />}
+					{/* Movement tutorial (hide during wormhole travel) */}
+					{!isInWormhole && <MovementTutorial />}
 
-				{/* Location info */}
-				<LocationDisplay />
+					{/* Location info */}
+					<LocationDisplay />
 
-				{/* Help Button - always visible */}
-				<HelpReminder />
+					{/* Help Button - always visible */}
+					<HelpReminder />
 
-				{/* Main 3D Canvas */}
-				<Canvas shadows>
-					{/* Lighting */}
-					<ambientLight intensity={0.3} />
-					<directionalLight
-						position={[10, 15, 5]}
-						intensity={1}
-						castShadow
-						shadow-mapSize-width={2048}
-						shadow-mapSize-height={2048}
-						shadow-camera-far={50}
-						shadow-camera-left={-20}
-						shadow-camera-right={20}
-						shadow-camera-top={20}
-						shadow-camera-bottom={-20}
-					/>
-
-					{/* Wormhole travel effect (shown only when traveling) */}
-					<StargateWormholeEffect
-						active={isInWormhole}
-						onComplete={handleTravelComplete}
-						duration={5} // 5 seconds of travel
-					/>
-
-					{/* Room and environment (hide during wormhole travel) */}
-					{!isInWormhole && <StargateRoom />}
-
-					{/* Character (hide during wormhole travel) */}
-					{!isInWormhole && <CharacterController ref={characterRef} />}
-
-					{/* Camera that follows the character */}
-					<CameraController
-						target={characterRef}
-						offset={[0, 3, 6]}
-						lerp={0.1}
-					/>
-
-					{/* Allow camera control with mouse (disable during wormhole) */}
-					{!isInWormhole && (
-						<OrbitControls
-							enablePan={false}
-							maxPolarAngle={Math.PI / 2 - 0.1}
-							minPolarAngle={Math.PI / 6}
+					{/* Main 3D Canvas */}
+					<Canvas shadows>
+						{/* Lighting */}
+						<ambientLight intensity={0.3} />
+						<directionalLight
+							position={[10, 15, 5]}
+							intensity={1}
+							castShadow
+							shadow-mapSize-width={2048}
+							shadow-mapSize-height={2048}
+							shadow-camera-far={50}
+							shadow-camera-left={-20}
+							shadow-camera-right={20}
+							shadow-camera-top={20}
+							shadow-camera-bottom={-20}
 						/>
-					)}
-				</Canvas>
-			</div>
+
+						{/* Wormhole travel effect (shown only when traveling) */}
+						<StargateWormholeEffect
+							active={isInWormhole}
+							onComplete={handleTravelComplete}
+							duration={5} // 5 seconds of travel
+						/>
+
+						{/* Room and environment (hide during wormhole travel) */}
+						{!isInWormhole && <StargateRoom />}
+
+						{/* Camera that follows the character */}
+						<CameraController
+							target={characterRef}
+							offset={[0, 3, 6]}
+							lerp={0.1}
+						/>
+					</Canvas>
+				</div>
+			</CharacterRefContext.Provider>
 		</LocationContext.Provider>
 	);
 }

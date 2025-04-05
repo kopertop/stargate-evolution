@@ -3,11 +3,13 @@
 # dependencies
 node_modules/
 
-# Expo
+# Build
 .expo/
 dist/
 web-build/
+build/
 expo-env.d.ts
+*.js
 
 # Native
 *.orig.*

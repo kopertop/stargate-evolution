@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useLocation } from '../app';
+import { useLocation, useCharacterRef } from '../app';
 import { DHD, Stargate, Room } from './assets';
 import CharacterController from './character-controller';
 import * as THREE from 'three';
@@ -21,19 +21,53 @@ const PLANET_THEMES = {
 	// Add more planets as needed
 };
 
+// Define spawn positions for each planet
+const SPAWN_POSITIONS = {
+	Earth: new THREE.Vector3(0, 0.5, -6), // In front of the gate
+	Abydos: new THREE.Vector3(0, 0.5, -6)  // In front of the gate
+};
+
 const StargateRoom: React.FC = () => {
 	const { planet, location, updateLocation, startTravel } = useLocation();
+	const { characterRef } = useCharacterRef(); // Get the shared character reference
 	const [dhdActive, setDhdActive] = useState(false);
 	const [stargateActive, setStargateActive] = useState(false);
-	const characterRef = useRef<THREE.Group>(null);
 	const [interactionHint, setInteractionHint] = useState('');
 	const [interactableObject, setInteractableObject] = useState<string | null>(null);
 	const stargatePositionRef = useRef(new THREE.Vector3(0, 2.5, -9));
 	const lastCheckedPositionRef = useRef(new THREE.Vector3());
 	const hasEnteredGateRef = useRef(false);
+	const [justArrived, setJustArrived] = useState(false);
 
 	// Get current planet theme
 	const theme = PLANET_THEMES[planet as keyof typeof PLANET_THEMES] || PLANET_THEMES.Earth;
+
+	// Set player position when they first arrive on a planet via the stargate
+	useEffect(() => {
+		// Check for local storage flag indicating arrival through stargate
+		const arrivedThroughGate = sessionStorage.getItem('arrived-through-gate') === 'true';
+
+		if (arrivedThroughGate && characterRef.current && !justArrived) {
+			// Clear the flag
+			sessionStorage.removeItem('arrived-through-gate');
+
+			// Get spawn position for this planet
+			const spawnPosition = SPAWN_POSITIONS[planet as keyof typeof SPAWN_POSITIONS] ||
+				new THREE.Vector3(0, 0.5, -6);
+
+			// Position player and make them face away from the gate
+			characterRef.current.position.copy(spawnPosition);
+			characterRef.current.rotation.y = Math.PI; // Face opposite direction from gate
+
+			// Mark as just arrived to prevent multiple repositioning
+			setJustArrived(true);
+
+			// Clear the just arrived flag after a short delay
+			setTimeout(() => {
+				setJustArrived(false);
+			}, 1000);
+		}
+	}, [planet, justArrived]);
 
 	// Add interaction hint to DOM
 	useEffect(() => {
@@ -176,6 +210,9 @@ const StargateRoom: React.FC = () => {
 			setTimeout(() => {
 				startTravel(); // This triggers the wormhole effect
 
+				// Set the flag to indicate arrival through stargate
+				sessionStorage.setItem('arrived-through-gate', 'true');
+
 				// Update location after a brief delay
 				setTimeout(() => {
 					// Switch destination based on current location
@@ -258,12 +295,13 @@ const StargateRoom: React.FC = () => {
 
 			{/* Character controller with configurable interaction parameters */}
 			<CharacterController
-				ref={characterRef}
+				ref={characterRef} // Use the shared reference
 				onInteract={handleInteraction}
 				interactionRadius={4.5}
 				interactionAngle={75}
 				// Ensure the stargate doesn't block movement
 				ignoreObjects={['stargate']}
+				allowCameraRotation={true} // Enable camera rotation
 			/>
 
 			{/* Room lighting colored based on planet */}

@@ -18,6 +18,12 @@ export default function CameraController({
 	const initializedRef = useRef(false);
 	const defaultPosition = useRef(new THREE.Vector3(0, offset[1], offset[2]));
 
+	// Cache last known target information
+	const lastTargetInfo = useRef({
+		position: new THREE.Vector3(),
+		rotation: new THREE.Euler()
+	});
+
 	// Initialize camera position as soon as target becomes available
 	useEffect(() => {
 		if (target.current && target.current.position && !initializedRef.current) {
@@ -29,6 +35,12 @@ export default function CameraController({
 			);
 			camera.lookAt(targetPosition);
 			initializedRef.current = true;
+
+			// Initialize last known target info
+			lastTargetInfo.current.position.copy(targetPosition);
+			if (target.current.rotation) {
+				lastTargetInfo.current.rotation.copy(target.current.rotation);
+			}
 		} else if (!target.current && !initializedRef.current) {
 			// Set a default camera position if target not yet available
 			camera.position.set(defaultPosition.current.x, defaultPosition.current.y, defaultPosition.current.z);
@@ -40,19 +52,42 @@ export default function CameraController({
 	useFrame((state, delta) => {
 		if (!target.current || !target.current.position) return;
 
-		// Calculate target camera position
 		const targetPosition = target.current.position.clone();
-		const cameraTargetPosition = new THREE.Vector3(
-			targetPosition.x + offset[0],
-			targetPosition.y + offset[1],
-			targetPosition.z + offset[2]
-		);
+		const targetRotation = target.current.rotation ? target.current.rotation : new THREE.Euler();
+
+		// Check if target has a cameraRotation property (added in CharacterController)
+		const cameraRotation = target.current.userData?.cameraRotation || 0;
+
+		// Debug the camera rotation value periodically
+		if (Math.random() < 0.01) { // Limit debug printing to avoid console spam
+			console.log('Camera Controller - rotation value:', cameraRotation);
+		}
+
+		// Calculate camera position based on target position and rotation
+		let cameraOffset = new THREE.Vector3(offset[0], offset[1], offset[2]);
+
+		// Apply camera rotation if present
+		if (cameraRotation !== 0) {
+			// Rotate the offset around the Y axis based on camera rotation
+			const rotationMatrix = new THREE.Matrix4().makeRotationY(cameraRotation);
+			cameraOffset.applyMatrix4(rotationMatrix);
+		}
+
+		// Calculate target camera position by adding rotated offset to target position
+		const cameraTargetPosition = targetPosition.clone().add(cameraOffset);
+
+		// Use a higher lerp value for faster camera response
+		const responsiveLerp = Math.min(lerp * 1.5, 1.0);
 
 		// Smoothly interpolate current camera position toward target position
-		camera.position.lerp(cameraTargetPosition, lerp);
+		camera.position.lerp(cameraTargetPosition, responsiveLerp);
 
 		// Make camera look at the target
 		camera.lookAt(targetPosition);
+
+		// Update last known target info
+		lastTargetInfo.current.position.copy(targetPosition);
+		lastTargetInfo.current.rotation.copy(targetRotation);
 	});
 
 	return null;

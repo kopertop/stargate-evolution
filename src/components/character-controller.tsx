@@ -9,6 +9,7 @@ interface CharacterControllerProps {
 	interactionRadius?: number; // How close the player needs to be to interact
 	interactionAngle?: number; // Field of view angle for interaction (in degrees)
 	ignoreObjects?: string[]; // Names of objects that shouldn't block movement
+	allowCameraRotation?: boolean; // Flag to enable/disable camera rotation
 }
 
 // Define wall boundaries as rectangular zones
@@ -39,18 +40,25 @@ const CharacterController = forwardRef<THREE.Group, CharacterControllerProps>(
 		onInteract = () => {},
 		interactionRadius = 3.5, // Default interaction radius
 		interactionAngle = 60,    // Default field of view angle in degrees
-		ignoreObjects = []       // Default to empty list
+		ignoreObjects = [],       // Default to empty list
+		allowCameraRotation = false // Default to no camera rotation
 	}, ref) => {
 		const groupRef = useRef<THREE.Group>(null!);
 		const keysPressed = useRef<Record<string, boolean>>({});
 		const [isMoving, setIsMoving] = useState(false);
 		const animationTimeRef = useRef(0);
-		const { scene } = useThree();
+		const { scene, camera } = useThree();
 		const raycaster = useRef(new THREE.Raycaster());
 		const lookDirection = useRef(new THREE.Vector3(0, 0, -1));
 		const [nearbyObject, setNearbyObject] = useState<THREE.Object3D | null>(null);
 		const [isLookingAtObject, setIsLookingAtObject] = useState(false);
 		const keyboard = useKeyboard();
+
+		// Camera control references
+		const cameraRotationRef = useRef(0);
+		const targetRotationRef = useRef(0);
+		const mouseMoveRef = useRef({ x: 0, y: 0 });
+		const isRotatingRef = useRef(false);
 
 		// Keep track of the last frame we checked for interactions
 		const lastInteractionCheckRef = useRef(0);
@@ -59,6 +67,56 @@ const CharacterController = forwardRef<THREE.Group, CharacterControllerProps>(
 
 		// Forward the ref to the parent component
 		useImperativeHandle(ref, () => groupRef.current);
+
+		// Handle mouse movement for camera rotation
+		useEffect(() => {
+			if (!allowCameraRotation) return;
+
+			const handleMouseDown = (e: MouseEvent) => {
+				// Only start rotation on right mouse button
+				if (e.button === 2) {
+					isRotatingRef.current = true;
+					mouseMoveRef.current = { x: e.clientX, y: e.clientY };
+				}
+			};
+
+			const handleMouseUp = (e: MouseEvent) => {
+				// Stop rotation on mouse button release
+				if (e.button === 2) {
+					isRotatingRef.current = false;
+				}
+			};
+
+			const handleMouseMove = (e: MouseEvent) => {
+				if (isRotatingRef.current) {
+					// Calculate mouse delta
+					const deltaX = e.clientX - mouseMoveRef.current.x;
+					mouseMoveRef.current = { x: e.clientX, y: e.clientY };
+
+					// Update target rotation based on mouse movement
+					// Negative to make movement direction feel natural
+					targetRotationRef.current -= deltaX * 0.01;
+				}
+			};
+
+			// Prevent context menu on right-click for rotation
+			const preventContextMenu = (e: MouseEvent) => {
+				e.preventDefault();
+			};
+
+			// Set up event listeners
+			window.addEventListener('mousedown', handleMouseDown);
+			window.addEventListener('mouseup', handleMouseUp);
+			window.addEventListener('mousemove', handleMouseMove);
+			window.addEventListener('contextmenu', preventContextMenu);
+
+			return () => {
+				window.removeEventListener('mousedown', handleMouseDown);
+				window.removeEventListener('mouseup', handleMouseUp);
+				window.removeEventListener('mousemove', handleMouseMove);
+				window.removeEventListener('contextmenu', preventContextMenu);
+			};
+		}, [allowCameraRotation]);
 
 		// Check what's in front of the character
 		const checkInteraction = () => {
@@ -174,9 +232,9 @@ const CharacterController = forwardRef<THREE.Group, CharacterControllerProps>(
 			checkInteraction();
 		};
 
-		// Set up key event listeners
+		// Consolidate all key event listeners
 		useEffect(() => {
-			// Track key presses
+			// Track key presses for WASD movement
 			const handleKeyDown = (e: KeyboardEvent) => {
 				keysPressed.current[e.key.toLowerCase()] = true;
 
@@ -286,6 +344,27 @@ const CharacterController = forwardRef<THREE.Group, CharacterControllerProps>(
 		useFrame((state: RootState, delta: number) => {
 			if (!groupRef.current) return;
 
+			// Check for camera rotation keys
+			if (allowCameraRotation) {
+				// Check for Q and E keys in keyboard hook (more reliable than keysPressed)
+				if (keyboard.keys.has('KeyQ')) {
+					targetRotationRef.current += delta * 2; // Smoother rotation left
+				}
+				if (keyboard.keys.has('KeyE')) {
+					targetRotationRef.current -= delta * 2; // Smoother rotation right
+				}
+
+				// Make rotation more responsive by using a higher lerp factor
+				cameraRotationRef.current = THREE.MathUtils.lerp(
+					cameraRotationRef.current,
+					targetRotationRef.current,
+					delta * 10 // Increased from 5 to 10 for faster response
+				);
+
+				// Store camera rotation in userData for the CameraController to access
+				groupRef.current.userData.cameraRotation = cameraRotationRef.current;
+			}
+
 			// Calculate movement direction
 			const moveZ = (keyboard.keys.has('KeyW') || keyboard.keys.has('ArrowUp') ? -1 : 0) +
 						  (keyboard.keys.has('KeyS') || keyboard.keys.has('ArrowDown') ? 1 : 0);
@@ -307,10 +386,22 @@ const CharacterController = forwardRef<THREE.Group, CharacterControllerProps>(
 				const normalizedX = moveX / length;
 				const normalizedZ = moveZ / length;
 
+				// Apply camera rotation to movement direction
+				let rotatedX = normalizedX;
+				let rotatedZ = normalizedZ;
+
+				if (allowCameraRotation) {
+					// Rotate movement direction based on camera rotation
+					const cos = Math.cos(cameraRotationRef.current);
+					const sin = Math.sin(cameraRotationRef.current);
+					rotatedX = normalizedX * cos - normalizedZ * sin;
+					rotatedZ = normalizedX * sin + normalizedZ * cos;
+				}
+
 				// Calculate the next position
 				const nextPosition = groupRef.current.position.clone();
-				nextPosition.x += normalizedX * speed;
-				nextPosition.z += normalizedZ * speed;
+				nextPosition.x += rotatedX * speed;
+				nextPosition.z += rotatedZ * speed;
 
 				// Only update position if there's no collision
 				if (!checkCollision(nextPosition)) {
@@ -318,10 +409,10 @@ const CharacterController = forwardRef<THREE.Group, CharacterControllerProps>(
 				} else {
 					// Try to slide along walls by moving in only one direction at a time
 					const nextPositionX = groupRef.current.position.clone();
-					nextPositionX.x += normalizedX * speed;
+					nextPositionX.x += rotatedX * speed;
 
 					const nextPositionZ = groupRef.current.position.clone();
-					nextPositionZ.z += normalizedZ * speed;
+					nextPositionZ.z += rotatedZ * speed;
 
 					// Try moving only in X direction
 					if (!checkCollision(nextPositionX)) {
@@ -333,9 +424,16 @@ const CharacterController = forwardRef<THREE.Group, CharacterControllerProps>(
 					}
 				}
 
-				// Face direction of movement
-				const angle = Math.atan2(normalizedX, normalizedZ);
-				groupRef.current.rotation.y = angle;
+				// Face direction of movement (either with or without camera rotation)
+				if (allowCameraRotation) {
+					// In camera rotation mode, the character faces the direction of movement relative to camera
+					const angle = Math.atan2(rotatedX, rotatedZ);
+					groupRef.current.rotation.y = angle;
+				} else {
+					// In fixed camera mode, the character just faces movement direction
+					const angle = Math.atan2(normalizedX, normalizedZ);
+					groupRef.current.rotation.y = angle;
+				}
 
 				// Increment animation time for bobbing effect
 				animationTimeRef.current += delta * 10;
