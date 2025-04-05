@@ -4,8 +4,25 @@ import { DHD, Stargate, Room } from './assets';
 import CharacterController from './character-controller';
 import * as THREE from 'three';
 
+// Define themes for different planets
+const PLANET_THEMES = {
+	Earth: {
+		wallColor: '#555555',
+		floorColor: '#444444',
+		ambientLight: '#ffffff',
+		pointLightColor: '#66ccff'
+	},
+	Abydos: {
+		wallColor: '#AA8855', // Sandy/desert color
+		floorColor: '#8A6642', // Darker sand color
+		ambientLight: '#ffebcd', // Desert light color
+		pointLightColor: '#ffdab9' // Peach/sand color for lights
+	},
+	// Add more planets as needed
+};
+
 const StargateRoom: React.FC = () => {
-	const { updateLocation, startTravel } = useLocation();
+	const { planet, location, updateLocation, startTravel } = useLocation();
 	const [dhdActive, setDhdActive] = useState(false);
 	const [stargateActive, setStargateActive] = useState(false);
 	const characterRef = useRef<THREE.Group>(null);
@@ -14,6 +31,9 @@ const StargateRoom: React.FC = () => {
 	const stargatePositionRef = useRef(new THREE.Vector3(0, 2.5, -9));
 	const lastCheckedPositionRef = useRef(new THREE.Vector3());
 	const hasEnteredGateRef = useRef(false);
+
+	// Get current planet theme
+	const theme = PLANET_THEMES[planet as keyof typeof PLANET_THEMES] || PLANET_THEMES.Earth;
 
 	// Add interaction hint to DOM
 	useEffect(() => {
@@ -88,22 +108,21 @@ const StargateRoom: React.FC = () => {
 				}
 			}
 
-			// Check for actual passing through the gate
-			const isNearGatePlane = Math.abs(characterPosition.z - stargatePosition.z) < 0.7; // Slightly wider detection
-			const isWithinRadius = horizontalDistance < 2.7; // Slightly larger radius
+			// IMPROVED: More forgiving travel detection
+			// Check for proximity to the gate rather than requiring to cross through it
+			const isNearGatePlane = Math.abs(characterPosition.z - stargatePosition.z) < 1.5; // Wider detection zone
+			const isWithinRadius = horizontalDistance < 3.0; // Larger radius for detection
+			const isApproachingGate = characterPosition.z > stargatePosition.z &&
+			                          Math.abs(characterPosition.z - stargatePosition.z) < 2.5; // Check if approaching from front
 
-			// Detect if crossing from front to back
-			const wasInFrontOfGate = lastCheckedPositionRef.current.z > stargatePosition.z;
-			const isNowBehindGate = characterPosition.z <= stargatePosition.z;
-			const crossingFromFront = wasInFrontOfGate && isNowBehindGate;
-
-			// If traveling through the active stargate
+			// If close enough to the active stargate from the front side
 			if (stargateActive && isNearGatePlane && isWithinRadius &&
-				crossingFromFront && !hasEnteredGateRef.current) {
+				isApproachingGate && !hasEnteredGateRef.current) {
 				hasEnteredGateRef.current = true;
 				travel();
-			} else if (!isNearGatePlane || !isWithinRadius) {
-				// Reset flag when away from gate
+			} else if ((!isNearGatePlane || !isWithinRadius) &&
+			           characterPosition.distanceTo(stargatePosition) > 4.0) {
+				// Reset flag when away from gate - using a larger reset distance
 				hasEnteredGateRef.current = false;
 			}
 		};
@@ -159,7 +178,12 @@ const StargateRoom: React.FC = () => {
 
 				// Update location after a brief delay
 				setTimeout(() => {
-					updateLocation('Abydos', 'Temple of Ra');
+					// Switch destination based on current location
+					if (planet === 'Earth') {
+						updateLocation('Abydos', 'Temple of Ra');
+					} else {
+						updateLocation('Earth', 'Stargate Command');
+					}
 
 					// The gate will be deactivated automatically when we return
 					// from the wormhole effect sequence
@@ -209,8 +233,13 @@ const StargateRoom: React.FC = () => {
 
 	return (
 		<group>
-			{/* Basic room structure */}
-			<Room size={[20, 20]} wallHeight={5} />
+			{/* Basic room structure with planet-specific colors */}
+			<Room
+				size={[20, 20]}
+				wallHeight={5}
+				wallColor={theme.wallColor}
+				floorColor={theme.floorColor}
+			/>
 
 			{/* Stargate - Set noCollide to true to allow walking through */}
 			<Stargate
@@ -237,13 +266,14 @@ const StargateRoom: React.FC = () => {
 				ignoreObjects={['stargate']}
 			/>
 
-			{/* Room lighting */}
-			<pointLight position={[0, 4, 0]} intensity={0.5} />
-			<pointLight position={[0, 4, -5]} intensity={0.3} />
+			{/* Room lighting colored based on planet */}
+			<ambientLight intensity={0.3} color={theme.ambientLight} />
+			<pointLight position={[0, 4, 0]} intensity={0.5} color={theme.pointLightColor} />
+			<pointLight position={[0, 4, -5]} intensity={0.3} color={theme.pointLightColor} />
 			<pointLight
 				position={[0, 4, -9]}
 				intensity={stargateActive ? 0.8 : 0.3}
-				color={stargateActive ? "#66eeff" : "#66ccff"}
+				color={stargateActive ? "#66eeff" : theme.pointLightColor}
 			/>
 		</group>
 	);
