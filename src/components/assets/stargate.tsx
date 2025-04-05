@@ -6,12 +6,14 @@ interface StargateProps {
 	position?: [number, number, number];
 	isActive?: boolean;
 	onActivate?: () => void;
+	noCollide?: boolean;
 }
 
 const Stargate: React.FC<StargateProps> = ({
 	position = [0, 0, 0],
 	isActive = false,
-	onActivate = () => {}
+	onActivate = () => {},
+	noCollide = false
 }) => {
 	const eventHorizonRef = useRef<THREE.Mesh>(null);
 	const chevronsRef = useRef<THREE.Group>(null);
@@ -119,9 +121,7 @@ const Stargate: React.FC<StargateProps> = ({
 			{/* Inner part (event horizon) - Initially invisible */}
 			<mesh
 				ref={eventHorizonRef}
-				onClick={onActivate}
-				onPointerOver={() => document.body.style.cursor = 'pointer'}
-				onPointerOut={() => document.body.style.cursor = 'auto'}
+				userData={{ noCollide: noCollide }}
 				scale={[0, 0, 1]} // Start with zero scale
 			>
 				<circleGeometry args={[2.5, 32]} />

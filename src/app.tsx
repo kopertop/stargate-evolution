@@ -50,7 +50,7 @@ const LocationDisplay = () => {
 };
 
 export default function App() {
-	const characterRef = useRef<THREE.Mesh>(null);
+	const characterRef = useRef<THREE.Group>(null);
 	const [locationInfo, setLocationInfo] = useState({
 		planet: 'Earth',
 		location: 'Stargate Command'

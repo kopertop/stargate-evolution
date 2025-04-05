@@ -8,9 +8,12 @@ const StargateRoom: React.FC = () => {
 	const { updateLocation } = useLocation();
 	const [dhdActive, setDhdActive] = useState(false);
 	const [stargateActive, setStargateActive] = useState(false);
-	const characterRef = useRef<THREE.Mesh>(null);
-	const [interactionHint, setInteractionHint] = useState('');
+	const characterRef = useRef<THREE.Group>(null);
+	const [interactionHint, setInteractionHint] = useState<string|null>(null);
 	const [interactableObject, setInteractableObject] = useState<string | null>(null);
+	const stargatePositionRef = useRef(new THREE.Vector3(0, 2.5, -9));
+	const lastCheckedPositionRef = useRef(new THREE.Vector3());
+	const hasEnteredGateRef = useRef(false);
 
 	// Add interaction hint to DOM
 	useEffect(() => {
@@ -36,16 +39,11 @@ const StargateRoom: React.FC = () => {
 		};
 	}, [interactionHint]);
 
-	// Listen for spacebar press to trigger interaction
+	// Listen for spacebar press to trigger interaction with DHD only
 	useEffect(() => {
 		const handleKeyDown = (e: KeyboardEvent) => {
-			if (e.code === 'Space' && interactableObject) {
-				if (interactableObject === 'dhd') {
-					activateDHD();
-				} else if (interactableObject === 'stargate' && stargateActive) {
-					// Only allow travel through an already active stargate
-					travel();
-				}
+			if (e.code === 'Space' && interactableObject === 'dhd') {
+				activateDHD();
 			}
 		};
 
@@ -53,7 +51,74 @@ const StargateRoom: React.FC = () => {
 		return () => {
 			window.removeEventListener('keydown', handleKeyDown);
 		};
-	}, [interactableObject, stargateActive]);
+	}, [interactableObject]);
+
+	// Continuously check if character is near the stargate for hints and travel
+	useEffect(() => {
+		const checkStargateProximity = () => {
+			if (!characterRef.current) return;
+
+			const characterPosition = characterRef.current.position.clone();
+			const stargatePosition = stargatePositionRef.current;
+
+			// Calculate distance to stargate
+			const horizontalDistance = Math.sqrt(
+				Math.pow(characterPosition.x - stargatePosition.x, 2) +
+				Math.pow(characterPosition.y - stargatePosition.y, 2)
+			);
+
+			// Distance in front/behind the gate
+			const distanceInFrontOfGate = characterPosition.z - stargatePosition.z;
+
+			// Update last checked position
+			lastCheckedPositionRef.current.copy(characterPosition);
+
+			// Check if stargate is active and character is approaching it from the front
+			if (stargateActive && horizontalDistance < 5 && distanceInFrontOfGate > 0 && distanceInFrontOfGate < 5) {
+				// Only show the hint if we're not already showing it and not showing DHD hint
+				if (interactionHint !== 'Walk through the event horizon to travel' &&
+					interactableObject !== 'dhd') {
+					setInteractionHint('Walk through the event horizon to travel');
+				}
+			} else if (interactionHint === 'Walk through the event horizon to travel' &&
+				(horizontalDistance >= 5 || distanceInFrontOfGate <= 0 || distanceInFrontOfGate >= 5)) {
+				// Clear the walk-through hint when moving away
+				if (interactableObject !== 'dhd') {
+					setInteractionHint('');
+				}
+			}
+
+			// Check for actual passing through the gate
+			const isNearGatePlane = Math.abs(characterPosition.z - stargatePosition.z) < 0.7; // Slightly wider detection
+			const isWithinRadius = horizontalDistance < 2.7; // Slightly larger radius
+
+			// Detect if crossing from front to back
+			const wasInFrontOfGate = lastCheckedPositionRef.current.z > stargatePosition.z;
+			const isNowBehindGate = characterPosition.z <= stargatePosition.z;
+			const crossingFromFront = wasInFrontOfGate && isNowBehindGate;
+
+			// If traveling through the active stargate
+			if (stargateActive && isNearGatePlane && isWithinRadius &&
+				crossingFromFront && !hasEnteredGateRef.current) {
+				hasEnteredGateRef.current = true;
+				travel();
+			} else if (!isNearGatePlane || !isWithinRadius) {
+				// Reset flag when away from gate
+				hasEnteredGateRef.current = false;
+			}
+		};
+
+		const interval = setInterval(checkStargateProximity, 100);
+		return () => clearInterval(interval);
+	}, [stargateActive, interactionHint, interactableObject]);
+
+	// Ensure stargate is deactivated when DHD becomes inactive
+	useEffect(() => {
+		if (!dhdActive && stargateActive) {
+			// When DHD becomes inactive, also deactivate the stargate
+			setStargateActive(false);
+		}
+	}, [dhdActive, stargateActive]);
 
 	// Function to activate the DHD, which then activates the Stargate
 	const activateDHD = () => {
@@ -85,6 +150,9 @@ const StargateRoom: React.FC = () => {
 				(window as any).deactivationTimer = null;
 			}
 
+			// Update the message for a moment to show "Traveling..."
+			setInteractionHint('Traveling to Abydos...');
+
 			// After a short delay (to show the person entering the event horizon), change location
 			setTimeout(() => {
 				updateLocation('Abydos', 'Temple of Ra');
@@ -92,6 +160,7 @@ const StargateRoom: React.FC = () => {
 				// After a delay, deactivate the gate on the other side
 				setTimeout(() => {
 					deactivateGate();
+					setInteractionHint('');
 				}, 2000);
 			}, 1000);
 		}
@@ -106,8 +175,12 @@ const StargateRoom: React.FC = () => {
 	// Handle interactions from character controller
 	const handleInteraction = (target: THREE.Object3D | null) => {
 		if (!target) {
-			setInteractionHint('');
-			setInteractableObject(null);
+			// Only clear hints if they were set by this function
+			// Don't clear if they were set by our proximity checker
+			if (interactableObject === 'dhd') {
+				setInteractionHint('');
+				setInteractableObject(null);
+			}
 			return;
 		}
 
@@ -120,12 +193,13 @@ const StargateRoom: React.FC = () => {
 		if (current.name === 'dhd' && !stargateActive) {
 			setInteractionHint('Press Space to activate DHD');
 			setInteractableObject('dhd');
-		} else if (current.name === 'stargate' && stargateActive) {
-			setInteractionHint('Press Space to enter Stargate');
-			setInteractableObject('stargate');
 		} else {
-			setInteractionHint('');
-			setInteractableObject(null);
+			// For other objects, only clear the hint if it's not showing the stargate hint
+			// and we're not currently in DHD interaction
+			if (interactionHint !== 'Walk through the event horizon to travel' && interactableObject !== 'dhd') {
+				setInteractionHint('');
+				setInteractableObject(null);
+			}
 		}
 	};
 
@@ -134,15 +208,12 @@ const StargateRoom: React.FC = () => {
 			{/* Basic room structure */}
 			<Room size={[20, 20]} wallHeight={5} />
 
-			{/* Stargate */}
+			{/* Stargate - Set noCollide to true to allow walking through */}
 			<Stargate
 				position={[0, 2.5, -9]}
 				isActive={stargateActive}
-				onActivate={() => {
-					if (stargateActive) {
-						travel();
-					}
-				}}
+				noCollide={true}
+				onActivate={() => {}}
 			/>
 
 			{/* DHD (Dial Home Device) */}
@@ -156,8 +227,10 @@ const StargateRoom: React.FC = () => {
 			<CharacterController
 				ref={characterRef}
 				onInteract={handleInteraction}
-				interactionRadius={4.5}   // Adjust this to make it easier/harder to interact
-				interactionAngle={75}     // Adjust this to widen/narrow the interaction field of view
+				interactionRadius={4.5}
+				interactionAngle={75}
+				// Ensure the stargate doesn't block movement
+				ignoreObjects={['stargate']}
 			/>
 
 			{/* Room lighting */}

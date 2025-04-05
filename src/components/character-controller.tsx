@@ -1,12 +1,14 @@
 import React, { useRef, useEffect, forwardRef, useImperativeHandle, useState } from 'react';
 import { useFrame, RootState, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
+import { useKeyboard } from '../hooks/use-keyboard';
 
 interface CharacterControllerProps {
 	speed?: number;
 	onInteract?: (target: THREE.Object3D | null) => void;
 	interactionRadius?: number; // How close the player needs to be to interact
 	interactionAngle?: number; // Field of view angle for interaction (in degrees)
+	ignoreObjects?: string[]; // Names of objects that shouldn't block movement
 }
 
 // Define wall boundaries as rectangular zones
@@ -17,9 +19,6 @@ const WALLS = [
 	{ minX: -10.25, maxX: -9.75, minZ: -10, maxZ: 10 },
 	// Right wall
 	{ minX: 9.75, maxX: 10.25, minZ: -10, maxZ: 10 },
-
-	// Stargate (treated as a circular collision zone, handled separately)
-	// DHD (treated as a collision zone, handled separately)
 ];
 
 // Character radius for collision
@@ -34,36 +33,40 @@ const INTERACTIVE_OBJECTS = [
 	{ name: 'stargate', position: new THREE.Vector3(0, 2.5, -9), radius: 3 }
 ];
 
-const CharacterController = forwardRef<THREE.Mesh, CharacterControllerProps>(
+const CharacterController = forwardRef<THREE.Group, CharacterControllerProps>(
 	({
 		speed = 0.12,
 		onInteract = () => {},
 		interactionRadius = 3.5, // Default interaction radius
-		interactionAngle = 60    // Default field of view angle in degrees
+		interactionAngle = 60,    // Default field of view angle in degrees
+		ignoreObjects = []       // Default to empty list
 	}, ref) => {
-		const characterRef = useRef<THREE.Mesh>(null!);
+		const groupRef = useRef<THREE.Group>(null!);
 		const keysPressed = useRef<Record<string, boolean>>({});
 		const [isMoving, setIsMoving] = useState(false);
 		const animationTimeRef = useRef(0);
 		const { scene } = useThree();
 		const raycaster = useRef(new THREE.Raycaster());
 		const lookDirection = useRef(new THREE.Vector3(0, 0, -1));
+		const [nearbyObject, setNearbyObject] = useState<THREE.Object3D | null>(null);
+		const [isLookingAtObject, setIsLookingAtObject] = useState(false);
+		const keyboard = useKeyboard();
 
 		// Keep track of the last frame we checked for interactions
 		const lastInteractionCheckRef = useRef(0);
 		// How often to check for interactions (in seconds)
 		const INTERACTION_CHECK_INTERVAL = 0.1;
 
-		// Expose the internal mesh ref to parent components via forwarded ref
-		useImperativeHandle(ref, () => characterRef.current);
+		// Forward the ref to the parent component
+		useImperativeHandle(ref, () => groupRef.current);
 
 		// Check what's in front of the character
 		const checkInteraction = () => {
-			if (!characterRef.current) return;
+			if (!groupRef.current) return;
 
 			// Get character position and facing direction
-			const characterPosition = characterRef.current.position.clone();
-			const facingDirection = new THREE.Vector3(0, 0, -1).applyQuaternion(characterRef.current.quaternion);
+			const characterPosition = groupRef.current.position.clone();
+			const facingDirection = new THREE.Vector3(0, 0, -1).applyQuaternion(groupRef.current.quaternion);
 			lookDirection.current = facingDirection;
 
 			// Convert interaction angle to radians and calculate the cosine of half the angle
@@ -119,6 +122,9 @@ const CharacterController = forwardRef<THREE.Mesh, CharacterControllerProps>(
 			} else {
 				onInteract(null);
 			}
+
+			// Update whether we're looking at an object
+			setIsLookingAtObject(closestObject !== null);
 		};
 
 		// Check if dot product indicates the object is in our field of view
@@ -194,7 +200,7 @@ const CharacterController = forwardRef<THREE.Mesh, CharacterControllerProps>(
 			};
 		}, []);
 
-		// Check if a position would collide with walls
+		// Check if a position would collide with walls or objects
 		const checkCollision = (position: THREE.Vector3): boolean => {
 			// Check rectangular wall collisions
 			for (const wall of WALLS) {
@@ -208,31 +214,84 @@ const CharacterController = forwardRef<THREE.Mesh, CharacterControllerProps>(
 				}
 			}
 
-			// Check stargate collision (circular collision zone)
-			const stargatePosition = new THREE.Vector3(0, 0, -9);
-			const stargateRadius = 3;
-			if (position.distanceTo(stargatePosition) < stargateRadius + CHARACTER_RADIUS) {
-				return true; // Collision with stargate
+			// Search for objects with collision in the scene
+			const collidableObjects: THREE.Object3D[] = [];
+
+			// Collect all meshes in the scene to check for collision
+			scene.traverse((object) => {
+				// Skip the character itself
+				if (object === groupRef.current || groupRef.current.children.includes(object)) {
+					return;
+				}
+
+				// Skip objects that should be ignored
+				if (object.name && ignoreObjects.includes(object.name)) {
+					return;
+				}
+
+				// Skip objects with userData.noCollide flag
+				if (object.userData && object.userData.noCollide === true) {
+					return;
+				}
+
+				// Add mesh objects for collision check
+				if (object instanceof THREE.Mesh) {
+					// Check for specific objects we know about
+					if (object.name === 'stargate' && ignoreObjects.includes('stargate')) {
+						return;
+					}
+					if (object.name === 'dhd' && ignoreObjects.includes('dhd')) {
+						return;
+					}
+
+					collidableObjects.push(object);
+				}
+			});
+
+			// Use raycasting in multiple directions to check for collisions
+			const directions = [
+				new THREE.Vector3(1, 0, 0),
+				new THREE.Vector3(-1, 0, 0),
+				new THREE.Vector3(0, 0, 1),
+				new THREE.Vector3(0, 0, -1),
+				new THREE.Vector3(0.7, 0, 0.7),
+				new THREE.Vector3(0.7, 0, -0.7),
+				new THREE.Vector3(-0.7, 0, 0.7),
+				new THREE.Vector3(-0.7, 0, -0.7)
+			];
+
+			// Current position of the character
+			const currentPosition = groupRef.current.position.clone();
+
+			// Movement vector
+			const moveVector = position.clone().sub(currentPosition);
+			const moveDistance = moveVector.length();
+
+			// Only check if we're actually moving
+			if (moveDistance > 0.001) {
+				// Check objects directly in our path by raycasting
+				raycaster.current.set(currentPosition, moveVector.normalize());
+				raycaster.current.far = moveDistance + CHARACTER_RADIUS;
+				const intersects = raycaster.current.intersectObjects(collidableObjects, true);
+
+				if (intersects.length > 0) {
+					return true; // Collision with an object
+				}
 			}
 
-			// Check DHD collision
-			const dhdPosition = new THREE.Vector3(8, 0, 0);
-			const dhdRadius = 1.5;
-			if (position.distanceTo(dhdPosition) < dhdRadius + CHARACTER_RADIUS) {
-				return true; // Collision with DHD
-			}
-
-			return false; // No collision
+			return false; // No collision detected
 		};
 
 		// Update character position each frame based on keys pressed
 		useFrame((state: RootState, delta: number) => {
-			if (!characterRef.current) return;
+			if (!groupRef.current) return;
 
 			// Calculate movement direction
-			const keys = keysPressed.current;
-			const moveZ = (keys['w'] || keys['arrowup'] ? -1 : 0) + (keys['s'] || keys['arrowdown'] ? 1 : 0);
-			const moveX = (keys['a'] || keys['arrowleft'] ? -1 : 0) + (keys['d'] || keys['arrowright'] ? 1 : 0);
+			const moveZ = (keyboard.keys.has('KeyW') || keyboard.keys.has('ArrowUp') ? -1 : 0) +
+						  (keyboard.keys.has('KeyS') || keyboard.keys.has('ArrowDown') ? 1 : 0);
+
+			const moveX = (keyboard.keys.has('KeyA') || keyboard.keys.has('ArrowLeft') ? -1 : 0) +
+						  (keyboard.keys.has('KeyD') || keyboard.keys.has('ArrowRight') ? 1 : 0);
 
 			// Check if moving
 			const moving = moveX !== 0 || moveZ !== 0;
@@ -249,34 +308,34 @@ const CharacterController = forwardRef<THREE.Mesh, CharacterControllerProps>(
 				const normalizedZ = moveZ / length;
 
 				// Calculate the next position
-				const nextPosition = characterRef.current.position.clone();
+				const nextPosition = groupRef.current.position.clone();
 				nextPosition.x += normalizedX * speed;
 				nextPosition.z += normalizedZ * speed;
 
 				// Only update position if there's no collision
 				if (!checkCollision(nextPosition)) {
-					characterRef.current.position.copy(nextPosition);
+					groupRef.current.position.copy(nextPosition);
 				} else {
 					// Try to slide along walls by moving in only one direction at a time
-					const nextPositionX = characterRef.current.position.clone();
+					const nextPositionX = groupRef.current.position.clone();
 					nextPositionX.x += normalizedX * speed;
 
-					const nextPositionZ = characterRef.current.position.clone();
+					const nextPositionZ = groupRef.current.position.clone();
 					nextPositionZ.z += normalizedZ * speed;
 
 					// Try moving only in X direction
 					if (!checkCollision(nextPositionX)) {
-						characterRef.current.position.copy(nextPositionX);
+						groupRef.current.position.copy(nextPositionX);
 					}
 					// Try moving only in Z direction
 					else if (!checkCollision(nextPositionZ)) {
-						characterRef.current.position.copy(nextPositionZ);
+						groupRef.current.position.copy(nextPositionZ);
 					}
 				}
 
 				// Face direction of movement
 				const angle = Math.atan2(normalizedX, normalizedZ);
-				characterRef.current.rotation.y = angle;
+				groupRef.current.rotation.y = angle;
 
 				// Increment animation time for bobbing effect
 				animationTimeRef.current += delta * 10;
@@ -286,10 +345,10 @@ const CharacterController = forwardRef<THREE.Mesh, CharacterControllerProps>(
 			if (isMoving) {
 				// Simple bobbing up and down while moving
 				const bobHeight = Math.sin(animationTimeRef.current) * 0.05;
-				characterRef.current.position.y = 0.5 + bobHeight;
+				groupRef.current.position.y = 0.5 + bobHeight;
 			} else {
 				// Reset height when not moving
-				characterRef.current.position.y = 0.5;
+				groupRef.current.position.y = 0.5;
 			}
 
 			// Periodically check for interactive objects in front of the character
@@ -300,13 +359,22 @@ const CharacterController = forwardRef<THREE.Mesh, CharacterControllerProps>(
 			}
 		});
 
-		// Add a simple light attached to the character for better visibility
 		return (
-			<group>
-				<mesh ref={characterRef} position={[0, 0.5, 0]}>
-					{/* Simple character representation */}
+			<group ref={groupRef} position={[0, 0.5, 0]}>
+				{/* Character body */}
+				<mesh>
 					<capsuleGeometry args={[0.3, 1, 4, 8]} />
 					<meshStandardMaterial color="#ff4f00" />
+				</mesh>
+
+				{/* Direction indicator attached to character (cone pointing forward) */}
+				<mesh position={[0, 0, -0.5]} rotation={[Math.PI / 2, 0, 0]}>
+					<coneGeometry args={[0.2, 0.5, 8]} />
+					<meshStandardMaterial
+						color={isLookingAtObject ? "#ffaa00" : "#66ccff"}
+						emissive={isLookingAtObject ? "#ff6600" : "#0066ff"}
+						emissiveIntensity={0.5}
+					/>
 				</mesh>
 
 				{/* Add a point light that follows the character */}
@@ -314,7 +382,6 @@ const CharacterController = forwardRef<THREE.Mesh, CharacterControllerProps>(
 					intensity={1}
 					distance={5}
 					color="#ff9966"
-					position={[0, 2, 0]}
 				/>
 			</group>
 		);
