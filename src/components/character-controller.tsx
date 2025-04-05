@@ -1,9 +1,10 @@
 import React, { useRef, useEffect, forwardRef, useImperativeHandle, useState } from 'react';
-import { useFrame, RootState } from '@react-three/fiber';
+import { useFrame, RootState, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 
 interface CharacterControllerProps {
 	speed?: number;
+	onInteract?: (target: THREE.Object3D | null) => void;
 }
 
 // Define wall boundaries as rectangular zones
@@ -21,22 +22,65 @@ const WALLS = [
 
 // Character radius for collision
 const CHARACTER_RADIUS = 0.5;
+// Interaction range
+const INTERACTION_RANGE = 3;
 
 const CharacterController = forwardRef<THREE.Mesh, CharacterControllerProps>(
-	({ speed = 0.12 }, ref) => {
+	({ speed = 0.12, onInteract = () => {} }, ref) => {
 		const characterRef = useRef<THREE.Mesh>(null!);
 		const keysPressed = useRef<Record<string, boolean>>({});
 		const [isMoving, setIsMoving] = useState(false);
 		const animationTimeRef = useRef(0);
+		const { scene } = useThree();
+		const raycaster = useRef(new THREE.Raycaster());
+		const lookDirection = useRef(new THREE.Vector3(0, 0, -1));
 
 		// Expose the internal mesh ref to parent components via forwarded ref
 		useImperativeHandle(ref, () => characterRef.current);
+
+		// Handle spacebar interaction
+		const handleInteraction = () => {
+			if (!characterRef.current) return;
+
+			// Update raycaster position and direction
+			const position = characterRef.current.position.clone();
+			// Adjust y position to be at the "head" level
+			position.y = 1.0;
+
+			// Use character's facing direction for the ray
+			const facing = new THREE.Vector3(0, 0, -1).applyQuaternion(characterRef.current.quaternion);
+			lookDirection.current = facing;
+
+			raycaster.current.set(position, facing);
+
+			// Find intersections with scene objects
+			const intersects = raycaster.current.intersectObjects(scene.children, true);
+
+			// Filter for interactive objects within range
+			const interactiveObject = intersects.find(intersect =>
+				intersect.distance < INTERACTION_RANGE &&
+				(intersect.object.parent?.name === 'dhd' ||
+				 intersect.object.parent?.name === 'stargate')
+			);
+
+			if (interactiveObject) {
+				onInteract(interactiveObject.object);
+			} else {
+				onInteract(null);
+			}
+		};
 
 		// Set up key event listeners
 		useEffect(() => {
 			// Track key presses
 			const handleKeyDown = (e: KeyboardEvent) => {
 				keysPressed.current[e.key.toLowerCase()] = true;
+
+				// Handle spacebar interaction
+				if (e.code === 'Space') {
+					handleInteraction();
+					e.preventDefault();
+				}
 			};
 
 			const handleKeyUp = (e: KeyboardEvent) => {

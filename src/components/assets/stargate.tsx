@@ -28,7 +28,7 @@ const Stargate: React.FC<StargateProps> = ({
 	});
 
 	return (
-		<group position={position}>
+		<group position={position} name="stargate">
 			{/* Outer ring */}
 			<mesh>
 				<torusGeometry args={[3, 0.5, 16, 32]} />

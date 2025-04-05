@@ -375,3 +375,23 @@ button:active {
 	text-align: center;
 	color: white;
 }
+
+.interaction-hint {
+	position: fixed;
+	bottom: 100px;
+	left: 50%;
+	transform: translateX(-50%);
+	background-color: rgba(0, 0, 0, 0.7);
+	color: #00ffff;
+	padding: 10px 15px;
+	border-radius: 5px;
+	font-family: 'Arial', sans-serif;
+	font-size: 16px;
+	font-weight: bold;
+	text-align: center;
+	z-index: 2000;
+	border: 1px solid rgba(0, 255, 255, 0.4);
+	box-shadow: 0 0 10px rgba(0, 255, 255, 0.3);
+	pointer-events: none;
+	text-shadow: 0 0 5px rgba(0, 255, 255, 0.5);
+}

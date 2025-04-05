@@ -13,7 +13,7 @@ const DHD: React.FC<DHDProps> = ({
 	onActivate = () => {}
 }) => {
 	return (
-		<group position={position}>
+		<group position={position} name="dhd">
 			{/* Base */}
 			<mesh position={[0, 0, 0]}>
 				<cylinderGeometry args={[.5, 1, 1, 8]} />
