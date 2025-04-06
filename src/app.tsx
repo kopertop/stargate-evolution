@@ -1,4 +1,4 @@
-import React, { useRef, useState, createContext, useContext } from 'react';
+import React, { useRef, useState, createContext, useContext, useEffect } from 'react';
 import { Canvas } from '@react-three/fiber';
 import * as THREE from 'three';
 import StargateRoom from './components/stargate-room';
@@ -7,12 +7,14 @@ import MovementTutorial from './components/movement-tutorial';
 import StargateWormholeEffect from './components/stargate-travel-effect';
 import WormholeOverlay from './components/wormhole-overlay';
 import HelpReminder from './components/help-reminder';
+import { Planets } from './types/index';
+import { initializeGameData } from './data';
 
 // Create a context for location information
 interface LocationContextType {
-	planet: string;
+	planet: Planets;
 	location: string;
-	updateLocation: (planet: string, location: string) => void;
+	updateLocation: (planet: Planets, location: string) => void;
 	startTravel: () => void;
 	isInWormhole: boolean;
 }
@@ -42,7 +44,7 @@ const LocationDisplay = () => {
 	);
 };
 
-// Create a context for sharing the character reference
+// Character reference context
 interface CharacterRefContextType {
 	characterRef: React.RefObject<THREE.Group | null>;
 }
@@ -58,45 +60,73 @@ export default function App() {
 	// Character reference that will be provided by StargateRoom
 	const characterRef = useRef<THREE.Group>(null);
 
-	const [locationInfo, setLocationInfo] = useState({
-		planet: 'Earth',
-		location: 'Stargate Command'
-	});
-	const [isInWormhole, setIsInWormhole] = useState(false);
-	const [destinationInfo, setDestinationInfo] = useState<{planet: string, location: string} | null>(null);
+	const [currentPlanet, setCurrentPlanet] = useState<Planets>('Earth');
+	const [currentLocation, setCurrentLocation] = useState<string>('Stargate Command');
+	const [isInWormhole, setIsInWormhole] = useState<boolean>(false);
+	const [isLoading, setIsLoading] = useState<boolean>(true);
+	const [initError, setInitError] = useState<string | null>(null);
 
-	// Function to update location that can be called from game logic
-	const updateLocation = (planet: string, location: string) => {
-		// When traveling through the wormhole, store the destination
-		// but don't update the displayed location until after the effect
-		if (isInWormhole) {
-			setDestinationInfo({ planet, location });
-		} else {
-			setLocationInfo({ planet, location });
+	// Initialize the database
+	useEffect(() => {
+		async function init() {
+			try {
+				setIsLoading(true);
+				await initializeGameData();
+				console.log('Database initialized successfully');
+				setIsLoading(false);
+			} catch (error) {
+				console.error('Failed to initialize database:', error);
+				setInitError('Failed to initialize game data. Please refresh the page.');
+				setIsLoading(false);
+			}
 		}
+
+		init();
+	}, []);
+
+	// Update location handler
+	const updateLocation = (planet: Planets, location: string) => {
+		setCurrentPlanet(planet);
+		setCurrentLocation(location);
 	};
 
-	// Function to start the wormhole travel effect
+	// Handler for wormhole state
+	const handleWormholeState = (isInWormhole: boolean) => {
+		console.log('Setting wormhole state:', isInWormhole);
+		setIsInWormhole(isInWormhole);
+	};
+
+	// Dummy startTravel function for the context
 	const startTravel = () => {
-		setIsInWormhole(true);
+		console.log('Travel starting from context handler');
 	};
 
-	// Function called when the wormhole effect completes
-	const handleTravelComplete = () => {
-		setIsInWormhole(false);
+	// Show loading screen while initializing
+	if (isLoading) {
+		return (
+			<div className="loading-screen">
+				<h2>Initializing Stargate Systems...</h2>
+				<div className="loading-spinner"></div>
+			</div>
+		);
+	}
 
-		// Update to the destination location if one was set
-		if (destinationInfo) {
-			setLocationInfo(destinationInfo);
-			setDestinationInfo(null);
-		}
-	};
+	// Show error if initialization failed
+	if (initError) {
+		return (
+			<div className="error-screen">
+				<h2>Error</h2>
+				<p>{initError}</p>
+				<button onClick={() => window.location.reload()}>Retry</button>
+			</div>
+		);
+	}
 
 	return (
 		<LocationContext.Provider
 			value={{
-				planet: locationInfo.planet,
-				location: locationInfo.location,
+				planet: currentPlanet,
+				location: currentLocation,
 				updateLocation,
 				startTravel,
 				isInWormhole
@@ -136,12 +166,22 @@ export default function App() {
 						{/* Wormhole travel effect (shown only when traveling) */}
 						<StargateWormholeEffect
 							active={isInWormhole}
-							onComplete={handleTravelComplete}
-							duration={5} // 5 seconds of travel
+							onComplete={() => {
+								// This is now handled directly in the StargateRoom component
+							}}
+							duration={2500}
 						/>
 
 						{/* Room and environment (hide during wormhole travel) */}
-						{!isInWormhole && <StargateRoom />}
+						{!isInWormhole && (
+							<StargateRoom
+								planet={currentPlanet}
+								characterRef={characterRef}
+								updateLocation={updateLocation}
+								setIsInWormhole={handleWormholeState}
+								startTravel={startTravel}
+							/>
+						)}
 
 						{/* Camera that follows the character */}
 						<CameraController

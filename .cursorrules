@@ -1,0 +1,85 @@
+# Stargate Evolution Development Guidelines
+
+## IMPORTANT NOTES
+- DO NOT run `npm start` or `npm run start`, the server is already running.
+- DO NOT implement mouse controls, we want keyboard controls only.
+- ALWAYS run `npx tsc --noEmit` after making changes to the code.
+- PAY ATTENTION to the existing code and project structure.
+
+
+## Code Style
+- Use tabs for indentation, not spaces
+- Use single quotes for strings instead of double quotes
+- Use for...of loops instead of .forEach when iterating
+- Use kebab-case for filenames (e.g., `game-menu.ts` not `GameMenu.ts`)
+- Prefer TypeScript over JavaScript for all new files
+- Use explicit return types for functions when not obvious
+
+## React & Three.js
+- Use React with react-three-fiber for 3D rendering
+- Keep component files focused on a single responsibility
+- Use hooks for state management and side effects
+- Separate UI components from game logic when possible
+- Use <React.StrictMode> in development
+
+## Type Definitions
+- Use Zod for schema validation and type generation
+- Define interfaces and types in dedicated files
+- Export types from barrel files (index.ts) when appropriate
+- Use discriminated unions for state management
+
+## Project Structure
+- `/src/components/` - React components
+  - `/src/components/ui/` - 2D interface components
+  - `/src/components/stargate/` - Stargate-specific 3D components
+  - `/src/components/assets/` - 3D models and asset components
+- `/src/types/` - TypeScript type definitions and Zod schemas
+- `/src/data/` - Data management, database interactions
+- `/src/hooks/` - Custom React hooks
+- `/src/utils/` - Utility functions and helpers
+- `/src/systems/` - Game systems (physics, interaction, etc.)
+- `/src/scenes/` - Scene compositions and level designs
+
+## State Management
+- Store consistent state in Dexie DB
+- Keep things simple, using Dexie with `useLiveQuery` for reactive state
+
+## Performance
+- Use React.memo() for expensive components
+- Implement useCallback() for functions passed as props
+- Utilize useMemo() for expensive calculations
+- Be mindful of re-renders in the 3D environment
+- Use instancing for repeated geometries
+
+## Testing
+- Write unit tests for utility functions
+- Create component tests for UI elements
+- Use mock objects for Three.js dependencies in tests
+- Test game logic independently from rendering code
+
+## Assets
+- Optimize 3D models before importing
+- Use glTF format for 3D models when possible
+- Implement asset preloading for critical resources
+- Consider level-of-detail (LOD) for complex models
+
+## Development Utilities
+- Run `npx tsc --noEmit` to check for TypeScript errors
+- Use `npx prettier --write .` to format code consistently
+- Leverage `npx eslint src/` to identify code issues
+
+## Browser Tools Integration
+- Use browsertools for debugging without restarting the server:
+  - `npx cursor-browsertools screenshot` to capture the current state
+  - `npx cursor-browsertools logs` to fetch console logs
+  - `npx cursor-browsertools inspect element` to examine DOM elements
+  - `npx cursor-browsertools performance` to analyze rendering performance
+  - `npx cursor-browsertools network` to monitor API requests
+  - `npx cursor-browsertools memory` to check for memory leaks
+
+## Code Quality
+- Run `npx depcheck` to identify unused dependencies
+- Use `npx madge --circular src/` to detect circular dependencies
+- Implement `npx size-limit` to monitor bundle size
+- Consider `npx why-did-you-render` for debugging re-renders
+
