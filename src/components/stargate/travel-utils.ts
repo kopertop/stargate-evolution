@@ -1,7 +1,5 @@
 import * as THREE from 'three';
 import { Planets } from '../../types/index';
-import { rotateCamera } from './camera-rotator';
-import { triggerGateShutdown } from './stargate-controller';
 
 export interface TravelSystemState {
 	characterPosition: THREE.Vector3;
@@ -73,6 +71,20 @@ export const updateStargateHints = (
 };
 
 /**
+ * Triggers stargate shutdown with animation via custom event
+ */
+export const triggerGateShutdown = (duration = 2000) => {
+	console.log(`Initiating stargate shutdown sequence (${duration}ms)`);
+
+	// Create and dispatch a custom event
+	const shutdownEvent = new CustomEvent('stargate-shutdown', {
+		detail: { duration }
+	});
+
+	window.dispatchEvent(shutdownEvent);
+};
+
+/**
  * Executes the travel sequence between planets
  */
 export const executeTravel = (
@@ -107,14 +119,11 @@ export const executeTravel = (
 		// End wormhole travel effect
 		setIsInWormhole(false);
 
-		// Update the camera angle to look around the new environment
-		rotateCamera(characterRef, () => {
-			// After a delay, start the gate shutdown animation
-			setTimeout(() => {
-				console.log('Starting shutdown sequence');
-				triggerGateShutdown();
-			}, 3000);
-		});
+		// After a delay, start the gate shutdown animation
+		setTimeout(() => {
+			console.log('Starting shutdown sequence');
+			triggerGateShutdown();
+		}, 3000);
 	}, 2500);
 };
 
@@ -128,10 +137,7 @@ export const travel = (currentPlanet: Planets): Planets => {
 	const nextPlanet = currentPlanet === 'Earth' ? 'Abydos' : 'Earth';
 
 	// Trigger the shutdown animation when traveling
-	const shutdownEvent = new CustomEvent('stargate-shutdown', {
-		detail: { duration: 3000 } // 3 seconds shutdown animation
-	});
-	window.dispatchEvent(shutdownEvent);
+	triggerGateShutdown(3000); // 3 seconds shutdown animation
 
 	console.log(`Travel destination: ${nextPlanet}`);
 	return nextPlanet;

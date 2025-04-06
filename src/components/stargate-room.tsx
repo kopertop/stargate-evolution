@@ -1,145 +1,128 @@
 import React, { useRef, useState, useEffect } from 'react';
 import * as THREE from 'three';
-import { useFrame, useThree } from '@react-three/fiber';
-import { Planets } from '../types/index';
-import StargateController from './stargate/stargate-controller';
-import { travel as travelThroughStargate } from './stargate/travel-system';
+import { StargateController } from './stargate/stargate-controller';
+import { Planets } from '../types';
 import { InteractionSystem } from './stargate/interaction-system';
 import SimpleCharacterController from './simple-character-controller';
 import Room from './assets/room';
 import DHD from './assets/dhd';
 
-interface StargateRoomProps {
+export interface StargateRoomProps {
 	planet: Planets;
-	characterRef: React.RefObject<THREE.Group | null>;
 	updateLocation: (planet: Planets, location: string) => void;
 	setIsInWormhole: (isInWormhole: boolean) => void;
-	startTravel: () => void;
 }
 
 const StargateRoom: React.FC<StargateRoomProps> = ({
 	planet,
-	characterRef,
 	updateLocation,
 	setIsInWormhole,
-	startTravel
 }) => {
-	// Local state for position tracking
-	const stargatePositionRef = useRef(new THREE.Vector3(0, 0, -10));
+	const [stargateActive, setStargateActive] = useState(false);
+	const [activationStage, setActivationStage] = useState(0);
+	const [isTraveling, setIsTraveling] = useState(false);
+	const [interactionHint, setInteractionHint] = useState('');
+	const [interactableObject, setInteractableObject] = useState<string | null>(null);
+
+	const characterRef = useRef<THREE.Group>(null);
+	const stargatePositionRef = useRef(new THREE.Vector3(0, 0, -5));
 	const dhdPositionRef = useRef(new THREE.Vector3(5, 0, 0));
 
-	// Stargate state
-	const [stargateActive, setStargateActive] = useState(false);
-	const [stargateActivationStage, setStargateActivationStage] = useState(0);
-	const hasEnteredGateRef = useRef(false);
-	const stargateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+	// Auto-shutdown timer
+	const shutdownTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-	// Set up camera
-	const { camera } = useThree();
-
-	// Set initial camera position
-	useEffect(() => {
-		// Just set an initial position, the SimpleCharacterController will take over
-		camera.position.set(0, 5, 10);
-		camera.lookAt(0, 0, 0);
-	}, [camera]);
-
-	// Set up room theme based on planet
-	const roomTheme = {
-		wallColor: planet === 'Earth' ? '#555555' : '#AA8855',
-		floorColor: planet === 'Earth' ? '#444444' : '#8A6642'
-	};
-
-	// Clean up any timeouts when unmounting
+	// Clear any timeouts on unmount
 	useEffect(() => {
 		return () => {
-			if (stargateTimeoutRef.current) {
-				clearTimeout(stargateTimeoutRef.current);
+			if (shutdownTimerRef.current) {
+				clearTimeout(shutdownTimerRef.current);
 			}
 		};
 	}, []);
 
-	// Handle interactions with objects
-	const handleInteraction = (target: string) => {
-		if (target === 'dhd') {
-			if (!stargateActive) {
-				// Activate the DHD first
-				console.log('Dialing stargate...');
+	// Set up the room theme based on the planet
+	const roomTheme = planet === 'Earth'
+		? { wallColor: '#555555', floorColor: '#333333' }
+		: { wallColor: '#8B4513', floorColor: '#8B5A2B' };
 
-				// Then activate the stargate with a delay
-				setStargateActive(true);
-
-				// Auto-shutdown timer
-				if (stargateTimeoutRef.current) {
-					clearTimeout(stargateTimeoutRef.current);
-				}
-
-				stargateTimeoutRef.current = setTimeout(() => {
-					if (stargateActive) {
-						console.log('Auto shutting down stargate after timeout');
-						setStargateActive(false);
-					}
-				}, 20000); // Shutdown after 20 seconds if not used
-			} else {
-				// Deactivate the stargate
-				console.log('Shutting down stargate...');
-				setStargateActive(false);
-
-				// Clear auto-shutdown timer
-				if (stargateTimeoutRef.current) {
-					clearTimeout(stargateTimeoutRef.current);
-					stargateTimeoutRef.current = null;
-				}
-			}
-		} else if (target === 'stargate' && stargateActive && stargateActivationStage === 4) {
-			// Initiate travel
-			console.log('Traveling through stargate...');
-
-			// Set wormhole effect to true
-			setIsInWormhole(true);
-
-			// Get destination planet
-			const nextPlanet = planet === 'Earth' ? 'Abydos' : 'Earth';
-			const nextLocation = nextPlanet === 'Earth' ? 'Stargate Command' : 'Temple of Ra';
-
-			// Trigger the shutdown animation
-			const shutdownEvent = new CustomEvent('stargate-shutdown', {
-				detail: { duration: 3000 } // 3 seconds shutdown animation
-			});
-			window.dispatchEvent(shutdownEvent);
-
-			// After a delay, update the location
-			setTimeout(() => {
-				updateLocation(nextPlanet, nextLocation);
-				setIsInWormhole(false);
-			}, 2500);
-
-			// Deactivate stargate and clear timeout
+	// Handle DHD interaction
+	const handleDHDInteraction = () => {
+		// If stargate is already active, pressing the DHD again should deactivate it
+		if (stargateActive) {
+			console.log('Deactivating stargate via DHD');
 			setStargateActive(false);
-			if (stargateTimeoutRef.current) {
-				clearTimeout(stargateTimeoutRef.current);
-				stargateTimeoutRef.current = null;
+			setInteractionHint('');
+			return;
+		}
+
+		console.log('Activating stargate via DHD');
+		setStargateActive(true);
+		setInteractionHint('Stargate activating...');
+
+		// Set an auto-shutdown timer if the stargate isn't used
+		if (shutdownTimerRef.current) {
+			clearTimeout(shutdownTimerRef.current);
+		}
+
+		shutdownTimerRef.current = setTimeout(() => {
+			if (!isTraveling && stargateActive) {
+				console.log('Auto-shutdown initiated');
+				setStargateActive(false);
+				setInteractionHint('Stargate shutdown due to inactivity');
+
+				// Clear the hint after a few seconds
+				setTimeout(() => {
+					if (interactionHint === 'Stargate shutdown due to inactivity') {
+						setInteractionHint('');
+					}
+				}, 3000);
 			}
+		}, 30000); // 30 seconds until auto-shutdown
+	};
+
+	// Handle stargate stage change
+	const handleStargateStageChange = (stage: number) => {
+		console.log(`Stargate stage changed to ${stage}`);
+		setActivationStage(stage);
+
+		if (stage === 4) {
+			setInteractionHint('Stargate activated! Walk through to travel.');
+		} else if (stage === 0) {
+			setInteractionHint('');
 		}
 	};
 
-	// Handle when stargate activation stage changes
-	const handleActivationStageChange = (stage: number) => {
-		setStargateActivationStage(stage);
-		console.log(`StargateRoom: Activation stage changed to ${stage}`);
+	// Handle stargate deactivation
+	const handleStargateDeactivation = () => {
+		console.log('Stargate deactivated');
+		setStargateActive(false);
+		setActivationStage(0);
 	};
 
-	// Handle DHD activation
-	const handleDHDActivate = () => {
-		handleInteraction('dhd');
+	// Start travel sequence when character approaches active stargate
+	const startTravel = () => {
+		if (stargateActive && activationStage >= 4 && !isTraveling) {
+			console.log('Starting travel sequence');
+
+			// Set traveling state
+			setIsTraveling(true);
+
+			// Reset after travel completes (handled by TravelSystem component)
+			setTimeout(() => {
+				const destination = planet === 'Earth' ? 'Abydos' : 'Earth';
+				updateLocation(
+					destination as Planets,
+					destination === 'Earth' ? 'Stargate Command' : 'Temple of Ra'
+				);
+
+				// Reset travel state
+				setIsTraveling(false);
+			}, 3000);
+		}
 	};
 
 	return (
 		<>
-			{/* Scene setup */}
-			<ambientLight intensity={0.3} />
-			<directionalLight position={[10, 10, 5]} intensity={0.7} />
-
 			{/* Room environment */}
 			<Room
 				size={[20, 20]}
@@ -148,33 +131,49 @@ const StargateRoom: React.FC<StargateRoomProps> = ({
 				floorColor={roomTheme.floorColor}
 			/>
 
-			{/* Character with controller */}
-			<SimpleCharacterController ref={characterRef} speed={0.15} />
+			{/* Character */}
+			<SimpleCharacterController ref={characterRef} speed={5} />
 
-			{/* Stargate */}
+			{/* Stargate with controller */}
 			<StargateController
-				position={[0, 1.8, -10]}
+				position={[0, 0, -5]}
+				destination={planet === 'Earth' ? 'Abydos' : 'Earth'}
 				isActive={stargateActive}
-				onActivationStageChange={handleActivationStageChange}
+				onDeactivate={handleStargateDeactivation}
+				onStageChange={handleStargateStageChange}
+				onTravel={startTravel}
+				isTraveling={isTraveling}
+				setIsInWormhole={setIsInWormhole}
 			/>
 
-			{/* DHD */}
+			{/* DHD (Dial Home Device) */}
 			<DHD
 				position={[5, 0, 0]}
 				isActive={stargateActive}
-				onActivate={handleDHDActivate}
+				onActivate={handleDHDInteraction}
 			/>
 
 			{/* Interaction system */}
 			<InteractionSystem
-				characterRef={characterRef as any}
-				stargatePosition={stargatePositionRef.current}
-				dhdPosition={dhdPositionRef.current}
+				characterRef={characterRef}
+				stargatePositionRef={stargatePositionRef}
+				dhdPositionRef={dhdPositionRef}
 				stargateActive={stargateActive}
-				stargateActivationStage={stargateActivationStage}
-				currentPlanet={planet}
-				onInteraction={handleInteraction}
+				activationStage={activationStage}
+				setInteractionHint={setInteractionHint}
+				setInteractableObject={setInteractableObject}
+				interactionHint={interactionHint}
+				interactableObject={interactableObject}
+				onDHDInteract={handleDHDInteraction}
+				onStartTravel={startTravel}
 			/>
+
+			{/* Ambient light */}
+			<ambientLight intensity={0.3} />
+
+			{/* Point lights */}
+			<pointLight position={[0, 3, 0]} intensity={0.5} />
+			<pointLight position={[0, 3, -5]} intensity={0.3} color={stargateActive ? '#00aaff' : '#ffffff'} />
 		</>
 	);
 };

@@ -24,6 +24,8 @@ const Stargate: React.FC<StargateProps> = ({
 	const lastActiveState = useRef(isActive);
 	const activationInProgressRef = useRef(false);
 	const activationStartedRef = useRef(false);
+	const activationIntervalRef = useRef<NodeJS.Timeout | null>(null);
+	const debugCounterRef = useRef(0); // For debugging
 
 	// Add shutdown animation state
 	const [isShuttingDown, setIsShuttingDown] = useState(false);
@@ -52,39 +54,77 @@ const Stargate: React.FC<StargateProps> = ({
 		};
 	}, []);
 
-	// Handle activation stages
+	// Function to increment activation stage
+	const incrementActivationStage = () => {
+		setActivationStage(prev => {
+			const newStage = Math.min(prev + 1, 4);
+			console.log(`Stargate activation stage incremented to ${newStage} (from ${prev})`);
+
+			if (newStage !== prev) {
+				console.log(`Notifying parent of stage change: ${newStage}`);
+				onActivationStageChange(newStage);
+
+				// If we've reached the final stage, clear the interval
+				if (newStage >= 4) {
+					console.log('Stargate fully activated - clearing interval');
+					if (activationIntervalRef.current) {
+						clearInterval(activationIntervalRef.current);
+						activationIntervalRef.current = null;
+					}
+					activationInProgressRef.current = false;
+				}
+			}
+
+			return newStage;
+		});
+	};
+
+	// Clear any existing intervals when component unmounts
+	useEffect(() => {
+		return () => {
+			console.log('Stargate component unmounting - cleaning up intervals');
+			if (activationIntervalRef.current) {
+				clearInterval(activationIntervalRef.current);
+				activationIntervalRef.current = null;
+			}
+		};
+	}, []);
+
+	// Handle activation stages based on isActive changes
 	useEffect(() => {
 		// This monitors the isActive prop for changes
 		console.log(`isActive changed to: ${isActive}, lastActiveState: ${lastActiveState.current}, activationInProgress: ${activationInProgressRef.current}`);
 
-		if (isActive && !lastActiveState.current && !activationInProgressRef.current) {
-			// Starting the activation sequence (only if not already in progress)
-			console.log('Starting stargate activation sequence');
+		// Clean up any existing interval
+		if (activationIntervalRef.current) {
+			console.log('Clearing existing activation interval');
+			clearInterval(activationIntervalRef.current);
+			activationIntervalRef.current = null;
+		}
+
+		if (isActive && !lastActiveState.current) {
+			// Starting the activation sequence
+			console.log('Starting stargate activation sequence - fresh start');
 			activationInProgressRef.current = true;
 			activationStartedRef.current = true;
+			debugCounterRef.current = 0;
+
+			// Reset to stage 1
 			setActivationStage(1);
 			onActivationStageChange(1);
+
 			// Reset shutdown state when activating
 			setIsShuttingDown(false);
 
-			// Chevrons lighting up
-			const chevronInterval = setInterval(() => {
-				setActivationStage(prev => {
-					const newStage = prev < 4 ? prev + 1 : prev;
-					console.log(`Stargate activation stage: ${newStage}`);
-					if (newStage !== prev) {
-						onActivationStageChange(newStage);
-					}
-					if (newStage >= 4) {
-						clearInterval(chevronInterval);
-						activationInProgressRef.current = false;
-					}
-					return newStage;
-				});
+			// Create a new interval for the chevron activation sequence
+			console.log('Setting up activation interval...');
+			activationIntervalRef.current = setInterval(() => {
+				debugCounterRef.current += 1;
+				console.log(`Activation interval tick ${debugCounterRef.current}`);
+				incrementActivationStage();
 			}, 800); // Each chevron group lights up with a delay
-
-			return () => clearInterval(chevronInterval);
-		} else if (!isActive && lastActiveState.current) {
+		}
+		else if (!isActive && lastActiveState.current) {
 			// Only deactivate immediately if not in shutdown mode
 			if (!isShuttingDown) {
 				console.log('Deactivating stargate immediately');
@@ -103,13 +143,16 @@ const Stargate: React.FC<StargateProps> = ({
 	useEffect(() => {
 		if (isShuttingDown && activationStage > 0) {
 			console.log('Starting shutdown animation');
-			const shutdownAnimation = () => {
+
+			const shutdownInterval = setInterval(() => {
 				setEventHorizonScale(prev => Math.max(0, prev - 0.05));
 
 				// Only reduce activation stage when event horizon is small enough
 				if (eventHorizonScale < 0.3) {
 					setActivationStage(prev => {
-						const newStage = prev > 0 ? prev - 1 : 0;
+						const newStage = Math.max(0, prev - 1);
+						console.log(`Shutdown: Activation stage changed to ${newStage}`);
+
 						if (newStage !== prev) {
 							onActivationStageChange(newStage);
 						}
@@ -119,15 +162,15 @@ const Stargate: React.FC<StargateProps> = ({
 							setIsShuttingDown(false);
 							activationStartedRef.current = false;
 							console.log('Stargate shutdown complete');
+							clearInterval(shutdownInterval);
 						}
 
 						return newStage;
 					});
 				}
-			};
+			}, 200);
 
-			const shutdownTimer = setInterval(shutdownAnimation, 200);
-			return () => clearInterval(shutdownTimer);
+			return () => clearInterval(shutdownInterval);
 		}
 	}, [isShuttingDown, activationStage, eventHorizonScale, onActivationStageChange]);
 
