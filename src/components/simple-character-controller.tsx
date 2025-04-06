@@ -1,4 +1,4 @@
-import React, { forwardRef, useRef } from 'react';
+import React, { forwardRef, useRef, useEffect } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import Character from './character';
@@ -13,6 +13,20 @@ const SimpleCharacterController = forwardRef<THREE.Group, SimpleCharacterControl
 		const characterRef = useRef<THREE.Group>(null);
 		const { keys } = useKeyboard();
 		const { camera } = useThree();
+		const cameraOffsetRef = useRef<THREE.Vector3>(new THREE.Vector3(0, 5, 10));
+
+		// Initialize camera position once
+		useEffect(() => {
+			if (characterRef.current) {
+				const pos = characterRef.current.position;
+				camera.position.set(
+					pos.x + cameraOffsetRef.current.x,
+					pos.y + cameraOffsetRef.current.y,
+					pos.z + cameraOffsetRef.current.z
+				);
+				camera.lookAt(pos);
+			}
+		}, [camera]);
 
 		// Handle character movement with keyboard
 		useFrame((state, delta) => {
@@ -31,13 +45,31 @@ const SimpleCharacterController = forwardRef<THREE.Group, SimpleCharacterControl
 
 			// Camera rotation with Q/E keys - using fixed rotation speed
 			const rotationSpeed = 0.03;
+
 			if (keys.has('KeyQ')) {
-				camera.rotation.y += rotationSpeed;
-				console.log('Rotating camera left with Q key');
+				// Rotate camera offset around Y axis
+				const currentOffset = cameraOffsetRef.current.clone();
+				const angle = rotationSpeed;
+				const cosA = Math.cos(angle);
+				const sinA = Math.sin(angle);
+
+				cameraOffsetRef.current.x = currentOffset.x * cosA - currentOffset.z * sinA;
+				cameraOffsetRef.current.z = currentOffset.x * sinA + currentOffset.z * cosA;
+
+				console.log('Q pressed - rotating camera left');
 			}
+
 			if (keys.has('KeyE')) {
-				camera.rotation.y -= rotationSpeed;
-				console.log('Rotating camera right with E key');
+				// Rotate camera offset around Y axis (opposite direction)
+				const currentOffset = cameraOffsetRef.current.clone();
+				const angle = -rotationSpeed;
+				const cosA = Math.cos(angle);
+				const sinA = Math.sin(angle);
+
+				cameraOffsetRef.current.x = currentOffset.x * cosA - currentOffset.z * sinA;
+				cameraOffsetRef.current.z = currentOffset.x * sinA + currentOffset.z * cosA;
+
+				console.log('E pressed - rotating camera right');
 			}
 
 			// Normalize for diagonal movement to maintain consistent speed
@@ -55,23 +87,16 @@ const SimpleCharacterController = forwardRef<THREE.Group, SimpleCharacterControl
 					characterRef.current.rotation.y = angle;
 				}
 			}
+
+			// Update camera position to follow character with current offset
+			const characterPos = characterRef.current.position;
+			camera.position.set(
+				characterPos.x + cameraOffsetRef.current.x,
+				characterPos.y + cameraOffsetRef.current.y,
+				characterPos.z + cameraOffsetRef.current.z
+			);
+			camera.lookAt(characterPos);
 		});
-
-		// Set initial camera position
-		useFrame((state) => {
-			if (characterRef.current) {
-				// Position camera slightly behind and above character
-				camera.position.set(
-					characterRef.current.position.x,
-					characterRef.current.position.y + 5,
-					characterRef.current.position.z + 10
-				);
-				camera.lookAt(characterRef.current.position);
-
-				// Run this only once
-				state.invalidate();
-			}
-		}, 1);
 
 		// Forward the ref to parent components
 		React.useImperativeHandle(ref, () => characterRef.current!);

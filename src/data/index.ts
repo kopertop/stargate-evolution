@@ -1,13 +1,8 @@
-import { planetDb, PlanetDatabase, initializeDefaultPlanets } from './planets';
-import { roomDb, RoomDatabase, getRoomsForPlanet, getRoomById, addRoom, updateRoom, discoverRoom } from './rooms';
+import { initializeDefaultPlanets } from './planets';
+import { getRoomsForPlanet, getRoomById, addRoom, updateRoom, discoverRoom } from './rooms';
+import { db } from './db';
 
-// Export database instances
-export {
-	planetDb,
-	roomDb,
-	PlanetDatabase,
-	RoomDatabase
-};
+export { db };
 
 // Export planet-related functions
 export {

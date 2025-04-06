@@ -1,7 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
 import * as THREE from 'three';
 import { useFrame, useThree } from '@react-three/fiber';
-import { OrbitControls } from '@react-three/drei';
 import { Planets } from '../types/index';
 import StargateController from './stargate/stargate-controller';
 import { travel as travelThroughStargate } from './stargate/travel-system';
@@ -40,6 +39,7 @@ const StargateRoom: React.FC<StargateRoomProps> = ({
 
 	// Set initial camera position
 	useEffect(() => {
+		// Just set an initial position, the SimpleCharacterController will take over
 		camera.position.set(0, 5, 10);
 		camera.lookAt(0, 0, 0);
 	}, [camera]);
@@ -175,9 +175,6 @@ const StargateRoom: React.FC<StargateRoomProps> = ({
 				currentPlanet={planet}
 				onInteraction={handleInteraction}
 			/>
-
-			{/* Limited orbital controls - will be controlled by keyboard */}
-			<OrbitControls enableZoom={false} enablePan={false} enableRotate={false} />
 		</>
 	);
 };

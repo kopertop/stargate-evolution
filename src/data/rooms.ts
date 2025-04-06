@@ -1,46 +1,29 @@
-import Dexie from 'dexie';
 import { Room, createRoom, RoomType } from '../types/room';
-
-// Define the database
-export class RoomDatabase extends Dexie {
-	rooms!: Dexie.Table<Room, string>;
-
-	constructor() {
-		super('StargateEvolutionRooms');
-
-		// Define the schema
-		this.version(1).stores({
-			rooms: 'id, planetId, type, isDiscovered'
-		});
-	}
-}
-
-// Create a single instance of the database
-export const roomDb = new RoomDatabase();
+import { db } from './db';
 
 // Helper function to get all rooms for a planet
 export async function getRoomsForPlanet(planetId: string): Promise<Room[]> {
-	return await roomDb.rooms.where('planetId').equals(planetId).toArray();
+	return await db.rooms.where('planetId').equals(planetId).toArray();
 }
 
 // Helper function to get a specific room by ID
 export async function getRoomById(roomId: string): Promise<Room | undefined> {
-	return await roomDb.rooms.get(roomId);
+	return await db.rooms.get(roomId);
 }
 
 // Helper function to create a new room
 export async function addRoom(roomData: Room): Promise<string> {
-	return await roomDb.rooms.add(roomData);
+	return await db.rooms.add(roomData);
 }
 
 // Helper function to update a room
 export async function updateRoom(roomId: string, roomData: Partial<Room>): Promise<number> {
-	return await roomDb.rooms.update(roomId, roomData);
+	return await db.rooms.update(roomId, roomData);
 }
 
 // Helper function to discover a room (mark as discovered)
 export async function discoverRoom(roomId: string): Promise<number> {
-	return await roomDb.rooms.update(roomId, { isDiscovered: true });
+	return await db.rooms.update(roomId, { isDiscovered: true });
 }
 
 // Helper functions to create standard room templates

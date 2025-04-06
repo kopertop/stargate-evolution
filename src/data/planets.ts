@@ -1,39 +1,22 @@
-import Dexie from 'dexie';
 import { ClimateType } from '../types/base';
 import { createRoom } from '../types/room';
-import { Planet, createPlanet, PlanetId } from '../types/planet';
-
-// Define the database
-export class PlanetDatabase extends Dexie {
-	planets!: Dexie.Table<Planet, string>;
-
-	constructor() {
-		super('StargateEvolutionPlanets');
-
-		// Define the schema
-		this.version(1).stores({
-			planets: 'id, name, address, climate'
-		});
-	}
-}
-
-// Create a single instance of the database
-export const planetDb = new PlanetDatabase();
+import { Planet, createPlanet } from '../types/planet';
+import { db } from './db';
 
 // Helper function to initialize the database with default planets
 export async function initializeDefaultPlanets(): Promise<void> {
-	const count = await planetDb.planets.count();
+	const count = await db.planets.count();
 
 	// Only initialize if the database is empty
 	if (count === 0) {
 		try {
 			// Create Earth planet
 			const earthPlanet = createEarthPlanet();
-			await planetDb.planets.add(earthPlanet);
+			await db.planets.add(earthPlanet);
 
 			// Create Abydos planet
 			const abydosPlanet = createAbydosPlanet();
-			await planetDb.planets.add(abydosPlanet);
+			await db.planets.add(abydosPlanet);
 
 			console.log('Default planets initialized successfully');
 		} catch (error) {
