@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import * as THREE from 'three';
+import { Html } from '@react-three/drei';
 import { TravelSystemState, checkStargateProximity } from './travel-system';
 
 interface InteractionSystemProps {
@@ -67,7 +68,7 @@ export const InteractionSystem: React.FC<InteractionSystemProps> = ({
 		setCanTravelThroughStargate(canTravelNow);
 
 		if (canTravelNow) {
-			setInteractionHint(`Press E to walk through the Stargate to ${currentPlanet === 'Earth' ? 'Abydos' : 'Earth'}`);
+			setInteractionHint(`Press SPACE to walk through the Stargate to ${currentPlanet === 'Earth' ? 'Abydos' : 'Earth'}`);
 			return;
 		}
 
@@ -85,9 +86,9 @@ export const InteractionSystem: React.FC<InteractionSystemProps> = ({
 		// Interaction with DHD
 		if (distanceToDHD < 3) {
 			if (!stargateActive) {
-				setInteractionHint('Press E to dial the Stargate');
+				setInteractionHint('Press SPACE to dial the Stargate');
 			} else {
-				setInteractionHint('Press E to deactivate the Stargate');
+				setInteractionHint('Press SPACE to deactivate the Stargate');
 			}
 		}
 		// Near the stargate but need more context
@@ -108,10 +109,10 @@ export const InteractionSystem: React.FC<InteractionSystemProps> = ({
 		}
 	};
 
-	// Handle keyboard interaction (E key)
+	// Handle keyboard interaction (Space key)
 	useEffect(() => {
 		const handleKeyDown = (e: KeyboardEvent) => {
-			if (e.key.toLowerCase() === 'e' && interactionHint) {
+			if (e.code === 'Space' && interactionHint) {
 				console.log('Interaction triggered:', interactionHint);
 
 				if (canTravelThroughStargate) {
@@ -121,6 +122,9 @@ export const InteractionSystem: React.FC<InteractionSystemProps> = ({
 				} else if (interactionHint.includes('deactivate')) {
 					onInteraction('dhd');
 				}
+
+				// Prevent default space behavior (scrolling)
+				e.preventDefault();
 			}
 		};
 
@@ -128,10 +132,36 @@ export const InteractionSystem: React.FC<InteractionSystemProps> = ({
 		return () => window.removeEventListener('keydown', handleKeyDown);
 	}, [interactionHint, canTravelThroughStargate, onInteraction]);
 
-	// Render the hint if available
-	return interactionHint ? (
-		<div className="interaction-hint">
-			{interactionHint}
-		</div>
-	) : null;
+	// Only render if there's an interaction hint and character exists
+	if (!interactionHint || !characterRef.current) return null;
+
+	// Render the hint using Html from drei
+	return (
+		<group position={[0, 0, 0]}>
+			<Html
+				position={[
+					characterRef.current.position.x,
+					characterRef.current.position.y + 2.5, // Position above character
+					characterRef.current.position.z
+				]}
+				center
+				distanceFactor={10}
+			>
+				<div
+					style={{
+						background: 'rgba(0, 0, 0, 0.7)',
+						color: '#00ffff',
+						padding: '8px 12px',
+						borderRadius: '4px',
+						fontFamily: 'monospace',
+						fontSize: '16px',
+						userSelect: 'none',
+						pointerEvents: 'none'
+					}}
+				>
+					{interactionHint}
+				</div>
+			</Html>
+		</group>
+	);
 };
