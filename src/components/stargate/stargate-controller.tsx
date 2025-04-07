@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import * as THREE from 'three';
-import { Stargate } from './stargate';
+import { Stargate } from '../assets';
 import { useStargateStore } from './stargate-store';
 
 interface StargateControllerProps {
@@ -137,7 +137,7 @@ export const StargateController: React.FC<StargateControllerProps> = ({
 		<Stargate
 			position={position}
 			isActive={isActive || isShuttingDown}
-			activationStage={activationStage}
+			onActivationStageChange={(stage) => onStageChange(stage)}
 		/>
 	);
 };

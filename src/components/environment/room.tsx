@@ -78,8 +78,8 @@ const StargateRoom: React.FC<StargateRoomProps> = ({
 
 	// Set up the room theme based on the planet
 	const roomTheme = planet === 'Earth'
-		? { wallColor: '#555555', floorColor: '#333333' }
-		: { wallColor: '#8B4513', floorColor: '#8B5A2B' };
+		? { wallColor: '#777777', floorColor: '#555555' }
+		: { wallColor: '#AA8866', floorColor: '#BB9977' };
 
 	// Handle DHD interaction
 	const handleDHDInteraction = () => {
@@ -217,11 +217,19 @@ const StargateRoom: React.FC<StargateRoomProps> = ({
 			/>
 
 			{/* Ambient light */}
-			<ambientLight intensity={0.3} />
+			<ambientLight intensity={0.6} />
 
 			{/* Point lights */}
-			<pointLight position={[0, 3, 0]} intensity={0.5} />
-			<pointLight position={[0, 3, -5]} intensity={0.3} color={stargateActive ? '#00aaff' : '#ffffff'} />
+			<pointLight position={[0, 3, 0]} intensity={0.8} />
+			<pointLight position={[0, 3, -5]} intensity={0.5} color={stargateActive ? '#00aaff' : '#ffffff'} />
+
+			{/* Additional lights for better room illumination */}
+			<pointLight position={[5, 4, 5]} intensity={0.6} />
+			<pointLight position={[-5, 4, 5]} intensity={0.6} />
+			<pointLight position={[0, 4, 8]} intensity={0.5} />
+
+			{/* Subtle fill light from below for better shadows */}
+			<pointLight position={[0, 0.5, 0]} intensity={0.2} color="#ffffff" />
 		</>
 	);
 };

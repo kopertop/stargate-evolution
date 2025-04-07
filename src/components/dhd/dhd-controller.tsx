@@ -2,7 +2,7 @@ import React, { useRef, useEffect } from 'react';
 import { useDHDStore } from './dhd-store';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
-import { DHD } from './dhd';
+import { DHD } from '../assets';
 
 const DHD_BASE_COLOR = '#555555';
 const DHD_ACTIVE_COLOR = '#00aaff';
@@ -43,6 +43,7 @@ export const DHDController: React.FC<DHDControllerProps> = ({
 			<DHD
 				position={[0, 0, 0]}
 				isActive={isActive}
+				onActivate={onActivate}
 			/>
 		</group>
 	);
