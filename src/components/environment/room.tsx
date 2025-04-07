@@ -61,8 +61,8 @@ const StargateRoom: React.FC<StargateRoomProps> = ({
 
 	const localCharacterRef = useRef<THREE.Group>(null);
 	const characterRef = externalCharacterRef || localCharacterRef;
-	const stargatePositionRef = useRef(new THREE.Vector3(0, 0, -5));
-	const dhdPositionRef = useRef(new THREE.Vector3(5, 0, 0));
+	const stargatePositionRef = useRef(new THREE.Vector3(0, 2, -5));
+	const dhdPositionRef = useRef(new THREE.Vector3(5, 0.5, 0));
 
 	// Auto-shutdown timer
 	const shutdownTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -175,7 +175,7 @@ const StargateRoom: React.FC<StargateRoomProps> = ({
 			{/* Character */}
 			<SimpleCharacterController
 				ref={characterRef}
-				speed={0.05}
+				speed={0.15}
 				roomDimensions={{ size: [20, 20], wallHeight: 5 }}
 				stargatePosition={stargatePositionRef.current}
 				dhdPosition={dhdPositionRef.current}
@@ -183,7 +183,7 @@ const StargateRoom: React.FC<StargateRoomProps> = ({
 
 			{/* Stargate with controller */}
 			<StargateController
-				position={[0, 0, -5]}
+				position={[0, 2, -5]}
 				destination={planet === 'Earth' ? 'Abydos' : 'Earth'}
 				isActive={stargateActive}
 				onDeactivate={handleStargateDeactivation}
@@ -195,7 +195,7 @@ const StargateRoom: React.FC<StargateRoomProps> = ({
 
 			{/* DHD (Dial Home Device) */}
 			<DHDController
-				position={[5, 0, 0]}
+				position={[5, 0.5, 0]}
 				isActive={stargateActive}
 				onActivate={handleDHDInteraction}
 				interactableObject={interactableObject}

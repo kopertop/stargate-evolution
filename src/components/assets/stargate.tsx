@@ -19,7 +19,7 @@ const Stargate: React.FC<StargateProps> = ({
 }) => {
 	const eventHorizonRef = useRef<THREE.Mesh>(null);
 	const chevronsRef = useRef<THREE.Group>(null);
-	const [activationStage, setActivationStage] = useState(0); // 0: inactive, 1-3: activation stages, 4: fully active
+	const [activationStage, setActivationStage] = useState(0); // 0: inactive, 1-7: activation stages, 8: fully active
 	const [eventHorizonScale, setEventHorizonScale] = useState(0);
 	const lastActiveState = useRef(isActive);
 	const activationInProgressRef = useRef(false);
@@ -57,7 +57,7 @@ const Stargate: React.FC<StargateProps> = ({
 	// Function to increment activation stage
 	const incrementActivationStage = () => {
 		setActivationStage(prev => {
-			const newStage = Math.min(prev + 1, 4);
+			const newStage = Math.min(prev + 1, 8);
 			console.log(`Stargate activation stage incremented to ${newStage} (from ${prev})`);
 
 			if (newStage !== prev) {
@@ -65,7 +65,7 @@ const Stargate: React.FC<StargateProps> = ({
 				onActivationStageChange(newStage);
 
 				// If we've reached the final stage, clear the interval
-				if (newStage >= 4) {
+				if (newStage >= 8) {
 					console.log('Stargate fully activated - clearing interval');
 					if (activationIntervalRef.current) {
 						clearInterval(activationIntervalRef.current);
