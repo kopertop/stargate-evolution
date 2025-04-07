@@ -1,115 +1,143 @@
-import React, { useRef, useState, useEffect } from 'react';
-import Stargate from '../assets/stargate';
-import TravelSystem from './travel-component';
+import React, { useEffect, useState, useRef } from 'react';
+import * as THREE from 'three';
+import { Stargate } from './stargate';
+import { useStargateStore } from './stargate-store';
 
-export interface StargateControllerProps {
-	position?: [number, number, number];
-	destination?: string;
-	isActive?: boolean;
-	onActivate?: () => void;
-	onDeactivate?: () => void;
-	onStageChange?: (stage: number) => void;
-	onTravel?: () => void;
-	isTraveling?: boolean;
-	setIsInWormhole?: (isInWormhole: boolean) => void;
+interface StargateControllerProps {
+	position: [number, number, number];
+	destination: string;
+	isActive: boolean;
+	onDeactivate: () => void;
+	onStageChange: (stage: number) => void;
+	onTravel: () => void;
+	isTraveling: boolean;
+	setIsInWormhole: (isInWormhole: boolean) => void;
 }
 
-// Export triggerGateShutdown function
-export const triggerGateShutdown = (duration = 2000): void => {
-	console.log(`Triggering global stargate shutdown animation (${duration}ms)`);
-	const shutdownEvent = new CustomEvent('stargate-shutdown', {
-		detail: { duration }
-	});
-	window.dispatchEvent(shutdownEvent);
-};
-
 export const StargateController: React.FC<StargateControllerProps> = ({
-	position = [0, 0, 0],
-	destination = 'Unknown',
-	isActive = false,
-	onActivate = () => {},
-	onDeactivate = () => {},
-	onStageChange = () => {},
-	onTravel = () => {},
-	isTraveling = false,
-	setIsInWormhole = () => {}
+	position,
+	destination,
+	isActive,
+	onDeactivate,
+	onStageChange,
+	onTravel,
+	isTraveling,
+	setIsInWormhole
 }) => {
 	const [activationStage, setActivationStage] = useState(0);
-	const isMounted = useRef(true);
+	const [isShuttingDown, setIsShuttingDown] = useState(false);
+	const activationTimerRef = useRef<NodeJS.Timeout | null>(null);
+	const { setCurrentDestination, activationSound } = useStargateStore();
 
-	// Clear any timeouts on unmount
+	// Update store with current destination
 	useEffect(() => {
-		// Log initial state
-		console.log(`StargateController mounted with isActive=${isActive}, activationStage=${activationStage}`);
+		setCurrentDestination(destination);
+	}, [destination, setCurrentDestination]);
 
-		return () => {
-			console.log('StargateController unmounting');
-			isMounted.current = false;
-		};
-	}, []);
-
-	// Handle activation stage changes
-	const handleActivationStageChange = (stage: number) => {
-		console.log(`StargateController: Activation stage changed to ${stage}`);
-		setActivationStage(stage);
-		onStageChange(stage);
-	};
-
-	// Reset to inactive state
-	const resetToInactive = () => {
-		if (!isMounted.current) return;
-
-		console.log('StargateController: Resetting to inactive state');
-		setActivationStage(0);
-		onStageChange(0);
-
-		// Notify parent about deactivation
-		onDeactivate();
-	};
-
-	// Trigger shutdown animation with custom event
-	const triggerShutdown = (duration = 2000) => {
-		console.log(`Triggering stargate shutdown animation (${duration}ms)`);
-
-		// Dispatch custom event for stargate shutdown
-		const shutdownEvent = new CustomEvent('stargate-shutdown', {
-			detail: { duration }
-		});
-		window.dispatchEvent(shutdownEvent);
-
-		// Give time for the shutdown animation to complete
-		setTimeout(() => {
-			if (isMounted.current) {
-				resetToInactive();
-			}
-		}, duration + 100); // Add slight delay to ensure animation completes
-	};
-
-	// Handle deactivation
+	// Handle activation sequence
 	useEffect(() => {
-		if (!isActive && activationStage > 0) {
-			console.log('StargateController: isActive changed to false while active - triggering shutdown');
-			triggerShutdown();
+		// Clear any existing timers
+		if (activationTimerRef.current) {
+			clearTimeout(activationTimerRef.current);
+			activationTimerRef.current = null;
 		}
-	}, [isActive, activationStage]);
+
+		// Start activation sequence if stargate is active
+		if (isActive && !isTraveling && !isShuttingDown) {
+			setIsShuttingDown(false);
+
+			// Start with stage 0
+			if (activationStage === 0) {
+				// Play activation sound
+				if (activationSound) {
+					activationSound.currentTime = 0;
+					activationSound.play().catch(e => console.error('Error playing sound:', e));
+				}
+
+				// Start the activation sequence
+				let currentStage = 0;
+
+				const advanceStage = () => {
+					currentStage += 1;
+					setActivationStage(currentStage);
+					onStageChange(currentStage);
+
+					// Continue until fully activated (stage 4)
+					if (currentStage < 4) {
+						activationTimerRef.current = setTimeout(advanceStage, 1000);
+					}
+				};
+
+				// Start the sequence after a short delay
+				activationTimerRef.current = setTimeout(advanceStage, 500);
+			}
+		}
+
+		// Handle deactivation
+		else if (!isActive && activationStage > 0 && !isTraveling) {
+			setIsShuttingDown(true);
+
+			// Play shutdown sound (reverse of activation)
+			if (activationSound) {
+				activationSound.currentTime = 0;
+				activationSound.play().catch(e => console.error('Error playing sound:', e));
+			}
+
+			// Gradually step down the activation stages
+			const shutdownSequence = () => {
+				setActivationStage(prev => {
+					const newStage = prev - 1;
+					onStageChange(newStage);
+
+					if (newStage > 0) {
+						activationTimerRef.current = setTimeout(shutdownSequence, 500);
+					} else {
+						setIsShuttingDown(false);
+					}
+
+					return newStage;
+				});
+			};
+
+			activationTimerRef.current = setTimeout(shutdownSequence, 500);
+		}
+
+		// Handle travel
+		else if (isTraveling && activationStage >= 4) {
+			// Initiate wormhole travel
+			setIsInWormhole(true);
+
+			// Reset after travel completes
+			activationTimerRef.current = setTimeout(() => {
+				setActivationStage(0);
+				onStageChange(0);
+				onDeactivate();
+				setIsInWormhole(false);
+			}, 3000);
+		}
+
+		// Clean up timer on unmount
+		return () => {
+			if (activationTimerRef.current) {
+				clearTimeout(activationTimerRef.current);
+			}
+		};
+	}, [
+		isActive,
+		activationStage,
+		onStageChange,
+		isTraveling,
+		onDeactivate,
+		setIsInWormhole,
+		isShuttingDown,
+		activationSound
+	]);
 
 	return (
-		<group position={position}>
-			<Stargate
-				isActive={isActive}
-				onActivationStageChange={handleActivationStageChange}
-			/>
-
-			{/* Travel effects only shown when fully activated */}
-			{activationStage >= 4 && (
-				<TravelSystem
-					isActive={isActive}
-					isTraveling={isTraveling}
-					destination={destination}
-					onTravel={onTravel}
-					setIsInWormhole={setIsInWormhole}
-				/>
-			)}
-		</group>
+		<Stargate
+			position={position}
+			isActive={isActive || isShuttingDown}
+			activationStage={activationStage}
+		/>
 	);
 };

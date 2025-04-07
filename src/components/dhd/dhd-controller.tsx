@@ -1,19 +1,29 @@
-import React, { useEffect } from 'react';
-import { DHD } from '../assets';
+import React, { useRef, useEffect } from 'react';
+import { useDHDStore } from './dhd-store';
+import * as THREE from 'three';
+import { useFrame } from '@react-three/fiber';
+import { DHD } from './dhd';
 
-interface DHDControllerProps {
-	isActive: boolean;
+const DHD_BASE_COLOR = '#555555';
+const DHD_ACTIVE_COLOR = '#00aaff';
+const DHD_HOVER_COLOR = '#888888';
+
+export interface DHDControllerProps {
 	position: [number, number, number];
+	isActive: boolean;
 	onActivate: () => void;
 	interactableObject: string | null;
 }
 
 export const DHDController: React.FC<DHDControllerProps> = ({
-	isActive,
 	position,
+	isActive,
 	onActivate,
 	interactableObject
 }) => {
+	const dhdRef = useRef<THREE.Group>(null);
+	const { isDHDHovered, setIsDHDHovered } = useDHDStore();
+
 	// Listen for spacebar press to trigger interaction with DHD
 	useEffect(() => {
 		const handleKeyDown = (e: KeyboardEvent) => {
@@ -29,10 +39,11 @@ export const DHDController: React.FC<DHDControllerProps> = ({
 	}, [interactableObject, onActivate]);
 
 	return (
-		<DHD
-			position={position}
-			isActive={isActive}
-			onActivate={onActivate}
-		/>
+		<group ref={dhdRef} position={position}>
+			<DHD
+				position={[0, 0, 0]}
+				isActive={isActive}
+			/>
+		</group>
 	);
 };

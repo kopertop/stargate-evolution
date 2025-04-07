@@ -1,6 +1,7 @@
 // Re-export all stargate-related components and utilities
-export { StargateController, triggerGateShutdown } from './stargate-controller';
-export { default as DHDController } from './dhd-controller';
+export { StargateController } from './stargate-controller';
+// Export DHD controller from DHD components
+export { DHDController } from '../dhd';
 export { InteractionSystem } from './interaction-system';
 export { default as TravelSystem } from './travel-component';
 export {
@@ -13,3 +14,4 @@ export { getPlanetTheme, getSpawnPosition, PLANET_THEMES, SPAWN_POSITIONS } from
 export { rotateCamera } from './camera-rotator';
 export { useStargateStore } from './stargate-store';
 export { useInteractionStore } from './interaction-store';
+export { Stargate } from './stargate';

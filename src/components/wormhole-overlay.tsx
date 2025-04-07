@@ -1,11 +1,12 @@
 import React, { useEffect } from 'react';
-import { useLocation } from '../app';
+import { useGameStore } from './game';
+// No need to import SCSS as it's handled by main.scss
 
 /**
  * Component that creates DOM overlay effects for wormhole travel
  */
 const WormholeOverlay: React.FC = () => {
-	const { isInWormhole } = useLocation();
+	const { isInWormhole } = useGameStore();
 
 	// Create and manage DOM elements for the travel effect
 	useEffect(() => {

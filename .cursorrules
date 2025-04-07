@@ -163,6 +163,13 @@
 			/planet-types.ts				# Planet type definitions
 			/index.ts						# Exports all planet components
 
+		/base
+			/base.tsx						# Base Visual component
+			/base-types.ts					# Base type definitions
+			/base-store.ts					# Base state management
+			/base-controller.tsx			# Base controller
+			/index.ts						# Exports all base components
+
 		/hud									# HUD (Heads Up Display) including Tooltips/tutorials
 			/hud-store.ts					# HUD state management
 			/hud-controller.tsx			# HUD controller
@@ -188,6 +195,22 @@
 		/performance.ts				 	# Performance optimization utilities
 		/loaders.ts						# Asset loading utilities
 		/index.ts						# Exports all utilities
+
+	/data									# Persistent data (Dexie DB)
+		/db.ts							# Dexie DB setup
+		/planets.ts						# Planet data
+		/locations.ts					# Location data (Locations on a planet)
+		/bases.ts						# Base data (Bases belonging at location, user or NPC controlled)
+		/characters.ts					# Character data (NPCs and players)
+		/index.ts						# Exports all data files
+
+	/styles								# SCSS styles
+		/main.scss						# All styles imported from subdirectories
+		/base								# Base styles
+		/components						# Component styles
+		/effects							# Effect styles
+		/layout							# Layout styles
+		/variables						# Variables shared across styles
 ```
 
 ## Interaction Flow

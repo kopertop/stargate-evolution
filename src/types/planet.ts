@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { BaseEntity, Position, ClimateType, ResourceDeposit, ExplorationStatus, Base, Civilization } from './base';
-import { Room, RoomType, RoomPosition, RoomTheme, RoomConnection } from './room';
+import { Location } from './location';
 
 // Define planet-wide theme
 export const PlanetTheme = z.object({
@@ -28,14 +28,15 @@ export const Planet = BaseEntity.extend({
 	threatLevel: z.number().min(0).max(10).default(0),
 	civilization: Civilization.optional(),
 	hasStargate: z.boolean().default(true), // Default to true for our game
+	isDiscovered: z.boolean().default(false),
 
 	// Additional fields for our game
 	type: z.string(), // Planet type (desert, forest, etc.)
 	address: z.string(), // Stargate address
 	theme: PlanetTheme,
 
-	// Rooms that make up this planet
-	rooms: z.array(Room),
+	// Locations that make up this planet
+	locations: z.array(Location),
 
 	// ID of the room that contains the stargate (entry point)
 	stargateRoomId: z.string(),

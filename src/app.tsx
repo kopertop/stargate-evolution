@@ -1,7 +1,7 @@
 import React, { useRef, useState, createContext, useContext, useEffect } from 'react';
 import { Canvas } from '@react-three/fiber';
 import * as THREE from 'three';
-import StargateRoom from './components/stargate-room';
+import StargateRoom from './components/environment/room';
 import CameraController from './components/camera-controller';
 import MovementTutorial from './components/movement-tutorial';
 import StargateWormholeEffect from './components/stargate-travel-effect';
@@ -9,6 +9,8 @@ import WormholeOverlay from './components/wormhole-overlay';
 import HelpReminder from './components/help-reminder';
 import { Planets } from './types/index';
 import { initializeGameData } from './data';
+import { InteractionHint } from './components/hud/interaction-hint';
+import './styles/main.scss';
 
 // Create a context for location information
 interface LocationContextType {
@@ -142,6 +144,9 @@ export default function App() {
 
 					{/* Location info */}
 					<LocationDisplay />
+
+					{/* Interaction hint */}
+					<InteractionHint />
 
 					{/* Help Button - always visible */}
 					<HelpReminder />

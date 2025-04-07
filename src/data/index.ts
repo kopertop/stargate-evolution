@@ -1,5 +1,5 @@
 import { initializeDefaultPlanets } from './planets';
-import { getRoomsForPlanet, getRoomById, addRoom, updateRoom, discoverRoom } from './rooms';
+import { initializeDefaultLocations, getLocationById, getLocationsForPlanet, discoverLocation, addLocation, updateLocation } from './locations';
 import { db } from './db';
 
 export { db };
@@ -9,13 +9,13 @@ export {
 	initializeDefaultPlanets
 };
 
-// Export room-related functions
+// Export location-related functions
 export {
-	getRoomsForPlanet,
-	getRoomById,
-	addRoom,
-	updateRoom,
-	discoverRoom
+	getLocationById,
+	getLocationsForPlanet,
+	addLocation,
+	updateLocation,
+	discoverLocation
 };
 
 // Initialize function to set up all databases
@@ -23,6 +23,9 @@ export async function initializeGameData(): Promise<void> {
 	try {
 		// Initialize planets
 		await initializeDefaultPlanets();
+
+		// Initialize locations
+		await initializeDefaultLocations();
 
 		console.log('Game data initialized successfully');
 	} catch (error) {

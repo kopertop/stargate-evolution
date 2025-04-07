@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { BaseEntity, Position } from './base';
 
 // Define room types
-export const RoomType = z.enum([
+export const LocationType = z.enum([
 	'STARGATE_ROOM',
 	'CORRIDOR',
 	'COMMAND_CENTER',
@@ -21,17 +21,17 @@ export const RoomType = z.enum([
 	'WILDERNESS'
 ]);
 
-export type RoomType = z.infer<typeof RoomType>;
+export type LocationType = z.infer<typeof LocationType>;
 
-// Room position for 3D placement - extends base Position with rotation
-export const RoomPosition = Position.extend({
+// Location position for 3D placement - extends base Position with rotation
+export const LocationPosition = Position.extend({
 	rotation: z.number().default(0) // Rotation around y-axis in radians
 });
 
-export type RoomPosition = z.infer<typeof RoomPosition>;
+export type LocationPosition = z.infer<typeof LocationPosition>;
 
 // Define visual theme for rooms
-export const RoomTheme = z.object({
+export const LocationTheme = z.object({
 	wallColor: z.string(),
 	floorColor: z.string(),
 	ceilingColor: z.string().optional(),
@@ -40,25 +40,25 @@ export const RoomTheme = z.object({
 	pointLightIntensity: z.number().default(1)
 });
 
-export type RoomTheme = z.infer<typeof RoomTheme>;
+export type LocationTheme = z.infer<typeof LocationTheme>;
 
 // A door or connection between rooms
-export const RoomConnection = z.object({
-	targetRoomId: z.string(),
-	position: RoomPosition,
+export const LocationConnection = z.object({
+	targetLocationId: z.string(),
+	position: LocationPosition,
 	isLocked: z.boolean().default(false),
 	requiredKeyItem: z.string().optional(),
 	isHidden: z.boolean().default(false)
 });
 
-export type RoomConnection = z.infer<typeof RoomConnection>;
+export type LocationConnection = z.infer<typeof LocationConnection>;
 
 // Define a single room - extends BaseEntity
-export const Room = BaseEntity.extend({
-	type: RoomType,
-	position: RoomPosition,
-	theme: RoomTheme.optional(), // If not provided, use planet default theme
-	connections: z.array(RoomConnection).default([]),
+export const Location = BaseEntity.extend({
+	type: LocationType,
+	position: LocationPosition,
+	theme: LocationTheme.optional(), // If not provided, use planet default theme
+	connections: z.array(LocationConnection).default([]),
 	npcs: z.array(z.string()).default([]), // NPC IDs for this room
 	items: z.array(z.string()).default([]), // Item IDs in this room
 	events: z.array(z.string()).default([]), // Event triggers in this room
@@ -66,14 +66,14 @@ export const Room = BaseEntity.extend({
 	planetId: z.string() // Reference to parent planet
 });
 
-export type Room = z.infer<typeof Room>;
+export type Location = z.infer<typeof Location>;
 
 // Helper function to create a new room
-export function createRoom(roomData: z.input<typeof Room>): Room {
-	return Room.parse(roomData);
+export function createLocation(roomData: z.input<typeof Location>): Location {
+	return Location.parse(roomData);
 }
 
-// Helper function to type-check if an object is a Room
-export function isRoom(obj: unknown): obj is Room {
-	return Room.safeParse(obj).success;
+// Helper function to type-check if an object is a Location
+export function isLocation(obj: unknown): obj is Location {
+	return Location.safeParse(obj).success;
 }

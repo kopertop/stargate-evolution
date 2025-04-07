@@ -155,7 +155,7 @@ const StargateRoom: React.FC<StargateRoomProps> = ({
 
 			{/* Interaction system */}
 			<InteractionSystem
-				characterRef={characterRef}
+				characterRef={characterRef as React.RefObject<THREE.Group>}
 				stargatePositionRef={stargatePositionRef}
 				dhdPositionRef={dhdPositionRef}
 				stargateActive={stargateActive}

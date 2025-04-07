@@ -1,27 +1,30 @@
 import { create } from 'zustand';
 
-interface InteractionState {
+export interface InteractionState {
 	interactableObject: string | null;
 	interactionHint: string;
-	canInteract: boolean;
-	setInteractable: (object: string | null, hint: string) => void;
-	clearInteraction: () => void;
+	isNearDHD: boolean;
+	isNearStargate: boolean;
+	setInteractableObject: (object: string | null) => void;
+	setInteractionHint: (hint: string) => void;
+	setIsNearDHD: (isNear: boolean) => void;
+	setIsNearStargate: (isNear: boolean) => void;
+	clearInteractions: () => void;
 }
 
 export const useInteractionStore = create<InteractionState>((set) => ({
 	interactableObject: null,
 	interactionHint: '',
-	canInteract: false,
-
-	setInteractable: (object, hint) => set({
-		interactableObject: object,
-		interactionHint: hint,
-		canInteract: object !== null,
-	}),
-
-	clearInteraction: () => set({
+	isNearDHD: false,
+	isNearStargate: false,
+	setInteractableObject: (object) => set({ interactableObject: object }),
+	setInteractionHint: (hint) => set({ interactionHint: hint }),
+	setIsNearDHD: (isNear) => set({ isNearDHD: isNear }),
+	setIsNearStargate: (isNear) => set({ isNearStargate: isNear }),
+	clearInteractions: () => set({
 		interactableObject: null,
 		interactionHint: '',
-		canInteract: false,
-	}),
+		isNearDHD: false,
+		isNearStargate: false
+	})
 }));

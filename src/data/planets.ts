@@ -1,204 +1,116 @@
-import { ClimateType } from '../types/base';
-import { createRoom } from '../types/room';
-import { Planet, createPlanet } from '../types/planet';
 import { db } from './db';
+import { Planet } from '../types';
 
-// Helper function to initialize the database with default planets
+// Default planets data
+const defaultPlanets: Planet[] = [
+	{
+		id: 'earth',
+		name: 'Earth',
+		description: 'Home planet of the Tau\'ri, where the Stargate program is based.',
+		type: 'PLANET',
+		climate: 'TEMPERATE',
+		resources: [
+			{
+				type: 'MINERAL',
+				abundance: 0.5,
+				difficulty: 1,
+				discovered: true
+			}
+		],
+		isDiscovered: true,
+		isExplored: true,
+		explorationStatus: 'UNEXPLORED',
+		locations: [],
+		bases: [],
+		threatLevel: 0,
+		dangerLevel: 1,
+		requiredTechLevel: 0,
+		hasAtmosphere: true,
+		hasStargate: true,
+		address: '123456',
+		theme: {
+			name: 'Default',
+			defaultWallColor: '#000000',
+			defaultFloorColor: '#000000',
+			defaultAmbientLight: '#000000',
+			defaultPointLightColor: '#000000',
+			defaultPointLightIntensity: 1,
+		},
+		stargateRoomId: 'sgc',
+		gravity: 1.0,
+		temperature: 15,
+		customProperties: {},
+		availableResources: []
+	},
+	{
+		id: 'abydos',
+		name: 'Abydos',
+		description: 'A desert planet with a culture similar to ancient Egypt, first planet visited through the Stargate.',
+		type: 'PLANET',
+		climate: 'DESERT',
+		resources: [
+			{
+				type: 'MINERAL',
+				abundance: 0.8,
+				difficulty: 2,
+				discovered: false
+			}
+		],
+		isDiscovered: false,
+		isExplored: false,
+		explorationStatus: 'UNEXPLORED',
+		locations: [],
+		bases: [],
+		threatLevel: 2,
+		dangerLevel: 3,
+		requiredTechLevel: 1,
+		hasAtmosphere: true,
+		hasStargate: true,
+		address: '654321',
+		theme: {
+			name: 'Desert',
+			defaultWallColor: '#d2b48c',
+			defaultFloorColor: '#f5deb3',
+			defaultAmbientLight: '#fff8dc',
+			defaultPointLightColor: '#ffff00',
+			defaultPointLightIntensity: 1.2,
+		},
+		stargateRoomId: 'temple',
+		gravity: 0.9,
+		temperature: 35,
+		customProperties: {},
+		availableResources: []
+	}
+];
+
+// Initialize default planets in the database
 export async function initializeDefaultPlanets(): Promise<void> {
 	const count = await db.planets.count();
 
-	// Only initialize if the database is empty
+	// Only add default planets if the table is empty
 	if (count === 0) {
-		try {
-			// Create Earth planet
-			const earthPlanet = createEarthPlanet();
-			await db.planets.add(earthPlanet);
-
-			// Create Abydos planet
-			const abydosPlanet = createAbydosPlanet();
-			await db.planets.add(abydosPlanet);
-
-			console.log('Default planets initialized successfully');
-		} catch (error) {
-			console.error('Error initializing default planets:', error);
-		}
+		console.log('Adding default planets to database');
+		await db.planets.bulkAdd(defaultPlanets);
 	}
 }
 
-// Helper function to create Earth as the default starting planet
-export function createEarthPlanet(): Planet {
-	const commandCenterId = 'earth-command-center';
-	const stargateRoomId = 'earth-stargate-room';
-	const corridorId = 'earth-corridor-1';
-
-	return createPlanet({
-		id: 'earth',
-		name: 'Earth',
-		type: 'temperate',
-		climate: ClimateType.enum.TEMPERATE,
-		address: 'EARTH-000',
-		description: 'Home planet of the SGC and humanity',
-		theme: {
-			name: 'Earth SGC',
-			defaultWallColor: '#555555',
-			defaultFloorColor: '#444444',
-			defaultAmbientLight: '#ffffff',
-			defaultPointLightColor: '#66ccff'
-		},
-		stargateRoomId,
-		rooms: [
-			createRoom({
-				id: stargateRoomId,
-				name: 'SGC Gate Room',
-				type: 'STARGATE_ROOM',
-				position: { x: 0, y: 0, z: 0, rotation: 0 },
-				description: 'The main gate room at Stargate Command, containing Earth\'s stargate.',
-				planetId: 'earth',
-				connections: [
-					{
-						targetRoomId: corridorId,
-						position: { x: 0, y: 0, z: 5, rotation: Math.PI },
-						isLocked: false
-					}
-				]
-			}),
-			createRoom({
-				id: corridorId,
-				name: 'Main Corridor',
-				type: 'CORRIDOR',
-				position: { x: 0, y: 0, z: 10, rotation: 0 },
-				description: 'The main corridor connecting the gate room to the command center.',
-				planetId: 'earth',
-				connections: [
-					{
-						targetRoomId: stargateRoomId,
-						position: { x: 0, y: 0, z: -5, rotation: 0 },
-						isLocked: false
-					},
-					{
-						targetRoomId: commandCenterId,
-						position: { x: 5, y: 0, z: 0, rotation: Math.PI / 2 },
-						isLocked: false
-					}
-				]
-			}),
-			createRoom({
-				id: commandCenterId,
-				name: 'SGC Command Center',
-				type: 'COMMAND_CENTER',
-				position: { x: 10, y: 0, z: 10, rotation: 0 },
-				description: 'The command center overlooking the stargate room.',
-				planetId: 'earth',
-				connections: [
-					{
-						targetRoomId: corridorId,
-						position: { x: -5, y: 0, z: 0, rotation: -Math.PI / 2 },
-						isLocked: false
-					}
-				]
-			})
-		],
-		isExplored: true,
-		dangerLevel: 0,
-		requiredTechLevel: 0,
-		temperature: 15,
-		gravity: 1,
-		hasAtmosphere: true
-	});
+// Get a planet by ID
+export async function getPlanetById(id: string): Promise<Planet | undefined> {
+	return db.planets.get(id);
 }
 
-// Helper function to create Abydos as the first alien planet
-export function createAbydosPlanet(): Planet {
-	const stargateRoomId = 'abydos-stargate-room';
-	const templeId = 'abydos-temple';
-	const villageId = 'abydos-village';
-
-	return createPlanet({
-		id: 'abydos',
-		name: 'Abydos',
-		type: 'desert',
-		climate: ClimateType.enum.DESERT,
-		address: 'ABYDOS-001',
-		description: 'A desert planet with an ancient Egyptian-like civilization.',
-		theme: {
-			name: 'Abydos Desert',
-			defaultWallColor: '#AA8855',
-			defaultFloorColor: '#8A6642',
-			defaultAmbientLight: '#ffebcd',
-			defaultPointLightColor: '#ffdab9',
-			atmosphereColor: '#ffe4c4',
-			fogDensity: 0.02
-		},
-		stargateRoomId,
-		rooms: [
-			createRoom({
-				id: stargateRoomId,
-				name: 'Abydos Gate Chamber',
-				type: 'STARGATE_ROOM',
-				position: { x: 0, y: 0, z: 0, rotation: 0 },
-				description: 'An ancient chamber housing the Abydos stargate, covered in hieroglyphs.',
-				planetId: 'abydos',
-				connections: [
-					{
-						targetRoomId: templeId,
-						position: { x: 0, y: 0, z: 5, rotation: Math.PI },
-						isLocked: false
-					}
-				]
-			}),
-			createRoom({
-				id: templeId,
-				name: 'Ra Temple',
-				type: 'TEMPLE',
-				position: { x: 0, y: 0, z: 10, rotation: 0 },
-				description: 'A grand temple once dedicated to the false god Ra.',
-				planetId: 'abydos',
-				connections: [
-					{
-						targetRoomId: stargateRoomId,
-						position: { x: 0, y: 0, z: -5, rotation: 0 },
-						isLocked: false
-					},
-					{
-						targetRoomId: villageId,
-						position: { x: 0, y: 0, z: 5, rotation: Math.PI },
-						isLocked: false
-					}
-				]
-			}),
-			createRoom({
-				id: villageId,
-				name: 'Abydos Village',
-				type: 'VILLAGE_CENTER',
-				position: { x: 0, y: 0, z: 20, rotation: 0 },
-				description: 'A village of indigenous people who mine minerals for trade.',
-				planetId: 'abydos',
-				connections: [
-					{
-						targetRoomId: templeId,
-						position: { x: 0, y: 0, z: -5, rotation: 0 },
-						isLocked: false
-					}
-				]
-			})
-		],
-		isExplored: false,
-		dangerLevel: 2,
-		requiredTechLevel: 0,
-		temperature: 35,
-		gravity: 0.9,
-		hasAtmosphere: true,
-		civilization: {
-			name: 'Abydonians',
-			friendliness: 0.8,
-			technologicalLevel: 0.2,
-			description: 'A peaceful civilization descended from ancient Egyptians brought to Abydos by Ra.'
-		},
-		availableResources: [
-			{
-				type: 'NAQUADAH',
-				abundance: 0.7
-			}
-		]
-	});
+// Get all planets
+export async function getAllPlanets(): Promise<Planet[]> {
+	return db.planets.toArray();
 }
+
+// Get discovered planets
+export async function getDiscoveredPlanets(): Promise<Planet[]> {
+	return db.planets.where('isDiscovered').equals(1).toArray();
+}
+
+// Discover a planet
+export async function discoverPlanet(id: string): Promise<void> {
+	await db.planets.update(id, { isDiscovered: true });
+}
+

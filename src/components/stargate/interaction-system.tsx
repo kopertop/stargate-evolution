@@ -1,7 +1,12 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
-import { Html } from '@react-three/drei';
-import { checkStargateProximity } from './travel-utils';
+import { useFrame } from '@react-three/fiber';
+import { useInteractionStore } from './interaction-store';
+
+// Define interaction distances
+const DHD_INTERACTION_DISTANCE = 2;
+const STARGATE_INTERACTION_DISTANCE = 3;
+const TRAVEL_DISTANCE = 1.5;
 
 export interface InteractionSystemProps {
 	characterRef: React.RefObject<THREE.Group>;
@@ -9,10 +14,10 @@ export interface InteractionSystemProps {
 	dhdPositionRef: React.RefObject<THREE.Vector3>;
 	stargateActive: boolean;
 	activationStage: number;
-	interactionHint: string;
-	interactableObject: string | null;
 	setInteractionHint: (hint: string) => void;
 	setInteractableObject: (object: string | null) => void;
+	interactionHint: string;
+	interactableObject: string | null;
 	onDHDInteract: () => void;
 	onStartTravel: () => void;
 }
@@ -23,166 +28,117 @@ export const InteractionSystem: React.FC<InteractionSystemProps> = ({
 	dhdPositionRef,
 	stargateActive,
 	activationStage,
-	interactionHint,
-	interactableObject,
 	setInteractionHint,
 	setInteractableObject,
+	interactionHint,
+	interactableObject,
 	onDHDInteract,
 	onStartTravel
 }) => {
-	const interactionCheckInterval = useRef<NodeJS.Timeout | null>(null);
-	const [canTravel, setCanTravel] = useState(false);
+	const { isNearDHD, isNearStargate, setIsNearDHD, setIsNearStargate } = useInteractionStore();
 
-	// Setup the interaction system
-	useEffect(() => {
-		// Clean up the previous interval if it exists
-		if (interactionCheckInterval.current) {
-			clearInterval(interactionCheckInterval.current);
+	// Process interactions every frame
+	useFrame(() => {
+		if (!characterRef.current || !stargatePositionRef.current || !dhdPositionRef.current) return;
+
+		const characterPosition = characterRef.current.position;
+		const stargatePosition = stargatePositionRef.current;
+		const dhdPosition = dhdPositionRef.current;
+
+		// Calculate distances
+		const distanceToDHD = characterPosition.distanceTo(new THREE.Vector3(
+			dhdPosition.x,
+			characterPosition.y, // Use character's y position for a more accurate horizontal distance
+			dhdPosition.z
+		));
+
+		const distanceToStargate = characterPosition.distanceTo(new THREE.Vector3(
+			stargatePosition.x,
+			characterPosition.y, // Use character's y position for a more accurate horizontal distance
+			stargatePosition.z
+		));
+
+		// Check if player is near the DHD
+		const nearDHD = distanceToDHD < DHD_INTERACTION_DISTANCE;
+		if (nearDHD !== isNearDHD) {
+			setIsNearDHD(nearDHD);
 		}
 
-		// Set up a new interval to check for interactions
-		interactionCheckInterval.current = setInterval(() => {
-			updateInteractionHints();
-		}, 200);
-
-		return () => {
-			if (interactionCheckInterval.current) {
-				clearInterval(interactionCheckInterval.current);
-			}
-		};
-	}, []);
-
-	// Update interaction hints based on proximity to objects and their states
-	const updateInteractionHints = () => {
-		if (!characterRef.current || !stargatePositionRef.current || !dhdPositionRef.current) {
-			// Skip updating if references are not available
-			return;
+		// Check if player is near the Stargate
+		const nearStargate = distanceToStargate < STARGATE_INTERACTION_DISTANCE;
+		if (nearStargate !== isNearStargate) {
+			setIsNearStargate(nearStargate);
 		}
 
-		const characterPosition = characterRef.current.position.clone();
-		const stargatePosition = stargatePositionRef.current.clone();
-		const dhdPosition = dhdPositionRef.current.clone();
-
-		// Check for stargate travel possibility
-		if (stargateActive && activationStage >= 4) {
-			// Calculate distance to stargate
-			const distanceToStargate = Math.sqrt(
-				Math.pow(characterPosition.x - stargatePosition.x, 2) +
-				Math.pow(characterPosition.z - stargatePosition.z, 2)
-			);
-
-			// Check if close enough to travel
-			if (distanceToStargate < 2.0) {
-				setCanTravel(true);
-				// Don't override hint if it's already set
+		// Determine interaction hints
+		if (nearDHD && nearStargate) {
+			// Prioritize stargate travel if it's active
+			if (stargateActive && activationStage >= 4 && distanceToStargate < TRAVEL_DISTANCE) {
+				setInteractableObject('stargate');
 				if (interactionHint !== 'Press SPACE to travel through the Stargate') {
 					setInteractionHint('Press SPACE to travel through the Stargate');
-					setInteractableObject('stargate');
 				}
-				return;
 			} else {
-				setCanTravel(false);
-			}
-		}
-
-		// Calculate distance to DHD
-		const distanceToDHD = Math.sqrt(
-			Math.pow(characterPosition.x - dhdPosition.x, 2) +
-			Math.pow(characterPosition.z - dhdPosition.z, 2)
-		);
-
-		// Interaction with DHD
-		if (distanceToDHD < 2.5) {
-			if (!stargateActive) {
-				setInteractionHint('Press SPACE to dial the Stargate');
 				setInteractableObject('dhd');
-			} else {
-				setInteractionHint('Press SPACE to deactivate the Stargate');
-				setInteractableObject('dhd');
-			}
-		}
-		// Near the stargate but need more context
-		else if (stargateActive) {
-			const distanceToStargate = Math.sqrt(
-				Math.pow(characterPosition.x - stargatePosition.x, 2) +
-				Math.pow(characterPosition.z - stargatePosition.z, 2)
-			);
-
-			if (distanceToStargate < 5) {
-				if (activationStage < 4) {
-					setInteractionHint('Stargate is activating... wait for connection');
-					setInteractableObject(null);
+				if (stargateActive) {
+					if (interactionHint !== 'Press SPACE to deactivate the Stargate') {
+						setInteractionHint('Press SPACE to deactivate the Stargate');
+					}
 				} else {
-					setInteractionHint('Get closer to the Stargate to travel');
-					setInteractableObject(null);
-				}
-			} else {
-				// Clear hints when no interaction is available
-				if (interactableObject === 'stargate' || interactableObject === 'dhd') {
-					setInteractionHint('');
-					setInteractableObject(null);
+					if (interactionHint !== 'Press SPACE to activate the Stargate') {
+						setInteractionHint('Press SPACE to activate the Stargate');
+					}
 				}
 			}
-		}
-		// No interaction available
-		else if (interactableObject !== null) {
-			setInteractionHint('');
+		} else if (nearDHD) {
+			setInteractableObject('dhd');
+			if (stargateActive) {
+				if (interactionHint !== 'Press SPACE to deactivate the Stargate') {
+					setInteractionHint('Press SPACE to deactivate the Stargate');
+				}
+			} else {
+				if (interactionHint !== 'Press SPACE to activate the Stargate') {
+					setInteractionHint('Press SPACE to activate the Stargate');
+				}
+			}
+		} else if (nearStargate && stargateActive && activationStage >= 4) {
+			if (distanceToStargate < TRAVEL_DISTANCE) {
+				setInteractableObject('stargate');
+				if (interactionHint !== 'Press SPACE to travel through the Stargate') {
+					setInteractionHint('Press SPACE to travel through the Stargate');
+				}
+			} else {
+				setInteractableObject(null);
+				if (interactionHint !== 'Move closer to travel through the Stargate') {
+					setInteractionHint('Move closer to travel through the Stargate');
+				}
+			}
+		} else {
 			setInteractableObject(null);
+			if (interactionHint !== '') {
+				setInteractionHint('');
+			}
 		}
-	};
+	});
 
-	// Handle keyboard interaction (Space key)
+	// Handle key press for travel
 	useEffect(() => {
 		const handleKeyDown = (e: KeyboardEvent) => {
-			if (e.code === 'Space' && interactionHint && interactableObject) {
-				console.log('Interaction triggered with:', interactableObject);
-
-				if (interactableObject === 'stargate' && canTravel) {
-					console.log('Starting travel...');
-					onStartTravel();
-				} else if (interactableObject === 'dhd') {
-					console.log('Interacting with DHD...');
+			if (e.code === 'Space') {
+				if (interactableObject === 'dhd') {
 					onDHDInteract();
+				} else if (interactableObject === 'stargate') {
+					onStartTravel();
 				}
-
-				// Prevent default space behavior (scrolling)
-				e.preventDefault();
 			}
 		};
 
 		window.addEventListener('keydown', handleKeyDown);
-		return () => window.removeEventListener('keydown', handleKeyDown);
-	}, [interactionHint, interactableObject, canTravel, onDHDInteract, onStartTravel]);
+		return () => {
+			window.removeEventListener('keydown', handleKeyDown);
+		};
+	}, [interactableObject, onDHDInteract, onStartTravel]);
 
-	// Only render if there's an interaction hint and character exists
-	if (!interactionHint || !characterRef.current) return null;
-
-	// Render the hint using Html from drei
-	return (
-		<Html
-			position={[
-				characterRef.current.position.x,
-				characterRef.current.position.y + 2.5, // Position above character
-				characterRef.current.position.z
-			]}
-			center
-			distanceFactor={10}
-		>
-			<div
-				style={{
-					background: 'rgba(0, 0, 0, 0.7)',
-					color: '#00ffff',
-					padding: '8px 12px',
-					borderRadius: '4px',
-					fontFamily: 'monospace',
-					fontSize: '16px',
-					userSelect: 'none',
-					pointerEvents: 'none',
-					whiteSpace: 'nowrap'
-				}}
-			>
-				{interactionHint}
-			</div>
-		</Html>
-	);
+	// This component is purely logic-based, no visual output
+	return null;
 };

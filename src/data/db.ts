@@ -1,21 +1,21 @@
-import Dexie from 'dexie';
-import type { Planet } from '../types/planet';
-import type { Room } from '../types/room';
+import Dexie, { Table } from 'dexie';
+import { Planet } from '../types';
+import { Location } from '../types';
 
 // Define the database
-export class StargateEvolutionDatabase extends Dexie {
-	planets!: Dexie.Table<Planet, string>;
-	rooms!: Dexie.Table<Room, string>;
+export class StargateDatabase extends Dexie {
+	planets!: Table<Planet, string>;
+	locations!: Table<Location, string>;
 
 	constructor() {
-		super('StargateEvolution');
+		super('stargateEvolution');
 
 		// Define the schema
 		this.version(1).stores({
-			planets: 'id, name, address, climate',
-			rooms: 'id, planetId, type, isDiscovered'
+			planets: 'id, name, description, isDiscovered',
+			locations: 'id, planetId, name, description, discovered'
 		});
 	}
 }
 
-export const db = new StargateEvolutionDatabase();
+export const db = new StargateDatabase();
