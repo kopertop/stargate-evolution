@@ -6,6 +6,9 @@ import { Planets } from '../../types';
 import { InteractionSystem } from '../stargate';
 import { SimpleCharacterController } from '../character/simple-character-controller';
 import { DHDController } from '../dhd';
+import { useInteractionStore } from '../stargate/interaction-store';
+import { usePlayerStore } from '../player';
+import { TravelController } from '../player/travel-controller';
 
 // Temporary Room component until we move the actual one
 const Room: React.FC<{size: [number, number], wallHeight: number, wallColor: string, floorColor: string}> = ({
@@ -40,8 +43,8 @@ const Room: React.FC<{size: [number, number], wallHeight: number, wallColor: str
 
 export interface StargateRoomProps {
 	planet: Planets;
-	updateLocation: (planet: Planets, location: string) => void;
-	setIsInWormhole: (isInWormhole: boolean) => void;
+	updateLocation?: (planet: Planets, location: string) => void;
+	setIsInWormhole?: (isInWormhole: boolean) => void;
 	characterRef?: React.RefObject<THREE.Group | null>;
 	startTravel?: () => void;
 }
@@ -49,23 +52,36 @@ export interface StargateRoomProps {
 const StargateRoom: React.FC<StargateRoomProps> = ({
 	planet,
 	updateLocation,
-	setIsInWormhole,
+	setIsInWormhole: legacySetIsInWormhole,
 	characterRef: externalCharacterRef,
 	startTravel: externalStartTravel,
 }) => {
 	const [stargateActive, setStargateActive] = useState(false);
 	const [activationStage, setActivationStage] = useState(0);
-	const [isTraveling, setIsTraveling] = useState(false);
-	const [interactionHint, setInteractionHint] = useState('');
-	const [interactableObject, setInteractableObject] = useState<string | null>(null);
+
+	// Get player store for location and travel
+	const { travel, setIsInWormhole, currentPlanet, currentLocation } = usePlayerStore();
+
+	// Get interaction store for hints and interactions
+	const {
+		interactionHint,
+		interactableObject,
+		setInteractionHint,
+		setInteractableObject
+	} = useInteractionStore();
 
 	const localCharacterRef = useRef<THREE.Group>(null);
 	const characterRef = externalCharacterRef || localCharacterRef;
+	const stargateRef = useRef<THREE.Group>(null);
 	const stargatePositionRef = useRef(new THREE.Vector3(0, 2, -5));
 	const dhdPositionRef = useRef(new THREE.Vector3(5, 0.5, 0));
 
 	// Auto-shutdown timer
 	const shutdownTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+	// Determine target planet/location based on current location
+	const targetPlanet = planet === 'Earth' ? 'Abydos' : 'Earth';
+	const targetLocation = targetPlanet === 'Earth' ? 'Stargate Command' : 'Temple of Ra';
 
 	// Clear any timeouts on unmount
 	useEffect(() => {
@@ -101,7 +117,7 @@ const StargateRoom: React.FC<StargateRoomProps> = ({
 		}
 
 		shutdownTimerRef.current = setTimeout(() => {
-			if (!isTraveling && stargateActive) {
+			if (stargateActive) {
 				console.log('Auto-shutdown initiated');
 				setStargateActive(false);
 				setInteractionHint('Stargate shutdown due to inactivity');
@@ -137,32 +153,30 @@ const StargateRoom: React.FC<StargateRoomProps> = ({
 		setActivationStage(0);
 	};
 
-	// Start travel sequence when character approaches active stargate
-	const startTravel = () => {
-		if (externalStartTravel) {
-			externalStartTravel();
-			return;
+	// Handle travel completion - use both new and legacy methods
+	const handleTravelComplete = () => {
+		console.log('Travel completed to:', targetPlanet, targetLocation);
+
+		// Call legacy update if provided
+		if (updateLocation) {
+			updateLocation(targetPlanet, targetLocation);
 		}
 
-		if (stargateActive && activationStage >= 8 && !isTraveling) {
-			console.log('Starting travel sequence');
-
-			// Set traveling state
-			setIsTraveling(true);
-
-			// Reset after travel completes (handled by TravelSystem component)
-			setTimeout(() => {
-				const destination = planet === 'Earth' ? 'Abydos' : 'Earth';
-				updateLocation(
-					destination as Planets,
-					destination === 'Earth' ? 'Stargate Command' : 'Temple of Ra'
-				);
-
-				// Reset travel state
-				setIsTraveling(false);
-			}, 3000);
+		// Call legacy wormhole setter if provided
+		if (legacySetIsInWormhole) {
+			legacySetIsInWormhole(false);
 		}
+
+		// Reset stargate state
+		setStargateActive(false);
+		setActivationStage(0);
 	};
+
+	// Update position refs when component mounts
+	useEffect(() => {
+		stargatePositionRef.current.set(0, 2, -5);
+		dhdPositionRef.current.set(5, 0.5, 0);
+	}, []);
 
 	return (
 		<>
@@ -186,13 +200,14 @@ const StargateRoom: React.FC<StargateRoomProps> = ({
 			{/* Stargate with controller */}
 			<StargateController
 				position={[0, 2, -5]}
-				destination={planet === 'Earth' ? 'Abydos' : 'Earth'}
+				destination={targetPlanet}
 				isActive={stargateActive}
 				onDeactivate={handleStargateDeactivation}
 				onStageChange={handleStargateStageChange}
-				onTravel={startTravel}
-				isTraveling={isTraveling}
+				onTravel={handleTravelComplete}
+				isTraveling={false}
 				setIsInWormhole={setIsInWormhole}
+				ref={stargateRef}
 			/>
 
 			{/* DHD (Dial Home Device) */}
@@ -215,8 +230,21 @@ const StargateRoom: React.FC<StargateRoomProps> = ({
 				interactionHint={interactionHint}
 				interactableObject={interactableObject}
 				onDHDInteract={handleDHDInteraction}
-				onStartTravel={startTravel}
+				onStartTravel={() => {}}
 			/>
+
+			{/* Travel controller */}
+			{characterRef.current && stargateRef.current && (
+				<TravelController
+					characterRef={characterRef as React.RefObject<THREE.Group>}
+					stargateRef={stargateRef}
+					stargateActive={stargateActive}
+					activationStage={activationStage}
+					targetPlanet={targetPlanet}
+					targetLocation={targetLocation}
+					onTravelComplete={handleTravelComplete}
+				/>
+			)}
 
 			{/* Ambient light */}
 			<ambientLight intensity={0.6} />
