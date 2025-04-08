@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { useInteractionStore } from './interaction-store';
@@ -35,7 +35,12 @@ export const InteractionSystem: React.FC<InteractionSystemProps> = ({
 	onDHDInteract,
 	onStartTravel
 }) => {
-	const { isNearDHD, isNearStargate, setIsNearDHD, setIsNearStargate } = useInteractionStore();
+	const {
+		setIsNearDHD,
+		setIsNearStargate,
+		setInteractionHint: setStoreInteractionHint,
+		setInteractableObject: setStoreInteractableObject
+	} = useInteractionStore();
 
 	// Process interactions every frame
 	useFrame(() => {
@@ -60,64 +65,86 @@ export const InteractionSystem: React.FC<InteractionSystemProps> = ({
 
 		// Check if player is near the DHD
 		const nearDHD = distanceToDHD < DHD_INTERACTION_DISTANCE;
-		if (nearDHD !== isNearDHD) {
-			setIsNearDHD(nearDHD);
-		}
+		setIsNearDHD(nearDHD);
 
 		// Check if player is near the Stargate
 		const nearStargate = distanceToStargate < STARGATE_INTERACTION_DISTANCE;
-		if (nearStargate !== isNearStargate) {
-			setIsNearStargate(nearStargate);
-		}
+		setIsNearStargate(nearStargate);
 
 		// Determine interaction hints
 		if (nearDHD && nearStargate) {
 			// Prioritize stargate travel if it's active
 			if (stargateActive && activationStage >= 4 && distanceToStargate < TRAVEL_DISTANCE) {
+				const hint = 'Press SPACE to travel through the Stargate';
 				setInteractableObject('stargate');
-				if (interactionHint !== 'Press SPACE to travel through the Stargate') {
-					setInteractionHint('Press SPACE to travel through the Stargate');
+				setStoreInteractableObject('stargate');
+
+				if (interactionHint !== hint) {
+					setInteractionHint(hint);
+					setStoreInteractionHint(hint);
 				}
 			} else {
 				setInteractableObject('dhd');
+				setStoreInteractableObject('dhd');
+
 				if (stargateActive) {
-					if (interactionHint !== 'Press SPACE to deactivate the Stargate') {
-						setInteractionHint('Press SPACE to deactivate the Stargate');
+					const hint = 'Press SPACE to deactivate the Stargate';
+					if (interactionHint !== hint) {
+						setInteractionHint(hint);
+						setStoreInteractionHint(hint);
 					}
 				} else {
-					if (interactionHint !== 'Press SPACE to activate the Stargate') {
-						setInteractionHint('Press SPACE to activate the Stargate');
+					const hint = 'Press SPACE to activate the Stargate';
+					if (interactionHint !== hint) {
+						setInteractionHint(hint);
+						setStoreInteractionHint(hint);
 					}
 				}
 			}
 		} else if (nearDHD) {
 			setInteractableObject('dhd');
+			setStoreInteractableObject('dhd');
+
 			if (stargateActive) {
-				if (interactionHint !== 'Press SPACE to deactivate the Stargate') {
-					setInteractionHint('Press SPACE to deactivate the Stargate');
+				const hint = 'Press SPACE to deactivate the Stargate';
+				if (interactionHint !== hint) {
+					setInteractionHint(hint);
+					setStoreInteractionHint(hint);
 				}
 			} else {
-				if (interactionHint !== 'Press SPACE to activate the Stargate') {
-					setInteractionHint('Press SPACE to activate the Stargate');
+				const hint = 'Press SPACE to activate the Stargate';
+				if (interactionHint !== hint) {
+					setInteractionHint(hint);
+					setStoreInteractionHint(hint);
 				}
 			}
 		} else if (nearStargate && stargateActive && activationStage >= 4) {
 			if (distanceToStargate < TRAVEL_DISTANCE) {
+				const hint = 'Press SPACE to travel through the Stargate';
 				setInteractableObject('stargate');
-				if (interactionHint !== 'Press SPACE to travel through the Stargate') {
-					setInteractionHint('Press SPACE to travel through the Stargate');
+				setStoreInteractableObject('stargate');
+
+				if (interactionHint !== hint) {
+					setInteractionHint(hint);
+					setStoreInteractionHint(hint);
 				}
 			} else {
+				const hint = 'Move closer to travel through the Stargate';
 				setInteractableObject(null);
-				if (interactionHint !== 'Move closer to travel through the Stargate') {
-					setInteractionHint('Move closer to travel through the Stargate');
+				setStoreInteractableObject(null);
+
+				if (interactionHint !== hint) {
+					setInteractionHint(hint);
+					setStoreInteractionHint(hint);
 				}
 			}
 		} else {
-			setInteractableObject(null);
 			if (interactionHint !== '') {
 				setInteractionHint('');
+				setStoreInteractionHint('');
 			}
+			setInteractableObject(null);
+			setStoreInteractableObject(null);
 		}
 	});
 

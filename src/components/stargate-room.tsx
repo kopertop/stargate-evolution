@@ -6,6 +6,7 @@ import { InteractionSystem } from './stargate/interaction-system';
 import SimpleCharacterController from './simple-character-controller';
 import Room from './assets/room';
 import DHD from './assets/dhd';
+import { useInteractionStore } from './stargate/interaction-store';
 
 export interface StargateRoomProps {
 	planet: Planets;
@@ -21,8 +22,14 @@ const StargateRoom: React.FC<StargateRoomProps> = ({
 	const [stargateActive, setStargateActive] = useState(false);
 	const [activationStage, setActivationStage] = useState(0);
 	const [isTraveling, setIsTraveling] = useState(false);
-	const [interactionHint, setInteractionHint] = useState('');
-	const [interactableObject, setInteractableObject] = useState<string | null>(null);
+
+	// Get the interaction store
+	const {
+		interactionHint,
+		interactableObject,
+		setInteractionHint,
+		setInteractableObject
+	} = useInteractionStore();
 
 	const characterRef = useRef<THREE.Group>(null);
 	const stargatePositionRef = useRef(new THREE.Vector3(0, 0, -5));
