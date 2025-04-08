@@ -14,5 +14,5 @@ export { getPlanetTheme, getSpawnPosition, PLANET_THEMES, SPAWN_POSITIONS } from
 export { rotateCamera } from './camera-rotator';
 export { useStargateStore } from './stargate-store';
 export { useInteractionStore } from './interaction-store';
-// Export Stargate from assets instead
-export { Stargate } from '../assets';
+// Export Stargate directly from assets
+export { default as Stargate } from '../assets/stargate';

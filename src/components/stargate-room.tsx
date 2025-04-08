@@ -132,7 +132,10 @@ const StargateRoom: React.FC<StargateRoomProps> = ({
 			/>
 
 			{/* Character */}
-			<SimpleCharacterController ref={characterRef} speed={5} />
+			<SimpleCharacterController
+				ref={characterRef}
+				speed={0.25}
+			/>
 
 			{/* Stargate with controller */}
 			<StargateController

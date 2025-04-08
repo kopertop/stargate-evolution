@@ -121,10 +121,12 @@ const StargateRoom: React.FC<StargateRoomProps> = ({
 		console.log(`Stargate stage changed to ${stage}`);
 		setActivationStage(stage);
 
-		if (stage === 4) {
+		if (stage === 8) {
 			setInteractionHint('Stargate activated! Walk through to travel.');
 		} else if (stage === 0) {
 			setInteractionHint('');
+		} else if (stage > 0 && stage < 8) {
+			setInteractionHint(`Chevron ${stage} locked!`);
 		}
 	};
 
@@ -142,7 +144,7 @@ const StargateRoom: React.FC<StargateRoomProps> = ({
 			return;
 		}
 
-		if (stargateActive && activationStage >= 4 && !isTraveling) {
+		if (stargateActive && activationStage >= 8 && !isTraveling) {
 			console.log('Starting travel sequence');
 
 			// Set traveling state
@@ -175,7 +177,7 @@ const StargateRoom: React.FC<StargateRoomProps> = ({
 			{/* Character */}
 			<SimpleCharacterController
 				ref={characterRef}
-				speed={0.15}
+				speed={0.25}
 				roomDimensions={{ size: [20, 20], wallHeight: 5 }}
 				stargatePosition={stargatePositionRef.current}
 				dhdPosition={dhdPositionRef.current}

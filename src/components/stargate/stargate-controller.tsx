@@ -1,6 +1,5 @@
-import React, { useEffect, useState, useRef } from 'react';
-import * as THREE from 'three';
-import { Stargate } from '../assets';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
+import Stargate from '../assets/stargate';
 import { useStargateStore } from './stargate-store';
 
 interface StargateControllerProps {
@@ -25,9 +24,21 @@ export const StargateController: React.FC<StargateControllerProps> = ({
 	setIsInWormhole
 }) => {
 	const [activationStage, setActivationStage] = useState(0);
+	const [hasPlayedKawoosh, setHasPlayedKawoosh] = useState(false);
 	const [isShuttingDown, setIsShuttingDown] = useState(false);
 	const activationTimerRef = useRef<NodeJS.Timeout | null>(null);
-	const { setCurrentDestination, activationSound } = useStargateStore();
+
+	// Get store values
+	const { setCurrentDestination } = useStargateStore();
+
+	// Function to advance the activation stage
+	const advanceStage = useCallback(() => {
+		setActivationStage(prevStage => {
+			const nextStage = prevStage + 1;
+			onStageChange(nextStage);
+			return nextStage;
+		});
+	}, [onStageChange]);
 
 	// Update store with current destination
 	useEffect(() => {
@@ -36,85 +47,88 @@ export const StargateController: React.FC<StargateControllerProps> = ({
 
 	// Handle activation sequence
 	useEffect(() => {
-		// Clear any existing timers
-		if (activationTimerRef.current) {
-			clearTimeout(activationTimerRef.current);
-			activationTimerRef.current = null;
-		}
+		let timer: NodeJS.Timeout | null = null;
 
-		// Start activation sequence if stargate is active
-		if (isActive && !isTraveling && !isShuttingDown) {
-			setIsShuttingDown(false);
-
-			// Start with stage 0
+		// Handle activation state changes
+		if (isActive) {
 			if (activationStage === 0) {
-				// Play activation sound
-				if (activationSound) {
-					activationSound.currentTime = 0;
-					activationSound.play().catch(e => console.error('Error playing sound:', e));
-				}
-
-				// Start the activation sequence
-				let currentStage = 0;
-
-				const advanceStage = () => {
-					currentStage += 1;
-					setActivationStage(currentStage);
-					onStageChange(currentStage);
-
-					// Continue until fully activated (stage 4)
-					if (currentStage < 4) {
-						activationTimerRef.current = setTimeout(advanceStage, 1000);
-					}
-				};
-
-				// Start the sequence after a short delay
-				activationTimerRef.current = setTimeout(advanceStage, 500);
-			}
-		}
-
-		// Handle deactivation
-		else if (!isActive && activationStage > 0 && !isTraveling) {
-			setIsShuttingDown(true);
-
-			// Play shutdown sound (reverse of activation)
-			if (activationSound) {
-				activationSound.currentTime = 0;
-				activationSound.play().catch(e => console.error('Error playing sound:', e));
-			}
-
-			// Gradually step down the activation stages
-			const shutdownSequence = () => {
-				setActivationStage(prev => {
-					const newStage = prev - 1;
-					onStageChange(newStage);
-
-					if (newStage > 0) {
-						activationTimerRef.current = setTimeout(shutdownSequence, 500);
-					} else {
-						setIsShuttingDown(false);
-					}
-
-					return newStage;
+				// Start activation sequence
+				console.log('Starting stargate activation sequence');
+				advanceStage();
+			} else if (activationStage === 8 && !hasPlayedKawoosh) {
+				setHasPlayedKawoosh(true);
+				// Fully activated, play kawoosh sound
+				new Audio('/sounds/stargate-kawoosh.mp3').play().catch((err) => {
+					console.error('Failed to play kawoosh sound:', err);
 				});
-			};
 
-			activationTimerRef.current = setTimeout(shutdownSequence, 500);
-		}
+				// Clear the timeout
+				if (timer) {
+					clearTimeout(timer);
+				}
+			} else if (activationStage > 0 && activationStage < 8) {
+				// Play chevron locking sound for each stage 1-7
+				new Audio('/sounds/chevron-lock.mp3').play().catch((err) => {
+					console.error('Failed to play chevron sound:', err);
+				});
 
-		// Handle travel
-		else if (isTraveling && activationStage >= 4) {
-			// Initiate wormhole travel
-			setIsInWormhole(true);
+				console.log(`Chevron ${activationStage} locked!`);
 
-			// Reset after travel completes
-			activationTimerRef.current = setTimeout(() => {
+				// Continue activation sequence after a delay
+				timer = setTimeout(() => {
+					if (activationStage < 7) {
+						advanceStage();
+					} else {
+						// After the 7th chevron, trigger the final activation with a bit longer delay
+						setTimeout(() => advanceStage(), 1500);
+					}
+				}, 1000);
+			}
+		} else if (!isActive && activationStage > 0) {
+			// Handle deactivation
+			console.log('Shutting down stargate');
+			setIsShuttingDown(true);
+			new Audio('/sounds/stargate-shutdown.mp3').play().catch(err => console.error('Failed to play shutdown sound:', err));
+
+			// Reset after a delay
+			timer = setTimeout(() => {
 				setActivationStage(0);
 				onStageChange(0);
 				onDeactivate();
-				setIsInWormhole(false);
-			}, 3000);
+				setIsShuttingDown(false);
+			}, 2000);
 		}
+
+		// Cleanup timer on unmount or state change
+		return () => {
+			if (timer) {
+				clearTimeout(timer);
+			}
+		};
+	}, [
+		isActive,
+		activationStage,
+		isTraveling,
+		onStageChange,
+		onDeactivate,
+		onTravel,
+		advanceStage,
+	]);
+
+	// Handle travel
+	useEffect(() => {
+		if (!isTraveling) return;
+
+		// Initiate wormhole travel
+		setIsInWormhole(true);
+
+		// Reset after travel completes
+		activationTimerRef.current = setTimeout(() => {
+			setActivationStage(0);
+			onStageChange(0);
+			onDeactivate();
+			setIsInWormhole(false);
+		}, 3000);
 
 		// Clean up timer on unmount
 		return () => {
@@ -123,21 +137,27 @@ export const StargateController: React.FC<StargateControllerProps> = ({
 			}
 		};
 	}, [
-		isActive,
-		activationStage,
-		onStageChange,
 		isTraveling,
 		onDeactivate,
-		setIsInWormhole,
-		isShuttingDown,
-		activationSound
+		onStageChange,
+		setIsInWormhole
 	]);
+
+	// Handle activation stage changes from the Stargate component
+	const handleActivationStageChange = (stage: number) => {
+		if (stage !== activationStage) {
+			setActivationStage(stage);
+			onStageChange(stage);
+		}
+	};
 
 	return (
 		<Stargate
 			position={position}
-			isActive={isActive || isShuttingDown}
-			onActivationStageChange={(stage) => onStageChange(stage)}
+			isActive={isActive}
+			activationStage={activationStage}
+			isShuttingDown={isShuttingDown}
+			onActivationStageChange={handleActivationStageChange}
 		/>
 	);
 };

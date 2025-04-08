@@ -45,10 +45,8 @@ const MovementTutorial: React.FC = () => {
 			<h2>Movement Controls:</h2>
 			<ul>
 				<li>Use <span className="key">W</span>, <span className="key">A</span>, <span className="key">S</span>, <span className="key">D</span> or arrow keys to move</li>
-				<li>Hold <span className="key">Right Mouse Button</span> and move mouse to rotate the camera</li>
-				<li>Alternatively, use <span className="key">Q</span> and <span className="key">E</span> to rotate the camera</li>
-				<li>Press <span className="key">Space</span> to interact with the DHD</li>
-				<li>Walk through the active Stargate to travel</li>
+				<li>Use <span className="key">Q</span> and <span className="key">E</span> to rotate the camera</li>
+				<li>Press <span className="key">Space</span> to interact with objects</li>
 				<li>Press <span className="key">?</span> or click the help button to show this help again</li>
 			</ul>
 			<div className="close-button" onClick={handleClose}>✕</div>
