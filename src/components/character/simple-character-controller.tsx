@@ -34,6 +34,10 @@ export const SimpleCharacterController = forwardRef<THREE.Group, SimpleCharacter
 		// Reference to the wall meshes
 		const wallMeshesRef = useRef<THREE.Mesh[]>([]);
 
+		// Retry counter for finding walls
+		const retryCountRef = useRef(0);
+		const maxRetries = 5;
+
 		// Raycaster for wall transparency
 		const raycaster = new THREE.Raycaster();
 
@@ -42,13 +46,13 @@ export const SimpleCharacterController = forwardRef<THREE.Group, SimpleCharacter
 			new Map()
 		);
 
-		// Transparent material for walls
-		const transparentMaterial = new THREE.MeshStandardMaterial({
+		// Create transparent material just once
+		const transparentMaterialRef = useRef(new THREE.MeshStandardMaterial({
 			color: '#ffffff',
 			transparent: true,
 			opacity: 0.2,
 			side: THREE.DoubleSide
-		});
+		}));
 
 		// Create interactable objects for collision detection
 		const [interactableObjects, setInteractableObjects] = useState<InteractableObject[]>([
@@ -64,34 +68,92 @@ export const SimpleCharacterController = forwardRef<THREE.Group, SimpleCharacter
 			}
 		]);
 
-		// Find wall meshes in the scene
-		useEffect(() => {
-			const findWallMeshes = () => {
-				const wallMeshes: THREE.Mesh[] = [];
-				scene.traverse((object) => {
-					// Look for meshes that match our wall criteria (position, size, etc.)
-					if (object instanceof THREE.Mesh &&
-						object.geometry instanceof THREE.BoxGeometry &&
-						object.geometry.parameters.width > 5 && // Wall-sized
-						Math.abs(object.position.y - roomDimensions.wallHeight / 2) < 0.1) {
+		// Find wall meshes in the scene - improved with retries
+		const findWallMeshes = () => {
+			const wallMeshes: THREE.Mesh[] = [];
+
+			// First look for walls with specific names
+			scene.traverse((object) => {
+				if (object instanceof THREE.Mesh &&
+					object.name && object.name.startsWith('wall-')) {
+					console.log('Found named wall mesh:', object.name, object.position);
+					wallMeshes.push(object);
+
+					// Store original material if not already stored
+					if (!originalMaterialsRef.current.has(object)) {
+						originalMaterialsRef.current.set(object, object.material);
+					}
+				}
+			});
+
+			// If we found walls by name, don't bother with dimension checks
+			if (wallMeshes.length > 0) {
+				return wallMeshes;
+			}
+
+			// Fallback: look for potential walls by geometry
+			scene.traverse((object) => {
+				if (object instanceof THREE.Mesh &&
+					object.geometry instanceof THREE.BoxGeometry) {
+
+					const geo = object.geometry;
+					const params = geo.parameters;
+
+					// More robust criteria for identifying walls:
+					// 1. Check if any dimension is large enough to be a wall
+					const isWideEnough = params.width > 5;
+					const isDeepEnough = params.depth > 5;
+
+					// 2. Check if height matches wall height
+					const isWallHeight = Math.abs(params.height - roomDimensions.wallHeight) < 0.5;
+
+					// 3. Check position
+					const isAtWallHeight = Math.abs(object.position.y - roomDimensions.wallHeight / 2) < 1.5;
+
+					if ((isWideEnough || isDeepEnough) && (isWallHeight || isAtWallHeight)) {
+						console.log('Found wall mesh by dimensions:', object.position, 'dimensions:', params.width, params.height, params.depth);
 						wallMeshes.push(object);
 
-						// Store original materials
+						// Store original material if not already stored
 						if (!originalMaterialsRef.current.has(object)) {
 							originalMaterialsRef.current.set(object, object.material);
 						}
 					}
-				});
-				return wallMeshes;
+				}
+			});
+
+			return wallMeshes;
+		};
+
+		// Scan for walls on mount and with retries
+		useEffect(() => {
+			const checkForWalls = () => {
+				const meshes = findWallMeshes();
+
+				if (meshes.length > 0) {
+					console.log(`Found ${meshes.length} wall meshes on attempt ${retryCountRef.current + 1}`);
+					wallMeshesRef.current = meshes;
+					retryCountRef.current = 0; // Reset for potential future needs
+					return true;
+				}
+
+				return false;
 			};
 
-			// Wait for next frame to ensure scene is populated
-			const timeoutId = setTimeout(() => {
-				wallMeshesRef.current = findWallMeshes();
-				console.log(`Found ${wallMeshesRef.current.length} wall meshes`);
-			}, 500);
+			// Try to find walls immediately
+			if (!checkForWalls()) {
+				// If not found, set up delayed retries
+				const retryInterval = setInterval(() => {
+					if (checkForWalls() || retryCountRef.current >= maxRetries) {
+						clearInterval(retryInterval);
+					} else {
+						retryCountRef.current++;
+						console.log(`Retrying wall detection, attempt ${retryCountRef.current} of ${maxRetries}`);
+					}
+				}, 1000); // Try every second
 
-			return () => clearTimeout(timeoutId);
+				return () => clearInterval(retryInterval);
+			}
 		}, [scene, roomDimensions]);
 
 		// Update walls if room dimensions change
@@ -211,7 +273,7 @@ export const SimpleCharacterController = forwardRef<THREE.Group, SimpleCharacter
 			);
 			camera.lookAt(characterPos);
 
-			// Handle see-through walls
+			// Handle see-through walls if we've found any
 			if (wallMeshesRef.current.length > 0) {
 				// Direction from camera to character
 				const cameraToCharacter = characterPos.clone().sub(camera.position).normalize();
@@ -235,8 +297,14 @@ export const SimpleCharacterController = forwardRef<THREE.Group, SimpleCharacter
 
 					// Only make the wall transparent if it's not the one the character is standing on
 					if (Math.abs(wall.position.y - characterPos.y) > 1) {
-						wall.material = transparentMaterial;
+						wall.material = transparentMaterialRef.current;
 					}
+				}
+			} else if (retryCountRef.current < maxRetries) {
+				// If we haven't found walls yet and haven't exceeded max retries, try again
+				wallMeshesRef.current = findWallMeshes();
+				if (wallMeshesRef.current.length > 0) {
+					console.log(`Found ${wallMeshesRef.current.length} wall meshes during gameplay`);
 				}
 			}
 		});

@@ -2,11 +2,13 @@ import React, { useEffect } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { useInteractionStore } from './interaction-store';
+import { useStargateStore } from './stargate-store';
 
 // Define interaction distances
 const DHD_INTERACTION_DISTANCE = 2;
-const STARGATE_INTERACTION_DISTANCE = 3;
-const TRAVEL_DISTANCE = 1.5;
+const STARGATE_INTERACTION_DISTANCE = 4;
+const TRAVEL_DISTANCE = 3;
+const INTERACTION_HINT_DISTANCE = 5;
 
 export interface InteractionSystemProps {
 	characterRef: React.RefObject<THREE.Group>;
@@ -42,6 +44,9 @@ export const InteractionSystem: React.FC<InteractionSystemProps> = ({
 		setInteractableObject: setStoreInteractableObject
 	} = useInteractionStore();
 
+	// Get the stargate store to ensure we're using the correct state
+	const stargateStore = useStargateStore();
+
 	// Process interactions every frame
 	useFrame(() => {
 		if (!characterRef.current || !stargatePositionRef.current || !dhdPositionRef.current) return;
@@ -71,13 +76,17 @@ export const InteractionSystem: React.FC<InteractionSystemProps> = ({
 		const nearStargate = distanceToStargate < STARGATE_INTERACTION_DISTANCE;
 		setIsNearStargate(nearStargate);
 
+		// Get the current activation stage from the store to ensure accuracy
+		const stargateFullyActive = stargateActive && (stargateStore.activationStage === 9 || activationStage === 9);
+
 		// Determine interaction hints
 		if (nearDHD && nearStargate) {
-			// Prioritize stargate travel if it's active
-			if (stargateActive && activationStage >= 4 && distanceToStargate < TRAVEL_DISTANCE) {
-				const hint = 'Press SPACE to travel through the Stargate';
-				setInteractableObject('stargate');
-				setStoreInteractableObject('stargate');
+			// DHD interaction takes priority unless we're very close to fully active stargate
+			if (stargateFullyActive && distanceToStargate < TRAVEL_DISTANCE) {
+				// Approaching an active stargate - show a passive info message
+				const hint = 'Move closer to travel through the Stargate';
+				setInteractableObject(null);
+				setStoreInteractableObject(null);
 
 				if (interactionHint !== hint) {
 					setInteractionHint(hint);
@@ -118,18 +127,42 @@ export const InteractionSystem: React.FC<InteractionSystemProps> = ({
 					setStoreInteractionHint(hint);
 				}
 			}
-		} else if (nearStargate && stargateActive && activationStage >= 4) {
-			if (distanceToStargate < TRAVEL_DISTANCE) {
-				const hint = 'Press SPACE to travel through the Stargate';
-				setInteractableObject('stargate');
-				setStoreInteractableObject('stargate');
+		} else if (stargateFullyActive) {
+			// Only show travel hints if the stargate is fully active (stage 9)
+			if (distanceToStargate < INTERACTION_HINT_DISTANCE) {
+				if (distanceToStargate < TRAVEL_DISTANCE) {
+					// Within travel distance - travel will happen automatically
+					const hint = 'Moving through the Stargate...';
+					setInteractableObject(null);
+					setStoreInteractableObject(null);
 
-				if (interactionHint !== hint) {
-					setInteractionHint(hint);
-					setStoreInteractionHint(hint);
+					if (interactionHint !== hint) {
+						setInteractionHint(hint);
+						setStoreInteractionHint(hint);
+					}
+				} else {
+					// Show hint to approach stargate
+					const hint = 'Walk closer to the Stargate to travel';
+					setInteractableObject(null);
+					setStoreInteractableObject(null);
+
+					if (interactionHint !== hint) {
+						setInteractionHint(hint);
+						setStoreInteractionHint(hint);
+					}
 				}
 			} else {
-				const hint = 'Move closer to travel through the Stargate';
+				if (interactionHint !== '') {
+					setInteractionHint('');
+					setStoreInteractionHint('');
+				}
+				setInteractableObject(null);
+				setStoreInteractableObject(null);
+			}
+		} else if (stargateActive) {
+			// Show information about the stargate's activation status
+			if (distanceToStargate < INTERACTION_HINT_DISTANCE) {
+				const hint = 'The Stargate is activating...';
 				setInteractableObject(null);
 				setStoreInteractableObject(null);
 
@@ -137,6 +170,13 @@ export const InteractionSystem: React.FC<InteractionSystemProps> = ({
 					setInteractionHint(hint);
 					setStoreInteractionHint(hint);
 				}
+			} else {
+				if (interactionHint !== '') {
+					setInteractionHint('');
+					setStoreInteractionHint('');
+				}
+				setInteractableObject(null);
+				setStoreInteractableObject(null);
 			}
 		} else {
 			if (interactionHint !== '') {
@@ -148,14 +188,12 @@ export const InteractionSystem: React.FC<InteractionSystemProps> = ({
 		}
 	});
 
-	// Handle key press for travel
+	// Handle key press for DHD interaction only
 	useEffect(() => {
 		const handleKeyDown = (e: KeyboardEvent) => {
 			if (e.code === 'Space') {
 				if (interactableObject === 'dhd') {
 					onDHDInteract();
-				} else if (interactableObject === 'stargate') {
-					onStartTravel();
 				}
 			}
 		};
@@ -164,7 +202,7 @@ export const InteractionSystem: React.FC<InteractionSystemProps> = ({
 		return () => {
 			window.removeEventListener('keydown', handleKeyDown);
 		};
-	}, [interactableObject, onDHDInteract, onStartTravel]);
+	}, [interactableObject, onDHDInteract]);
 
 	// This component is purely logic-based, no visual output
 	return null;

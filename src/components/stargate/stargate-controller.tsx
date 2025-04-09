@@ -33,9 +33,10 @@ export const StargateController = forwardRef<THREE.Group, StargateControllerProp
 	// Timing constants for the activation sequence
 	const CHEVRON_DELAY = 1000; // 1 second between chevrons
 	const FINAL_CHEVRON_DELAY = 1500; // 1.5 seconds for the final chevron
+	const READY_FOR_TRAVEL_DELAY = 1000; // 1 second after kawoosh to be ready for travel
 
 	// Get store values
-	const { setCurrentDestination } = useStargateStore();
+	const { setCurrentDestination, setActivationStage: setStoreActivationStage } = useStargateStore();
 
 	// Forward the ref to the parent
 	useEffect(() => {
@@ -49,9 +50,11 @@ export const StargateController = forwardRef<THREE.Group, StargateControllerProp
 		setActivationStage(prevStage => {
 			const nextStage = prevStage + 1;
 			onStageChange(nextStage);
+			// Also update the store's activation stage
+			setStoreActivationStage(nextStage);
 			return nextStage;
 		});
-	}, [onStageChange]);
+	}, [onStageChange, setStoreActivationStage]);
 
 	// Start the activation sequence with proper timing
 	const startActivationSequence = useCallback(() => {
@@ -87,8 +90,16 @@ export const StargateController = forwardRef<THREE.Group, StargateControllerProp
 									console.error('Failed to play kawoosh sound:', err);
 								});
 
-								// Final stage (event horizon forms)
+								// Event horizon forms (stage 8)
 								advanceStage();
+
+								// After a short delay, set to fully active (stage 9)
+								setTimeout(() => {
+									if (isActive) {
+										console.log('Stargate fully active and ready for travel');
+										advanceStage(); // Advance to stage 9 (fully active)
+									}
+								}, READY_FOR_TRAVEL_DELAY);
 							}
 						}, FINAL_CHEVRON_DELAY);
 					}
@@ -130,13 +141,14 @@ export const StargateController = forwardRef<THREE.Group, StargateControllerProp
 			const timer = setTimeout(() => {
 				setActivationStage(0);
 				onStageChange(0);
+				setStoreActivationStage(0); // Also reset the store activation stage
 				onDeactivate();
 				setIsShuttingDown(false);
 			}, 2000);
 
 			return () => clearTimeout(timer);
 		}
-	}, [isActive, activationStage, startActivationSequence, onStageChange, onDeactivate]);
+	}, [isActive, activationStage, startActivationSequence, onStageChange, onDeactivate, setStoreActivationStage]);
 
 	// Handle travel
 	useEffect(() => {
@@ -149,6 +161,7 @@ export const StargateController = forwardRef<THREE.Group, StargateControllerProp
 		activationTimerRef.current = setTimeout(() => {
 			setActivationStage(0);
 			onStageChange(0);
+			setStoreActivationStage(0); // Also reset the store activation stage
 			onDeactivate();
 			setIsInWormhole(false);
 			activationInProgressRef.current = false;
@@ -164,7 +177,8 @@ export const StargateController = forwardRef<THREE.Group, StargateControllerProp
 		isTraveling,
 		onDeactivate,
 		onStageChange,
-		setIsInWormhole
+		setIsInWormhole,
+		setStoreActivationStage
 	]);
 
 	// Handle activation stage changes from the Stargate component
@@ -172,6 +186,7 @@ export const StargateController = forwardRef<THREE.Group, StargateControllerProp
 		if (stage !== activationStage) {
 			setActivationStage(stage);
 			onStageChange(stage);
+			setStoreActivationStage(stage); // Also update the store activation stage
 		}
 	};
 

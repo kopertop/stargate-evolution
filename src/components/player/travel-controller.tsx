@@ -22,8 +22,8 @@ export const TravelController: React.FC<TravelControllerProps> = ({
 	targetLocation,
 	onTravelComplete,
 }) => {
-	// Distance to trigger travel
-	const TRAVEL_TRIGGER_DISTANCE = 1.5;
+	// Distance to trigger travel - match interaction-system.tsx
+	const TRAVEL_TRIGGER_DISTANCE = 3;
 
 	// Get player state and actions
 	const { isInWormhole, setIsInWormhole, travel } = usePlayerStore();
@@ -35,8 +35,8 @@ export const TravelController: React.FC<TravelControllerProps> = ({
 
 	// Check character proximity to stargate
 	useFrame(({ clock }) => {
-		// Only check if stargate is active and fully activated
-		if (!stargateActive || activationStage < 7 || isTravelingRef.current) {
+		// Only check if stargate is active and fully activated (stage 9)
+		if (!stargateActive || activationStage < 9 || isTravelingRef.current) {
 			return;
 		}
 
@@ -55,7 +55,7 @@ export const TravelController: React.FC<TravelControllerProps> = ({
 
 		// Check if character is close enough to the stargate
 		if (distance <= TRAVEL_TRIGGER_DISTANCE) {
-			// Start travel sequence
+			// Start travel sequence automatically when close enough
 			console.log('Starting travel sequence to', targetPlanet, targetLocation);
 			isTravelingRef.current = true;
 			travelStartTimeRef.current = clock.getElapsedTime();
@@ -81,41 +81,6 @@ export const TravelController: React.FC<TravelControllerProps> = ({
 			}
 		}
 	});
-
-	// Handle space key press to initiate travel
-	useEffect(() => {
-		const handleKeyDown = (e: KeyboardEvent) => {
-			// Only trigger if near stargate, it's active, and fully activated
-			if (e.code === 'Space' && stargateActive && activationStage >= 7 &&
-				characterRef.current && stargateRef.current) {
-
-				const characterPosition = characterRef.current.position;
-				const stargatePosition = stargateRef.current.position;
-
-				const distance = characterPosition.distanceTo(
-					new THREE.Vector3(stargatePosition.x, characterPosition.y, stargatePosition.z)
-				);
-
-				if (distance <= TRAVEL_TRIGGER_DISTANCE) {
-					// Start travel sequence
-					console.log('Starting travel sequence from key press');
-					isTravelingRef.current = true;
-					travelStartTimeRef.current = performance.now() / 1000;
-					setIsInWormhole(true);
-
-					// Play travel sound
-					const travelSound = new Audio('/sounds/stargate-travel.mp3');
-					travelSound.volume = 0.6;
-					travelSound.play().catch(err => console.error('Failed to play travel sound:', err));
-				}
-			}
-		};
-
-		window.addEventListener('keydown', handleKeyDown);
-		return () => {
-			window.removeEventListener('keydown', handleKeyDown);
-		};
-	}, [stargateActive, activationStage, characterRef, stargateRef, setIsInWormhole]);
 
 	// Reset if stargate deactivates
 	useEffect(() => {

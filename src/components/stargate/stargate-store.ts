@@ -38,6 +38,6 @@ export const useStargateStore = create<StargateState>((set) => {
 
 		triggerActivation: () => set({ isActive: true, isShuttingDown: false }),
 		triggerShutdown: () => set({ isActive: false, isShuttingDown: true }),
-		incrementStage: () => set((state) => ({ activationStage: Math.min(state.activationStage + 1, 7) })),
+		incrementStage: () => set((state) => ({ activationStage: Math.min(state.activationStage + 1, 9) })),
 	};
 });

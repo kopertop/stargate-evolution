@@ -21,22 +21,40 @@ const Room: React.FC<{size: [number, number], wallHeight: number, wallColor: str
 			<meshStandardMaterial color={floorColor} />
 		</mesh>
 
-		{/* Walls */}
-		<mesh position={[0, wallHeight / 2, -size[1] / 2]} receiveShadow>
+		{/* Walls - with clear names for detection */}
+		<mesh
+			position={[0, wallHeight / 2, -size[1] / 2]}
+			receiveShadow
+			name="wall-north"
+		>
 			<boxGeometry args={[size[0], wallHeight, 0.2]} />
-			<meshStandardMaterial color={wallColor} />
+			<meshStandardMaterial color={wallColor} transparent opacity={1} />
 		</mesh>
-		<mesh position={[0, wallHeight / 2, size[1] / 2]} receiveShadow>
+		<mesh
+			position={[0, wallHeight / 2, size[1] / 2]}
+			receiveShadow
+			name="wall-south"
+		>
 			<boxGeometry args={[size[0], wallHeight, 0.2]} />
-			<meshStandardMaterial color={wallColor} />
+			<meshStandardMaterial color={wallColor} transparent opacity={1} />
 		</mesh>
-		<mesh position={[-size[0] / 2, wallHeight / 2, 0]} rotation={[0, Math.PI / 2, 0]} receiveShadow>
+		<mesh
+			position={[-size[0] / 2, wallHeight / 2, 0]}
+			rotation={[0, Math.PI / 2, 0]}
+			receiveShadow
+			name="wall-west"
+		>
 			<boxGeometry args={[size[1], wallHeight, 0.2]} />
-			<meshStandardMaterial color={wallColor} />
+			<meshStandardMaterial color={wallColor} transparent opacity={1} />
 		</mesh>
-		<mesh position={[size[0] / 2, wallHeight / 2, 0]} rotation={[0, Math.PI / 2, 0]} receiveShadow>
+		<mesh
+			position={[size[0] / 2, wallHeight / 2, 0]}
+			rotation={[0, Math.PI / 2, 0]}
+			receiveShadow
+			name="wall-east"
+		>
 			<boxGeometry args={[size[1], wallHeight, 0.2]} />
-			<meshStandardMaterial color={wallColor} />
+			<meshStandardMaterial color={wallColor} transparent opacity={1} />
 		</mesh>
 	</group>
 );
