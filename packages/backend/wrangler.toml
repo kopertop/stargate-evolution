@@ -1,0 +1,3 @@
+name = 'destiny-backend'
+main = 'src/index.ts'
+type = 'javascript_module'

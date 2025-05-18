@@ -138,4 +138,9 @@ export default defineConfig([globalIgnores([
 			allowTypedFunctionExpressions: true,
 		}],
 	},
+}, {
+	files: ['**/vite.config.ts'],
+	rules: {
+		'import/no-default-export': 'off',
+	},
 }]);

@@ -1,295 +1,80 @@
 # Stargate Evolution Development Guidelines
 
-## IMPORTANT NOTES
-- DO NOT run `npm start` or `npm run start`, the server is already running.
-- DO NOT implement mouse controls, we want keyboard controls only.
-- ALWAYS run `npx tsc --noEmit` after making changes to the code.
-- PAY ATTENTION to the existing code and project structure.
-- Keep related files together in the same directory, for example:
-	- `src/components/stargate/` - Contains all components, stores, utilities, and types related to the stargate.
-	- `src/components/dhd/` - Contains all components, stores, utilities, and types related to the DHD.
+Follow the guide in the `ROADMAP.md` file.
 
-## Component Architecture
-- Group all related files for a component in the same directory
-- Each component directory should contain:
-  - Visual components (.tsx)
-  - State management (store.ts)
-  - Controllers (controller.tsx)
-  - Type definitions (types.ts)
-  - Utility functions (utils.ts)
-- Include an index.ts file in each component directory to export all public-facing items
-- Minimize cross-component dependencies where possible
+## 1. Repository and Code Structure
 
-## Code Style
-- Use tabs for indentation, not spaces
-- Use single quotes for strings instead of double quotes
-- Use for...of loops instead of .forEach when iterating
-- Use kebab-case for filenames (e.g., `game-menu.ts` not `GameMenu.ts`)
-- Prefer TypeScript over JavaScript for all new files
-- Use explicit return types for functions when not obvious
-- DO NOT use default exports, always use named exports
+* **Mono-repo:** Use Yarn (or pnpm) workspaces. Organize code into `/packages/frontend`, `/packages/backend`, and optionally `/packages/common`.
+* **TypeScript Everywhere:** All source code must be in `.ts` (or `.tsx` for React UIs, if ever used). Enable `strict` mode in `tsconfig.json`.
+* **Shared Types:** All data types shared between front-end and back-end (e.g., `GameState`, `CrewMember`) should be defined in `/packages/common/types.d.ts` and imported where needed.
+* **Modules:** Organize logic by feature, not by type. Example: ship systems code stays in `systems/` in front-end, AI code in `ai.ts` or `ai/` in back-end.
 
-## React & Three.js
-- Use React with react-three-fiber for 3D rendering
-- Keep component files focused on a single responsibility
-- Use hooks for state management and side effects
-- Separate UI components from game logic when possible
-- Use <React.StrictMode> in development
+## 2. Coding and Style
 
-## Type Definitions
-- Use Zod for schema validation and type generation
-- Define interfaces and types in dedicated files
-- Export types from barrel files (index.ts) when appropriate
-- Use discriminated unions for state management
+* **Linting/Formatting:** Always use Prettier and ESLint. Lint and format before each commit (consider Husky hooks).
+* **Naming:** Use `camelCase` for variables/functions, `PascalCase` for types/classes, `UPPER_SNAKE_CASE` for constants.
+* **Comments:** Write concise, actionable comments only where needed. Document function intentions, parameters, and expected results for all exported functions.
 
-## State Management
-- Keep state management within its component directory
-- Use Zustand for component-specific state
-- Store persistent state in Dexie DB
-- Keep things simple, using Dexie with `useLiveQuery` for reactive state
-- Avoid global state when component-specific state will do
+## 3. PixiJS Game Development
 
-## Performance
-- Use React.memo() for expensive components
-- Implement useCallback() for functions passed as props
-- Utilize useMemo() for expensive calculations
-- Be mindful of re-renders in the 3D environment
-- Use instancing for repeated geometries
+* **Rendering:** All rendering in front-end must use PixiJS. Do not mix DOM-based UIs unless strictly necessary (and only in overlay elements).
+* **Game Loop:** All game logic and animations should be inside the `Game` class, updated via Pixi’s ticker.
+* **State Management:** Use plain classes or Zustand (if a state library is needed) to manage front-end game state. Do not use Redux.
 
-# Knowledge Graph
+## 4. Backend (Cloudflare Workers)
 
-## Core Entities
+* **APIs:** Expose only `/api/*` endpoints. Never expose internal state structures or keys.
+* **Game State:** Use Cloudflare KV for player/game state, and Durable Objects if session coordination is needed.
+* **Secrets:** Never commit secrets (API keys, etc). Use Wrangler’s `secrets` to configure them for Cloudflare.
+* **OpenAI Integration:** All OpenAI or LLM API calls must happen server-side (never expose API keys to the front-end).
 
-- Stargate
-	- Activation Stages (0-4)
-	- Event Horizon
-	- Chevrons
-	- Wormhole Effect
+## 5. AI/LLM Usage
 
-- DHD (Dial Home Device)
-	- Controls Stargate activation
+* **Prompt Engineering:** Always include relevant `system` and `memory` context in AI prompts. Truncate or summarize long history to fit within context window.
+* **Personality:** Destiny AI must be persistent, context-aware, and match SGU’s tone (dark, survival-focused, with subtle humor).
+* **Function Calling:** If using OpenAI function calling, always validate and sanitize AI requests before executing actions in the game.
 
-- Character
-	- Movement controls (WASD/Arrow keys)
-	- Camera controls (Q/E for rotation)
-	- Interaction radius
-	- NO mouse controls - keyboard only
+## 6. Procedural Generation
 
-- Planets
-	- Earth (Stargate Command)
-	- Abydos (Temple of Ra)
-	- [Future: Other planets]
+* **Seeded RNG:** Procedural content (galaxies, planets) must use a seeded random number generator to ensure replayability and reproducibility.
+* **Dynamic Content:** Use AI to flavor descriptions, missions, and events, but never as the single source of truth for game state or critical progression.
 
-- Room/Environment
-	- Different themes per planet
-	- Lighting effects
-	- Objects/Props
+## 7. UI and UX
 
-## State Management Architecture
+* **Accessibility:** All UI elements must be keyboard-navigable. Use clear contrast and readable fonts.
+* **Responsiveness:** Game UI should scale to common screen sizes (desktop and tablet at minimum).
+* **Dialogs and Feedback:** Always provide feedback for user actions (loading, errors, success).
 
-- Zustand Stores
-	- useStargateStore
-		- isActive: boolean
-		- activationStage: number (0-4)
-		- isShuttingDown: boolean
-		- triggerActivation(): void
-		- triggerShutdown(): void
-		- incrementStage(): void
+## 8. Testing and Review
 
-	- useCharacterStore
-		- position: Vector3
-		- rotation: number
-		- isMoving: boolean
-		- updatePosition(newPos): void
+* **Unit Tests:** Add unit tests for all utility modules, procedural generation, and backend API handlers.
+* **Manual Playtesting:** Document all major playtest results and bugs in `/docs/playtesting.md`.
+* **Code Review:** All merges into main require at least one review (can be automated or human).
 
-	- useGameStore
-		- currentPlanet: Planet
-		- currentLocation: string
-		- isInWormhole: boolean
-		- changeLocation(planet, location): void
+## 9. Bones Files
 
-	- useInteractionStore
-		- interactableObject: string | null
-		- interactionHint: string
-		- canInteract: boolean
-		- setInteractable(object, hint): void
+* **Persistence:** Store “bones files” only after game over or abandonment. Never store personal data—only game world/narrative content.
+* **Integration:** When spawning bones events, display a warning if data is missing or malformed.
 
-- Dexie DB
-	- Persistent state storage
-	- Use with useLiveQuery for reactive state
+## 10. Documentation
 
-## Directory Structure
+* **Docs:** Keep `/README.md` and `/docs/` up to date with setup, dev, and deployment guides.
+* **In-Code Docs:** Add JSDoc comments for public APIs, key classes, and AI prompt structure.
 
-```
-/src
-	/components
-		/stargate
-			/stargate.tsx					# The stargate visual component
-			/stargate-types.ts			# Stargate types
-			/stargate-store.ts			# Stargate state management
-			/stargate-controller.tsx	# Controls stargate behavior
-			/chevron.tsx					# Individual chevron component
-			/event-horizon.tsx			# Event horizon visual effect
-			/wormhole-effect.tsx			# Travel effect through stargate
-			/travel-utils.ts				# Travel-related utility functions
-			/interaction-system.tsx		# Handles interactions with the stargate
-			/index.ts						# Exports all public-facing components/utilities
+## 11. Task Completion:
 
-		/dhd									# Dial Home Device (DHD) for interacting with the stargate
-			/dhd.tsx							# DHD visual component
-			/dhd-controller.tsx			# Controls DHD behavior
-			/dhd-types.ts					# DHD types
-			/dhd-store.ts					# DHD state management
-			/index.ts						# Exports all public-facing components/utilities
+All agents (AI or human) must update `TASKS.md` and check off tasks as they are completed. This is the official project source of truth for development status.
 
-		/character
-			/character.tsx						# Character model
-			/character-store.ts				# Character state management
-			/character-controller.tsx 		# Movement and camera controls
-			/camera-controller.tsx 			# Camera movement and positioning
-			/index.ts							# Exports all character components
+---
 
-		/environment
-			/room.tsx							# Basic room structure
-			/environment-types.ts			# Environment types
-			/environment-store.ts			# Environment state management
-			/environment-controller.tsx	# Environment controller
-			/index.ts							# Exports all environment components
+**Quick Rules Reference:**
 
-		/planet
-			/planet.tsx						# Planet Visual component
-			/planet-store.ts				# Planet state management
-			/planet-controller.tsx		# Planet controller
-			/planet-types.ts				# Planet type definitions
-			/index.ts						# Exports all planet components
-
-		/base
-			/base.tsx						# Base Visual component
-			/base-types.ts					# Base type definitions
-			/base-store.ts					# Base state management
-			/base-controller.tsx			# Base controller
-			/index.ts						# Exports all base components
-
-		/hud									# HUD (Heads Up Display) including Tooltips/tutorials
-			/hud-store.ts					# HUD state management
-			/hud-controller.tsx			# HUD controller
-			/hud-types.ts					# HUD types
-			/hud-ui.tsx						# HUD UI elements
-			/index.ts						# Exports all HUD components
-
-		/game									# Game state management
-			/game-store.ts					# Overall game state
-			/game-controller.tsx			# Game controller and game loop
-			/game-types.ts					# Game types
-			/game-ui.tsx					# Game UI elements
-			/index.ts						# Exports all game components
-
-		/common								# Common components used across multiple features
-			/button.tsx						# Reusable button component
-			/loading.tsx					# Loading indicator
-			/error-boundary.tsx			# Error handling component
-			/index.ts						# Exports all common components
-
-	/utils									# General utility functions (non-component specific)
-		/validators.ts					# Zod schemas for validation
-		/performance.ts				 	# Performance optimization utilities
-		/loaders.ts						# Asset loading utilities
-		/index.ts						# Exports all utilities
-
-	/data									# Persistent data (Dexie DB)
-		/db.ts							# Dexie DB setup
-		/planets.ts						# Planet data
-		/locations.ts					# Location data (Locations on a planet)
-		/bases.ts						# Base data (Bases belonging at location, user or NPC controlled)
-		/characters.ts					# Character data (NPCs and players)
-		/index.ts						# Exports all data files
-
-	/styles								# SCSS styles
-		/main.scss						# All styles imported from subdirectories
-		/base								# Base styles
-		/components						# Component styles
-		/effects							# Effect styles
-		/layout							# Layout styles
-		/variables						# Variables shared across styles
-```
-
-## Interaction Flow
-
-1. Character approaches interactable object (DHD/Stargate)
-2. InteractionSystem detects proximity, updates interactionStore
-3. UI shows interaction hint based on store state
-4. User presses space to interact
-5. If DHD: stargateStore.triggerActivation() called
-6. Stargate activates in stages, 1-8 (1-7 activate a chevron, 8 opens the wormhole/event horizon)
-7. If fully activated Stargate: can travel through when close enough
-8. On travel: gameStore.changeLocation() and wormhole effect displayed
-
-## Development Guidelines
-
-### Component Structure
-- Keep all related code for a component within its directory
-- Create index.ts files to export public-facing items
-- Minimize dependencies between components
-- Use component-specific stores rather than global state when possible
-- Create clear interfaces between components
-
-### Code Style
-- Use tabs for indentation, not spaces
-- Use single quotes instead of double quotes
-- Prefer for...of loops over .forEach when iterating
-- Use kebab-case for filenames (e.g., `stargate-controller.ts`)
-- Always use TypeScript with explicit return types when not obvious
-- DO NOT use default exports, always use named exports
-- Use <React.StrictMode> in development
-
-### Type System
-- Use Zod for schema validation and type generation
-- Define interfaces and types in dedicated files
-- Export types from barrel files (index.ts)
-- Use discriminated unions for state management
-
-### Performance Optimization
-- Use React.memo() for expensive components
-- Implement useCallback() for functions passed as props
-- Utilize useMemo() for expensive calculations
-- Minimize re-renders in the 3D environment
-- Use instancing for repeated geometries in Three.js
-
-### Testing Strategy
-- Unit tests for utility functions
-- Component tests for UI elements
-- Mock Three.js dependencies in tests
-- Test game logic independently from rendering code
-
-### Asset Management
-- Optimize 3D models before importing
-- Use glTF format for 3D models when possible
-- Implement asset preloading for critical resources
-- Use level-of-detail (LOD) for complex models
-
-### Development Workflow
-1. Write code following style guidelines
-2. Run `npx tsc --noEmit` to check for TypeScript errors
-3. Format with `npx prettier --write .`
-4. Check with `npx eslint src/`
-5. Use Browser Tools for debugging
-	- `npx cursor-browsertools screenshot`
-	- `npx cursor-browsertools logs`
-	- `npx cursor-browsertools inspect element`
-	- `npx cursor-browsertools performance`
-	- `npx cursor-browsertools network`
-	- `npx cursor-browsertools memory`
-6. Run code quality tools:
-	- `npx depcheck` - identify unused dependencies
-	- `npx madge --circular src/` - detect circular dependencies
-	- `npx size-limit` - monitor bundle size
-	- `npx why-did-you-render` - debug re-renders
-
-## Key Features
-
-- Turn-based combat system
-- Keyboard-only controls (NO mouse controls)
-- Stargate activation sequence with visual feedback
-- Travel between planets
-- Environment differences based on location
-- Dialog and mission system (future)
+* All code = strict TypeScript, shared via mono-repo
+* PixiJS for all rendering
+* Procedural generation must be seeded
+* AI/LLM logic is always backend
+* Never expose secrets
+* Unit test critical logic
+* Use pnpm for package management
+* Use vitest for testing
+* Use vite for bundling

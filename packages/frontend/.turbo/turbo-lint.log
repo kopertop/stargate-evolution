@@ -1,0 +1,12 @@
+
+
+> frontend@0.1.0 lint /Users/cmoyer/Projects/personal/stargate-evolution/packages/frontend
+> eslint . --fix
+
+Warning: React version was set to "detect" in eslint-plugin-react settings, but the "react" package is not installed. Assuming latest React version for linting.
+[0m[0m
+[0m[4m/Users/cmoyer/Projects/personal/stargate-evolution/packages/frontend/vite.config.ts[24m[0m
+[0m  [2m3:8[22m  [33mwarning[39m  Missing return type on function  [2m@typescript-eslint/explicit-function-return-type[22m[0m
+[0m[0m
+[0m[33m[1m✖ 1 problem (0 errors, 1 warning)[22m[39m[0m
+[0m[33m[1m[22m[39m[0m
