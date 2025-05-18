@@ -58,6 +58,13 @@ importers:
         version: 4.15.2(@cloudflare/workers-types@4.20250517.0)
 
   packages/backend:
+    dependencies:
+      '@stargate/common':
+        specifier: workspace:*
+        version: link:../common
+      jose:
+        specifier: ^6.0.11
+        version: 6.0.11
     devDependencies:
       '@cloudflare/workers-types':
         specifier: ^4.20250517.0
@@ -69,7 +76,14 @@ importers:
         specifier: ^4.15.2
         version: 4.15.2(@cloudflare/workers-types@4.20250517.0)
 
-  packages/common: {}
+  packages/common:
+    dependencies:
+      jose:
+        specifier: ^6.0.11
+        version: 6.0.11
+      zod:
+        specifier: ^3.24.4
+        version: 3.24.4
 
   packages/frontend:
     dependencies:
@@ -1454,6 +1468,9 @@ packages:
     resolution: {integrity: sha512-/imKNG4EbWNrVjoNC/1H5/9GFy+tqjGBHCaSsN+P2RnPqjsLmv6UD3Ej+Kj8nBWaRAwyk7kK5ZUc+OEatnTR3A==}
     hasBin: true
 
+  jose@6.0.11:
+    resolution: {integrity: sha512-QxG7EaliDARm1O1S8BGakqncGT9s25bKL1WSf6/oa17Tkqwi8D2ZNglqCF+DsYF88/rV66Q/Q2mFAy697E1DUg==}
+
   js-binary-schema-parser@2.0.3:
     resolution: {integrity: sha512-xezGJmOb4lk/M1ZZLTR/jaBHQ4gG/lqQnJqdIv4721DMggsa1bDVlHXNeHYogaIEHD9vCRv0fcL4hMA+Coarkg==}
 
@@ -2037,6 +2054,9 @@ packages:
 
   zod@3.22.3:
     resolution: {integrity: sha512-EjIevzuJRiRPbVH4mGc8nApb/lVLKVpmUhAaR5R5doKGfAnGJ6Gr3CViAVjP+4FWSxCsybeWQdcgCtbX+7oZug==}
+
+  zod@3.24.4:
+    resolution: {integrity: sha512-OdqJE9UDRPwWsrHjLN2F8bPxvwJBK22EHLWtanu0LSYr5YqzsaaW3RMgmjwr8Rypg5k+meEJdSPXJZXE/yqOMg==}
 
 snapshots:
 
@@ -3422,6 +3442,8 @@ snapshots:
   jiti@1.21.7:
     optional: true
 
+  jose@6.0.11: {}
+
   js-binary-schema-parser@2.0.3: {}
 
   js-tokens@4.0.0: {}
@@ -4122,3 +4144,5 @@ snapshots:
       stacktracey: 2.1.8
 
   zod@3.22.3: {}
+
+  zod@3.24.4: {}

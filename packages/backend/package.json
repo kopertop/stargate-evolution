@@ -5,12 +5,16 @@
 	"scripts": {
 		"dev": "wrangler dev",
 		"build": "wrangler publish",
-    "lint": "eslint . --fix",
+		"lint": "eslint . --fix",
 		"typecheck": "tsc --noEmit"
 	},
 	"devDependencies": {
-		"wrangler": "^4.15.2",
+		"@cloudflare/workers-types": "^4.20250517.0",
 		"typescript": "^4.9.5",
-		"@cloudflare/workers-types": "^4.20250517.0"
+		"wrangler": "^4.15.2"
+	},
+	"dependencies": {
+		"@stargate/common": "workspace:*",
+		"jose": "^6.0.11"
 	}
 }

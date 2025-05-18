@@ -9,12 +9,13 @@
 - [x] ESLint/Prettier configured monorepo-wide
 - [x] Unified dev workflow: `pnpm start` runs both dev servers in parallel
 - [x] VSCode/Cursor tasks and launch configs for dev/debug
+- [x] Core Game Loop: Implement `Game` class, update/render cycle, and state management
+- [x] Ship Controls: WASD/arrow keys to move ship, basic camera/viewport
+- [x] Starfield/Background: Simple procedural or static starfield
+- [x] Backend API: `/hello` endpoint, test frontend-backend connectivity
+- [x] Google Chrome-aware "Continue with Google" login (detects logged-in Google account and offers one-click login with visible email, session persistence, backend validation/refresh)
 
 ## 🚧 In Progress / Next Up
-- [ ] Core Game Loop: Implement `Game` class, update/render cycle, and state management
-- [ ] Ship Controls: WASD/arrow keys to move ship, basic camera/viewport
-- [ ] Starfield/Background: Simple procedural or static starfield
-- [ ] Backend API: `/hello` endpoint, test frontend-backend connectivity
 - [ ] Procedural Galaxy Generation (backend)
 - [ ] Game State Management (backend, Cloudflare KV)
 - [ ] Frontend-backend integration: fetch and display backend data

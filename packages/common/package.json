@@ -1,9 +1,13 @@
 {
-	"name": "common",
+	"name": "@stargate/common",
 	"version": "0.1.0",
 	"private": true,
 	"scripts": {
-    "lint": "eslint . --fix",
+		"lint": "eslint . --fix",
 		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"jose": "^6.0.11",
+		"zod": "^3.24.4"
 	}
 }
