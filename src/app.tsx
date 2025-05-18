@@ -10,6 +10,8 @@ import HelpReminder from './components/help-reminder';
 import { Planets } from './types/index';
 import { initializeGameData } from './data';
 import { InteractionHint } from './components/hud/interaction-hint';
+import { usePlayerStore } from './components/player';
+import { useGameStore } from './components/game'; // Import game store
 import './styles/main.scss';
 
 // Create a context for location information
@@ -34,14 +36,15 @@ export const useLocation = () => useContext(LocationContext);
 
 // Location display component
 const LocationDisplay = () => {
-	const { planet, location, isInWormhole } = useLocation();
+	// Get location from player store instead of context
+	const { currentPlanet, currentLocation, isInWormhole } = usePlayerStore();
 
 	// Don't show location during wormhole travel
 	if (isInWormhole) return null;
 
 	return (
 		<div className="game-ui">
-			<h3>{planet} - {location}</h3>
+			<h3>{currentPlanet} - {currentLocation}</h3>
 		</div>
 	);
 };
@@ -61,10 +64,21 @@ export const useCharacterRef = () => useContext(CharacterRefContext);
 export default function App() {
 	// Character reference that will be provided by StargateRoom
 	const characterRef = useRef<THREE.Group>(null);
+	const travelCompletionTimerRef = useRef<NodeJS.Timeout | null>(null); // Timer ref
+	const TRAVEL_DURATION_MS = 3000; // Travel duration in milliseconds
 
-	const [currentPlanet, setCurrentPlanet] = useState<Planets>('Earth');
-	const [currentLocation, setCurrentLocation] = useState<string>('Stargate Command');
-	const [isInWormhole, setIsInWormhole] = useState<boolean>(false);
+	// Get player state from store
+	const {
+		currentPlanet,
+		currentLocation,
+		isInWormhole: playerIsInWormhole,
+		travel,
+		setIsInWormhole: setPlayerIsInWormhole
+	} = usePlayerStore();
+
+	// Get game store actions
+	const { setIsInWormhole: setGameIsInWormhole } = useGameStore();
+
 	const [isLoading, setIsLoading] = useState<boolean>(true);
 	const [initError, setInitError] = useState<string | null>(null);
 
@@ -86,21 +100,71 @@ export default function App() {
 		init();
 	}, []);
 
-	// Update location handler
+	// Travel Completion Logic
+	useEffect(() => {
+		if (playerIsInWormhole) {
+			console.log('App detected isInWormhole=true, starting travel completion timer.');
+			// Clear any existing timer first
+			if (travelCompletionTimerRef.current) {
+				clearTimeout(travelCompletionTimerRef.current);
+			}
+
+			travelCompletionTimerRef.current = setTimeout(() => {
+				console.log('Travel duration complete. Finalizing travel...');
+
+				// Determine target based on current location
+				const targetPlanet = currentPlanet === 'Earth' ? 'Abydos' : 'Earth';
+				const targetLocation = targetPlanet === 'Earth' ? 'Stargate Command' : 'Temple of Ra';
+
+				// 1. Update player location in the store
+				travel(targetPlanet, targetLocation);
+
+				// 2. Reset wormhole state in BOTH stores
+				console.log('Finalizing travel: Setting isInWormhole=false in Player and Game stores');
+				setPlayerIsInWormhole(false);
+				setGameIsInWormhole(false);
+
+				// 3. Reset timer ref
+				travelCompletionTimerRef.current = null;
+
+				// NOTE: The onTravelComplete callback from StargateRoom is implicitly handled
+				// because resetting playerIsInWormhole causes StargateRoom to remount,
+				// which resets its internal state (stargateActive, activationStage).
+			}, TRAVEL_DURATION_MS);
+		} else {
+			// If wormhole state becomes false externally, clear the timer
+			if (travelCompletionTimerRef.current) {
+				console.log('App detected isInWormhole=false, clearing travel completion timer.');
+				clearTimeout(travelCompletionTimerRef.current);
+				travelCompletionTimerRef.current = null;
+			}
+		}
+
+		// Cleanup function for the effect
+		return () => {
+			if (travelCompletionTimerRef.current) {
+				clearTimeout(travelCompletionTimerRef.current);
+			}
+		};
+	}, [playerIsInWormhole, currentPlanet, travel, setPlayerIsInWormhole, setGameIsInWormhole]);
+
+
+	// Update location handler - uses player store travel function
 	const updateLocation = (planet: Planets, location: string) => {
-		setCurrentPlanet(planet);
-		setCurrentLocation(location);
+		travel(planet, location);
 	};
 
-	// Handler for wormhole state
-	const handleWormholeState = (isInWormhole: boolean) => {
-		console.log('Setting wormhole state:', isInWormhole);
-		setIsInWormhole(isInWormhole);
+	// Handler for wormhole state - uses player store
+	const handleWormholeState = (isInWormholeState: boolean) => {
+		console.log('Setting wormhole state (via prop drill):', isInWormholeState); // Keep for debugging if needed
+		// This is now mainly handled by the useEffect above
+		// setPlayerIsInWormhole(isInWormholeState);
+		// setGameIsInWormhole(isInWormholeState); // Ensure both are set if called externally
 	};
 
 	// Dummy startTravel function for the context
 	const startTravel = () => {
-		console.log('Travel starting from context handler');
+		console.log('Travel starting from context handler (dummy)');
 	};
 
 	// Show loading screen while initializing
@@ -131,16 +195,16 @@ export default function App() {
 				location: currentLocation,
 				updateLocation,
 				startTravel,
-				isInWormhole
+				isInWormhole: playerIsInWormhole // Context reflects player store
 			}}
 		>
 			<CharacterRefContext.Provider value={{ characterRef }}>
 				<div style={{ width: '100vw', height: '100vh', backgroundColor: '#111' }}>
-					{/* DOM-based wormhole overlay effects */}
+					{/* DOM-based wormhole overlay effects (uses Game Store state) */}
 					<WormholeOverlay />
 
-					{/* Movement tutorial (hide during wormhole travel) */}
-					{!isInWormhole && <MovementTutorial />}
+					{/* Movement tutorial (hide during wormhole travel based on Player Store state) */}
+					{!playerIsInWormhole && <MovementTutorial />}
 
 					{/* Location info */}
 					<LocationDisplay />
@@ -168,23 +232,23 @@ export default function App() {
 							shadow-camera-bottom={-20}
 						/>
 
-						{/* Wormhole travel effect (shown only when traveling) */}
+						{/* Wormhole travel effect (shown only when traveling - uses Player Store state) */}
 						<StargateWormholeEffect
-							active={isInWormhole}
+							active={playerIsInWormhole}
 							onComplete={() => {
-								// This is now handled directly in the StargateRoom component
+								// Completion is handled by the useEffect timer now
 							}}
-							duration={2500}
+							duration={TRAVEL_DURATION_MS} // Use duration constant
 						/>
 
-						{/* Room and environment (hide during wormhole travel) */}
-						{!isInWormhole && (
+						{/* Room and environment (hide during wormhole travel - uses Player Store state) */}
+						{!playerIsInWormhole && (
 							<StargateRoom
 								planet={currentPlanet}
 								characterRef={characterRef}
-								updateLocation={updateLocation}
-								setIsInWormhole={handleWormholeState}
-								startTravel={startTravel}
+								// updateLocation={updateLocation} // No longer needed here, handled by travel()
+								// setIsInWormhole={handleWormholeState} // No longer needed here, handled by useEffect
+								// startTravel={startTravel} // No longer needed here
 							/>
 						)}
 

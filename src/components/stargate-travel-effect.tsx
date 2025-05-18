@@ -1,164 +1,127 @@
-import React, { useRef, useEffect } from 'react';
-import { useFrame } from '@react-three/fiber';
+import React, { useRef, useMemo, useEffect } from 'react';
 import * as THREE from 'three';
+import { useFrame } from '@react-three/fiber';
 
-interface StargateWormholeProps {
+interface StargateWormholeEffectProps {
 	active: boolean;
 	onComplete: () => void;
-	duration?: number;
+	duration?: number; // Duration in milliseconds
 }
 
-const StargateWormholeEffect: React.FC<StargateWormholeProps> = ({
+const StargateWormholeEffect: React.FC<StargateWormholeEffectProps> = ({
 	active,
 	onComplete,
-	duration = 5
+	duration = 3000 // Default duration 3 seconds
 }) => {
-	const groupRef = useRef<THREE.Group>(null);
-	const particlesRef = useRef<THREE.Points>(null);
-	const timeRef = useRef(0);
-	const completedRef = useRef(false);
+	const pointsRef = useRef<THREE.Points>(null);
+	const progressRef = useRef(0); // 0 to 1
+	const isActiveRef = useRef(false); // Track internal active state
 
-	// Create stargate wormhole tunnel particles
-	useEffect(() => {
-		if (!particlesRef.current || !active) return;
+	const numPoints = 5000;
 
-		// Reset state
-		timeRef.current = 0;
-		completedRef.current = false;
+	// Create particle positions
+	const particles = useMemo(() => {
+		const positions = new Float32Array(numPoints * 3);
+		const scales = new Float32Array(numPoints);
+		const colors = new Float32Array(numPoints * 3);
+		const color = new THREE.Color();
 
-		// Generate particles
-		const particleCount = 5000;
-		const positions = new Float32Array(particleCount * 3);
-		const colors = new Float32Array(particleCount * 3);
-		const sizes = new Float32Array(particleCount);
+		for (let i = 0; i < numPoints; i++) {
+			const i3 = i * 3;
+			const radius = Math.random() * 10 + 2; // Spread farther out
+			const theta = Math.random() * Math.PI * 2;
+			const z = (Math.random() - 0.5) * 100; // Spread along Z axis
 
-		// Generate initial particles in a tunnel-like formation
-		for (let i = 0; i < particleCount; i++) {
-			// Place particles in a tunnel shape
-			const angle = Math.random() * Math.PI * 2;
-			const radius = 2 + Math.random() * 1;
-			const depth = -50 + Math.random() * 100;
+			positions[i3] = Math.cos(theta) * radius;
+			positions[i3 + 1] = Math.sin(theta) * radius;
+			positions[i3 + 2] = z;
 
-			// Position
-			positions[i * 3] = Math.cos(angle) * radius;
-			positions[i * 3 + 1] = Math.sin(angle) * radius;
-			positions[i * 3 + 2] = depth;
+			scales[i] = Math.random() * 0.5 + 0.1; // Varying square sizes
 
-			// Color - blue/cyan streaks
-			colors[i * 3] = 0.2 + Math.random() * 0.2; // r
-			colors[i * 3 + 1] = 0.5 + Math.random() * 0.5; // g
-			colors[i * 3 + 2] = 0.8 + Math.random() * 0.2; // b
-
-			// Size
-			sizes[i] = 0.1 + Math.random() * 0.3;
+			// White squares
+			color.set('#ffffff');
+			colors[i3] = color.r;
+			colors[i3 + 1] = color.g;
+			colors[i3 + 2] = color.b;
 		}
+		return { positions, scales, colors };
+	}, [numPoints]);
 
-		// Update geometry
-		const geometry = (particlesRef.current.geometry as THREE.BufferGeometry);
-		geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-		geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-		geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
-	}, [active]);
-
-	// Animate the wormhole when active
+	// Animate particles
 	useFrame((state, delta) => {
-		if (!active || !groupRef.current || !particlesRef.current || completedRef.current) return;
+		if (!pointsRef.current) return;
 
-		// Update time
-		timeRef.current += delta;
+		const geom = pointsRef.current.geometry;
+		const posAttr = geom.getAttribute('position') as THREE.BufferAttribute;
 
-		// Get normalized time (0 to 1)
-		const normalizedTime = Math.min(timeRef.current / duration, 1);
+		if (isActiveRef.current) {
+			// Increase progress
+			progressRef.current = Math.min(progressRef.current + delta * (1000 / duration), 1);
 
-		// Animate particles
-		const positions = (particlesRef.current.geometry as THREE.BufferGeometry).attributes.position;
-		const sizes = (particlesRef.current.geometry as THREE.BufferGeometry).attributes.size;
+			// Animate Z position and scale
+			for (let i = 0; i < numPoints; i++) {
+				const i3 = i * 3;
+				// Move particles towards camera
+				posAttr.array[i3 + 2] += delta * (50 + Math.random() * 50); // Speed variation
 
-		for (let i = 0; i < positions.count; i++) {
-			// Move particles forward to create rushing effect
-			const z = positions.getZ(i);
-			const newZ = z + delta * (50 + 20 * Math.random()); // Forward movement speed
-
-			// Reset particles that go too far ahead
-			if (newZ > 50) {
-				positions.setZ(i, -50);
-
-				// Randomize x,y position slightly for varied effect
-				const angle = Math.random() * Math.PI * 2;
-				const radius = 1.5 + Math.random() * 1.5;
-				positions.setX(i, Math.cos(angle) * radius);
-				positions.setY(i, Math.sin(angle) * radius);
-
-				// Pulsate size
-				sizes.setX(i, 0.1 + Math.random() * 0.4);
-			} else {
-				positions.setZ(i, newZ);
+				// Reset particle if it goes past the camera
+				if (posAttr.array[i3 + 2] > 10) {
+					posAttr.array[i3 + 2] = -50 - Math.random() * 50; // Reset behind
+				}
 			}
+			posAttr.needsUpdate = true;
+
+			// Rotate the whole system slowly
+			pointsRef.current.rotation.z += delta * 0.1;
+
+		} else {
+			// Decrease progress when inactive
+			progressRef.current = Math.max(progressRef.current - delta * (1000 / duration) * 2, 0); // Fade out faster
 		}
 
-		positions.needsUpdate = true;
-		sizes.needsUpdate = true;
-
-		// Create a camera-shake-like effect as we travel
-		if (groupRef.current) {
-			const shake = Math.sin(timeRef.current * 10) * 0.05 * (1 - normalizedTime);
-			groupRef.current.position.x = shake;
-			groupRef.current.position.y = shake * 0.7;
-		}
-
-		// Apply overall effects based on journey progress
-		const material = particlesRef.current.material as THREE.PointsMaterial;
-
-		// Start of journey - ramp up speed and brightness
-		if (normalizedTime < 0.2) {
-			material.opacity = normalizedTime / 0.2;
-		}
-		// End of journey - fade out
-		else if (normalizedTime > 0.8) {
-			material.opacity = 1 - ((normalizedTime - 0.8) / 0.2);
-		}
-
-		// Signal completion when done
-		if (normalizedTime === 1 && !completedRef.current) {
-			completedRef.current = true;
-			onComplete();
-		}
+		// Control visibility based on progress
+		const material = pointsRef.current.material as THREE.PointsMaterial;
+		material.opacity = progressRef.current;
+		material.visible = progressRef.current > 0.01;
 	});
 
-	if (!active) return null;
+	// Handle activation/deactivation side effects
+	useEffect(() => {
+		if (active) {
+			console.log('StargateWormholeEffect activated');
+			// If starting fresh, reset progress
+			if (!isActiveRef.current) {
+				progressRef.current = 0;
+			}
+			isActiveRef.current = true;
+		} else {
+			console.log('StargateWormholeEffect deactivated');
+			isActiveRef.current = false;
+			// Note: onComplete is now handled by the App timer
+		}
+	}, [active, onComplete]);
+
+	// Geometry setup
+	const geometry = useMemo(() => {
+		const geo = new THREE.BufferGeometry();
+		geo.setAttribute('position', new THREE.BufferAttribute(particles.positions, 3));
+		geo.setAttribute('scale', new THREE.BufferAttribute(particles.scales, 1));
+		geo.setAttribute('color', new THREE.BufferAttribute(particles.colors, 3));
+		return geo;
+	}, [particles]);
 
 	return (
-		<group ref={groupRef}>
-			{/* Add a camera near effect to simulate first-person */}
-			<mesh position={[0, 0, -1]}>
-				<planeGeometry args={[5, 5]} />
-				<meshBasicMaterial color="#0066ff" transparent opacity={0.1} />
-			</mesh>
-
-			{/* Wormhole particles */}
-			<points ref={particlesRef}>
-				<bufferGeometry />
-				<pointsMaterial
-					size={0.2}
-					vertexColors
-					transparent
-					opacity={1}
-					blending={THREE.AdditiveBlending}
-					depthWrite={false}
-				/>
-			</points>
-
-			{/* Tunnel ambient light */}
-			<ambientLight intensity={1} color="#00aaff" />
-
-			{/* Moving light to create dynamic shadows */}
-			<pointLight
-				position={[0, 0, -10]}
-				intensity={2}
-				color="#ffffff"
-				distance={20}
+		<points ref={pointsRef} geometry={geometry} frustumCulled={false}>
+			<pointsMaterial
+				size={0.2} // Base size for squares
+				sizeAttenuation={true}
+				vertexColors={true}
+				transparent={true}
+				opacity={0}
+				depthWrite={false} // Prevent particles hiding each other incorrectly
+				blending={THREE.AdditiveBlending} // Brighter where particles overlap
 			/>
-		</group>
+		</points>
 	);
 };
 

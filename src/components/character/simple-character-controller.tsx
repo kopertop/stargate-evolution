@@ -76,7 +76,7 @@ export const SimpleCharacterController = forwardRef<THREE.Group, SimpleCharacter
 			scene.traverse((object) => {
 				if (object instanceof THREE.Mesh &&
 					object.name && object.name.startsWith('wall-')) {
-					console.log('Found named wall mesh:', object.name, object.position);
+					// console.log('Found named wall mesh:', object.name, object.position);
 					wallMeshes.push(object);
 
 					// Store original material if not already stored
@@ -131,7 +131,7 @@ export const SimpleCharacterController = forwardRef<THREE.Group, SimpleCharacter
 				const meshes = findWallMeshes();
 
 				if (meshes.length > 0) {
-					console.log(`Found ${meshes.length} wall meshes on attempt ${retryCountRef.current + 1}`);
+					// console.log(`Found ${meshes.length} wall meshes on attempt ${retryCountRef.current + 1}`);
 					wallMeshesRef.current = meshes;
 					retryCountRef.current = 0; // Reset for potential future needs
 					return true;

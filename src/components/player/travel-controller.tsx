@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { usePlayerStore } from './player-store';
+import { useGameStore } from '../game'; // Import game store
 
 interface TravelControllerProps {
 	characterRef: React.RefObject<THREE.Group | null>;
@@ -26,7 +27,9 @@ export const TravelController: React.FC<TravelControllerProps> = ({
 	const TRAVEL_TRIGGER_DISTANCE = 3;
 
 	// Get player state and actions
-	const { isInWormhole, setIsInWormhole, travel } = usePlayerStore();
+	const { setIsInWormhole: setPlayerIsInWormhole, travel } = usePlayerStore();
+	// Get game store actions
+	const { setIsInWormhole: setGameIsInWormhole } = useGameStore();
 
 	// Track if we've initiated travel
 	const isTravelingRef = useRef(false);
@@ -56,41 +59,45 @@ export const TravelController: React.FC<TravelControllerProps> = ({
 		// Check if character is close enough to the stargate
 		if (distance <= TRAVEL_TRIGGER_DISTANCE) {
 			// Start travel sequence automatically when close enough
-			console.log('Starting travel sequence to', targetPlanet, targetLocation);
+			console.log('TRAVEL TRIGGERED: Starting travel sequence to', targetPlanet, targetLocation);
 			isTravelingRef.current = true;
 			travelStartTimeRef.current = clock.getElapsedTime();
-			setIsInWormhole(true);
+
+			// Set wormhole state in BOTH stores
+			console.log('TRAVEL TRIGGERED: Setting isInWormhole=true in Player and Game stores');
+			setPlayerIsInWormhole(true);
+			setGameIsInWormhole(true);
 
 			// Play travel sound
 			const travelSound = new Audio('/sounds/stargate-travel.mp3');
 			travelSound.volume = 0.6;
 			travelSound.play().catch(err => console.error('Failed to play travel sound:', err));
+
+			// IMPORTANT: Travel completion logic is now handled in App.tsx because this component unmounts
 		}
 
-		// If traveling, check if travel duration has elapsed
+		// --- Travel completion logic removed from here as component unmounts ---
+		/*
 		if (isTravelingRef.current && travelStartTimeRef.current !== null) {
 			const travelTime = clock.getElapsedTime() - travelStartTimeRef.current;
-
 			if (travelTime >= TRAVEL_DURATION) {
-				// Complete travel
-				console.log('Travel complete to', targetPlanet, targetLocation);
-				travel(targetPlanet as any, targetLocation);
-				isTravelingRef.current = false;
-				travelStartTimeRef.current = null;
-				onTravelComplete();
+				// ... completion logic was here ...
 			}
 		}
+		*/
 	});
 
-	// Reset if stargate deactivates
+	// Reset if stargate deactivates - also needs to reset both stores
 	useEffect(() => {
 		if (!stargateActive && isTravelingRef.current) {
-			console.log('Stargate deactivated during travel, canceling');
+			console.log('Stargate deactivated during travel trigger phase, canceling');
 			isTravelingRef.current = false;
 			travelStartTimeRef.current = null;
-			setIsInWormhole(false);
+			// Reset both stores if cancelled before travel fully starts
+			setPlayerIsInWormhole(false);
+			setGameIsInWormhole(false);
 		}
-	}, [stargateActive, setIsInWormhole]);
+	}, [stargateActive, setPlayerIsInWormhole, setGameIsInWormhole]);
 
 	// Visual component - this is purely logic
 	return null;
