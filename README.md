@@ -13,3 +13,26 @@ A web-based, top-down, turn-based game based on the Stargate universe, focusing 
 - **Cross-Platform Support**: Play on web and iOS devices with controller, keyboard, and mouse input
 - **Turn-Based Gameplay**: Engage in strategic exploration and combat with a turn-based system.
 - **Top-Down Perspective**: Experience the game from a classic tabletop-style viewpoint.
+
+## 🗄️ Setting up the D1 Database (Cloudflare)
+
+1. **Install Wrangler CLI** (if not already):
+   ```sh
+   pnpm install -g wrangler
+   ```
+
+2. **Create the D1 database:**
+   ```sh
+   wrangler d1 create galaxies
+   ```
+   - Copy the database ID from the output and paste it into `packages/backend/wrangler.toml` under `database_id` for the `DB` binding.
+
+3. **Run the migration:**
+   ```sh
+   pnpm run db:up
+   ```
+
+4. **Start the dev server:**
+   ```sh
+   pnpm start
+   ```

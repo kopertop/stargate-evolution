@@ -39,3 +39,7 @@ yarn-error.*
 
 # typescript
 *.tsbuildinfo
+
+# Wrangler
+.wrangler/
+packages/*/.wrangler

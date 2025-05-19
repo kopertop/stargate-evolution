@@ -5,6 +5,7 @@
   "scripts": {
     "start": "pnpm -r --parallel run dev",
     "check": "pnpm -r run typecheck && pnpm -r run lint",
+    "db:up": "pnpm -r run db:up",
     "test": "echo 'Add tests with vitest'"
   },
   "devDependencies": {
