@@ -6,7 +6,7 @@
     "start": "pnpm -r --parallel run dev",
     "check": "pnpm -r run typecheck && pnpm -r run lint",
     "db:up": "pnpm -r run db:up",
-    "test": "echo 'Add tests with vitest'"
+    "test": "pnpm -r test"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250517.0",

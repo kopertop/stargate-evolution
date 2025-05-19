@@ -27,6 +27,8 @@ export const StarSchema = z.object({
 	age: z.number(),
 });
 
+export type Star = z.infer<typeof StarSchema>;
+
 // --- Star System ---
 export const StarSystemSchema = z.object({
 	id: z.string(),
@@ -42,7 +44,10 @@ export type StarSystem = z.infer<typeof StarSystemSchema>;
 
 // --- Galaxy ---
 export const GalaxySchema = z.object({
-	seed: z.string(),
+	id: z.string(),
+	name: z.string(),
+	description: z.string().optional(),
+	image: z.string().optional(),
 	starSystems: z.array(StarSystemSchema),
 });
 export type Galaxy = z.infer<typeof GalaxySchema>;

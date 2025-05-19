@@ -7,15 +7,19 @@
 		"build": "wrangler publish",
 		"lint": "eslint . --fix",
 		"typecheck": "tsc --noEmit",
-		"db:up": "wrangler d1 migrations apply stargate-game"
+		"db:up": "wrangler d1 migrations apply stargate-game",
+		"test": "vitest run"
 	},
 	"devDependencies": {
 		"@cloudflare/workers-types": "^4.20250517.0",
+		"@vitest/ui": "^3.1.3",
 		"typescript": "^4.9.5",
+		"vitest": "^3.1.3",
 		"wrangler": "^4.15.2"
 	},
 	"dependencies": {
 		"@stargate/common": "workspace:*",
-		"jose": "^6.0.11"
+		"jose": "^6.0.11",
+		"ulid": "^3.0.0"
 	}
 }
