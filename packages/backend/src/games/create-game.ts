@@ -4,6 +4,8 @@ import { Ship, Room, Technology, Race } from '@stargate/common/types/ship';
 import { Stargate, CheveronSymbol } from '@stargate/common/types/stargate';
 import { ulid } from 'ulid';
 
+import type { Env } from '../types';
+
 export interface GameScaffoldData {
 	galaxies: Galaxy[];
 	starSystems: StarSystem[];
@@ -133,15 +135,254 @@ export function initGame(userId: string): GameScaffoldData {
 	};
 }
 
-export async function handleCreateGameRequest(request: Request): Promise<Response> {
+/**
+ * Save the game data to the DB
+ *
+ * @param game Game data to save
+ * @param env The Wrangler Enviornment object
+ * @returns The game ID
+ */
+async function saveGame(game: GameScaffoldData, env: Env, userId: string): Promise<string> {
+	const gameId = ulid();
+	const now = Date.now();
+	const db = env.DB;
+	const statements: D1PreparedStatement[] = [];
+
+	// Insert game
+	statements.push(
+		db.prepare(
+			'INSERT INTO games (id, user_id, name, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
+		).bind(
+			gameId,
+			userId,
+			game.galaxies[0]?.name || 'New Game',
+			now,
+			now,
+		),
+	);
+
+	// Galaxies
+	for (const galaxy of game.galaxies) {
+		statements.push(
+			db.prepare(
+				'INSERT INTO galaxies (id, game_id, name, created_at) VALUES (?, ?, ?, ?)',
+			).bind(
+				galaxy.id,
+				gameId,
+				galaxy.name,
+				now,
+			),
+		);
+	}
+
+	// Star Systems
+	for (const system of game.starSystems) {
+		const parentGalaxy = game.galaxies.find(g => g.starSystems.some(s => s.id === system.id));
+		statements.push(
+			db.prepare(
+				'INSERT INTO star_systems (id, game_id, galaxy_id, name, x, y, description, image, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+			).bind(
+				system.id,
+				gameId,
+				parentGalaxy?.id ?? null,
+				system.name,
+				system.position.x,
+				system.position.y,
+				system.description ?? null,
+				system.image ?? null,
+				now,
+			),
+		);
+	}
+
+	// Stars
+	for (const star of game.stars) {
+		const parentSystem = game.starSystems.find(s => s.stars.some(st => st.id === star.id));
+		statements.push(
+			db.prepare(
+				'INSERT INTO stars (id, game_id, star_system_id, name, type, description, image, radius, mass, temperature, luminosity, age, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+			).bind(
+				star.id,
+				gameId,
+				parentSystem?.id ?? null,
+				star.name,
+				star.type,
+				star.description ?? null,
+				star.image ?? null,
+				star.radius,
+				star.mass,
+				star.temperature,
+				star.luminosity,
+				star.age,
+				now,
+			),
+		);
+	}
+
+	// Planets
+	for (const planet of game.planets) {
+		statements.push(
+			db.prepare(
+				'INSERT INTO planets (id, game_id, star_system_id, name, type, stargate_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+			).bind(
+				planet.id,
+				gameId,
+				game.starSystems.find(s => s.planets.some(p => p.id === planet.id))?.id ?? null,
+				planet.name,
+				planet.type,
+				planet.stargate ?? null,
+				now,
+			),
+		);
+	}
+
+	// Stargates
+	for (const stargate of game.stargates) {
+		statements.push(
+			db.prepare(
+				'INSERT INTO stargates (id, game_id, location_type, location_id, type, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+			).bind(
+				stargate.id,
+				gameId,
+				'room', // or 'planet', 'ship', etc. (adjust as needed)
+				stargate.locationId,
+				stargate.type,
+				now,
+			),
+		);
+	}
+
+	// Chevrons (address for each stargate)
+	for (const stargate of game.stargates) {
+		if (stargate.address) {
+			stargate.address.forEach((chevron, idx) => {
+				statements.push(
+					db.prepare(
+						'INSERT INTO chevrons (id, game_id, stargate_id, symbol, description, image, position, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+					).bind(
+						chevron.id,
+						gameId,
+						stargate.id,
+						chevron.symbol,
+						chevron.description ?? null,
+						chevron.image ?? null,
+						idx,
+						now,
+					),
+				);
+			});
+		}
+	}
+
+	// Technology
+	for (const tech of game.technology) {
+		statements.push(
+			db.prepare(
+				'INSERT INTO technology (id, game_id, name, description, unlocked, cost, image, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+			).bind(
+				tech.id,
+				gameId,
+				tech.name,
+				tech.description,
+				tech.unlocked ? 1 : 0,
+				tech.cost,
+				tech.image ?? null,
+				now,
+			),
+		);
+	}
+
+	// Races
+	for (const race of game.races) {
+		statements.push(
+			db.prepare(
+				'INSERT INTO races (id, game_id, name, created_at) VALUES (?, ?, ?, ?)',
+			).bind(
+				race.id,
+				gameId,
+				race.name,
+				now,
+			),
+		);
+	}
+
+	// Ships
+	for (const ship of game.ships) {
+		statements.push(
+			db.prepare(
+				'INSERT INTO ships (id, game_id, name, power, max_power, shields, max_shields, hull, max_hull, race_id, stargate_id, location_system_id, location_planet_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+			).bind(
+				ship.id,
+				gameId,
+				ship.name,
+				ship.power,
+				ship.maxPower,
+				ship.shields,
+				ship.maxShields,
+				ship.hull,
+				ship.maxHull,
+				ship.raceId,
+				ship.stargate ?? null,
+				ship.location.systemId,
+				ship.location.planetId ?? null,
+				now,
+			),
+		);
+	}
+
+	// Rooms
+	for (const room of game.rooms) {
+		statements.push(
+			db.prepare(
+				'INSERT INTO rooms (id, game_id, ship_id, type, created_at) VALUES (?, ?, ?, ?, ?)',
+			).bind(
+				room.id,
+				gameId,
+				game.ships.find(s => s.rooms.some(r => r.id === room.id))?.id ?? null,
+				room.type,
+				now,
+			),
+		);
+	}
+
+	// People
+	for (const person of game.people) {
+		statements.push(
+			db.prepare(
+				'INSERT INTO people (id, game_id, name, race_id, role, location_room_id, location_planet_id, location_ship_id, description, image, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+			).bind(
+				person.id,
+				gameId,
+				person.name,
+				person.raceId,
+				person.role,
+				person.location.roomId ?? null,
+				person.location.planetId ?? null,
+				person.location.shipId ?? null,
+				person.description ?? null,
+				person.image ?? null,
+				now,
+			),
+		);
+	}
+
+	await db.batch(statements);
+	return gameId;
+}
+
+export async function handleCreateGameRequest(request: Request, env: Env): Promise<Response> {
 	try {
-		const { userId } = await request.json();
+		const { userId } = await request.json() as any;
 		if (!userId || typeof userId !== 'string') {
 			return new Response(JSON.stringify({ error: 'Missing or invalid userId' }), { status: 400, headers: { 'content-type': 'application/json' } });
 		}
 		const game = initGame(userId);
+		// Save all game objects to the database
+		await saveGame(game, env, userId);
+		console.log('GAME', game);
 		return new Response(JSON.stringify(game), { status: 200, headers: { 'content-type': 'application/json' } });
 	} catch (err: any) {
+		console.error('ERROR', err);
 		return new Response(JSON.stringify({ error: err.message || 'Invalid request' }), { status: 400, headers: { 'content-type': 'application/json' } });
 	}
 }

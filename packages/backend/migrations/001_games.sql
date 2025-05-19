@@ -4,7 +4,8 @@ CREATE TABLE IF NOT EXISTS users (
   email TEXT NOT NULL,
   name TEXT NOT NULL,
   image TEXT,
-  created_at INTEGER DEFAULT (strftime('%s','now'))
+  created_at INTEGER DEFAULT (strftime('%s','now')),
+  updated_at INTEGER DEFAULT (strftime('%s','now'))
 );
 
 -- Games table: Each game belongs to a user and is the root for all game data
@@ -15,6 +16,7 @@ CREATE TABLE IF NOT EXISTS games (
   current INTEGER NOT NULL DEFAULT 0, -- 1 if this is the user's current game
   last_played INTEGER,
   created_at INTEGER DEFAULT (strftime('%s','now')),
+  updated_at INTEGER DEFAULT (strftime('%s','now')),
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 

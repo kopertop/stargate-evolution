@@ -1,6 +1,9 @@
 import { UserSchema, SessionSchema } from '@stargate/common/types/user';
 import { jwtVerify, SignJWT } from 'jose';
 
+import handleCreateGameRequest from './games/create-game';
+import { Env } from './types';
+
 const corsHeaders = {
 	'access-control-allow-origin': '*',
 	'access-control-allow-methods': 'GET, POST, OPTIONS',
@@ -52,7 +55,7 @@ async function verifyJwt(token: string) {
 }
 
 export default {
-	async fetch(request: Request): Promise<Response> {
+	async fetch(request: Request, env: Env): Promise<Response> {
 		const url = new URL(request.url);
 		if (request.method === 'OPTIONS') {
 			return new Response(null, { status: 204, headers: corsHeaders });
@@ -62,9 +65,12 @@ export default {
 				headers: { 'content-type': 'text/plain' },
 			}));
 		}
+		if (url.pathname === '/api/games' && request.method === 'POST') {
+			return handleCreateGameRequest(request, env);
+		}
 		if (url.pathname === '/api/auth/google' && request.method === 'POST') {
 			try {
-				const { idToken } = await request.json();
+				const { idToken } = await request.json() as any;
 				if (!idToken || typeof idToken !== 'string') throw new Error('Missing idToken');
 				const payload = await verifyGoogleIdToken(idToken);
 				const userResult = UserSchema.safeParse({
@@ -95,7 +101,7 @@ export default {
 		}
 		if (url.pathname === '/api/auth/validate' && request.method === 'POST') {
 			try {
-				const { token } = await request.json();
+				const { token } = await request.json() as any;
 				if (!token || typeof token !== 'string') throw new Error('Missing token');
 				const { payload } = await verifyJwt(token);
 				const userResult = UserSchema.safeParse(payload.user);
@@ -109,7 +115,7 @@ export default {
 		}
 		if (url.pathname === '/api/auth/refresh' && request.method === 'POST') {
 			try {
-				const { refreshToken } = await request.json();
+				const { refreshToken } = await request.json() as any;
 				if (!refreshToken || typeof refreshToken !== 'string') throw new Error('Missing refreshToken');
 				const { payload } = await verifyJwt(refreshToken);
 				const userResult = UserSchema.safeParse(payload.user);

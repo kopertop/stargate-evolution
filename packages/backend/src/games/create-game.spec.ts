@@ -1,11 +1,16 @@
-import { describe, it, expect } from 'vitest';
+import { env, applyD1Migrations } from 'cloudflare:test';
+import { describe, it, expect, beforeAll } from 'vitest';
+
+import { Env } from '../types';
 
 import handleCreateGameRequest, { initGame } from './create-game';
 
 function mockRequest(body: any) {
-	return {
-		json: async () => body,
-	} as unknown as Request;
+	return new Request('http://localhost', {
+		method: 'POST',
+		body: JSON.stringify(body),
+		headers: { 'content-type': 'application/json' },
+	});
 }
 
 describe('initGame', () => {
@@ -39,21 +44,28 @@ describe('initGame', () => {
 });
 
 describe('handleCreateGameRequest', () => {
+	beforeAll(async () => {
+		const testEnv = env as any;
+		await applyD1Migrations(testEnv.DB, testEnv.TEST_MIGRATIONS);
+		await testEnv.DB.prepare(
+			'INSERT INTO users (id, email, name, image) VALUES (?, ?, ?, ?)',
+		).bind('test-user', 'test@example.com', 'Test User', null).run();
+	});
 	it('returns 200 and valid game JSON for valid userId', async () => {
 		const req = mockRequest({ userId: 'test-user' });
-		const res = await handleCreateGameRequest(req);
+		const res = await handleCreateGameRequest(req, env as Env);
 		expect(res.status).toBe(200);
-		const json = await res.json();
+		const json = await res.json() as any;
 		expect(json.galaxies).toBeDefined();
 	});
 	it('returns 400 for missing userId', async () => {
 		const req = mockRequest({ });
-		const res = await handleCreateGameRequest(req);
+		const res = await handleCreateGameRequest(req, env as Env);
 		expect(res.status).toBe(400);
 	});
 	it('returns 400 for non-string userId', async () => {
 		const req = mockRequest({ userId: 123 });
-		const res = await handleCreateGameRequest(req);
+		const res = await handleCreateGameRequest(req, env as Env);
 		expect(res.status).toBe(400);
 	});
 });

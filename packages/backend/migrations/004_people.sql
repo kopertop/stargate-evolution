@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS people (
   description TEXT,
   image TEXT,
   created_at INTEGER DEFAULT (strftime('%s','now')),
+  updated_at INTEGER DEFAULT (strftime('%s','now')),
   FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE CASCADE,
   FOREIGN KEY (race_id) REFERENCES races(id),
   FOREIGN KEY (location_room_id) REFERENCES rooms(id),
@@ -26,6 +27,7 @@ CREATE TABLE IF NOT EXISTS users (
   name TEXT NOT NULL,
   picture TEXT,
   created_at INTEGER DEFAULT (strftime('%s','now')),
+  updated_at INTEGER DEFAULT (strftime('%s','now')),
   FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE CASCADE
 );
 
@@ -38,6 +40,7 @@ CREATE TABLE IF NOT EXISTS sessions (
   refresh_token TEXT,
   expires_at INTEGER NOT NULL,
   created_at INTEGER DEFAULT (strftime('%s','now')),
+  updated_at INTEGER DEFAULT (strftime('%s','now')),
   FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE CASCADE,
   FOREIGN KEY (user_id) REFERENCES users(id)
 );

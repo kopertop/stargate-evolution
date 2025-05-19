@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS galaxies (
   game_id TEXT NOT NULL,
   name TEXT NOT NULL,
   created_at INTEGER DEFAULT (strftime('%s','now')),
+  updated_at INTEGER DEFAULT (strftime('%s','now')),
   FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE CASCADE
 );
 
@@ -18,6 +19,7 @@ CREATE TABLE IF NOT EXISTS star_systems (
   description TEXT,
   image TEXT,
   created_at INTEGER DEFAULT (strftime('%s','now')),
+  updated_at INTEGER DEFAULT (strftime('%s','now')),
   FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE CASCADE,
   FOREIGN KEY (galaxy_id) REFERENCES galaxies(id) ON DELETE CASCADE
 );
@@ -37,6 +39,7 @@ CREATE TABLE IF NOT EXISTS stars (
   luminosity REAL,
   age REAL,
   created_at INTEGER DEFAULT (strftime('%s','now')),
+  updated_at INTEGER DEFAULT (strftime('%s','now')),
   FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE CASCADE,
   FOREIGN KEY (star_system_id) REFERENCES star_systems(id) ON DELETE CASCADE
 );
@@ -50,6 +53,7 @@ CREATE TABLE IF NOT EXISTS planets (
   type TEXT NOT NULL,
   stargate_id TEXT,
   created_at INTEGER DEFAULT (strftime('%s','now')),
+  updated_at INTEGER DEFAULT (strftime('%s','now')),
   FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE CASCADE,
   FOREIGN KEY (star_system_id) REFERENCES star_systems(id) ON DELETE CASCADE,
   FOREIGN KEY (stargate_id) REFERENCES stargates(id)
@@ -63,6 +67,7 @@ CREATE TABLE IF NOT EXISTS stargates (
   location_id TEXT NOT NULL,   -- id of the location
   type TEXT NOT NULL,          -- 'planetary', 'ship', 'master'
   created_at INTEGER DEFAULT (strftime('%s','now')),
+  updated_at INTEGER DEFAULT (strftime('%s','now')),
   FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE CASCADE
 );
 
@@ -76,6 +81,7 @@ CREATE TABLE IF NOT EXISTS chevrons (
   image TEXT,
   position INTEGER NOT NULL, -- 0-5 for address
   created_at INTEGER DEFAULT (strftime('%s','now')),
+  updated_at INTEGER DEFAULT (strftime('%s','now')),
   FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE CASCADE,
   FOREIGN KEY (stargate_id) REFERENCES stargates(id) ON DELETE CASCADE
 );
