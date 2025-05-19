@@ -5,9 +5,9 @@
 	"scripts": {
 		"dev": "wrangler dev",
 		"build": "wrangler publish",
-		"db:up": "wrangler d1 migrations apply stargate-game",
 		"lint": "eslint . --fix",
-		"typecheck": "tsc --noEmit"
+		"typecheck": "tsc --noEmit",
+		"db:up": "wrangler d1 migrations apply stargate-game"
 	},
 	"devDependencies": {
 		"@cloudflare/workers-types": "^4.20250517.0",
