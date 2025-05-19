@@ -15,6 +15,7 @@ export type Technology = z.infer<typeof TechnologySchema>;
 // --- Room ---
 export const RoomSchema = z.object({
 	id: z.string(),
+	shipId: z.string(), // Reference to the ship that the room belongs to
 	type: z.string(), // e.g., 'bridge', 'stargate', 'engine', etc.
 	assigned: z.array(z.string()), // Person or Robot IDs
 	technology: z.array(TechnologySchema),

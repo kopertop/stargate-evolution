@@ -27,8 +27,6 @@ export interface GameScaffoldData {
  */
 export function initGame(userId: string): GameScaffoldData {
 	// Generate ULIDs for all entities
-	const milkywayId = ulid();
-	const destinyGalaxyId = ulid();
 	const sysEarthId = ulid();
 	const sysIcarusId = ulid();
 	const sysDestinyId = ulid();
@@ -89,10 +87,10 @@ export function initGame(userId: string): GameScaffoldData {
 	];
 
 	const rooms: Room[] = [
-		{ id: destinyBridgeId, type: 'bridge', assigned: [], technology: [] },
-		{ id: destinyStargateRoomId, type: 'stargate', assigned: [], technology: [] },
-		{ id: destinyEngineId, type: 'engine', assigned: [], technology: [] },
-		{ id: destinyMedbayId, type: 'medbay', assigned: [], technology: [] },
+		{ id: destinyBridgeId, type: 'bridge', assigned: [], technology: [], shipId: destinyShipId },
+		{ id: destinyStargateRoomId, type: 'stargate', assigned: [], technology: [], shipId: destinyShipId },
+		{ id: destinyEngineId, type: 'engine', assigned: [], technology: [], shipId: destinyShipId },
+		{ id: destinyMedbayId, type: 'medbay', assigned: [], technology: [], shipId: destinyShipId },
 	];
 
 	const ships: Ship[] = [
@@ -338,7 +336,7 @@ async function saveGame(game: GameScaffoldData, env: Env, userId: string): Promi
 			).bind(
 				room.id,
 				gameId,
-				game.ships.find(s => s.rooms.some(r => r.id === room.id))?.id ?? null,
+				room.shipId,
 				room.type,
 				now,
 			),
@@ -379,7 +377,6 @@ export async function handleCreateGameRequest(request: Request, env: Env): Promi
 		const game = initGame(userId);
 		// Save all game objects to the database
 		await saveGame(game, env, userId);
-		console.log('GAME', game);
 		return new Response(JSON.stringify(game), { status: 200, headers: { 'content-type': 'application/json' } });
 	} catch (err: any) {
 		console.error('ERROR', err);
