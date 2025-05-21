@@ -48,6 +48,7 @@ export const GalaxySchema = z.object({
 	name: z.string(),
 	description: z.string().nullable().transform(val => val ?? undefined).optional(),
 	image: z.string().nullable().transform(val => val ?? undefined).optional(),
+	position: z.object({ x: z.number(), y: z.number() }),
 	starSystems: z.array(StarSystemSchema).default([]),
 });
 export type Galaxy = z.infer<typeof GalaxySchema>;

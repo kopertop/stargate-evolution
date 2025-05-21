@@ -79,8 +79,8 @@ export function initGame(userId: string): GameScaffoldData {
 	];
 
 	const galaxies: Galaxy[] = [
-		{ id: ulid(), name: 'Milky Way', starSystems: [starSystems[0], starSystems[1]] },
-		{ id: ulid(), name: 'Destiny Galaxy', starSystems: [starSystems[2]] },
+		{ id: ulid(), name: 'Milky Way', position: { x: 0, y: 0 }, starSystems: [starSystems[0], starSystems[1]] },
+		{ id: ulid(), name: 'JADES-GS-z14-0', position: { x: 1000, y: 0 }, starSystems: [starSystems[2]] },
 	];
 
 	const technology: Technology[] = [
@@ -175,11 +175,13 @@ async function saveGame(game: GameScaffoldData, env: Env, userId: string): Promi
 	for (const galaxy of game.galaxies) {
 		statements.push(
 			db.prepare(
-				'INSERT INTO galaxies (id, game_id, name, created_at) VALUES (?, ?, ?, ?)',
+				'INSERT INTO galaxies (id, game_id, name, x, y, created_at) VALUES (?, ?, ?, ?, ?, ?)',
 			).bind(
 				galaxy.id,
 				gameId,
 				galaxy.name,
+				galaxy.position.x,
+				galaxy.position.y,
 				now,
 			),
 		);

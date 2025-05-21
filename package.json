@@ -6,6 +6,7 @@
     "start": "pnpm -r --parallel run dev",
     "check": "pnpm -r run typecheck && pnpm -r run lint",
     "db:up": "pnpm -r run db:up",
+    "db:down": "pnpm -r run db:down",
     "test": "pnpm -r test"
   },
   "devDependencies": {

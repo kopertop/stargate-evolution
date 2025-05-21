@@ -83,7 +83,10 @@ export function normalizeGameFromDb(raw: {
 	// Normalize galaxies and attach starSystems
 	const galaxies = raw.galaxies.map(mapKeys).map((g: any, i: number) => {
 		const systems = starSystems.filter((ss, j) => (raw.starSystems[j]?.galaxy_id) === (g.id ?? raw.galaxies[i]?.id));
-		return GalaxySchema.parse({ ...g, starSystems: systems });
+		const x = typeof g.x === 'number' ? g.x : i * 1000;
+		const y = typeof g.y === 'number' ? g.y : 0;
+		const position = { x, y };
+		return GalaxySchema.parse({ ...g, position, starSystems: systems });
 	});
 
 	// Normalize technology

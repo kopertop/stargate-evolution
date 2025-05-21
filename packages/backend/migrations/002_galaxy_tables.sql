@@ -3,6 +3,8 @@ CREATE TABLE IF NOT EXISTS galaxies (
   id TEXT PRIMARY KEY, -- seed or unique id
   game_id TEXT NOT NULL,
   name TEXT NOT NULL,
+  x INTEGER NOT NULL DEFAULT 0,
+  y INTEGER NOT NULL DEFAULT 0,
   created_at INTEGER DEFAULT (strftime('%s','now')),
   updated_at INTEGER DEFAULT (strftime('%s','now')),
   FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE CASCADE

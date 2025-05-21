@@ -8,6 +8,7 @@
 		"lint": "eslint . --fix",
 		"typecheck": "tsc --noEmit",
 		"db:up": "wrangler d1 migrations apply stargate-game",
+		"db:down": "npx tsx bin/reset-database.ts",
 		"test": "vitest run"
 	},
 	"devDependencies": {
