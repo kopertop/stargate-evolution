@@ -7,7 +7,7 @@ import { StarSystemSchema } from '../types/galaxy';
 import { StarSchema } from '../types/galaxy';
 import { PlanetSchema } from '../types/galaxy';
 import { PersonSchema } from '../types/people';
-import { TechnologySchema, RaceSchema, ShipSchema, RoomSchema } from '../types/ship';
+import { TechnologySchema, RaceSchema, ShipSchema } from '../types/ship';
 import { StargateSchema, CheveronSymbolSchema } from '../types/stargate';
 
 export function normalizeGameFromDb(raw: {
@@ -20,7 +20,6 @@ export function normalizeGameFromDb(raw: {
 	technology: any[],
 	races: any[],
 	ships: any[],
-	rooms: any[],
 	people: any[],
 }): any {
 	const toCamel = (str: string) => str.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
@@ -92,16 +91,12 @@ export function normalizeGameFromDb(raw: {
 	// Normalize technology
 	const technology = raw.technology.map(mapKeys).map((t: any) => TechnologySchema.parse(t));
 
-	// Normalize rooms
-	const rooms = raw.rooms.map(mapKeys).map((r: any) => RoomSchema.parse(r));
-
 	// Normalize ships and attach rooms (by shipId) and crew (people assigned to this ship)
 	const ships = raw.ships.map(mapKeys).map((s: any, i: number) => {
-		const shipRooms = rooms.filter((r, j) => (r.shipId ?? raw.rooms[j]?.ship_id) === (s.id ?? raw.ships[i]?.id));
 		const crew = raw.people.map(mapKeys).filter((p: any, k: number) => (p.locationShipId ?? raw.people[k]?.location_ship_id) === (s.id ?? raw.ships[i]?.id)).map((p: any) => p.id);
 		const location: Record<string, any> = { systemId: s.locationSystemId ?? raw.ships[i]?.location_system_id, planetId: s.locationPlanetId ?? raw.ships[i]?.location_planet_id };
 		Object.keys(location).forEach(k => { if (location[k] === null) location[k] = undefined; });
-		return ShipSchema.parse({ ...s, rooms: shipRooms, crew, location });
+		return ShipSchema.parse({ ...s, crew, location });
 	});
 
 	// Normalize races and attach ships/technology (by raceId)
@@ -157,7 +152,6 @@ export function normalizeGameFromDb(raw: {
 		technology,
 		races: races,
 		ships,
-		rooms,
 		people,
 	};
 }

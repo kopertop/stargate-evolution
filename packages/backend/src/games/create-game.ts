@@ -1,11 +1,16 @@
+import { DestinyStatus } from '@stargate/common/types/destiny';
 import { Galaxy, StarSystem, Planet, Star } from '@stargate/common/types/galaxy';
 import { CreateGameRequestSchema } from '@stargate/common/types/game-requests';
 import { Person } from '@stargate/common/types/people';
-import { Ship, Room, Technology, Race } from '@stargate/common/types/ship';
+import { Ship, Technology, Race } from '@stargate/common/types/ship';
 import { Stargate, CheveronSymbol } from '@stargate/common/types/stargate';
 import { ulid } from 'ulid';
 
 import type { Env } from '../types';
+
+import { insert } from './db-utils';
+import { saveDestinyStatus } from './destiny-status';
+
 
 export interface GameScaffoldData {
 	galaxies: Galaxy[];
@@ -17,8 +22,8 @@ export interface GameScaffoldData {
 	technology: Technology[];
 	races: Race[];
 	ships: Ship[];
-	rooms: Room[];
 	people: Person[];
+	destinyStatus: DestinyStatus;
 }
 
 /**
@@ -26,7 +31,7 @@ export interface GameScaffoldData {
  *
  * @returns Scaffolded game data
  */
-export function initGame(userId: string): GameScaffoldData {
+export function initGame(): GameScaffoldData {
 	// Generate ULIDs for all entities
 	const sysEarthId = ulid();
 	const sysIcarusId = ulid();
@@ -84,19 +89,10 @@ export function initGame(userId: string): GameScaffoldData {
 	];
 
 	const technology: Technology[] = [
-		{ id: ulid(), name: 'Stargate', description: 'Allows travel via the stargate network.', unlocked: true, cost: 0, image: undefined },
+		{ id: ulid(), name: 'Stargate', description: 'Allows travel via the stargate network.', unlocked: true, cost: 0, image: undefined, number_on_destiny: 1 },
 	];
 
-	const rooms: Room[] = [
-		{ id: destinyBridgeId, type: 'bridge', assigned: [], technology: [], shipId: destinyShipId },
-		{ id: destinyStargateRoomId, type: 'stargate', assigned: [], technology: [], shipId: destinyShipId },
-		{ id: destinyEngineId, type: 'engine', assigned: [], technology: [], shipId: destinyShipId },
-		{ id: destinyMedbayId, type: 'medbay', assigned: [], technology: [], shipId: destinyShipId },
-	];
-
-	const ships: Ship[] = [
-		{ id: destinyShipId, name: 'Destiny', power: 1000, maxPower: 1000, shields: 500, maxShields: 500, hull: 1000, maxHull: 1000, raceId: ancientsRaceId, rooms: [], crew: [], location: { systemId: sysDestinyId }, stargate: destinyStargateId },
-	];
+	const ships: Ship[] = [];
 
 	const races: Race[] = [
 		{ id: ancientsRaceId, name: 'Ancients', technology: [], ships: [] },
@@ -119,6 +115,47 @@ export function initGame(userId: string): GameScaffoldData {
 		{ id: ulid(), name: 'Sgt. Hunter Riley', raceId: humanRaceId, role: 'technician', location: { roomId: destinyBridgeId, shipId: destinyShipId }, description: 'Technician and support crew.', image: undefined, conditions: [] },
 	];
 
+	const destinyStatus: DestinyStatus = {
+		id: destinyShipId,
+		name: 'Destiny',
+		power: 800,
+		maxPower: 1000,
+		shields: 400,
+		maxShields: 500,
+		hull: 900,
+		maxHull: 1000,
+		raceId: ancientsRaceId,
+		crew: [],
+		location: { systemId: sysDestinyId },
+		stargate: destinyStargateId,
+		shield: { strength: 400, max: 500, coverage: 80 },
+		inventory: {},
+		unlockedRooms: [],
+		crewStatus: {
+			onboard: 12,
+			capacity: 100,
+			manifest: [],
+		},
+		atmosphere: {
+			co2: 0.04,
+			o2: 20.9,
+			co2Scrubbers: 1,
+			o2Scrubbers: 1,
+		},
+		weapons: {
+			mainGun: true,
+			turrets: { total: 6, working: 3 },
+		},
+		rooms: [
+			{ id: destinyBridgeId, type: 'bridge', assigned: [], technology: [] },
+			{ id: destinyStargateRoomId, type: 'stargate', assigned: [], technology: [] },
+			{ id: destinyEngineId, type: 'engine', assigned: [], technology: [] },
+			{ id: destinyMedbayId, type: 'medbay', assigned: [], technology: [] },
+		],
+		shuttles: { total: 2, working: 1, damaged: 1 },
+		notes: ['One shuttle is damaged. Some rooms are locked.'],
+	};
+
 	return {
 		galaxies,
 		starSystems,
@@ -129,8 +166,8 @@ export function initGame(userId: string): GameScaffoldData {
 		technology,
 		races,
 		ships,
-		rooms,
 		people,
+		destinyStatus,
 	};
 }
 
@@ -160,30 +197,26 @@ async function saveGame(game: GameScaffoldData, env: Env, userId: string): Promi
 
 	// Insert game
 	statements.push(
-		db.prepare(
-			'INSERT INTO games (id, user_id, name, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
-		).bind(
-			gameId,
-			userId,
-			game.galaxies[0]?.name || 'New Game',
-			now,
-			now,
-		),
+		insert('games', {
+			id: gameId,
+			user_id: userId,
+			name: game.galaxies[0]?.name || 'New Game',
+			created_at: now,
+			updated_at: now,
+		}, db),
 	);
 
 	// Galaxies
 	for (const galaxy of game.galaxies) {
 		statements.push(
-			db.prepare(
-				'INSERT INTO galaxies (id, game_id, name, x, y, created_at) VALUES (?, ?, ?, ?, ?, ?)',
-			).bind(
-				galaxy.id,
-				gameId,
-				galaxy.name,
-				galaxy.position.x,
-				galaxy.position.y,
-				now,
-			),
+			insert('galaxies', {
+				id: galaxy.id,
+				game_id: gameId,
+				name: galaxy.name,
+				x: galaxy.position.x,
+				y: galaxy.position.y,
+				created_at: now,
+			}, db),
 		);
 	}
 
@@ -191,19 +224,17 @@ async function saveGame(game: GameScaffoldData, env: Env, userId: string): Promi
 	for (const system of game.starSystems) {
 		const parentGalaxy = game.galaxies.find(g => g.starSystems.some(s => s.id === system.id));
 		statements.push(
-			db.prepare(
-				'INSERT INTO star_systems (id, game_id, galaxy_id, name, x, y, description, image, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-			).bind(
-				system.id,
-				gameId,
-				parentGalaxy?.id ?? null,
-				system.name,
-				system.position.x,
-				system.position.y,
-				system.description ?? null,
-				system.image ?? null,
-				now,
-			),
+			insert('star_systems', {
+				id: system.id,
+				game_id: gameId,
+				galaxy_id: parentGalaxy?.id ?? null,
+				name: system.name,
+				x: system.position.x,
+				y: system.position.y,
+				description: system.description ?? null,
+				image: system.image ?? null,
+				created_at: now,
+			}, db),
 		);
 	}
 
@@ -211,56 +242,50 @@ async function saveGame(game: GameScaffoldData, env: Env, userId: string): Promi
 	for (const star of game.stars) {
 		const parentSystem = game.starSystems.find(s => s.stars.some(st => st.id === star.id));
 		statements.push(
-			db.prepare(
-				'INSERT INTO stars (id, game_id, star_system_id, name, type, description, image, radius, mass, temperature, luminosity, age, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-			).bind(
-				star.id,
-				gameId,
-				parentSystem?.id ?? null,
-				star.name,
-				star.type,
-				star.description ?? null,
-				star.image ?? null,
-				star.radius,
-				star.mass,
-				star.temperature,
-				star.luminosity,
-				star.age,
-				now,
-			),
+			insert('stars', {
+				id: star.id,
+				game_id: gameId,
+				star_system_id: parentSystem?.id ?? null,
+				name: star.name,
+				type: star.type,
+				description: star.description ?? null,
+				image: star.image ?? null,
+				radius: star.radius,
+				mass: star.mass,
+				temperature: star.temperature,
+				luminosity: star.luminosity,
+				age: star.age,
+				created_at: now,
+			}, db),
 		);
 	}
 
 	// Planets
 	for (const planet of game.planets) {
 		statements.push(
-			db.prepare(
-				'INSERT INTO planets (id, game_id, star_system_id, name, type, stargate_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-			).bind(
-				planet.id,
-				gameId,
-				game.starSystems.find(s => s.planets.some(p => p.id === planet.id))?.id ?? null,
-				planet.name,
-				planet.type,
-				planet.stargate ?? null,
-				now,
-			),
+			insert('planets', {
+				id: planet.id,
+				game_id: gameId,
+				star_system_id: game.starSystems.find(s => s.planets.some(p => p.id === planet.id))?.id ?? null,
+				name: planet.name,
+				type: planet.type,
+				stargate_id: planet.stargate ?? null,
+				created_at: now,
+			}, db),
 		);
 	}
 
 	// Stargates
 	for (const stargate of game.stargates) {
 		statements.push(
-			db.prepare(
-				'INSERT INTO stargates (id, game_id, location_type, location_id, type, created_at) VALUES (?, ?, ?, ?, ?, ?)',
-			).bind(
-				stargate.id,
-				gameId,
-				'room', // or 'planet', 'ship', etc. (adjust as needed)
-				stargate.locationId,
-				stargate.type,
-				now,
-			),
+			insert('stargates', {
+				id: stargate.id,
+				game_id: gameId,
+				location_type: 'room', // or 'planet', 'ship', etc. (adjust as needed)
+				location_id: stargate.locationId,
+				type: stargate.type,
+				created_at: now,
+			}, db),
 		);
 	}
 
@@ -269,18 +294,16 @@ async function saveGame(game: GameScaffoldData, env: Env, userId: string): Promi
 		if (stargate.address) {
 			stargate.address.forEach((chevron, idx) => {
 				statements.push(
-					db.prepare(
-						'INSERT INTO chevrons (id, game_id, stargate_id, symbol, description, image, position, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-					).bind(
-						chevron.id,
-						gameId,
-						stargate.id,
-						chevron.symbol,
-						chevron.description ?? null,
-						chevron.image ?? null,
-						idx,
-						now,
-					),
+					insert('chevrons', {
+						id: chevron.id,
+						game_id: gameId,
+						stargate_id: stargate.id,
+						symbol: chevron.symbol,
+						description: chevron.description ?? null,
+						image: chevron.image ?? null,
+						position: idx,
+						created_at: now,
+					}, db),
 				);
 			});
 		}
@@ -289,94 +312,74 @@ async function saveGame(game: GameScaffoldData, env: Env, userId: string): Promi
 	// Technology
 	for (const tech of game.technology) {
 		statements.push(
-			db.prepare(
-				'INSERT INTO technology (id, game_id, name, description, unlocked, cost, image, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-			).bind(
-				tech.id,
-				gameId,
-				tech.name,
-				tech.description,
-				tech.unlocked ? 1 : 0,
-				tech.cost,
-				tech.image ?? null,
-				now,
-			),
+			insert('technology', {
+				id: tech.id,
+				game_id: gameId,
+				name: tech.name,
+				description: tech.description,
+				unlocked: tech.unlocked ? 1 : 0,
+				cost: tech.cost,
+				image: tech.image ?? null,
+				created_at: now,
+			}, db),
 		);
 	}
 
 	// Races
 	for (const race of game.races) {
 		statements.push(
-			db.prepare(
-				'INSERT INTO races (id, game_id, name, created_at) VALUES (?, ?, ?, ?)',
-			).bind(
-				race.id,
-				gameId,
-				race.name,
-				now,
-			),
+			insert('races', {
+				id: race.id,
+				game_id: gameId,
+				name: race.name,
+				created_at: now,
+			}, db),
 		);
 	}
 
 	// Ships
 	for (const ship of game.ships) {
 		statements.push(
-			db.prepare(
-				'INSERT INTO ships (id, game_id, name, power, max_power, shields, max_shields, hull, max_hull, race_id, stargate_id, location_system_id, location_planet_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-			).bind(
-				ship.id,
-				gameId,
-				ship.name,
-				ship.power,
-				ship.maxPower,
-				ship.shields,
-				ship.maxShields,
-				ship.hull,
-				ship.maxHull,
-				ship.raceId,
-				ship.stargate ?? null,
-				ship.location.systemId,
-				ship.location.planetId ?? null,
-				now,
-			),
-		);
-	}
-
-	// Rooms
-	for (const room of game.rooms) {
-		statements.push(
-			db.prepare(
-				'INSERT INTO rooms (id, game_id, ship_id, type, created_at) VALUES (?, ?, ?, ?, ?)',
-			).bind(
-				room.id,
-				gameId,
-				room.shipId,
-				room.type,
-				now,
-			),
+			insert('ships', {
+				id: ship.id,
+				game_id: gameId,
+				name: ship.name,
+				power: ship.power,
+				max_power: ship.maxPower,
+				shields: ship.shields,
+				max_shields: ship.maxShields,
+				hull: ship.hull,
+				max_hull: ship.maxHull,
+				race_id: ship.raceId,
+				stargate_id: ship.stargate ?? null,
+				location_system_id: ship.location.systemId,
+				location_planet_id: ship.location.planetId ?? null,
+				created_at: now,
+			}, db),
 		);
 	}
 
 	// People
 	for (const person of game.people) {
 		statements.push(
-			db.prepare(
-				'INSERT INTO people (id, game_id, name, race_id, role, location_room_id, location_planet_id, location_ship_id, description, image, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-			).bind(
-				person.id,
-				gameId,
-				person.name,
-				person.raceId,
-				person.role,
-				person.location.roomId ?? null,
-				person.location.planetId ?? null,
-				person.location.shipId ?? null,
-				person.description ?? null,
-				person.image ?? null,
-				now,
-			),
+			insert('people', {
+				id: person.id,
+				game_id: gameId,
+				name: person.name,
+				race_id: person.raceId,
+				role: person.role,
+				location_room_id: person.location.roomId ?? null,
+				location_planet_id: person.location.planetId ?? null,
+				location_ship_id: person.location.shipId ?? null,
+				description: person.description ?? null,
+				image: person.image ?? null,
+				created_at: now,
+			}, db),
 		);
 	}
+
+	// Save DestinyStatus
+	await saveDestinyStatus(env, gameId, game.destinyStatus);
 
 	await db.batch(statements);
 	return gameId;
@@ -390,7 +393,7 @@ export async function handleCreateGameRequest(request: Request, env: Env): Promi
 			return new Response(JSON.stringify({ error: 'Invalid request body', details: parsed.error.errors }), { status: 400, headers: { 'content-type': 'application/json' } });
 		}
 		const { userId } = parsed.data;
-		const game = initGame(userId);
+		const game = initGame();
 		// Save all game objects to the database
 		await saveGame(game, env, userId);
 		return new Response(JSON.stringify(game), { status: 200, headers: { 'content-type': 'application/json' } });

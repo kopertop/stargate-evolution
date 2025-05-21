@@ -2,6 +2,7 @@ import { UserSchema, SessionSchema } from '@stargate/common/types/user';
 import { jwtVerify, SignJWT } from 'jose';
 
 import handleCreateGameRequest from './games/create-game';
+import { handleDestinyStatusRequest } from './games/destiny-status';
 import { handleGetGameRequest } from './games/get-game';
 import { handleListGamesRequest } from './games/list-games';
 import { Env } from './types';
@@ -75,6 +76,9 @@ export default {
 		}
 		if (url.pathname === '/api/games/get' && request.method === 'POST') {
 			return withCors(await handleGetGameRequest(request, env));
+		}
+		if (url.pathname === '/api/destiny-status' && (request.method === 'GET' || request.method === 'POST')) {
+			return withCors(await handleDestinyStatusRequest(request, env));
 		}
 		if (url.pathname === '/api/auth/google' && request.method === 'POST') {
 			try {

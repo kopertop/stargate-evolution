@@ -1,5 +1,9 @@
 import { z } from 'zod';
 
+/**
+ * Resources available on Destiny
+ */
+
 // --- Resource Types ---
 export const ResourceTypeSchema = z.enum([
 	'food',

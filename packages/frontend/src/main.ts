@@ -1,8 +1,10 @@
 import * as PIXI from 'pixi.js';
 
 import { getGame } from './api-client';
+import { getDestinyStatus } from './api-client';
 import { renderGoogleSignInButton } from './auth/google-auth';
 import { getSession, setSession, validateOrRefreshSession } from './auth/session';
+import { DestinyStatusBar } from './destiny-status-bar';
 import { Game } from './game';
 import { GameMenu } from './game-menu';
 import { MapPopover } from './map-popover';
@@ -66,6 +68,8 @@ GameMenu.show(async (gameId: string) => {
 	try {
 		const gameData = await getGame({ userId: session.user.id, gameId }, session.token);
 		console.log('Loaded game data:', gameData);
+		const destinyStatus = await getDestinyStatus(gameId, session.token);
+		DestinyStatusBar.show(destinyStatus);
 		// Placeholder: Draw a simple rectangle representing the Destiny ship
 		const ship = new PIXI.Graphics();
 		ship.rect(-30, -10, 60, 20).fill(0xccccff);

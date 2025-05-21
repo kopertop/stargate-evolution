@@ -9,18 +9,10 @@ export const TechnologySchema = z.object({
 	cost: z.number().min(0),
 	image: z.string().nullable().transform(val => val ?? undefined).optional(),
 	abilities: z.array(z.string()).default([]).optional(),
+	number_on_destiny: z.number().optional(),
 });
 export type Technology = z.infer<typeof TechnologySchema>;
 
-// --- Room ---
-export const RoomSchema = z.object({
-	id: z.string(),
-	shipId: z.string(), // Reference to the ship that the room belongs to
-	type: z.string(), // e.g., 'bridge', 'stargate', 'engine', etc.
-	assigned: z.array(z.string()).default([]), // Person or Robot IDs
-	technology: z.array(TechnologySchema).default([]),
-});
-export type Room = z.infer<typeof RoomSchema>;
 
 // --- Ship ---
 export const ShipSchema = z.object({
@@ -33,7 +25,6 @@ export const ShipSchema = z.object({
 	hull: z.number().min(0),
 	maxHull: z.number().min(0),
 	raceId: z.string(),
-	rooms: z.array(RoomSchema).default([]),
 	crew: z.array(z.string()).default([]), // Person IDs
 	location: z.object({ systemId: z.string(), planetId: z.string().optional() }),
 	stargate: z.string().optional(), // Stargate ID

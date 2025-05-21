@@ -1,3 +1,5 @@
+import type { DestinyStatus } from '@stargate/common/types/destiny';
+import { DestinyStatusSchema } from '@stargate/common/types/destiny';
 import { GameSchema, GameSummaryListSchema } from '@stargate/common/types/game';
 import {
 	CreateGameRequestSchema,
@@ -53,6 +55,27 @@ async function apiPost<Req, Res>(
 	return parsedRes.data;
 }
 
+async function apiGet<Res>(path: string, responseSchema: ZodSchema<Res>, token?: string): Promise<Res> {
+	const res = await fetch(`${API_URL}${path}`, {
+		headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+	});
+	const text = await res.text();
+	let json: any;
+	try {
+		json = JSON.parse(text);
+	} catch {
+		throw new ApiError('Invalid JSON response', res.status, text);
+	}
+	if (!res.ok) {
+		throw new ApiError(json.error || 'API error', res.status, json.details);
+	}
+	const parsedRes = responseSchema.safeParse(json);
+	if (!parsedRes.success) {
+		throw new ApiError('Invalid response', res.status, parsedRes.error);
+	}
+	return parsedRes.data;
+}
+
 // --- API functions ---
 
 export async function createGame(
@@ -61,8 +84,6 @@ export async function createGame(
 ) {
 	return apiPost('/api/games', params, CreateGameRequestSchema, GameSchema, token);
 }
-
-
 
 export async function listGames(
 	params: ListGamesRequest,
@@ -76,4 +97,12 @@ export async function getGame(
 	token: string,
 ) {
 	return apiPost('/api/games/get', params, GetGameRequestSchema, GameSchema, token);
+}
+
+export async function getDestinyStatus(gameId: string, token?: string): Promise<DestinyStatus> {
+	return apiGet(`/api/destiny-status?gameId=${encodeURIComponent(gameId)}`, DestinyStatusSchema, token);
+}
+
+export async function updateDestinyStatus(gameId: string, status: DestinyStatus, token?: string): Promise<void> {
+	await apiPost(`/api/destiny-status?gameId=${encodeURIComponent(gameId)}`, status, DestinyStatusSchema, DestinyStatusSchema, token);
 }

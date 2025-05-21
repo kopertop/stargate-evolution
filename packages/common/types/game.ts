@@ -5,7 +5,7 @@ import { StarSystemSchema } from './galaxy';
 import { StarSchema } from './galaxy';
 import { PlanetSchema } from './galaxy';
 import { PersonSchema } from './people';
-import { TechnologySchema, RaceSchema, ShipSchema, RoomSchema } from './ship';
+import { TechnologySchema, RaceSchema, ShipSchema } from './ship';
 import { StargateSchema, CheveronSymbolSchema } from './stargate';
 
 export const GameSchema = z.object({
@@ -18,7 +18,6 @@ export const GameSchema = z.object({
 	technology: z.array(TechnologySchema),
 	races: z.array(RaceSchema),
 	ships: z.array(ShipSchema),
-	rooms: z.array(RoomSchema),
 	people: z.array(PersonSchema),
 });
 
