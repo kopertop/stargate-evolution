@@ -7,20 +7,20 @@ import type { Env } from '../types';
 /**
  * Get a single game for a user
  */
-export async function handleGetGameRequest(request: Request, env: Env): Promise<Response> {
+export async function handleGetGameRequest(request: Request, env: Env, authenticatedUserId: string): Promise<Response> {
 	try {
 		const body = await request.json();
-		const parsed = GetGameRequestSchema.safeParse(body);
+		const parsed = GetGameRequestSchema.safeParse(body); // Schema now only expects gameId
 		if (!parsed.success) {
 			return new Response(JSON.stringify({ error: 'Invalid request body', details: parsed.error.errors }), { status: 400, headers: { 'content-type': 'application/json' } });
 		}
-		const { userId, gameId } = parsed.data;
+		const { gameId } = parsed.data; // userId is removed
 		// Check that the game exists and belongs to the user
 		const gameRow = await env.DB.prepare(
 			'SELECT * FROM games WHERE id = ? AND user_id = ?',
-		).bind(gameId, userId).first();
+		).bind(gameId, authenticatedUserId).first(); // Use authenticatedUserId
 		if (!gameRow) {
-			return new Response(JSON.stringify({ error: 'Game not found' }), { status: 404, headers: { 'content-type': 'application/json' } });
+			return new Response(JSON.stringify({ error: 'Game not found or not authorized' }), { status: 404, headers: { 'content-type': 'application/json' } });
 		}
 		// Fetch all top-level arrays in parallel
 		const [
@@ -69,10 +69,10 @@ export async function handleGetGameRequest(request: Request, env: Env): Promise<
 			return new Response(JSON.stringify({ error: 'Corrupt game data', details: valid.error.errors }), { status: 500, headers: { 'content-type': 'application/json' } });
 		}
 		// First, set all games for the user to not current
-		await env.DB.prepare('UPDATE games SET current = 0 WHERE user_id = ?').bind(userId).run();
+		await env.DB.prepare('UPDATE games SET current = 0 WHERE user_id = ?').bind(authenticatedUserId).run(); // Use authenticatedUserId
 		// Then, set the selected game as current and update last_played
 		await env.DB.prepare('UPDATE games SET current = 1, last_played = ? WHERE id = ? AND user_id = ?')
-			.bind(Date.now(), gameId, userId).run();
+			.bind(Date.now(), gameId, authenticatedUserId).run(); // Use authenticatedUserId
 		return new Response(JSON.stringify(game), { status: 200, headers: { 'content-type': 'application/json' } });
 	} catch (err: any) {
 		console.error('ERROR', err);

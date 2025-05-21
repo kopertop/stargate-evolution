@@ -12,6 +12,26 @@ const corsHeaders = {
 	'access-control-allow-headers': 'Content-Type, Authorization',
 };
 
+async function getAuthenticatedUser(request: Request, env: Env): Promise<UserSchema | null> {
+	const authHeader = request.headers.get('Authorization');
+	if (!authHeader || !authHeader.startsWith('Bearer ')) {
+		return null;
+	}
+	const token = authHeader.substring('Bearer '.length);
+	try {
+		const { payload } = await verifyJwt(token);
+		const userResult = UserSchema.safeParse(payload.user);
+		if (!userResult.success) {
+			throw new Error('Invalid user payload in token');
+		}
+		return userResult.data;
+	} catch (err) {
+		// Log error for debugging, but throw a generic error to the client
+		console.error('Authentication error:', err);
+		throw new Error('Invalid or expired token');
+	}
+}
+
 function withCors(res: Response): Response {
 	const newHeaders = new Headers(res.headers);
 	for (const [k, v] of Object.entries(corsHeaders)) newHeaders.set(k, v);
@@ -68,13 +88,37 @@ export default {
 			}));
 		}
 		if (url.pathname === '/api/games' && request.method === 'POST') {
-			return withCors(await handleCreateGameRequest(request, env));
+			try {
+				const authUser = await getAuthenticatedUser(request, env);
+				if (!authUser) {
+					return withCors(new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { 'content-type': 'application/json' } }));
+				}
+				return withCors(await handleCreateGameRequest(request, env, authUser.id));
+			} catch (err: any) {
+				return withCors(new Response(JSON.stringify({ error: err.message || 'Authentication failed' }), { status: 401, headers: { 'content-type': 'application/json' } }));
+			}
 		}
 		if (url.pathname === '/api/games/list' && request.method === 'POST') {
-			return withCors(await handleListGamesRequest(request, env));
+			try {
+				const authUser = await getAuthenticatedUser(request, env);
+				if (!authUser) {
+					return withCors(new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { 'content-type': 'application/json' } }));
+				}
+				return withCors(await handleListGamesRequest(request, env, authUser.id));
+			} catch (err: any) {
+				return withCors(new Response(JSON.stringify({ error: err.message || 'Authentication failed' }), { status: 401, headers: { 'content-type': 'application/json' } }));
+			}
 		}
 		if (url.pathname === '/api/games/get' && request.method === 'POST') {
-			return withCors(await handleGetGameRequest(request, env));
+			try {
+				const authUser = await getAuthenticatedUser(request, env);
+				if (!authUser) {
+					return withCors(new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { 'content-type': 'application/json' } }));
+				}
+				return withCors(await handleGetGameRequest(request, env, authUser.id));
+			} catch (err: any) {
+				return withCors(new Response(JSON.stringify({ error: err.message || 'Authentication failed' }), { status: 401, headers: { 'content-type': 'application/json' } }));
+			}
 		}
 		if (url.pathname === '/api/auth/google' && request.method === 'POST') {
 			try {

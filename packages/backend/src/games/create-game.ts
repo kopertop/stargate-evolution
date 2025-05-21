@@ -141,7 +141,7 @@ export function initGame(userId: string): GameScaffoldData {
  * @param env The Wrangler Enviornment object
  * @returns The game ID
  */
-async function saveGame(game: GameScaffoldData, env: Env, userId: string): Promise<string> {
+async function saveGame(game: GameScaffoldData, env: Env, authenticatedUserId: string): Promise<string> {
 	const gameId = ulid();
 	const now = Date.now();
 	const db = env.DB;
@@ -151,9 +151,9 @@ async function saveGame(game: GameScaffoldData, env: Env, userId: string): Promi
 	await db.prepare(
 		'INSERT OR IGNORE INTO users (id, email, name, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
 	).bind(
-		userId,
-		`${userId}@unknown`,
-		'Unknown User',
+		authenticatedUserId,
+		`${authenticatedUserId}@unknown`, // Consider if email/name should be fetched or handled differently
+		'Unknown User', // Consider if email/name should be fetched or handled differently
 		now,
 		now,
 	).run();
@@ -164,7 +164,7 @@ async function saveGame(game: GameScaffoldData, env: Env, userId: string): Promi
 			'INSERT INTO games (id, user_id, name, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
 		).bind(
 			gameId,
-			userId,
+			authenticatedUserId,
 			game.galaxies[0]?.name || 'New Game',
 			now,
 			now,
@@ -380,17 +380,17 @@ async function saveGame(game: GameScaffoldData, env: Env, userId: string): Promi
 	return gameId;
 }
 
-export async function handleCreateGameRequest(request: Request, env: Env): Promise<Response> {
+export async function handleCreateGameRequest(request: Request, env: Env, authenticatedUserId: string): Promise<Response> {
 	try {
-		const body = await request.json();
-		const parsed = CreateGameRequestSchema.safeParse(body);
-		if (!parsed.success) {
-			return new Response(JSON.stringify({ error: 'Invalid request body', details: parsed.error.errors }), { status: 400, headers: { 'content-type': 'application/json' } });
-		}
-		const { userId } = parsed.data;
-		const game = initGame(userId);
+		// const body = await request.json(); // Body might be empty or have other fields
+		// const parsed = CreateGameRequestSchema.safeParse(body); // Schema is now empty or for other fields
+		// if (!parsed.success) {
+		// 	return new Response(JSON.stringify({ error: 'Invalid request body', details: parsed.error.errors }), { status: 400, headers: { 'content-type': 'application/json' } });
+		// }
+		// userId is now passed as authenticatedUserId
+		const game = initGame(authenticatedUserId);
 		// Save all game objects to the database
-		await saveGame(game, env, userId);
+		await saveGame(game, env, authenticatedUserId);
 		return new Response(JSON.stringify(game), { status: 200, headers: { 'content-type': 'application/json' } });
 	} catch (err: any) {
 		console.error('ERROR', err);
