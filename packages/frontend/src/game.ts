@@ -11,12 +11,14 @@ export class Game {
 	private keys: Record<string, boolean> = {};
 	private starfield: PIXI.Graphics;
 	private world: PIXI.Container;
+	private gameData: any;
 
-	constructor(app: PIXI.Application, ship: PIXI.Graphics) {
+	constructor(app: PIXI.Application, ship: PIXI.Graphics, gameData?: any) {
 		this.app = app;
 		this.world = new PIXI.Container();
 		this.starfield = this.createStarfield();
 		this.ship = ship;
+		this.gameData = gameData;
 		this.world.addChild(this.starfield);
 		this.world.addChild(this.ship);
 		this.app.stage.addChild(this.world);

@@ -1,8 +1,10 @@
 import * as PIXI from 'pixi.js';
 
+import { getGame } from './api-client';
 import { renderGoogleSignInButton } from './auth/google-auth';
 import { getSession, setSession, validateOrRefreshSession } from './auth/session';
 import { Game } from './game';
+import { GameMenu } from './game-menu';
 import { Toast } from './toast';
 
 const app = new PIXI.Application();
@@ -49,15 +51,30 @@ if (session && session.user) {
 	});
 }
 
-// Placeholder: Draw a simple rectangle representing the Destiny ship
-const ship = new PIXI.Graphics();
-ship.rect(-30, -10, 60, 20).fill(0xccccff);
-ship.x = app.screen.width / 2;
-ship.y = app.screen.height / 2;
-app.stage.addChild(ship);
-
-// Initialize the game loop and controls
-new Game(app, ship);
+// Show the game menu overlay and only start the game when a game is selected
+GameMenu.show(async (gameId: string) => {
+	console.log('Start game with ID:', gameId);
+	GameMenu.hide();
+	const session = getSession();
+	if (!session || !session.user) {
+		Toast.show('No session found. Please sign in again.', 4000);
+		return;
+	}
+	try {
+		const gameData = await getGame({ userId: session.user.id, gameId }, session.token);
+		console.log('Loaded game data:', gameData);
+		// Placeholder: Draw a simple rectangle representing the Destiny ship
+		const ship = new PIXI.Graphics();
+		ship.rect(-30, -10, 60, 20).fill(0xccccff);
+		ship.x = app.screen.width / 2;
+		ship.y = app.screen.height / 2;
+		app.stage.addChild(ship);
+		// Initialize the game loop and controls, pass gameData for future use
+		new Game(app, ship, gameData);
+	} catch (err: any) {
+		Toast.show('Failed to load game: ' + (err.message || err), 4000);
+	}
+});
 
 declare global {
 	interface ImportMeta {

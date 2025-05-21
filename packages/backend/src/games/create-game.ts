@@ -147,6 +147,17 @@ async function saveGame(game: GameScaffoldData, env: Env, userId: string): Promi
 	const db = env.DB;
 	const statements: D1PreparedStatement[] = [];
 
+	// Ensure user exists in users table (minimal upsert)
+	await db.prepare(
+		'INSERT OR IGNORE INTO users (id, email, name, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
+	).bind(
+		userId,
+		`${userId}@unknown`,
+		'Unknown User',
+		now,
+		now,
+	).run();
+
 	// Insert game
 	statements.push(
 		db.prepare(

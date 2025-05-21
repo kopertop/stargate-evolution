@@ -9,7 +9,7 @@ import { Env } from './types';
 const corsHeaders = {
 	'access-control-allow-origin': '*',
 	'access-control-allow-methods': 'GET, POST, OPTIONS',
-	'access-control-allow-headers': 'Content-Type',
+	'access-control-allow-headers': 'Content-Type, Authorization',
 };
 
 function withCors(res: Response): Response {
@@ -68,13 +68,13 @@ export default {
 			}));
 		}
 		if (url.pathname === '/api/games' && request.method === 'POST') {
-			return handleCreateGameRequest(request, env);
+			return withCors(await handleCreateGameRequest(request, env));
 		}
 		if (url.pathname === '/api/games/list' && request.method === 'POST') {
-			return handleListGamesRequest(request, env);
+			return withCors(await handleListGamesRequest(request, env));
 		}
 		if (url.pathname === '/api/games/get' && request.method === 'POST') {
-			return handleGetGameRequest(request, env);
+			return withCors(await handleGetGameRequest(request, env));
 		}
 		if (url.pathname === '/api/auth/google' && request.method === 'POST') {
 			try {
@@ -90,6 +90,18 @@ export default {
 				if (!userResult.success) throw new Error('Invalid user payload');
 				const user = userResult.data;
 				const now = Date.now();
+				// Upsert user into users table
+				await env.DB.prepare(
+					'INSERT OR REPLACE INTO users (id, email, name, image, created_at, updated_at) VALUES (?, ?, ?, ?, COALESCE((SELECT created_at FROM users WHERE id = ?), ?), ?)',
+				).bind(
+					user.id,
+					user.email,
+					user.name,
+					user.picture ?? null,
+					user.id,
+					now,
+					now,
+				).run();
 				const accessToken = await signJwt({ user }, ACCESS_TOKEN_EXP);
 				const refreshToken = await signJwt({ user }, REFRESH_TOKEN_EXP);
 				const session = {

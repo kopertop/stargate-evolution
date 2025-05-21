@@ -105,9 +105,15 @@ importers:
 
   packages/frontend:
     dependencies:
+      '@stargate/common':
+        specifier: workspace:*
+        version: link:../common
       pixi.js:
         specifier: ^8.9.2
         version: 8.9.2
+      zod:
+        specifier: ^3.24.4
+        version: 3.24.4
     devDependencies:
       typescript:
         specifier: ^4.9.5

@@ -23,3 +23,25 @@ export const GameSchema = z.object({
 });
 
 export type Game = z.infer<typeof GameSchema>;
+
+export const GameSummarySchema = z.object({
+	id: z.string(),
+	name: z.string(),
+	created_at: z.number().nullable().optional(),
+	updated_at: z.number().nullable().optional(),
+	last_played: z.number().nullable().optional(),
+	current: z
+		.union([z.boolean(), z.number(), z.null(), z.undefined()])
+		.transform(val => {
+			if (typeof val === 'boolean') return val;
+			if (typeof val === 'number') return val === 1;
+			return undefined;
+		})
+		.optional(),
+});
+
+export type GameSummary = z.infer<typeof GameSummarySchema>;
+
+export const GameSummaryListSchema = z.array(GameSummarySchema);
+
+export type GameSummaryList = z.infer<typeof GameSummaryListSchema>;

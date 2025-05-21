@@ -68,6 +68,11 @@ export async function handleGetGameRequest(request: Request, env: Env): Promise<
 			console.error('Returned game object:', JSON.stringify(game, null, 2));
 			return new Response(JSON.stringify({ error: 'Corrupt game data', details: valid.error.errors }), { status: 500, headers: { 'content-type': 'application/json' } });
 		}
+		// First, set all games for the user to not current
+		await env.DB.prepare('UPDATE games SET current = 0 WHERE user_id = ?').bind(userId).run();
+		// Then, set the selected game as current and update last_played
+		await env.DB.prepare('UPDATE games SET current = 1, last_played = ? WHERE id = ? AND user_id = ?')
+			.bind(Date.now(), gameId, userId).run();
 		return new Response(JSON.stringify(game), { status: 200, headers: { 'content-type': 'application/json' } });
 	} catch (err: any) {
 		console.error('ERROR', err);
