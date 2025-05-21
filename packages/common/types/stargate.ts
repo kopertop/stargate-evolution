@@ -4,8 +4,8 @@ import { z } from 'zod';
 export const CheveronSymbolSchema = z.object({
 	id: z.string(),
 	symbol: z.string(),
-	description: z.string().optional(),
-	image: z.string().optional(),
+	description: z.string().nullable().transform(val => val ?? undefined).optional(),
+	image: z.string().nullable().transform(val => val ?? undefined).optional(),
 });
 export type CheveronSymbol = z.infer<typeof CheveronSymbolSchema>;
 
@@ -13,9 +13,9 @@ export type CheveronSymbol = z.infer<typeof CheveronSymbolSchema>;
 export const StargateSchema = z.object({
 	id: z.string(),
 	// Unique address (e.g., 6-symbol code, (7th symbol is the point of origin))
-	address: z.array(CheveronSymbolSchema).length(6),
+	address: z.array(CheveronSymbolSchema).default([]),
 	type: z.enum(['planetary', 'ship', 'master']),
 	locationId: z.string(), // ID of Room, Planet, or StarSystem
-	connectedTo: z.array(z.string()), // IDs of connected Stargates
+	connectedTo: z.array(z.string()).default([]), // IDs of connected Stargates
 });
 export type Stargate = z.infer<typeof StargateSchema>;

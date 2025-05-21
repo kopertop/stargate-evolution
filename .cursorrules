@@ -78,3 +78,18 @@ All agents (AI or human) must update `TASKS.md` and check off tasks as they are 
 * Use pnpm for package management
 * Use vitest for testing
 * Use vite for bundling
+
+
+## DEBUG MODE
+
+When entering debug mode, you should use the following command to execute tests:
+
+```bash
+pnpm test
+```
+
+Then analize the results, and fix any issues. After fixing the issues, you should run the tests
+again to ensure the issues are fixed.
+
+Continue this process until all tests are passing.
+

@@ -5,10 +5,10 @@ export const TechnologySchema = z.object({
 	id: z.string(),
 	name: z.string(),
 	description: z.string(),
-	unlocked: z.boolean().default(false),
+	unlocked: z.union([z.boolean(), z.number()]).transform(val => Boolean(val)).default(false),
 	cost: z.number().min(0),
-	image: z.string().optional(),
-	abilities: z.array(z.string()).optional(),
+	image: z.string().nullable().transform(val => val ?? undefined).optional(),
+	abilities: z.array(z.string()).default([]).optional(),
 });
 export type Technology = z.infer<typeof TechnologySchema>;
 
@@ -17,8 +17,8 @@ export const RoomSchema = z.object({
 	id: z.string(),
 	shipId: z.string(), // Reference to the ship that the room belongs to
 	type: z.string(), // e.g., 'bridge', 'stargate', 'engine', etc.
-	assigned: z.array(z.string()), // Person or Robot IDs
-	technology: z.array(TechnologySchema),
+	assigned: z.array(z.string()).default([]), // Person or Robot IDs
+	technology: z.array(TechnologySchema).default([]),
 });
 export type Room = z.infer<typeof RoomSchema>;
 
@@ -33,8 +33,8 @@ export const ShipSchema = z.object({
 	hull: z.number().min(0),
 	maxHull: z.number().min(0),
 	raceId: z.string(),
-	rooms: z.array(RoomSchema),
-	crew: z.array(z.string()), // Person IDs
+	rooms: z.array(RoomSchema).default([]),
+	crew: z.array(z.string()).default([]), // Person IDs
 	location: z.object({ systemId: z.string(), planetId: z.string().optional() }),
 	stargate: z.string().optional(), // Stargate ID
 });
@@ -44,7 +44,7 @@ export type Ship = z.infer<typeof ShipSchema>;
 export const RaceSchema = z.object({
 	id: z.string(),
 	name: z.string(),
-	technology: z.array(TechnologySchema),
-	ships: z.array(ShipSchema),
+	technology: z.array(TechnologySchema).default([]),
+	ships: z.array(ShipSchema).default([]),
 });
 export type Race = z.infer<typeof RaceSchema>;

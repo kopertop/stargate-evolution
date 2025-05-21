@@ -1,4 +1,5 @@
 import { Galaxy, StarSystem, Planet, Star } from '@stargate/common/types/galaxy';
+import { CreateGameRequestSchema } from '@stargate/common/types/game-requests';
 import { Person } from '@stargate/common/types/people';
 import { Ship, Room, Technology, Race } from '@stargate/common/types/ship';
 import { Stargate, CheveronSymbol } from '@stargate/common/types/stargate';
@@ -370,10 +371,12 @@ async function saveGame(game: GameScaffoldData, env: Env, userId: string): Promi
 
 export async function handleCreateGameRequest(request: Request, env: Env): Promise<Response> {
 	try {
-		const { userId } = await request.json() as any;
-		if (!userId || typeof userId !== 'string') {
-			return new Response(JSON.stringify({ error: 'Missing or invalid userId' }), { status: 400, headers: { 'content-type': 'application/json' } });
+		const body = await request.json();
+		const parsed = CreateGameRequestSchema.safeParse(body);
+		if (!parsed.success) {
+			return new Response(JSON.stringify({ error: 'Invalid request body', details: parsed.error.errors }), { status: 400, headers: { 'content-type': 'application/json' } });
 		}
+		const { userId } = parsed.data;
 		const game = initGame(userId);
 		// Save all game objects to the database
 		await saveGame(game, env, userId);

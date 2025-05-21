@@ -2,6 +2,8 @@ import { UserSchema, SessionSchema } from '@stargate/common/types/user';
 import { jwtVerify, SignJWT } from 'jose';
 
 import handleCreateGameRequest from './games/create-game';
+import { handleGetGameRequest } from './games/get-game';
+import { handleListGamesRequest } from './games/list-games';
 import { Env } from './types';
 
 const corsHeaders = {
@@ -67,6 +69,12 @@ export default {
 		}
 		if (url.pathname === '/api/games' && request.method === 'POST') {
 			return handleCreateGameRequest(request, env);
+		}
+		if (url.pathname === '/api/games/list' && request.method === 'POST') {
+			return handleListGamesRequest(request, env);
+		}
+		if (url.pathname === '/api/games/get' && request.method === 'POST') {
+			return handleGetGameRequest(request, env);
 		}
 		if (url.pathname === '/api/auth/google' && request.method === 'POST') {
 			try {
