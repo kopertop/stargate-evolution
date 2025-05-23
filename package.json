@@ -7,6 +7,10 @@
     "check": "pnpm -r run typecheck && pnpm -r run lint",
     "db:up": "pnpm -r run db:up",
     "db:down": "pnpm -r run db:down",
+    "db:init": "pnpm --filter backend run db:init",
+    "db:reset": "pnpm --filter backend run db:reset",
+    "db:generate": "pnpm --filter backend run db:generate",
+    "db:create-schema": "pnpm --filter backend run db:create-schema",
     "test": "pnpm -r test"
   },
   "devDependencies": {
