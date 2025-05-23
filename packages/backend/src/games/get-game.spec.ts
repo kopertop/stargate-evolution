@@ -4,7 +4,6 @@ import { describe, it, expect, beforeAll } from 'vitest';
 
 import { Env } from '../types';
 
-import handleCreateGameRequest from './create-game';
 import { handleGetGameRequest } from './get-game';
 
 function mockRequest(body: any) {
@@ -16,7 +15,6 @@ function mockRequest(body: any) {
 }
 
 describe('handleGetGameRequest', () => {
-	let createdGame: any;
 	const userId = 'test-user';
 	let gameId: string;
 
@@ -26,13 +24,18 @@ describe('handleGetGameRequest', () => {
 		await testEnv.DB.prepare(
 			'INSERT INTO users (id, email, name, image) VALUES (?, ?, ?, ?)',
 		).bind(userId, 'test@example.com', 'Test User', null).run();
-		// Create a new game
-		const createRes = await handleCreateGameRequest(mockRequest({ userId }), env as Env);
-		const gameJson = await createRes.json();
-		createdGame = gameJson;
-		// Find the gameId by querying the DB
-		const games = await testEnv.DB.prepare('SELECT id FROM games WHERE user_id = ? ORDER BY created_at DESC').bind(userId).all();
-		gameId = games.results[0]?.id;
+
+		// Create test game data directly
+		gameId = 'test-game-id';
+		const now = Date.now();
+		await testEnv.DB.prepare(
+			'INSERT INTO games (id, userId, name, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?)',
+		).bind(gameId, userId, 'Test Game', now, now).run();
+
+		// Create minimal test galaxy data
+		await testEnv.DB.prepare(
+			'INSERT INTO galaxies (id, gameId, name, x, y, createdAt) VALUES (?, ?, ?, ?, ?, ?)',
+		).bind('test-galaxy-id', gameId, 'Test Galaxy', 0, 0, now).run();
 	});
 
 	it('returns 200 and a valid game object for valid userId/gameId', async () => {

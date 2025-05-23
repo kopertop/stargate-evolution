@@ -13,10 +13,13 @@ export async function handleListGamesRequest(request: Request, env: Env): Promis
 			return new Response(JSON.stringify({ error: 'Invalid request body', details: parsed.error.errors }), { status: 400, headers: { 'content-type': 'application/json' } });
 		}
 		const { userId } = parsed.data;
-		const games = await env.DB.prepare(
-			'SELECT id, name, created_at, updated_at, last_played, current FROM games WHERE user_id = ? ORDER BY created_at DESC',
+
+		// Query the database for games belonging to this user
+		const { results } = await env.DB.prepare(
+			'SELECT id, name, createdAt, updatedAt FROM games WHERE userId = ? ORDER BY createdAt DESC',
 		).bind(userId).all();
-		return new Response(JSON.stringify(games.results), { status: 200, headers: { 'content-type': 'application/json' } });
+
+		return new Response(JSON.stringify(results), { status: 200, headers: { 'content-type': 'application/json' } });
 	} catch (err: any) {
 		console.error('ERROR', err);
 		return new Response(JSON.stringify({ error: err.message || 'Invalid request' }), { status: 400, headers: { 'content-type': 'application/json' } });

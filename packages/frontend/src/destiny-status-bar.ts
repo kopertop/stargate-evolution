@@ -31,8 +31,8 @@ export class DestinyStatusBar {
 		return `
 			<div style='display:flex;gap:2em;align-items:center;'>
 				<span title='Shield'><b>🛡️</b> ${status.shield.strength}/${status.shield.max} (${status.shield.coverage}%)</span>
-				<span title='Power'><b>⚡</b> ${status.power.current}/${status.power.max}</span>
-				<span title='Crew'><b>👨‍🚀</b> ${status.crew.onboard}/${status.crew.capacity}</span>
+				<span title='Power'><b>⚡</b> ${status.power}/${status.maxPower}</span>
+				<span title='Crew'><b>👨‍🚀</b> ${status.crewStatus.onboard}/${status.crewStatus.capacity}</span>
 				<span title='O₂'><b>O₂</b> ${status.atmosphere.o2.toFixed(1)}%</span>
 				<span title='CO₂'><b>CO₂</b> ${status.atmosphere.co2.toFixed(2)}%</span>
 				<span title='Scrubbers'><b>🧹</b> ${status.atmosphere.co2Scrubbers} CO₂, ${status.atmosphere.o2Scrubbers} O₂</span>

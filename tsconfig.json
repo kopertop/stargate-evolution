@@ -18,7 +18,12 @@
     "isolatedModules": true,
     "baseUrl": ".",
     "paths": {
-      "@stargate/common/*": ["packages/common/*"]
+      "@stargate/common/*": [
+        "packages/common/*"
+      ],
+      "@stargate/db/*": [
+        "packages/db/*"
+      ]
     }
   }
 }

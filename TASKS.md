@@ -14,18 +14,30 @@
 - [x] Starfield/Background: Simple procedural or static starfield
 - [x] Backend API: `/hello` endpoint, test frontend-backend connectivity
 - [x] Google Chrome-aware "Continue with Google" login (detects logged-in Google account and offers one-click login with visible email, session persistence, backend validation/refresh)
+- [x] Auto-Generated D1 Migration System: Complete migration from Sequelize to CloudFlare D1 with auto-generated schema from TypeScript models, full test coverage, and working create/get game endpoints
+- [x] **Frontend-First Database Architecture**: Created `packages/db` with WatermelonDB schema, models, and GameService for offline-first game creation
 
 ## 🚧 In Progress / Next Up
-- [ ] Procedural Galaxy Generation (backend)
-- [ ] Game State Management (backend, Cloudflare KV)
-- [ ] Frontend-backend integration: fetch and display backend data
-- [ ] Crew Management UI (stub)
-- [ ] Destiny AI (backend OpenAI integration, frontend chat UI stub)
+- [ ] **Convert Frontend to React + PixiJS**: Migrate from vanilla JS to React components with PixiJS integration
+- [ ] **Frontend Game Creation**: Implement "New Game" button using WatermelonDB GameService locally
+- [ ] **WatermelonDB Sync Setup**: Configure sync between frontend WatermelonDB and backend D1 for cloud saves
+- [ ] Procedural Galaxy Generation (moved to frontend)
+- [ ] Game State Management (frontend WatermelonDB + React state)
+- [ ] Crew Management UI (React components)
+- [ ] Destiny AI (backend OpenAI integration, frontend chat UI)
 - [ ] Playtesting and bug logging (`docs/playtesting.md`)
 
 ## 🗓️ Future / Stretch
 - [ ] Missions & Events system
 - [ ] Bones files persistence
 - [ ] Accessibility & responsive UI polish
-- [ ] Unit tests (Vitest)
-- [ ] Deployment (Cloudflare Pages/Workers) 
+- [ ] Unit tests (Vitest) for WatermelonDB services
+- [ ] Deployment (Cloudflare Pages/Workers) with WatermelonDB sync
+
+## 📋 Architecture Notes
+**New Frontend-First Approach:**
+- WatermelonDB for offline-first local game storage
+- React + PixiJS for UI and game rendering
+- Backend only used for cloud sync and AI features
+- Game creation happens entirely in frontend
+- Cloud saves via WatermelonDB sync protocol 

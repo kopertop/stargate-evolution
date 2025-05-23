@@ -1,8 +1,6 @@
 import { UserSchema, SessionSchema } from '@stargate/common/types/user';
 import { jwtVerify, SignJWT } from 'jose';
 
-import handleCreateGameRequest from './games/create-game';
-import { handleDestinyStatusRequest } from './games/destiny-status';
 import { handleGetGameRequest } from './games/get-game';
 import { handleListGamesRequest } from './games/list-games';
 import { Env } from './types';
@@ -68,17 +66,11 @@ export default {
 				headers: { 'content-type': 'text/plain' },
 			}));
 		}
-		if (url.pathname === '/api/games' && request.method === 'POST') {
-			return withCors(await handleCreateGameRequest(request, env));
-		}
 		if (url.pathname === '/api/games/list' && request.method === 'POST') {
 			return withCors(await handleListGamesRequest(request, env));
 		}
 		if (url.pathname === '/api/games/get' && request.method === 'POST') {
 			return withCors(await handleGetGameRequest(request, env));
-		}
-		if (url.pathname === '/api/destiny-status' && (request.method === 'GET' || request.method === 'POST')) {
-			return withCors(await handleDestinyStatusRequest(request, env));
 		}
 		if (url.pathname === '/api/auth/google' && request.method === 'POST') {
 			try {
@@ -94,7 +86,7 @@ export default {
 				if (!userResult.success) throw new Error('Invalid user payload');
 				const user = userResult.data;
 				const now = Date.now();
-				// Upsert user into users table
+				// Upsert user into users table (preserving original created_at)
 				await env.DB.prepare(
 					'INSERT OR REPLACE INTO users (id, email, name, image, created_at, updated_at) VALUES (?, ?, ?, ?, COALESCE((SELECT created_at FROM users WHERE id = ?), ?), ?)',
 				).bind(

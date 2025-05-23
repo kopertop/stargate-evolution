@@ -1,6 +1,6 @@
 /**
  * Normalize raw DB rows for all game entities into the shape expected by GameSchema.
- * Handles snake_case to camelCase, nested objects, and default values.
+ * Handles JSON parsing and nested objects for our auto-generated schema.
  */
 import { GalaxySchema } from '../types/galaxy';
 import { StarSystemSchema } from '../types/galaxy';
@@ -22,125 +22,144 @@ export function normalizeGameFromDb(raw: {
 	ships: any[],
 	people: any[],
 }): any {
-	const toCamel = (str: string) => str.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
-	const mapKeys = (obj: any) => {
-		const out: any = {};
-		for (const k in obj) {
-			if (obj[k] !== undefined) out[toCamel(k)] = obj[k];
+	// Helper to safely parse JSON strings
+	const parseJson = (str: string | null | undefined, fallback: any = null) => {
+		if (!str) return fallback;
+		try {
+			return JSON.parse(str);
+		} catch {
+			return fallback;
 		}
-		return out;
 	};
 
-	// Normalize chevrons (for relationship mapping, keep stargate_id and position from raw)
-	const chevrons = raw.chevrons.map(mapKeys).map((c: any, i: number) =>
+	// Normalize chevrons (simple mapping, no complex fields)
+	const chevrons = raw.chevrons.map((c: any) =>
 		CheveronSymbolSchema.parse({
 			id: c.id,
 			symbol: c.symbol,
-			description: c.description,
-			image: c.image ?? undefined,
+			description: c.description || undefined,
+			image: c.image || undefined,
 		}),
 	);
 
-	// Normalize stargates and attach address (chevrons)
-	const stargates = raw.stargates.map(mapKeys).map((sg: any, i: number) => {
-		const address = raw.chevrons
-			.map((c: any, j: number) => ({
-				chevron: chevrons[j],
-				position: c.position ?? 0,
-				stargateId: c.stargate_id,
-			}))
-			.filter(c => c.stargateId === (sg.id ?? raw.stargates[i]?.id))
-			.sort((a, b) => a.position - b.position)
-			.map(c => c.chevron);
-		return StargateSchema.parse({ ...sg, address });
+	// Normalize stargates and parse JSON fields
+	const stargates = raw.stargates.map((sg: any) => {
+		return StargateSchema.parse({
+			id: sg.id,
+			address: parseJson(sg.address, []),
+			type: sg.type,
+			locationId: sg.locationId,
+			connectedTo: parseJson(sg.connectedTo, []),
+		});
 	});
 
-	// Normalize planets and attach stargate if present
-	const planets = raw.planets.map(mapKeys).map((p: any, i: number) => {
-		const stargate = stargates.find((sg, j) => (sg.locationId ?? raw.stargates[j]?.location_id) === (p.id ?? raw.planets[i]?.id) && sg.type === 'planetary');
-		return PlanetSchema.parse({ ...p, stargate });
+	// Normalize planets
+	const planets = raw.planets.map((p: any) => {
+		return PlanetSchema.parse({
+			id: p.id,
+			name: p.name,
+			type: p.type,
+			resources: parseJson(p.resources, []),
+			inhabitants: parseJson(p.inhabitants, []),
+			stargate: undefined, // Will be set later if needed
+		});
 	});
 
 	// Normalize stars
-	const stars = raw.stars.map(mapKeys).map((s: any) => StarSchema.parse(s));
+	const stars = raw.stars.map((s: any) => StarSchema.parse({
+		id: s.id,
+		name: s.name,
+		type: s.type,
+		description: s.description || undefined,
+		image: s.image || undefined,
+		radius: s.radius,
+		mass: s.mass,
+		temperature: s.temperature,
+		luminosity: s.luminosity,
+		age: s.age,
+	}));
 
 	// Normalize star systems and attach planets, stargates, stars
-	const starSystems = raw.starSystems.map(mapKeys).map((ss: any, i: number) => {
-		const planetsInSystem = planets.filter((p, j) => (raw.planets[j]?.star_system_id) === (ss.id ?? raw.starSystems[i]?.id));
-		const stargatesInSystem = stargates.filter((sg, j) => (sg.locationId ?? raw.stargates[j]?.location_id) === (ss.id ?? raw.starSystems[i]?.id) && sg.type === 'master');
-		const starsInSystem = stars.filter((st, j) => (raw.stars[j]?.star_system_id) === (ss.id ?? raw.starSystems[i]?.id));
-		const { x, y, ...rest } = ss;
+	const starSystems = raw.starSystems.map((ss: any) => {
+		const planetsInSystem = planets.filter((p, j) => raw.planets[j]?.starSystemId === ss.id);
+		const stargatesInSystem = stargates.filter((sg, j) => raw.stargates[j]?.locationId === ss.id);
+		const starsInSystem = stars.filter((st, j) => raw.stars[j]?.starSystemId === ss.id);
+
 		return StarSystemSchema.parse({
-			...rest,
-			position: { x, y },
+			id: ss.id,
+			name: ss.name,
+			position: { x: ss.x || 0, y: ss.y || 0 },
 			planets: planetsInSystem,
 			stargates: stargatesInSystem,
 			stars: starsInSystem,
+			description: ss.description || undefined,
+			image: ss.image || undefined,
 		});
 	});
 
 	// Normalize galaxies and attach starSystems
-	const galaxies = raw.galaxies.map(mapKeys).map((g: any, i: number) => {
-		const systems = starSystems.filter((ss, j) => (raw.starSystems[j]?.galaxy_id) === (g.id ?? raw.galaxies[i]?.id));
-		const x = typeof g.x === 'number' ? g.x : i * 1000;
-		const y = typeof g.y === 'number' ? g.y : 0;
-		const position = { x, y };
-		return GalaxySchema.parse({ ...g, position, starSystems: systems });
+	const galaxies = raw.galaxies.map((g: any, i: number) => {
+		const systems = starSystems.filter((ss, j) => raw.starSystems[j]?.galaxyId === g.id);
+		return GalaxySchema.parse({
+			id: g.id,
+			name: g.name,
+			position: { x: g.x || i * 1000, y: g.y || 0 },
+			starSystems: systems,
+		});
 	});
 
 	// Normalize technology
-	const technology = raw.technology.map(mapKeys).map((t: any) => TechnologySchema.parse(t));
+	const technology = raw.technology.map((t: any) => TechnologySchema.parse({
+		id: t.id,
+		name: t.name,
+		description: t.description,
+		unlocked: Boolean(t.unlocked),
+		cost: t.cost,
+		image: t.image || undefined,
+		number_on_destiny: t.numberOnDestiny || 0,
+	}));
 
-	// Normalize ships and attach rooms (by shipId) and crew (people assigned to this ship)
-	const ships = raw.ships.map(mapKeys).map((s: any, i: number) => {
-		const crew = raw.people.map(mapKeys).filter((p: any, k: number) => (p.locationShipId ?? raw.people[k]?.location_ship_id) === (s.id ?? raw.ships[i]?.id)).map((p: any) => p.id);
-		const location: Record<string, any> = { systemId: s.locationSystemId ?? raw.ships[i]?.location_system_id, planetId: s.locationPlanetId ?? raw.ships[i]?.location_planet_id };
-		Object.keys(location).forEach(k => { if (location[k] === null) location[k] = undefined; });
-		return ShipSchema.parse({ ...s, crew, location });
-	});
-
-	// Normalize races and attach ships/technology (by raceId)
-	const races = raw.races.map(mapKeys).map((r: any, i: number) => {
-		const raceShips = ships.filter((s, j) => (s.raceId ?? raw.ships[j]?.race_id) === (r.id ?? raw.races[i]?.id));
-		// If you have raceId on tech, filter here; otherwise, just pass []
-		return RaceSchema.parse({ ...r, ships: raceShips, technology: [] });
-	});
-
-	// Normalize people and attach location object
-	let people: any[] = [];
-	try {
-		people = raw.people.map(mapKeys).map((p: any, i: number) => {
-			const location: Record<string, any> = {
-				roomId: (p.locationRoomId ?? raw.people[i]?.location_room_id) ?? undefined,
-				planetId: (p.locationPlanetId ?? raw.people[i]?.location_planet_id) ?? undefined,
-				shipId: (p.locationShipId ?? raw.people[i]?.location_ship_id) ?? undefined,
-			};
-			Object.keys(location).forEach(k => { if (location[k] === null) location[k] = undefined; });
-			const personObj = { ...p, location };
-			if (typeof location.planetId !== 'string' && location.planetId !== undefined) {
-				throw new Error(
-					'Invalid planetId in person location: ' +
-					JSON.stringify({ raw: raw.people[i], computed: personObj }, null, 2),
-				);
-			}
-			return PersonSchema.parse(personObj);
+	// Normalize ships and parse JSON fields
+	const ships = raw.ships.map((s: any) => {
+		return ShipSchema.parse({
+			id: s.id,
+			name: s.name,
+			power: s.power,
+			maxPower: s.maxPower,
+			shields: s.shields,
+			maxShields: s.maxShields,
+			hull: s.hull,
+			maxHull: s.maxHull,
+			raceId: s.raceId,
+			crew: parseJson(s.crew, []),
+			location: parseJson(s.location, {}),
+			stargate: s.stargate || undefined,
 		});
-	} catch (err) {
-		console.error('DEBUG: All computed people objects:', JSON.stringify(
-			raw.people.map(mapKeys).map((p: any, i: number) => {
-				const location: Record<string, any> = {
-					roomId: (p.locationRoomId ?? raw.people[i]?.location_room_id) ?? undefined,
-					planetId: (p.locationPlanetId ?? raw.people[i]?.location_planet_id) ?? undefined,
-					shipId: (p.locationShipId ?? raw.people[i]?.location_ship_id) ?? undefined,
-				};
-				Object.keys(location).forEach(k => { if (location[k] === null) location[k] = undefined; });
-				return { ...p, location };
-			}),
-			null,
-			2,
-		));
-		throw err;
-	}
+	});
+
+	// Normalize races and parse JSON fields
+	const races = raw.races.map((r: any) => {
+		return RaceSchema.parse({
+			id: r.id,
+			name: r.name,
+			technology: parseJson(r.technology, []),
+			ships: parseJson(r.ships, []),
+		});
+	});
+
+	// Normalize people and parse JSON fields
+	const people = raw.people.map((p: any) => {
+		return PersonSchema.parse({
+			id: p.id,
+			name: p.name,
+			raceId: p.raceId,
+			role: p.role,
+			location: parseJson(p.location, {}),
+			description: p.description || undefined,
+			image: p.image || undefined,
+			conditions: parseJson(p.conditions, []),
+		});
+	});
 
 	return {
 		galaxies,
@@ -150,7 +169,7 @@ export function normalizeGameFromDb(raw: {
 		stargates,
 		chevrons,
 		technology,
-		races: races,
+		races,
 		ships,
 		people,
 	};
