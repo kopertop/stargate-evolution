@@ -88,8 +88,7 @@ export default defineConfig([globalIgnores([
 
 		'@typescript-eslint/no-unused-vars': 'warn',
 
-		// Do not allow using default exports (always use named exports)
-		'import/no-default-export': 'error',
+		'import/no-default-export': 'off',
 
 		'no-restricted-imports': ['error', {
 			paths: [{

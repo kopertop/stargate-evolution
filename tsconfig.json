@@ -1,12 +1,11 @@
 {
   "compilerOptions": {
-    "target": "es5",
+    "target": "esnext",
     "lib": [
       "dom",
       "dom.iterable",
       "esnext"
     ],
-    "allowJs": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
@@ -17,10 +16,17 @@
     "moduleResolution": "node",
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "noEmit": true,
-    "jsx": "preserve"
-  },
-  "include": [
-    "src"
-  ]
+    "baseUrl": ".",
+    "paths": {
+      "@stargate/common/*": [
+        "packages/common/*"
+      ],
+      "@stargate/db/*": [
+        "packages/db/src/*"
+      ],
+      "@stargate/db": [
+        "packages/db/src"
+      ]
+    }
+  }
 }
