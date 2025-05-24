@@ -1,18 +1,44 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { gameService } from '@stargate/db';
 import * as PIXI from 'pixi.js';
+import type { DestinyStatus } from '@stargate/common/types/destiny';
 
 import { validateOrRefreshSession } from '../auth/session';
-import { DestinyStatusBar } from '../destiny-status-bar';
+import { DestinyStatusBar } from '../components/destiny-status-bar';
 import { Game } from '../game';
 import { GameMenu } from '../game-menu';
 import { MapPopover } from '../map-popover';
 import { Toast } from '../toast';
 
+// Helper function to parse destiny status JSON fields
+function parseDestinyStatus(rawStatus: any): DestinyStatus {
+	const parseJson = (str: string | undefined | null, fallback: any = {}) => {
+		if (!str || typeof str !== 'string') return fallback;
+		try {
+			return JSON.parse(str);
+		} catch {
+			return fallback;
+		}
+	};
+
+	return {
+		...rawStatus,
+		shield: parseJson(rawStatus.shield, { strength: 0, max: 500, coverage: 0 }),
+		inventory: parseJson(rawStatus.inventory, {}),
+		crewStatus: parseJson(rawStatus.crewStatus, { onboard: 0, capacity: 100, manifest: [] }),
+		atmosphere: parseJson(rawStatus.atmosphere, { co2: 0, o2: 21, co2Scrubbers: 0, o2Scrubbers: 0 }),
+		weapons: parseJson(rawStatus.weapons, { mainGun: false, turrets: { total: 0, working: 0 } }),
+		shuttles: parseJson(rawStatus.shuttles, { total: 0, working: 0, damaged: 0 }),
+		rooms: parseJson(rawStatus.rooms, []),
+		notes: parseJson(rawStatus.notes, []),
+	};
+}
+
 export function GamePage() {
 	const canvasRef = useRef<HTMLDivElement>(null);
 	const appRef = useRef<PIXI.Application | null>(null);
 	const gameInstanceRef = useRef<Game | null>(null);
+	const [destinyStatus, setDestinyStatus] = useState<DestinyStatus | null>(null);
 
 	useEffect(() => {
 		const initGame = async () => {
@@ -49,9 +75,11 @@ export function GamePage() {
 					// Use local database instead of backend API
 					const gameData = await gameService.getGameData(gameId);
 					console.log('Loaded game data:', gameData);
-					const destinyStatus = gameData.destiny_status?.[0];
-					if (destinyStatus) {
-						DestinyStatusBar.show(destinyStatus as any);
+					const rawDestinyStatus = gameData.destiny_status?.[0];
+					if (rawDestinyStatus) {
+						const parsedDestinyStatus = parseDestinyStatus(rawDestinyStatus);
+						console.log('Parsed destiny status:', parsedDestinyStatus);
+						setDestinyStatus(parsedDestinyStatus);
 					}
 
 					// Placeholder: Draw a simple rectangle representing the Destiny ship
@@ -94,6 +122,7 @@ export function GamePage() {
 			alignItems: 'center',
 		}}>
 			<div ref={canvasRef} />
+			{destinyStatus && <DestinyStatusBar status={destinyStatus} />}
 		</div>
 	);
 }
