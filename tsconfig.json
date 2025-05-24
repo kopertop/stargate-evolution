@@ -22,10 +22,10 @@
         "packages/common/*"
       ],
       "@stargate/db/*": [
-        "packages/db/*"
+        "packages/db/src/*"
       ],
       "@stargate/db": [
-        "packages/db/src/index"
+        "packages/db/src"
       ]
     }
   }

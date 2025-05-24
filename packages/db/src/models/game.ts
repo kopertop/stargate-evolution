@@ -1,5 +1,5 @@
 import { Model } from '@nozbe/watermelondb';
-import { date, field, readonly, relation, text } from '@nozbe/watermelondb/decorators';
+import { date, readonly, text } from '@nozbe/watermelondb/decorators';
 
 export default class Game extends Model {
 	static table = 'games';
@@ -18,7 +18,6 @@ export default class Game extends Model {
 		destiny_status: { type: 'has_many' as const, foreignKey: 'game_id' },
 	};
 
-	@text('user_id') userId!: string;
 	@text('name') name!: string;
 	@readonly @date('created_at') createdAt!: Date;
 	@readonly @date('updated_at') updatedAt!: Date;

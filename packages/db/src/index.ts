@@ -7,10 +7,10 @@ import schema from './schema';
 import { GameService } from './services/game-service';
 
 const adapter = new LokiJSAdapter({
-       schema,
-       dbName: 'stargate_evolution',
-       useWebWorker: false,
-       useIncrementalIndexedDB: true,
+	schema,
+	dbName: 'stargate_evolution',
+	useWebWorker: false,
+	useIncrementalIndexedDB: true,
 });
 
 export const database = new Database({

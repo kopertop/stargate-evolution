@@ -2,10 +2,12 @@
 // Provides: Continue, Create Game, Load Game
 
 import { GameSummaryListSchema } from '@stargate/common/types/game';
+import { gameService } from '@stargate/db';
 
 import { listGames, ApiError } from './api-client';
-import { getSession } from './auth/session';
-import { gameService } from '@stargate/db';
+import { renderGoogleSignInButton } from './auth/google-auth';
+import { getSession, setSession } from './auth/session';
+import { Toast } from './toast';
 
 export type GameSummary = typeof GameSummaryListSchema._type[number];
 
@@ -38,7 +40,7 @@ export class GameMenu {
 	static async refresh() {
 		const session = getSession();
 		if (!session || !session.user) {
-			this.setButtons('<p>Please sign in to continue.</p>');
+			this.showLoginButton();
 			return;
 		}
 		try {
@@ -52,6 +54,32 @@ export class GameMenu {
 				this.setButtons('<p>Unknown error loading games.</p>');
 			}
 		}
+	}
+
+	static showLoginButton() {
+		const API_URL = import.meta.env.VITE_PUBLIC_API_URL || '';
+		this.setButtons('<p>Please sign in to access your games:</p><div id="game-menu-google-signin"></div>');
+
+		// Wait for DOM to update before rendering the button
+		setTimeout(() => {
+			renderGoogleSignInButton('game-menu-google-signin', async (idToken) => {
+				try {
+					const res = await fetch(`${API_URL}/api/auth/google`, {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ idToken }),
+					});
+					const data = await res.json();
+					if (!res.ok) throw new Error(data.error || 'Auth failed');
+					Toast.show(`Welcome, ${data.user.name || data.user.email}!`, 3500);
+					setSession(data);
+					// Refresh the menu to show game options
+					await this.refresh();
+				} catch (err: any) {
+					Toast.show(`Google login failed: ${err.message || err}`, 4000);
+				}
+			});
+		}, 100);
 	}
 
 	static setButtons(html: string) {
@@ -87,13 +115,11 @@ export class GameMenu {
 		if (loadBtn) loadBtn.addEventListener('click', () => this.showLoadDialog());
 	}
 
-static async createGame() {
-const session = getSession();
-if (!session || !session.user) return;
-const gameId = await gameService.createNewGame(session.user.id);
-this.hide();
-this.onStartGame(gameId);
-}
+	static async createGame() {
+		const gameId = await gameService.createNewGame();
+		this.hide();
+		this.onStartGame(gameId);
+	}
 
 	static showLoadDialog() {
 		let html = '<h2>Load Game</h2><ul class=\'game-list\'>';
@@ -165,6 +191,11 @@ this.onStartGame(gameId);
 }
 #game-menu-buttons button:hover {
 	background: #3a3d6a;
+}
+#game-menu-google-signin {
+	margin: 1rem 0;
+	display: flex;
+	justify-content: center;
 }
 .game-list {
 	list-style: none;

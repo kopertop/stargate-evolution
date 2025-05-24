@@ -33,9 +33,27 @@ describe('handleGetGameRequest', () => {
 		).bind(gameId, userId, 'Test Game', now, now).run();
 
 		// Create minimal test galaxy data
+		const galaxyId = 'test-galaxy-id';
 		await testEnv.DB.prepare(
 			'INSERT INTO galaxies (id, gameId, name, x, y, createdAt) VALUES (?, ?, ?, ?, ?, ?)',
-		).bind('test-galaxy-id', gameId, 'Test Galaxy', 0, 0, now).run();
+		).bind(galaxyId, gameId, 'Test Galaxy', 0, 0, now).run();
+
+		// Create a star system (required for valid game)
+		const starSystemId = 'test-star-system-id';
+		await testEnv.DB.prepare(
+			'INSERT INTO star_systems (id, gameId, galaxyId, name, x, y, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)',
+		).bind(starSystemId, gameId, galaxyId, 'Test Star System', 0, 0, now).run();
+
+		// Create a race (required for person)
+		const raceId = 'test-race-id';
+		await testEnv.DB.prepare(
+			'INSERT INTO races (id, gameId, name, technology, ships, createdAt) VALUES (?, ?, ?, ?, ?, ?)',
+		).bind(raceId, gameId, 'Human', '[]', '[]', now).run();
+
+		// Create a person (required for valid game)
+		await testEnv.DB.prepare(
+			'INSERT INTO people (id, gameId, name, role, location, raceId, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)',
+		).bind('test-person-id', gameId, 'Test Person', 'scientist', 'Destiny', raceId, now).run();
 	});
 
 	it('returns 200 and a valid game object for valid userId/gameId', async () => {

@@ -1,3 +1,4 @@
+import { gameService } from '@stargate/db';
 import * as PIXI from 'pixi.js';
 
 import { getGame } from './api-client';
@@ -8,7 +9,6 @@ import { Game } from './game';
 import { GameMenu } from './game-menu';
 import { MapPopover } from './map-popover';
 import { Toast } from './toast';
-import { gameService } from '@stargate/db';
 
 const app = new PIXI.Application();
 await app.init({
@@ -66,13 +66,13 @@ GameMenu.show(async (gameId: string) => {
 		return;
 	}
 	try {
-const gameData = await getGame({ userId: session.user.id, gameId }, session.token);
-console.log('Loaded game data:', gameData);
-const local = await gameService.getGameData(gameId);
-const destinyStatus = local.destiny_status?.[0];
-if (destinyStatus) {
-DestinyStatusBar.show(destinyStatus as any);
-}
+		const gameData = await getGame({ userId: session.user.id, gameId }, session.token);
+		console.log('Loaded game data:', gameData);
+		const local = await gameService.getGameData(gameId);
+		const destinyStatus = local.destiny_status?.[0];
+		if (destinyStatus) {
+			DestinyStatusBar.show(destinyStatus as any);
+		}
 
 		// Placeholder: Draw a simple rectangle representing the Destiny ship
 		const ship = new PIXI.Graphics();
