@@ -19,6 +19,10 @@
 
 ## 🚧 In Progress / Next Up
 - [ ] **Convert Frontend to React + PixiJS**: Migrate from vanilla JS to React components with PixiJS integration
+- [ ]    - Setup React with Vite and install `react` and `react-dom`
+- [ ]    - Create `<PixiCanvas>` component wrapping PixiJS Application
+- [ ]    - Refactor game UI overlays into React components
+- [ ]    - Replace menu and popovers with React equivalents
 - [ ] **Frontend Game Creation**: Implement "New Game" button using WatermelonDB GameService locally
 - [ ] **WatermelonDB Sync Setup**: Configure sync between frontend WatermelonDB and backend D1 for cloud saves
 - [ ] Procedural Galaxy Generation (moved to frontend)

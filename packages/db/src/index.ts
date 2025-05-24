@@ -1,16 +1,16 @@
 import { Database } from '@nozbe/watermelondb';
-import SQLiteAdapter from '@nozbe/watermelondb/adapters/sqlite';
+import LokiJSAdapter from '@nozbe/watermelondb/adapters/lokijs';
 
 import Galaxy from './models/galaxy';
 import Game from './models/game';
 import schema from './schema';
 import { GameService } from './services/game-service';
 
-const adapter = new SQLiteAdapter({
-	schema,
-	// migrations: [], // Add when needed
-	dbName: 'stargate_evolution',
-	jsi: true, // Platform-specific, set to false for web
+const adapter = new LokiJSAdapter({
+       schema,
+       dbName: 'stargate_evolution',
+       useWebWorker: false,
+       useIncrementalIndexedDB: true,
 });
 
 export const database = new Database({

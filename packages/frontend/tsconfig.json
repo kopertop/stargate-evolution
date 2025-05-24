@@ -1,7 +1,8 @@
 {
 	"extends": "../../tsconfig.json",
-	"compilerOptions": {
-		"jsx": "preserve"
-	},
+"compilerOptions": {
+"jsx": "preserve",
+"experimentalDecorators": true
+},
 	"include": ["src"]
 }
