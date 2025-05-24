@@ -4,7 +4,6 @@
 import { GameSummaryListSchema } from '@stargate/common/types/game';
 import { gameService } from '@stargate/db';
 
-import { listGames, ApiError } from './api-client';
 import { renderGoogleSignInButton } from './auth/google-auth';
 import { getSession, setSession } from './auth/session';
 import { Toast } from './toast';
@@ -37,22 +36,37 @@ export class GameMenu {
 		}
 	}
 
-	static async refresh() {
+	static async refresh(): Promise<void> {
 		const session = getSession();
 		if (!session || !session.user) {
 			this.showLoginButton();
 			return;
 		}
 		try {
-			const games = await listGames({ userId: session.user.id }, session.token) as GameSummary[];
-			this.games = games;
+			// Debug database status
+			await gameService.debugDatabaseStatus();
+
+			// Use local database instead of backend API
+			const games = await gameService.listGames();
+			console.log('Raw games from database:', games);
+			console.log('First game object:', games[0]);
+			console.log('First game properties:', games[0] ? Object.keys(games[0]) : 'no games');
+			console.log('First game name:', games[0]?.name);
+			console.log('First game _raw:', games[0]?._raw);
+
+			// Convert local Game objects to GameSummary format
+			this.games = games.map(game => ({
+				id: game.id,
+				name: game.name,
+				created_at: game.createdAt?.getTime() || null,
+				updated_at: game.updatedAt?.getTime() || null,
+				last_played: null, // TODO: Track last played time locally
+				current: false, // TODO: Track current game locally
+			}));
+			console.log('Converted games:', this.games);
 			this.renderButtons();
 		} catch (err: any) {
-			if (err instanceof ApiError) {
-				this.setButtons(`<p>Error loading games: ${err.message}</p>`);
-			} else {
-				this.setButtons('<p>Unknown error loading games.</p>');
-			}
+			this.setButtons(`<p>Error loading games: ${err.message || err}</p>`);
 		}
 	}
 

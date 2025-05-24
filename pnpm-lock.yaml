@@ -124,8 +124,8 @@ importers:
   packages/db:
     dependencies:
       '@nozbe/watermelondb':
-        specifier: ^0.27.1
-        version: 0.27.1
+        specifier: ^0.28.0
+        version: 0.28.0
       '@stargate/common':
         specifier: workspace:*
         version: link:../common
@@ -168,8 +168,8 @@ packages:
     resolution: {integrity: sha512-D2hP9eA+Sqx1kBZgzxZh0y1trbuU+JoDkiEwqhQ36nodYqJwyEIhPSdMNd7lOm/4io72luTPWH20Yda0xOuUow==}
     engines: {node: '>=6.9.0'}
 
-  '@babel/runtime@7.21.0':
-    resolution: {integrity: sha512-xwII0//EObnq89Ji5AKYQaRYiW/nZ3llSv29d49IuxPhKbtJoLP+9QUUZ4nVragQVtaVGeZrpB+ZtG/Pdy/POw==}
+  '@babel/runtime@7.26.0':
+    resolution: {integrity: sha512-FDSOghenHTiToteC/QRlv2q3DhPZ/oOXTBoirfWNx1Cx3TMVcGWQtMMmQcSvb/JjpNeGzx8Pq/b4fKEJuWm1sw==}
     engines: {node: '>=6.9.0'}
 
   '@cloudflare/kv-asset-handler@0.4.0':
@@ -612,14 +612,15 @@ packages:
   '@nozbe/lokijs@1.5.12-wmelon6':
     resolution: {integrity: sha512-GXsaqY8qTJ6xdCrGyno2t+ON2aj6PrUDdvhbrkxK/0Fp12C4FGvDg1wS+voLU9BANYHEnr7KRWfItDZnQkjoAg==}
 
-  '@nozbe/simdjson@3.1.0-wmelon1':
-    resolution: {integrity: sha512-PQaHHQyvASrcrfzqkZ4ona43m0UjN81NuTWt6rJkOUePGDjxc8MNp2Q7jcod1CIdTsXJ13wRWeFbquwNfhpIQQ==}
+  '@nozbe/simdjson@3.9.4':
+    resolution: {integrity: sha512-/3oCP8GBpdyeiBMEnuI6S0yl0yekD6Qxfed67hZqU1GIVn3o/vZgE8qANm69THfw7JgHLS9zjx56F/dO3q+koA==}
 
-  '@nozbe/sqlite@3.40.1':
-    resolution: {integrity: sha512-uKJOW4sQi3neCmgKhqLr0IJKlb2y5q2p05U5CEDJrCxSyD2uVYvSdh7IMrPjF4sWtzc/Lnk462M4vde7Dn5NSw==}
+  '@nozbe/sqlite@3.46.0':
+    resolution: {integrity: sha512-ntt8eNp5hh+axX9+kFb5uwyVE0edyfhiYYr+zHDzzFleGC7Qm+a2wHDWDtmRr5nSfbgomhY1uh30kpsHEIR3Mw==}
 
-  '@nozbe/watermelondb@0.27.1':
-    resolution: {integrity: sha512-41Nlq0FMGkcr2CUgtPRQRVAbA8VYI6fpeGlX4eoiLhoh3nbPIlX4RIcjLIEoyGgkCUSNSnNvXrv0RMIJRl4nZQ==}
+  '@nozbe/watermelondb@0.28.0':
+    resolution: {integrity: sha512-40ttcqPOLCTGnbfCQAXSEo8J4KlH/QQhwTfTb9E21CyX/driMEZueiJSI2rSkHICZrI2vnu52aRubNbI3UAzQQ==}
+    engines: {node: '>=18'}
 
   '@npmcli/fs@1.1.1':
     resolution: {integrity: sha512-8KG5RD0GVP4ydEzRn/I4BNDuxDtqVbOdm8675T49OIG/NGhaK0pjPX7ZcDlvKYbA+ulvVK3ztfcF4uBdOxuJbQ==}
@@ -2366,8 +2367,8 @@ packages:
     resolution: {integrity: sha512-00o4I+DVrefhv+nX0ulyi3biSHCPDe+yLv5o/p6d/UVlirijB8E16FtfwSAi4g3tcqrQ4lRAqQSoFEZJehYEcw==}
     engines: {node: '>= 0.4'}
 
-  regenerator-runtime@0.13.11:
-    resolution: {integrity: sha512-kY1AZVr2Ra+t+piVaJ4gxaFaReZVH40AKNo7UCX6W+dEwBo/2oZJzqfuN1qLq1oL45o56cPaTXELwrTh8Fpggg==}
+  regenerator-runtime@0.14.1:
+    resolution: {integrity: sha512-dYnhHh0nJoMfnkZs6GmmhFknAGRrLznOu5nc9ML+EJxGvrx6H7teuevqVqCuPcPK//3eDrrjQhehXVx9cnkGdw==}
 
   regexp-tree@0.1.27:
     resolution: {integrity: sha512-iETxpjK6YoRWJG5o6hXLwvjYAoW+FEZn9os0PD/b6AP6xQwsa/Y7lCVgIixBbUPMfhu+i2LtdeAqVTgGlQarfA==}
@@ -3033,9 +3034,9 @@ snapshots:
 
   '@babel/helper-validator-identifier@7.27.1': {}
 
-  '@babel/runtime@7.21.0':
+  '@babel/runtime@7.26.0':
     dependencies:
-      regenerator-runtime: 0.13.11
+      regenerator-runtime: 0.14.1
 
   '@cloudflare/kv-asset-handler@0.4.0':
     dependencies:
@@ -3369,15 +3370,15 @@ snapshots:
 
   '@nozbe/lokijs@1.5.12-wmelon6': {}
 
-  '@nozbe/simdjson@3.1.0-wmelon1': {}
+  '@nozbe/simdjson@3.9.4': {}
 
-  '@nozbe/sqlite@3.40.1': {}
+  '@nozbe/sqlite@3.46.0': {}
 
-  '@nozbe/watermelondb@0.27.1':
+  '@nozbe/watermelondb@0.28.0':
     dependencies:
-      '@babel/runtime': 7.21.0
-      '@nozbe/simdjson': 3.1.0-wmelon1
-      '@nozbe/sqlite': 3.40.1
+      '@babel/runtime': 7.26.0
+      '@nozbe/simdjson': 3.9.4
+      '@nozbe/sqlite': 3.46.0
       hoist-non-react-statics: 3.3.2
       lokijs: '@nozbe/lokijs@1.5.12-wmelon6'
       rxjs: 7.8.2
@@ -5363,7 +5364,7 @@ snapshots:
       get-proto: 1.0.1
       which-builtin-type: 1.2.1
 
-  regenerator-runtime@0.13.11: {}
+  regenerator-runtime@0.14.1: {}
 
   regexp-tree@0.1.27: {}
 
