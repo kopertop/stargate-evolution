@@ -170,7 +170,7 @@ export const GalaxyMap: React.FC<GalaxyMapProps> = ({ galaxies, onGalaxySelect }
 				style={{ cursor: onGalaxySelect ? 'pointer' : 'default' }}
 				onClick={handleCanvasClick}
 			/>
-			<div className="position-absolute top-0 start-0 p-3">
+			<div className="position-absolute top-0 start-0 p-3" style={{ marginTop: '60px' }}>
 				<h4 className="text-white mb-2">Galaxy Map</h4>
 				<p className="text-light small mb-1">Discovered Galaxies: {galaxies.length}</p>
 				{onGalaxySelect && (

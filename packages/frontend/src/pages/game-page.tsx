@@ -10,6 +10,7 @@ import { Game } from '../game';
 import { MapPopover } from '../map-popover';
 import { Toast } from '../toast';
 import { useNavigate, useParams } from 'react-router-dom';
+import { NavButton } from '../components/nav-button';
 
 type ViewMode = 'galaxy-map' | 'game-view';
 
@@ -216,62 +217,67 @@ export const GamePage: React.FC = () => {
 		<div style={{
 			background: '#000',
 			minHeight: '100vh',
-			display: 'flex',
-			justifyContent: 'center',
-			alignItems: 'center',
+			...(viewMode === 'galaxy-map' ? {} : {
+				display: 'flex',
+				justifyContent: 'center',
+				alignItems: 'center',
+			})
 		}}>
 			<div ref={canvasRef} />
+
 			{isLoading && (
-				<div className="text-white">
+				<div className="text-white" style={{
+					position: 'absolute',
+					top: '50%',
+					left: '50%',
+					transform: 'translate(-50%, -50%)'
+				}}>
 					<h3>Loading Stargate Evolution...</h3>
 				</div>
 			)}
 
 			{!isLoading && viewMode === 'galaxy-map' && galaxies.length > 0 && (
-				<div className="w-100 h-100 position-relative">
+				<div style={{ width: '100vw', height: '100vh', position: 'relative' }}>
+					<NavButton onClick={handleBackToMenu}>
+						← Back to Menu
+					</NavButton>
 					<GalaxyMap
 						galaxies={galaxies}
 						onGalaxySelect={handleGalaxySelect}
 					/>
-					<button
-						className="btn btn-secondary position-absolute top-0 start-0 m-3"
-						onClick={handleBackToMenu}
-					>
-						← Back to Menu
-					</button>
 				</div>
 			)}
 
 			{!isLoading && viewMode === 'galaxy-map' && galaxies.length === 0 && (
-				<div className="text-white text-center">
-					<div className="spinner-border text-primary mb-3" role="status">
-						<span className="visually-hidden">Loading...</span>
-					</div>
-					<h4>Loading Game Data...</h4>
-					<p>Preparing galaxy map...</p>
-					<button
-						className="btn btn-secondary mt-3"
-						onClick={handleBackToMenu}
-					>
+				<div style={{ width: '100vw', height: '100vh', position: 'relative' }}>
+					<NavButton onClick={handleBackToMenu}>
 						← Back to Menu
-					</button>
+					</NavButton>
+					<div className="text-white text-center" style={{
+						position: 'absolute',
+						top: '50%',
+						left: '50%',
+						transform: 'translate(-50%, -50%)'
+					}}>
+						<div className="spinner-border text-primary mb-3" role="status">
+							<span className="visually-hidden">Loading...</span>
+						</div>
+						<h4>Loading Game Data...</h4>
+						<p>Preparing galaxy map...</p>
+					</div>
 				</div>
 			)}
 
 			{viewMode === 'game-view' && (
-				<>
-					<button
-						className="btn btn-secondary position-absolute top-0 start-0 m-3"
-						onClick={handleBackToGalaxyMap}
-					>
-						← Back to Galaxy Map
-					</button>
-				</>
+				<NavButton onClick={handleBackToGalaxyMap}>
+					← Back to Galaxy Map
+				</NavButton>
 			)}
 
 			{destinyStatus && viewMode === 'game-view' && (
 				<DestinyStatusBar status={destinyStatus} />
 			)}
+
 		</div>
 	);
 };
