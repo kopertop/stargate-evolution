@@ -37,7 +37,9 @@ export class Game {
 		this.setupInput();
 		this.resizeToWindow();
 		window.addEventListener('resize', () => this.resizeToWindow());
-		this.app.ticker.add(() => this.update());
+		if (this.app.ticker) {
+			this.app.ticker.add(() => this.update());
+		}
 		this.setupLegendPopover();
 		this.setupMapZoomControls();
 	}
@@ -62,10 +64,14 @@ export class Game {
 	}
 
 	private resizeToWindow() {
-		this.app.renderer.resize(window.innerWidth, window.innerHeight);
+		if (this.app && this.app.renderer) {
+			this.app.renderer.resize(window.innerWidth, window.innerHeight);
+		}
 	}
 
 	private update() {
+		if (!this.app || !this.app.screen) return;
+
 		let dx = 0, dy = 0;
 		if (this.keys['arrowup'] || this.keys['w']) dy -= 1;
 		if (this.keys['arrowdown'] || this.keys['s']) dy += 1;

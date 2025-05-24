@@ -6,6 +6,7 @@ import type { DestinyStatus } from '@stargate/common/types/destiny';
 import { validateOrRefreshSession } from '../auth/session';
 import { DestinyStatusBar } from '../components/destiny-status-bar';
 import { GalaxyMap } from '../components/galaxy-map';
+import { GalaxyTravelModal } from '../components/galaxy-travel-modal';
 import { Game } from '../game';
 import { MapPopover } from '../map-popover';
 import { Toast } from '../toast';
@@ -33,16 +34,39 @@ function parseDestinyStatus(rawStatus: any): DestinyStatus {
 	};
 
 	return {
-		...rawStatus,
+		// Map database fields to TypeScript interface fields
+		id: rawStatus.id,
+		name: rawStatus.name,
+		power: rawStatus.power,
+		maxPower: rawStatus.maxPower || rawStatus.max_power, // Handle both camelCase and snake_case
+		shields: rawStatus.shields,
+		maxShields: rawStatus.maxShields || rawStatus.max_shields,
+		hull: rawStatus.hull,
+		maxHull: rawStatus.maxHull || rawStatus.max_hull,
+		raceId: rawStatus.raceId || rawStatus.race_id,
+		crew: parseJson(rawStatus.crew, []),
+		location: parseJson(rawStatus.location, {}),
+		stargate: rawStatus.stargate || rawStatus.stargate_id,
 		shield: parseJson(rawStatus.shield, { strength: 0, max: 500, coverage: 0 }),
 		inventory: parseJson(rawStatus.inventory, {}),
-		crewStatus: parseJson(rawStatus.crewStatus, { onboard: 0, capacity: 100, manifest: [] }),
+		unlockedRooms: parseJson(rawStatus.unlockedRooms || rawStatus.unlocked_rooms, []),
+		crewStatus: parseJson(rawStatus.crewStatus || rawStatus.crew_status, { onboard: 0, capacity: 100, manifest: [] }),
 		atmosphere: parseJson(rawStatus.atmosphere, { co2: 0, o2: 21, co2Scrubbers: 0, o2Scrubbers: 0 }),
 		weapons: parseJson(rawStatus.weapons, { mainGun: false, turrets: { total: 0, working: 0 } }),
 		shuttles: parseJson(rawStatus.shuttles, { total: 0, working: 0, damaged: 0 }),
 		rooms: parseJson(rawStatus.rooms, []),
 		notes: parseJson(rawStatus.notes, []),
 	};
+}
+
+// Calculate distance between two points
+function calculateDistance(pos1: { x: number; y: number }, pos2: { x: number; y: number }): number {
+	return Math.sqrt((pos1.x - pos2.x) ** 2 + (pos1.y - pos2.y) ** 2);
+}
+
+// Calculate travel cost based on distance
+function calculateTravelCost(distance: number): number {
+	return Math.ceil(distance / 10); // 1 power per 10 distance units
 }
 
 export const GamePage: React.FC = () => {
@@ -54,8 +78,14 @@ export const GamePage: React.FC = () => {
 	const [gameData, setGameData] = useState<any>(null);
 	const [galaxies, setGalaxies] = useState<Galaxy[]>([]);
 	const [isLoading, setIsLoading] = useState(true);
+	const [currentGalaxyId, setCurrentGalaxyId] = useState<string | null>(null);
+	const [showTravelModal, setShowTravelModal] = useState(false);
+	const [selectedGalaxy, setSelectedGalaxy] = useState<Galaxy | null>(null);
 	const navigate = useNavigate();
 	const params = useParams();
+
+	// Calculate maximum travel range based on power (can be adjusted for game balance)
+	const maxTravelRange = destinyStatus ? Math.floor(destinyStatus.power / 2) : 400;
 
 	useEffect(() => {
 		const initPIXI = async () => {
@@ -134,10 +164,24 @@ export const GamePage: React.FC = () => {
 
 			// Parse destiny status
 			const rawDestinyStatus = loadedGameData.destiny_status?.[0];
+			console.log('Raw destiny status from DB:', rawDestinyStatus);
 			if (rawDestinyStatus) {
+				const rawTyped = rawDestinyStatus as any;
 				const parsedDestinyStatus = parseDestinyStatus(rawDestinyStatus);
 				console.log('Parsed destiny status:', parsedDestinyStatus);
+				console.log('Power values - raw:', rawTyped.power, rawTyped.maxPower);
+				console.log('Power values - parsed:', parsedDestinyStatus.power, parsedDestinyStatus.maxPower);
 				setDestinyStatus(parsedDestinyStatus);
+
+				// Find current galaxy based on ship location
+				if (parsedDestinyStatus.location?.systemId) {
+					const systemId = parsedDestinyStatus.location.systemId;
+					const currentSystem = loadedGameData.star_systems?.find((sys: any) => sys.id === systemId) as any;
+					if (currentSystem && currentSystem.galaxyId) {
+						setCurrentGalaxyId(currentSystem.galaxyId);
+						console.log('Ship is currently in galaxy:', currentSystem.galaxyId);
+					}
+				}
 			}
 
 		} catch (err: any) {
@@ -149,8 +193,45 @@ export const GamePage: React.FC = () => {
 
 	const handleGalaxySelect = (galaxy: Galaxy) => {
 		console.log('Selected galaxy:', galaxy);
-		Toast.show(`Exploring ${galaxy.name}...`, 2000);
 
+		// If it's the current galaxy, go directly to game view
+		if (galaxy.id === currentGalaxyId) {
+			Toast.show(`Exploring ${galaxy.name}...`, 2000);
+			switchToGameView(galaxy);
+			return;
+		}
+
+		// Otherwise, show travel confirmation modal
+		setSelectedGalaxy(galaxy);
+		setShowTravelModal(true);
+	};
+
+	const handleConfirmTravel = () => {
+		if (!selectedGalaxy || !destinyStatus) return;
+
+		const currentGalaxy = galaxies.find(g => g.id === currentGalaxyId);
+		if (!currentGalaxy) return;
+
+		const distance = calculateDistance(currentGalaxy.position, selectedGalaxy.position);
+		const travelCost = calculateTravelCost(distance);
+
+		// Update power and current galaxy
+		const updatedStatus = {
+			...destinyStatus,
+			power: destinyStatus.power - travelCost
+		};
+		setDestinyStatus(updatedStatus);
+		setCurrentGalaxyId(selectedGalaxy.id);
+
+		Toast.show(`Traveled to ${selectedGalaxy.name}! Used ${travelCost} power.`, 3000);
+		setShowTravelModal(false);
+		setSelectedGalaxy(null);
+
+		// Switch to game view
+		switchToGameView(selectedGalaxy);
+	};
+
+	const switchToGameView = (galaxy: Galaxy) => {
 		// Switch to game view
 		setViewMode('game-view');
 
@@ -194,6 +275,7 @@ export const GamePage: React.FC = () => {
 		setGameData(null);
 		setGalaxies([]);
 		setDestinyStatus(null);
+		setCurrentGalaxyId(null);
 		if (appRef.current?.canvas) {
 			appRef.current.canvas.style.display = 'none';
 		}
@@ -212,6 +294,105 @@ export const GamePage: React.FC = () => {
 			handleStartGame(params.gameId);
 		}
 	}, [params.gameId]);
+
+	// Debug function for console access
+	useEffect(() => {
+		(window as any).debugShipStats = () => {
+			console.group('🚀 Destiny Ship Debug Info');
+
+			if (!destinyStatus) {
+				console.warn('No destiny status available');
+				console.groupEnd();
+				return;
+			}
+
+			console.log('Raw Destiny Status:', destinyStatus);
+
+			console.group('⚡ Power & Systems');
+			console.log(`Power: ${destinyStatus.power}/${destinyStatus.maxPower}`);
+			console.log(`Hull: ${destinyStatus.hull}/${destinyStatus.maxHull}`);
+			console.log(`Shields: ${destinyStatus.shields}/${destinyStatus.maxShields}`);
+			console.groupEnd();
+
+			console.group('🛡️ Shield Details');
+			console.log('Shield Object:', destinyStatus.shield);
+			console.log(`Strength: ${destinyStatus.shield?.strength}/${destinyStatus.shield?.max}`);
+			console.log(`Coverage: ${destinyStatus.shield?.coverage}%`);
+			console.groupEnd();
+
+			console.group('👨‍🚀 Crew & Life Support');
+			console.log('Crew Status:', destinyStatus.crewStatus);
+			console.log('Atmosphere:', destinyStatus.atmosphere);
+			console.groupEnd();
+
+			console.group('📍 Location & Navigation');
+			console.log('Raw Location:', destinyStatus.location);
+			console.log(`Current Galaxy ID: ${currentGalaxyId}`);
+			console.log(`Max Travel Range: ${maxTravelRange} light-years`);
+
+			if (currentGalaxyId) {
+				const currentGalaxy = galaxies.find(g => g.id === currentGalaxyId);
+				console.log('Current Galaxy:', currentGalaxy);
+			}
+			console.groupEnd();
+
+			console.group('🔫 Weapons & Equipment');
+			console.log('Weapons:', destinyStatus.weapons);
+			console.log('Shuttles:', destinyStatus.shuttles);
+			console.log('Inventory:', destinyStatus.inventory);
+			console.groupEnd();
+
+			console.group('🏠 Ship Status');
+			console.log('Unlocked Rooms:', destinyStatus.unlockedRooms);
+			console.log('Rooms:', destinyStatus.rooms);
+			console.log('Notes:', destinyStatus.notes);
+			console.groupEnd();
+
+			console.group('🌌 Galaxy Data');
+			console.log(`Total Galaxies: ${galaxies.length}`);
+			console.log('All Galaxies:', galaxies);
+			console.log('Raw Game Data:', gameData);
+			console.groupEnd();
+
+			console.groupEnd();
+
+			return {
+				destinyStatus,
+				currentGalaxyId,
+				maxTravelRange,
+				galaxies,
+				gameData,
+				powerPercentage: Math.round((destinyStatus.power / destinyStatus.maxPower) * 100),
+				hullPercentage: Math.round((destinyStatus.hull / destinyStatus.maxHull) * 100),
+				shieldPercentage: Math.round((destinyStatus.shields / destinyStatus.maxShields) * 100)
+			};
+		};
+
+		// Also expose individual components for easier access
+		(window as any).debugGameState = {
+			destinyStatus,
+			currentGalaxyId,
+			maxTravelRange,
+			galaxies,
+			gameData,
+			viewMode
+		};
+
+		console.log('🔧 Debug functions available:');
+		console.log('  debugShipStats() - Display detailed ship information');
+		console.log('  debugGameState - Access to raw game state object');
+
+		// Cleanup function
+		return () => {
+			delete (window as any).debugShipStats;
+			delete (window as any).debugGameState;
+		};
+	}, [destinyStatus, currentGalaxyId, maxTravelRange, galaxies, gameData, viewMode]);
+
+	const currentGalaxy = galaxies.find(g => g.id === currentGalaxyId) || null;
+	const travelDistance = selectedGalaxy && currentGalaxy ?
+		calculateDistance(currentGalaxy.position, selectedGalaxy.position) : 0;
+	const travelCost = calculateTravelCost(travelDistance);
 
 	return (
 		<div style={{
@@ -244,6 +425,9 @@ export const GamePage: React.FC = () => {
 					<GalaxyMap
 						galaxies={galaxies}
 						onGalaxySelect={handleGalaxySelect}
+						currentGalaxyId={currentGalaxyId || undefined}
+						shipPower={destinyStatus?.power || 0}
+						maxTravelRange={maxTravelRange}
 					/>
 				</div>
 			)}
@@ -274,10 +458,24 @@ export const GamePage: React.FC = () => {
 				</NavButton>
 			)}
 
-			{destinyStatus && viewMode === 'game-view' && (
+
+			<GalaxyTravelModal
+				show={showTravelModal}
+				onHide={() => {
+					setShowTravelModal(false);
+					setSelectedGalaxy(null);
+				}}
+				onConfirm={handleConfirmTravel}
+				sourceGalaxy={currentGalaxy}
+				targetGalaxy={selectedGalaxy}
+				travelCost={travelCost}
+				currentPower={destinyStatus?.power || 0}
+				distance={travelDistance}
+			/>
+
+			{destinyStatus && (
 				<DestinyStatusBar status={destinyStatus} />
 			)}
-
 		</div>
 	);
 };

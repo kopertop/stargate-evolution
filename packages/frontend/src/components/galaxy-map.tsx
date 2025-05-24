@@ -10,9 +10,28 @@ interface Galaxy {
 interface GalaxyMapProps {
 	galaxies: Galaxy[];
 	onGalaxySelect?: (galaxy: Galaxy) => void;
+	currentGalaxyId?: string;
+	shipPower?: number;
+	maxTravelRange?: number;
 }
 
-export const GalaxyMap: React.FC<GalaxyMapProps> = ({ galaxies, onGalaxySelect }) => {
+// Calculate distance between two points
+function calculateDistance(pos1: { x: number; y: number }, pos2: { x: number; y: number }): number {
+	return Math.sqrt((pos1.x - pos2.x) ** 2 + (pos1.y - pos2.y) ** 2);
+}
+
+// Calculate travel cost based on distance (can be tweaked for game balance)
+function calculateTravelCost(distance: number): number {
+	return Math.ceil(distance / 10); // 1 power per 10 distance units
+}
+
+export const GalaxyMap: React.FC<GalaxyMapProps> = ({
+	galaxies,
+	onGalaxySelect,
+	currentGalaxyId,
+	shipPower = 0,
+	maxTravelRange = 500 // Default travel range
+}) => {
 	const canvasRef = useRef<HTMLCanvasElement>(null);
 
 	useEffect(() => {
@@ -45,6 +64,9 @@ export const GalaxyMap: React.FC<GalaxyMapProps> = ({ galaxies, onGalaxySelect }
 
 		if (galaxies.length === 0) return;
 
+		// Find current galaxy
+		const currentGalaxy = galaxies.find(g => g.id === currentGalaxyId);
+
 		// Calculate bounds of all galaxies
 		const minX = Math.min(...galaxies.map(g => g.position.x));
 		const maxX = Math.max(...galaxies.map(g => g.position.x));
@@ -65,30 +87,81 @@ export const GalaxyMap: React.FC<GalaxyMapProps> = ({ galaxies, onGalaxySelect }
 		const offsetX = (rect.width - totalWidth * scale) / 2 - (minX - padding) * scale;
 		const offsetY = (rect.height - totalHeight * scale) / 2 - (minY - padding) * scale;
 
+		// Draw travel range circle if we have a current galaxy
+		if (currentGalaxy) {
+			const currentX = currentGalaxy.position.x * scale + offsetX;
+			const currentY = currentGalaxy.position.y * scale + offsetY;
+			const rangeRadius = maxTravelRange * scale;
+
+			// Draw travel range circle
+			ctx.strokeStyle = 'rgba(100, 255, 100, 0.3)';
+			ctx.lineWidth = 2;
+			ctx.setLineDash([5, 5]);
+			ctx.beginPath();
+			ctx.arc(currentX, currentY, rangeRadius, 0, Math.PI * 2);
+			ctx.stroke();
+			ctx.setLineDash([]);
+		}
+
 		// Draw galaxies
-		galaxies.forEach((galaxy, index) => {
+		for (const galaxy of galaxies) {
 			const x = galaxy.position.x * scale + offsetX;
 			const y = galaxy.position.y * scale + offsetY;
 
+			// Calculate if this galaxy is within travel range
+			const distance = currentGalaxy ? calculateDistance(currentGalaxy.position, galaxy.position) : 0;
+			const travelCost = calculateTravelCost(distance);
+			const isCurrentGalaxy = galaxy.id === currentGalaxyId;
+			const isInRange = isCurrentGalaxy || distance <= maxTravelRange;
+			const canAffordTravel = isCurrentGalaxy || travelCost <= shipPower;
+			const isClickable = isInRange && canAffordTravel;
+
+			// Determine galaxy appearance
+			let baseAlpha = 1;
+			let glowColor = 'rgba(100, 150, 255, 0.8)';
+
+			if (isCurrentGalaxy) {
+				// Current galaxy - bright green glow
+				glowColor = 'rgba(100, 255, 100, 0.9)';
+			} else if (!isInRange || !canAffordTravel) {
+				// Out of range or can't afford - grey and dim
+				baseAlpha = 0.3;
+				glowColor = 'rgba(150, 150, 150, 0.3)';
+			}
+
 			// Galaxy glow effect
 			const gradient = ctx.createRadialGradient(x, y, 0, x, y, 40);
-			gradient.addColorStop(0, 'rgba(100, 150, 255, 0.8)');
-			gradient.addColorStop(0.5, 'rgba(100, 150, 255, 0.4)');
-			gradient.addColorStop(1, 'rgba(100, 150, 255, 0.1)');
+			gradient.addColorStop(0, glowColor);
+			gradient.addColorStop(0.5, glowColor.replace(/0\.\d+/, '0.4'));
+			gradient.addColorStop(1, glowColor.replace(/0\.\d+/, '0.1'));
 
+			ctx.globalAlpha = baseAlpha;
 			ctx.fillStyle = gradient;
 			ctx.beginPath();
 			ctx.arc(x, y, 40, 0, Math.PI * 2);
 			ctx.fill();
 
 			// Galaxy core
-			ctx.fillStyle = '#ffffff';
+			if (isCurrentGalaxy) {
+				ctx.fillStyle = '#00ff00'; // Green for current galaxy
+			} else if (!isClickable) {
+				ctx.fillStyle = '#888888'; // Grey for unreachable
+			} else {
+				ctx.fillStyle = '#ffffff'; // White for reachable
+			}
 			ctx.beginPath();
 			ctx.arc(x, y, 8, 0, Math.PI * 2);
 			ctx.fill();
 
 			// Galaxy spiral arms (simple representation)
-			ctx.strokeStyle = 'rgba(150, 180, 255, 0.6)';
+			ctx.globalAlpha = baseAlpha * 0.6;
+			if (isCurrentGalaxy) {
+				ctx.strokeStyle = 'rgba(100, 255, 100, 0.8)';
+			} else if (!isClickable) {
+				ctx.strokeStyle = 'rgba(150, 150, 150, 0.4)';
+			} else {
+				ctx.strokeStyle = 'rgba(150, 180, 255, 0.6)';
+			}
 			ctx.lineWidth = 2;
 			for (let i = 0; i < 3; i++) {
 				ctx.beginPath();
@@ -106,19 +179,51 @@ export const GalaxyMap: React.FC<GalaxyMapProps> = ({ galaxies, onGalaxySelect }
 				ctx.stroke();
 			}
 
+			ctx.globalAlpha = baseAlpha;
+
 			// Galaxy name
-			ctx.fillStyle = '#ffffff';
+			if (isCurrentGalaxy) {
+				ctx.fillStyle = '#00ff00';
+			} else if (!isClickable) {
+				ctx.fillStyle = '#888888';
+			} else {
+				ctx.fillStyle = '#ffffff';
+			}
 			ctx.font = '14px Arial';
 			ctx.textAlign = 'center';
 			ctx.fillText(galaxy.name, x, y + 60);
 
-			// System count
-			ctx.fillStyle = '#aaaaaa';
-			ctx.font = '12px Arial';
-			ctx.fillText(`${galaxy.starSystems.length} systems`, x, y + 75);
-		});
+			// System count and travel info
+			let infoText = `${galaxy.starSystems.length} systems`;
+			if (!isCurrentGalaxy && distance > 0) {
+				infoText += ` • ${distance.toFixed(0)} ly • ${travelCost} power`;
+			}
 
-	}, [galaxies]);
+			if (isCurrentGalaxy) {
+				ctx.fillStyle = '#88ff88';
+				infoText = `★ CURRENT LOCATION • ${infoText}`;
+			} else if (!isClickable) {
+				ctx.fillStyle = '#666666';
+				if (!isInRange) infoText += ' • OUT OF RANGE';
+				else if (!canAffordTravel) infoText += ' • INSUFFICIENT POWER';
+			} else {
+				ctx.fillStyle = '#aaaaaa';
+			}
+
+			ctx.font = '12px Arial';
+			ctx.fillText(infoText, x, y + 75);
+
+			// Ship indicator for current galaxy
+			if (isCurrentGalaxy) {
+				ctx.fillStyle = '#00ff00';
+				ctx.font = '20px Arial';
+				ctx.fillText('🚀', x - 10, y - 50);
+			}
+		}
+
+		ctx.globalAlpha = 1;
+
+	}, [galaxies, currentGalaxyId, shipPower, maxTravelRange]);
 
 	const handleCanvasClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
 		if (!onGalaxySelect) return;
@@ -132,6 +237,8 @@ export const GalaxyMap: React.FC<GalaxyMapProps> = ({ galaxies, onGalaxySelect }
 
 		// Calculate galaxy positions (same logic as drawing)
 		if (galaxies.length === 0) return;
+
+		const currentGalaxy = galaxies.find(g => g.id === currentGalaxyId);
 
 		const minX = Math.min(...galaxies.map(g => g.position.x));
 		const maxX = Math.max(...galaxies.map(g => g.position.x));
@@ -156,7 +263,16 @@ export const GalaxyMap: React.FC<GalaxyMapProps> = ({ galaxies, onGalaxySelect }
 			const distance = Math.sqrt((x - galaxyX) ** 2 + (y - galaxyY) ** 2);
 
 			if (distance <= 40) { // Within galaxy radius
-				onGalaxySelect(galaxy);
+				// Check if galaxy is reachable
+				const travelDistance = currentGalaxy ? calculateDistance(currentGalaxy.position, galaxy.position) : 0;
+				const travelCost = calculateTravelCost(travelDistance);
+				const isCurrentGalaxy = galaxy.id === currentGalaxyId;
+				const isInRange = isCurrentGalaxy || travelDistance <= maxTravelRange;
+				const canAffordTravel = isCurrentGalaxy || travelCost <= shipPower;
+
+				if (isInRange && canAffordTravel) {
+					onGalaxySelect(galaxy);
+				}
 				break;
 			}
 		}
@@ -173,8 +289,10 @@ export const GalaxyMap: React.FC<GalaxyMapProps> = ({ galaxies, onGalaxySelect }
 			<div className="position-absolute top-0 start-0 p-3" style={{ marginTop: '60px' }}>
 				<h4 className="text-white mb-2">Galaxy Map</h4>
 				<p className="text-light small mb-1">Discovered Galaxies: {galaxies.length}</p>
+				<p className="text-success small mb-1">Current Power: {shipPower}</p>
+				<p className="text-info small mb-1">Max Range: {maxTravelRange} light-years</p>
 				{onGalaxySelect && (
-					<p className="text-light small mb-0">Click a galaxy to explore</p>
+					<p className="text-light small mb-0">Click a galaxy within range to travel</p>
 				)}
 			</div>
 		</div>
