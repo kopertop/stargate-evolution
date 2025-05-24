@@ -23,6 +23,9 @@
       ],
       "@stargate/db/*": [
         "packages/db/*"
+      ],
+      "@stargate/db": [
+        "packages/db/src/index"
       ]
     }
   }

@@ -5,7 +5,7 @@ import { GameSummaryListSchema } from '@stargate/common/types/game';
 
 import { listGames, ApiError } from './api-client';
 import { getSession } from './auth/session';
-// TODO: Import GameService from WatermelonDB once frontend conversion to React is complete
+import { gameService } from '@stargate/db';
 
 export type GameSummary = typeof GameSummaryListSchema._type[number];
 
@@ -87,16 +87,13 @@ export class GameMenu {
 		if (loadBtn) loadBtn.addEventListener('click', () => this.showLoadDialog());
 	}
 
-	static async createGame() {
-		// TODO: Use WatermelonDB GameService to create games locally once React conversion is complete
-		alert('Game creation will be available after converting frontend to React + WatermelonDB');
-		// const session = getSession();
-		// if (!session || !session.user) return;
-		// const gameService = new GameService(database);
-		// const gameId = await gameService.createNewGame(session.user.id);
-		// this.hide();
-		// this.onStartGame(gameId);
-	}
+static async createGame() {
+const session = getSession();
+if (!session || !session.user) return;
+const gameId = await gameService.createNewGame(session.user.id);
+this.hide();
+this.onStartGame(gameId);
+}
 
 	static showLoadDialog() {
 		let html = '<h2>Load Game</h2><ul class=\'game-list\'>';

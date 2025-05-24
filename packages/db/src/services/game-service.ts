@@ -1,4 +1,4 @@
-import { Database } from '@nozbe/watermelondb';
+import { Database, Q } from '@nozbe/watermelondb';
 import { ulid } from 'ulid';
 
 import Galaxy from '../models/galaxy';
@@ -10,7 +10,7 @@ export class GameService {
 	/**
 	 * Create a new game with all initial data
 	 */
-	async createNewGame(userId: string): Promise<string> {
+async createNewGame(userId: string): Promise<string> {
 		return await this.database.write(async () => {
 			const gameId = ulid();
 			const now = Date.now();
@@ -316,7 +316,45 @@ export class GameService {
 				(record._raw as any).created_at = now;
 			});
 
-			return gameId;
-		});
-	}
+return gameId;
+});
 }
+
+/**
+ * List all games for a user
+ */
+async listGames(userId: string) {
+return await this.database
+.get<Game>('games')
+.query(Q.where('user_id', userId))
+.fetch();
+}
+
+/**
+ * Load game data with all related tables
+ */
+async getGameData(gameId: string) {
+const tables = [
+'galaxies',
+'star_systems',
+'stars',
+'planets',
+'stargates',
+'chevrons',
+'technology',
+'races',
+'ships',
+'destiny_status',
+'people',
+];
+const result: Record<string, any[]> = {};
+for (const table of tables) {
+result[table] = await this.database
+.get<any>(table)
+.query(Q.where('game_id', gameId))
+.fetch();
+}
+return result;
+}
+}
+
