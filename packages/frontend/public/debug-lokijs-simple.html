@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Simple LokiJS WatermelonDB Test</title>
+	<style>
+		body {
+			font-family: 'Courier New', monospace;
+			padding: 20px;
+			background: #1a1a1a;
+			color: #00ff00;
+		}
+		.result {
+			background: #111;
+			padding: 8px;
+			margin: 5px 0;
+			border-left: 3px solid #333;
+			font-size: 12px;
+		}
+		.error { border-left-color: #ff4444; color: #ff8888; }
+		.success { border-left-color: #44ff44; color: #88ff88; }
+		.info { border-left-color: #4444ff; color: #8888ff; }
+		button {
+			background: #333;
+			color: #00ff00;
+			border: 1px solid #666;
+			padding: 10px 20px;
+			cursor: pointer;
+			margin: 5px;
+		}
+		.json-output {
+			white-space: pre-wrap;
+			font-size: 11px;
+			background: #000;
+			padding: 5px;
+		}
+	</style>
+	<script src="https://unpkg.com/lokijs@1.5.12/build/lokijs.min.js"></script>
+</head>
+<body>
+	<h1>🔬 Simple LokiJS WatermelonDB Test</h1>
+
+	<button onclick="testLokiJS()">Test LokiJS</button>
+	<button onclick="testWatermelonDB()">Test WatermelonDB</button>
+	<button onclick="clearOutput()">Clear</button>
+
+	<div id="output"></div>
+
+	<script>
+		function log(message, type = 'info') {
+			const output = document.getElementById('output');
+			const div = document.createElement('div');
+			div.className = `result ${type}`;
+
+			if (typeof message === 'object') {
+				const jsonDiv = document.createElement('div');
+				jsonDiv.className = 'json-output';
+				jsonDiv.textContent = JSON.stringify(message, null, 2);
+				div.appendChild(jsonDiv);
+			} else {
+				div.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+			}
+
+			output.appendChild(div);
+			console.log(message);
+
+			div.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+		}
+
+		function clearOutput() {
+			document.getElementById('output').innerHTML = '';
+		}
+
+		function testLokiJS() {
+			log('🧪 Starting LokiJS Test...', 'info');
+
+			try {
+				log(`LokiJS global available: ${typeof window.loki}`, 'info');
+				log(`Loki constructor available: ${typeof window.Loki}`, 'info');
+
+				// Try to create database - use correct constructor
+				const LokiConstructor = window.Loki || window.loki;
+				const db = new LokiConstructor('test-db');
+				log('✅ LokiJS database created', 'success');
+
+				// Add collection
+				const games = db.addCollection('games');
+				log('✅ Collection "games" added', 'success');
+
+				// Insert document
+				const game = games.insert({ name: 'Test Game', created: Date.now() });
+				log('✅ Inserted game:', 'success');
+				log(game, 'info');
+
+				// Query documents
+				const allGames = games.find();
+				log(`✅ Found ${allGames.length} games`, 'success');
+
+				log('🎉 LokiJS test PASSED!', 'success');
+
+			} catch (error) {
+				log(`❌ LokiJS test FAILED: ${error.message}`, 'error');
+				log(error.stack, 'error');
+			}
+		}
+
+		async function testWatermelonDB() {
+			log('🧪 Starting WatermelonDB Test...', 'info');
+
+			try {
+				// Import WatermelonDB modules - try different CDN
+				log('Importing WatermelonDB...', 'info');
+
+				let watermelonModule;
+				try {
+					watermelonModule = await import('https://unpkg.com/@nozbe/watermelondb@0.28.0/dist/index.js');
+				} catch (e) {
+					log(`First import failed: ${e.message}`, 'info');
+					try {
+						watermelonModule = await import('https://cdn.jsdelivr.net/npm/@nozbe/watermelondb@0.28.0/dist/index.js');
+					} catch (e2) {
+						log(`Second import failed: ${e2.message}`, 'info');
+						throw new Error('Both CDN imports failed');
+					}
+				}
+
+				log('✅ WatermelonDB imported', 'success');
+				log(`Available exports: ${Object.keys(watermelonModule).join(', ')}`, 'info');
+
+				const { Database, Model, appSchema, tableSchema } = watermelonModule;
+				log('✅ Core modules extracted', 'success');
+
+				// Check for decorators
+				const decorators = ['text', 'date', 'readonly', 'field'];
+				decorators.forEach(dec => {
+					if (watermelonModule[dec]) {
+						log(`✅ Decorator ${dec} available`, 'success');
+					} else {
+						log(`❌ Decorator ${dec} NOT available`, 'error');
+					}
+				});
+
+				// Try to import LokiJS adapter
+				log('Importing LokiJS adapter...', 'info');
+				let LokiJSAdapter;
+				try {
+					LokiJSAdapter = (await import('https://unpkg.com/@nozbe/watermelondb@0.28.0/adapters/lokijs/index.js')).default;
+				} catch (e) {
+					log(`First adapter import failed: ${e.message}`, 'info');
+					try {
+						LokiJSAdapter = (await import('https://cdn.jsdelivr.net/npm/@nozbe/watermelondb@0.28.0/adapters/lokijs/index.js')).default;
+					} catch (e2) {
+						log(`Second adapter import failed: ${e2.message}`, 'info');
+						throw new Error('Both adapter CDN imports failed');
+					}
+				}
+				log('✅ LokiJS adapter imported', 'success');
+
+				// Create schema
+				log('Creating schema...', 'info');
+				const schema = appSchema({
+					version: 1,
+					tables: [
+						tableSchema({
+							name: 'games',
+							columns: [
+								{ name: 'name', type: 'string' },
+								{ name: 'created_at', type: 'number' },
+							],
+						}),
+					],
+				});
+				log('✅ Schema created', 'success');
+
+				// Create adapter
+				log('Creating adapter...', 'info');
+				const adapter = new LokiJSAdapter({
+					schema,
+					dbName: 'test_watermelon',
+					useWebWorker: false,
+					useIncrementalIndexedDB: true,
+				});
+				log('✅ Adapter created', 'success');
+
+				// Define model
+				log('Defining model...', 'info');
+				class Game extends Model {
+					static table = 'games'
+				}
+				log('✅ Model defined', 'success');
+
+				// Try to apply decorators if available
+				if (watermelonModule.text) {
+					log('Applying text decorator...', 'info');
+					try {
+						const textDecorator = watermelonModule.text('name');
+						Object.defineProperty(Game.prototype, 'name', {
+							get: textDecorator.get || function() { return this._raw.name; },
+							set: textDecorator.set || function(value) { this._raw.name = value; },
+							configurable: true
+						});
+						log('✅ Text decorator applied', 'success');
+					} catch (e) {
+						log(`❌ Failed to apply text decorator: ${e.message}`, 'error');
+					}
+				}
+
+				// Create database
+				log('Creating database...', 'info');
+				const database = new Database({
+					adapter,
+					modelClasses: [Game],
+				});
+				log('✅ Database created', 'success');
+
+				// Test record creation
+				log('Testing record creation...', 'info');
+				await database.write(async () => {
+					const game = await database.get('games').create((gameRecord) => {
+						log('📝 Inside create callback', 'info');
+						log('Before assignment:', 'info');
+						log(gameRecord._raw, 'info');
+
+						gameRecord.name = 'Test WatermelonDB Game';
+
+						log('After assignment:', 'info');
+						log(`gameRecord.name: ${gameRecord.name}`, 'info');
+						log(gameRecord._raw, 'info');
+					});
+
+					log('Final result:', 'info');
+					log(`game.name: ${game.name}`, 'info');
+					log(game._raw, 'info');
+				});
+
+				log('🎉 WatermelonDB test PASSED!', 'success');
+
+			} catch (error) {
+				log(`❌ WatermelonDB test FAILED: ${error.message}`, 'error');
+				log(error.stack, 'error');
+			}
+		}
+	</script>
+</body>
+</html>

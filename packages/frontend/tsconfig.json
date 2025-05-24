@@ -1,8 +1,11 @@
 {
 	"extends": "../../tsconfig.json",
-"compilerOptions": {
-"jsx": "preserve",
-"experimentalDecorators": true
-},
+	"compilerOptions": {
+		"jsx": "react-jsx",
+		"experimentalDecorators": true,
+		"allowSyntheticDefaultImports": true,
+		"esModuleInterop": true,
+		"lib": ["DOM", "DOM.Iterable", "ES6"]
+	},
 	"include": ["src"]
 }

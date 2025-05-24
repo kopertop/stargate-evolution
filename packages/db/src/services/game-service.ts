@@ -16,8 +16,6 @@ export class GameService {
 		const game = await this.database.write(async () => {
 			return await this.database.get<Game>('games').create((gameRecord) => {
 				gameRecord.name = 'Milky Way';
-				gameRecord.createdAt = new Date();
-				gameRecord.updatedAt = new Date();
 			});
 		});
 		await sleep(1000);

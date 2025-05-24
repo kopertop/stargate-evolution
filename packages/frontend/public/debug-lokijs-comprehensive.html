@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Comprehensive LokiJS WatermelonDB Diagnostic</title>
+	<style>
+		body {
+			font-family: 'Courier New', monospace;
+			padding: 20px;
+			background: #1a1a1a;
+			color: #00ff00;
+		}
+		.container { max-width: 1200px; margin: 0 auto; }
+		.test-section {
+			border: 1px solid #333;
+			margin: 20px 0;
+			padding: 15px;
+			background: #0a0a0a;
+		}
+		.test-title {
+			color: #00ffff;
+			font-size: 18px;
+			font-weight: bold;
+			margin-bottom: 10px;
+		}
+		.result {
+			background: #111;
+			padding: 8px;
+			margin: 5px 0;
+			border-left: 3px solid #333;
+			font-size: 12px;
+		}
+		.error { border-left-color: #ff4444; color: #ff8888; }
+		.success { border-left-color: #44ff44; color: #88ff88; }
+		.warning { border-left-color: #ffff44; color: #ffff88; }
+		.info { border-left-color: #4444ff; color: #8888ff; }
+		button {
+			background: #333;
+			color: #00ff00;
+			border: 1px solid #666;
+			padding: 10px 20px;
+			cursor: pointer;
+			margin: 5px;
+		}
+		button:hover { background: #444; }
+		button:disabled { opacity: 0.5; cursor: not-allowed; }
+		.json-output {
+			white-space: pre-wrap;
+			font-size: 11px;
+			max-height: 200px;
+			overflow-y: auto;
+			background: #000;
+			padding: 5px;
+		}
+	</style>
+</head>
+<body>
+	<div class="container">
+		<h1>🔬 Comprehensive LokiJS + WatermelonDB Diagnostic</h1>
+
+		<div class="test-section">
+			<div class="test-title">Test Controls</div>
+			<button onclick="runTest1()">1. Test Raw LokiJS</button>
+			<button onclick="runTest2()">2. Test LokiJS with IndexedDB</button>
+			<button onclick="runTest3()">3. Test WatermelonDB Schema</button>
+			<button onclick="runTest4()">4. Test WatermelonDB Model Creation</button>
+			<button onclick="runTest5()">5. Test Full Integration</button>
+			<button onclick="runAllTests()">🚀 Run All Tests</button>
+			<button onclick="clearOutput()">Clear Output</button>
+		</div>
+
+		<div id="test1" class="test-section">
+			<div class="test-title">Test 1: Raw LokiJS (Baseline)</div>
+			<div id="test1-output"></div>
+		</div>
+
+		<div id="test2" class="test-section">
+			<div class="test-title">Test 2: LokiJS + IndexedDB Persistence</div>
+			<div id="test2-output"></div>
+		</div>
+
+		<div id="test3" class="test-section">
+			<div class="test-title">Test 3: WatermelonDB Schema Validation</div>
+			<div id="test3-output"></div>
+		</div>
+
+		<div id="test4" class="test-section">
+			<div class="test-title">Test 4: WatermelonDB Model Creation</div>
+			<div id="test4-output"></div>
+		</div>
+
+		<div id="test5" class="test-section">
+			<div class="test-title">Test 5: Full Integration Test</div>
+			<div id="test5-output"></div>
+		</div>
+	</div>
+
+	<script>
+		function log(testId, message, type = 'info') {
+			const output = document.getElementById(`${testId}-output`);
+			const div = document.createElement('div');
+			div.className = `result ${type}`;
+
+			if (typeof message === 'object') {
+				const jsonDiv = document.createElement('div');
+				jsonDiv.className = 'json-output';
+				jsonDiv.textContent = JSON.stringify(message, null, 2);
+				div.appendChild(jsonDiv);
+			} else {
+				div.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+			}
+
+			output.appendChild(div);
+			console.log(`[${testId}]`, message);
+
+			// Auto-scroll to bottom
+			div.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+		}
+
+		function clearOutput() {
+			['test1', 'test2', 'test3', 'test4', 'test5'].forEach(testId => {
+				document.getElementById(`${testId}-output`).innerHTML = '';
+			});
+		}
+
+		// Test 1: Raw LokiJS (proves basic LokiJS functionality)
+		async function runTest1() {
+			log('test1', '🧪 Starting Raw LokiJS Test...', 'info');
+
+			try {
+				// Import LokiJS directly - use correct distribution file
+				const lokiModule = await import('https://unpkg.com/lokijs@1.5.12/build/lokijs.min.js');
+				const Loki = lokiModule.default || lokiModule.Loki || window.loki;
+
+				log('test1', '✅ LokiJS imported successfully', 'success');
+				log('test1', `LokiJS available: ${typeof Loki}`, 'info');
+
+				// Create in-memory database
+				const db = new Loki('test-db');
+				log('test1', '✅ LokiJS database created', 'success');
+
+				// Add collection
+				const games = db.addCollection('games');
+				log('test1', '✅ Collection "games" added', 'success');
+
+				// Insert documents
+				const game1 = games.insert({ name: 'Test Game 1', created: Date.now() });
+				const game2 = games.insert({ name: 'Test Game 2', created: Date.now() });
+
+				log('test1', `✅ Inserted game1:`, 'success');
+				log('test1', game1, 'info');
+				log('test1', `✅ Inserted game2:`, 'success');
+				log('test1', game2, 'info');
+
+				// Query documents
+				const allGames = games.find();
+				log('test1', `✅ Found ${allGames.length} games total`, 'success');
+				log('test1', allGames, 'info');
+
+				// Test updates
+				game1.name = 'Updated Test Game 1';
+				games.update(game1);
+				const updatedGame = games.get(game1.$loki);
+				log('test1', `✅ Updated game:`, 'success');
+				log('test1', updatedGame, 'info');
+
+				log('test1', '🎉 Raw LokiJS test PASSED - basic functionality works!', 'success');
+
+			} catch (error) {
+				log('test1', `❌ Raw LokiJS test FAILED: ${error.message}`, 'error');
+				log('test1', error.stack, 'error');
+			}
+		}
+
+		// Test 2: LokiJS with IndexedDB (tests persistence layer)
+		async function runTest2() {
+			log('test2', '🧪 Starting LokiJS + IndexedDB Test...', 'info');
+
+			try {
+				const lokiModule = await import('https://unpkg.com/lokijs@1.5.12/build/lokijs.min.js');
+				const Loki = lokiModule.default || lokiModule.Loki || window.loki;
+
+				// Create database with IndexedDB adapter
+				const idbAdapter = {
+					loadDatabase: function(dbname, callback) {
+						log('test2', `📖 Loading database: ${dbname}`, 'info');
+
+						const request = indexedDB.open('LokiTest', 1);
+						request.onerror = () => callback(new Error('Failed to open IndexedDB'));
+						request.onsuccess = (event) => {
+							const db = event.target.result;
+							const transaction = db.transaction(['data'], 'readonly');
+							const store = transaction.objectStore('data');
+							const getRequest = store.get(dbname);
+
+							getRequest.onsuccess = () => {
+								const result = getRequest.result;
+								log('test2', `📖 Loaded from IndexedDB: ${result ? 'found data' : 'no data'}`, 'info');
+								callback(result ? result.data : null);
+							};
+							getRequest.onerror = () => callback(null);
+						};
+						request.onupgradeneeded = (event) => {
+							const db = event.target.result;
+							if (!db.objectStoreNames.contains('data')) {
+								db.createObjectStore('data');
+								log('test2', '🗄️ Created IndexedDB object store', 'info');
+							}
+						};
+					},
+
+					saveDatabase: function(dbname, dbstring, callback) {
+						log('test2', `💾 Saving database: ${dbname}`, 'info');
+						log('test2', `💾 Data length: ${dbstring.length} characters`, 'info');
+
+						const request = indexedDB.open('LokiTest', 1);
+						request.onsuccess = (event) => {
+							const db = event.target.result;
+							const transaction = db.transaction(['data'], 'readwrite');
+							const store = transaction.objectStore('data');
+							const putRequest = store.put({ data: dbstring }, dbname);
+
+							putRequest.onsuccess = () => {
+								log('test2', '💾 Successfully saved to IndexedDB', 'success');
+								callback();
+							};
+							putRequest.onerror = () => callback(new Error('Failed to save to IndexedDB'));
+						};
+					}
+				};
+
+				const db = new Loki('persistTest', {
+					adapter: idbAdapter,
+					autoload: true,
+					autoloadCallback: function() {
+						log('test2', '🔄 Database autoload completed', 'info');
+						runPersistenceTest();
+					},
+					autosave: true,
+					autosaveInterval: 1000
+				});
+
+				function runPersistenceTest() {
+					try {
+						let games = db.getCollection('games');
+						if (!games) {
+							games = db.addCollection('games');
+							log('test2', '📦 Created new games collection', 'info');
+						} else {
+							log('test2', `📦 Found existing games collection with ${games.count()} items`, 'info');
+						}
+
+						// Add a new game
+						const newGame = games.insert({
+							name: `Persistent Game ${Date.now()}`,
+							created: new Date().toISOString()
+						});
+
+						log('test2', '✅ Inserted new persistent game:', 'success');
+						log('test2', newGame, 'info');
+
+						// List all games
+						const allGames = games.find();
+						log('test2', `📊 Total persistent games: ${allGames.length}`, 'success');
+						log('test2', allGames, 'info');
+
+						// Force save
+						db.saveDatabase();
+						log('test2', '🎉 LokiJS + IndexedDB test PASSED!', 'success');
+
+					} catch (error) {
+						log('test2', `❌ Persistence test FAILED: ${error.message}`, 'error');
+					}
+				}
+
+			} catch (error) {
+				log('test2', `❌ LokiJS + IndexedDB test FAILED: ${error.message}`, 'error');
+				log('test2', error.stack, 'error');
+			}
+		}
+
+		// Test 3: WatermelonDB Schema (tests schema compilation)
+		async function runTest3() {
+			log('test3', '🧪 Starting WatermelonDB Schema Test...', 'info');
+
+			try {
+				// Import WatermelonDB components - fix import paths
+				const { appSchema, tableSchema } = await import('https://unpkg.com/@nozbe/watermelondb@^0.28.0/dist/index.js');
+
+				log('test3', '✅ WatermelonDB Schema modules imported', 'success');
+
+				// Create schema
+				const schema = appSchema({
+					version: 1,
+					tables: [
+						tableSchema({
+							name: 'games',
+							columns: [
+								{ name: 'name', type: 'string' },
+								{ name: 'created_at', type: 'number' },
+								{ name: 'updated_at', type: 'number' },
+							],
+						}),
+					],
+				});
+
+				log('test3', '✅ Schema created successfully', 'success');
+				log('test3', `Schema version: ${schema.version}`, 'info');
+				log('test3', `Tables: ${schema.tables.length}`, 'info');
+
+				// Examine games table
+				const gamesTable = schema.tables.find(t => t.name === 'games');
+				log('test3', 'Games table schema:', 'info');
+				log('test3', {
+					name: gamesTable.name,
+					columns: gamesTable.columns,
+					columnArray: gamesTable.columnArray
+				}, 'info');
+
+				log('test3', '🎉 WatermelonDB Schema test PASSED!', 'success');
+
+			} catch (error) {
+				log('test3', `❌ WatermelonDB Schema test FAILED: ${error.message}`, 'error');
+				log('test3', error.stack, 'error');
+			}
+		}
+
+		// Test 4: WatermelonDB Model Creation (tests model layer)
+		async function runTest4() {
+			log('test4', '🧪 Starting WatermelonDB Model Test...', 'info');
+
+			try {
+				// Import required modules - fix import paths
+				const watermelonModule = await import('https://unpkg.com/@nozbe/watermelondb@^0.28.0/dist/index.js');
+				const { Database, Model, appSchema, tableSchema, text, date, readonly } = watermelonModule;
+				const LokiJSAdapter = (await import('https://unpkg.com/@nozbe/watermelondb@^0.28.0/adapters/lokijs/index.js')).default;
+
+				log('test4', '✅ All WatermelonDB modules imported', 'success');
+
+				// Create schema
+				const schema = appSchema({
+					version: 1,
+					tables: [
+						tableSchema({
+							name: 'games',
+							columns: [
+								{ name: 'name', type: 'string' },
+								{ name: 'created_at', type: 'number' },
+								{ name: 'updated_at', type: 'number' },
+							],
+						}),
+					],
+				});
+
+				// Define model class
+				class Game extends Model {
+					static table = 'games'
+				}
+
+				// Apply decorators manually (since we can't use decorators in browser)
+				Object.defineProperty(Game.prototype, 'name', {
+					get: text('name').get,
+					set: text('name').set,
+					configurable: true
+				});
+				Object.defineProperty(Game.prototype, 'createdAt', {
+					get: readonly(date('created_at')).get,
+					configurable: true
+				});
+				Object.defineProperty(Game.prototype, 'updatedAt', {
+					get: readonly(date('updated_at')).get,
+					configurable: true
+				});
+
+				log('test4', '✅ Model class defined with decorators', 'success');
+
+				// Create adapter
+				const adapter = new LokiJSAdapter({
+					schema,
+					dbName: 'watermelon_test_4',
+					useWebWorker: false,
+					useIncrementalIndexedDB: true,
+				});
+
+				log('test4', '✅ LokiJS adapter created', 'success');
+				log('test4', `Adapter type: ${adapter.constructor.name}`, 'info');
+
+				// Create database
+				const database = new Database({
+					adapter,
+					modelClasses: [Game],
+				});
+
+				log('test4', '✅ WatermelonDB database created', 'success');
+
+				// Test model creation
+				await database.write(async () => {
+					log('test4', '🔄 Starting write transaction...', 'info');
+
+					const game = await database.get('games').create((gameRecord) => {
+						log('test4', '📝 Inside create callback', 'info');
+						log('test4', `Before assignment - _raw:`, 'info');
+						log('test4', gameRecord._raw, 'info');
+
+						gameRecord.name = 'Model Test Game';
+
+						log('test4', `After assignment - name: ${gameRecord.name}`, 'info');
+						log('test4', `After assignment - _raw:`, 'info');
+						log('test4', gameRecord._raw, 'info');
+					});
+
+					log('test4', '🔄 Create callback completed', 'info');
+					log('test4', `Final game.name: ${game.name}`, 'success');
+					log('test4', `Final game._raw:`, 'info');
+					log('test4', game._raw, 'info');
+				});
+
+				log('test4', '🎉 WatermelonDB Model test PASSED!', 'success');
+
+			} catch (error) {
+				log('test4', `❌ WatermelonDB Model test FAILED: ${error.message}`, 'error');
+				log('test4', error.stack, 'error');
+			}
+		}
+
+		// Test 5: Full Integration (comprehensive test)
+		async function runTest5() {
+			log('test5', '🧪 Starting Full Integration Test...', 'info');
+
+			try {
+				// Import everything - fix import paths
+				const watermelonModule = await import('https://unpkg.com/@nozbe/watermelondb@^0.28.0/dist/index.js');
+				const { Database, Model, appSchema, tableSchema, text, date, readonly } = watermelonModule;
+				const LokiJSAdapter = (await import('https://unpkg.com/@nozbe/watermelondb@^0.28.0/adapters/lokijs/index.js')).default;
+
+				// Full schema
+				const schema = appSchema({
+					version: 2,
+					tables: [
+						tableSchema({
+							name: 'games',
+							columns: [
+								{ name: 'name', type: 'string' },
+								{ name: 'created_at', type: 'number' },
+								{ name: 'updated_at', type: 'number' },
+							],
+						}),
+						tableSchema({
+							name: 'galaxies',
+							columns: [
+								{ name: 'game_id', type: 'string', isIndexed: true },
+								{ name: 'name', type: 'string' },
+								{ name: 'x', type: 'number' },
+								{ name: 'y', type: 'number' },
+								{ name: 'created_at', type: 'number' },
+							],
+						}),
+					],
+				});
+
+				// Models
+				class Game extends Model {
+					static table = 'games'
+				}
+				class Galaxy extends Model {
+					static table = 'galaxies'
+				}
+
+				// Apply decorators
+				[
+					{ model: Game, props: [
+						['name', text('name')],
+						['createdAt', readonly(date('created_at'))],
+						['updatedAt', readonly(date('updated_at'))]
+					]},
+					{ model: Galaxy, props: [
+						['gameId', text('game_id')],
+						['name', text('name')],
+						['x', text('x')], // Note: using text for numbers as workaround
+						['y', text('y')],
+						['createdAt', readonly(date('created_at'))]
+					]}
+				].forEach(({ model, props }) => {
+					props.forEach(([propName, decorator]) => {
+						Object.defineProperty(model.prototype, propName, {
+							get: decorator.get,
+							set: decorator.set,
+							configurable: true
+						});
+					});
+				});
+
+				// Create database
+				const adapter = new LokiJSAdapter({
+					schema,
+					dbName: 'watermelon_test_full',
+					useWebWorker: false,
+					useIncrementalIndexedDB: true,
+				});
+
+				const database = new Database({
+					adapter,
+					modelClasses: [Game, Galaxy],
+				});
+
+				log('test5', '✅ Full database setup completed', 'success');
+
+				// Reset database
+				await database.write(async () => {
+					await database.unsafeResetDatabase();
+				});
+				log('test5', '🗑️ Database reset', 'info');
+
+				// Create game and related data
+				let gameId;
+				await database.write(async () => {
+					const game = await database.get('games').create((gameRecord) => {
+						gameRecord.name = 'Integration Test Game';
+					});
+					gameId = game.id;
+
+					log('test5', `✅ Created game: ${game.name} (${game.id})`, 'success');
+					log('test5', game._raw, 'info');
+
+					const galaxy = await database.get('galaxies').create((galaxyRecord) => {
+						galaxyRecord.gameId = gameId;
+						galaxyRecord.name = 'Milky Way';
+						galaxyRecord.x = '0'; // Using string for number fields
+						galaxyRecord.y = '0';
+					});
+
+					log('test5', `✅ Created galaxy: ${galaxy.name}`, 'success');
+					log('test5', galaxy._raw, 'info');
+				});
+
+				// Query data
+				const games = await database.get('games').query().fetch();
+				const galaxies = await database.get('galaxies').query().fetch();
+
+				log('test5', `📊 Found ${games.length} games, ${galaxies.length} galaxies`, 'success');
+
+				games.forEach(game => {
+					log('test5', `Game: ${game.name} | Raw: ${JSON.stringify(game._raw)}`, 'info');
+				});
+
+				galaxies.forEach(galaxy => {
+					log('test5', `Galaxy: ${galaxy.name} | Raw: ${JSON.stringify(galaxy._raw)}`, 'info');
+				});
+
+				log('test5', '🎉 Full Integration test PASSED!', 'success');
+
+			} catch (error) {
+				log('test5', `❌ Full Integration test FAILED: ${error.message}`, 'error');
+				log('test5', error.stack, 'error');
+			}
+		}
+
+		async function runAllTests() {
+			clearOutput();
+			log('test1', '🚀 Starting comprehensive diagnostic...', 'info');
+
+			await runTest1();
+			await new Promise(resolve => setTimeout(resolve, 1000));
+
+			await runTest2();
+			await new Promise(resolve => setTimeout(resolve, 1000));
+
+			await runTest3();
+			await new Promise(resolve => setTimeout(resolve, 1000));
+
+			await runTest4();
+			await new Promise(resolve => setTimeout(resolve, 1000));
+
+			await runTest5();
+
+			log('test5', '✅ All diagnostic tests completed!', 'success');
+		}
+	</script>
+</body>
+</html>
