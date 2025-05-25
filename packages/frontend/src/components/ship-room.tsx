@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 
 import type { Room } from '../types';
+import { getRoomScreenBounds, getConnectionSide, GRID_UNIT, WALL_THICKNESS, DOOR_SIZE } from '../utils/grid-system';
 
 interface ExplorationProgress {
 	roomId: string;
@@ -45,13 +46,15 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 	// Don't render if not visible (fog of war)
 	if (!isVisible) return null;
 
-	// Calculate corridor orientation and size
-	const getCorridorDimensions = () => {
-		// Use the actual room width and height from the database
-		return { width: room.width, height: room.height };
+	// Calculate room dimensions using grid system
+	const getRoomDimensions = () => {
+		return {
+			width: room.gridWidth * GRID_UNIT,
+			height: room.gridHeight * GRID_UNIT,
+		};
 	};
 
-	const roomDimensions = getCorridorDimensions();
+	const roomDimensions = getRoomDimensions();
 	const halfWidth = roomDimensions.width / 2;
 	const halfHeight = roomDimensions.height / 2;
 
@@ -125,28 +128,20 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 		const openings: Array<{
 			side: 'top' | 'bottom' | 'left' | 'right';
 			position: number; // Position along the wall (0-1)
+			toRoomId: string; // Add room ID for door identification
 		}> = [];
 
-		// Check each connected room to determine where door openings should be
-		connectedRooms.forEach(connectedRoom => {
-			const dx = connectedRoom.x - room.x;
-			const dy = connectedRoom.y - room.y;
+		// Check each door in room.doors to determine where door openings should be
+		// This includes doors to undiscovered rooms
+		room.doors.forEach(door => {
+			// Find the connected room from allRooms (includes undiscovered rooms)
+			const connectedRoom = allRooms.find(r => r.id === door.toRoomId);
+			if (!connectedRoom) return;
 
-			// Determine which side the opening is on based on relative position
-			if (Math.abs(dx) > Math.abs(dy)) {
-				// Horizontal connection
-				if (dx > 0) {
-					openings.push({ side: 'right', position: 0.5 });
-				} else {
-					openings.push({ side: 'left', position: 0.5 });
-				}
-			} else {
-				// Vertical connection
-				if (dy > 0) {
-					openings.push({ side: 'bottom', position: 0.5 });
-				} else {
-					openings.push({ side: 'top', position: 0.5 });
-				}
+			// Use grid system to determine connection side
+			const side = getConnectionSide(room, connectedRoom);
+			if (side) {
+				openings.push({ side, position: 0.5, toRoomId: door.toRoomId });
 			}
 		});
 
@@ -159,13 +154,48 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 		return openings.some(opening => opening.side === side);
 	};
 
+		// Get the appropriate door image based on door state and toRoomId
+	const getDoorImageForOpening = (toRoomId: string): string => {
+		// Find the connected room from allRooms
+		const connectedRoom = allRooms.find(r => r.id === toRoomId);
+
+		// Find the door info from room.doors
+		const doorInfo = room.doors.find(door => door.toRoomId === toRoomId);
+
+		if (!doorInfo) {
+			return '/images/doors/door-locked.png';
+		}
+
+		// Determine door image based on state and safety
+		switch (doorInfo.state) {
+		case 'opened':
+			return '/images/doors/door-opened.png';
+		case 'closed':
+			// Check if door should be restricted (unsafe conditions)
+			if (connectedRoom && (room.status === 'damaged' || connectedRoom.status === 'damaged' ||
+				room.status === 'destroyed' || connectedRoom.status === 'destroyed')) {
+				return '/images/doors/door-restricted.png';
+			}
+			return '/images/doors/door-closed.png';
+		case 'locked':
+			return '/images/doors/door-locked.png';
+		default:
+			return '/images/doors/door-closed.png';
+		}
+	};
+
+	// Handle door click for a specific toRoomId
+	const handleDoorClickForOpening = (toRoomId: string) => {
+		onDoorClick(room.id, toRoomId);
+	};
+
 	// Render walls with gaps for door openings
 	const renderWalls = () => {
 		if (!room.unlocked) return null;
 
 		const openings = getDoorOpenings();
-		const wallThickness = 8;
-		const doorWidth = 32;
+		const wallThickness = WALL_THICKNESS;
+		const doorWidth = DOOR_SIZE;
 
 		return (
 			<g>
@@ -241,7 +271,7 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 
 	// Render corner wall pieces
 	const renderCorner = (x: number, y: number, corner: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right') => {
-		const wallThickness = 8;
+		const wallThickness = WALL_THICKNESS;
 
 		return (
 			<rect
@@ -255,54 +285,89 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 		);
 	};
 
-	// Render a wall segment with gaps for door openings
+	// Render a wall segment with doors replacing wall sections where connections exist
 	const renderWallSegment = (
 		x: number,
 		y: number,
 		width: number,
 		height: number,
-		openingsOnThisSide: Array<{ side: string; position: number }>,
+		openingsOnThisSide: Array<{ side: string; position: number; toRoomId: string }>,
 		orientation: 'horizontal' | 'vertical',
 		doorWidth: number
 	) => {
-		const segments: Array<{ x: number; y: number; width: number; height: number }> = [];
+		const elements: JSX.Element[] = [];
 
 		if (openingsOnThisSide.length === 0) {
-			// No openings, render full wall
-			segments.push({ x, y, width, height });
+			// No doors, render full wall
+			elements.push(
+				<rect
+					key="wall-full"
+					x={x}
+					y={y}
+					width={width}
+					height={height}
+					fill={`url(#wall-pattern-${room.id})`}
+					opacity="0.9"
+				/>
+			);
 		} else {
-			// Calculate wall segments around door openings
+			// Render wall segments and doors
 			if (orientation === 'horizontal') {
 				let currentX = x;
 				const wallY = y;
 				const wallHeight = height;
 
-				openingsOnThisSide.forEach(opening => {
+				openingsOnThisSide.forEach((opening, index) => {
 					const doorCenterX = x + (width * opening.position);
 					const doorStartX = doorCenterX - doorWidth / 2;
 					const doorEndX = doorCenterX + doorWidth / 2;
 
-					// Add wall segment before door opening
+					// Add wall segment before door
 					if (currentX < doorStartX) {
-						segments.push({
-							x: currentX,
-							y: wallY,
-							width: doorStartX - currentX,
-							height: wallHeight,
-						});
+						elements.push(
+							<rect
+								key={`wall-before-${index}`}
+								x={currentX}
+								y={wallY}
+								width={doorStartX - currentX}
+								height={wallHeight}
+								fill={`url(#wall-pattern-${room.id})`}
+								opacity="0.9"
+							/>
+						);
 					}
+
+					// Add door image in place of wall segment
+					const doorImage = getDoorImageForOpening(opening.toRoomId);
+					elements.push(
+						<image
+							key={`door-${index}`}
+							href={doorImage}
+							x={doorStartX}
+							y={wallY}
+							width={doorWidth}
+							height={wallHeight}
+							style={{ cursor: 'pointer' }}
+							onClick={() => handleDoorClickForOpening(opening.toRoomId)}
+						/>
+					);
 
 					currentX = doorEndX;
 				});
 
-				// Add final wall segment after last door opening
+				// Add final wall segment after last door
 				if (currentX < x + width) {
-					segments.push({
-						x: currentX,
-						y: wallY,
-						width: x + width - currentX,
-						height: wallHeight,
-					});
+					elements.push(
+						<rect
+							key="wall-after"
+							x={currentX}
+							y={wallY}
+							width={x + width - currentX}
+							height={wallHeight}
+							fill={`url(#wall-pattern-${room.id})`}
+							opacity="0.9"
+						/>
+					);
 				}
 			} else {
 				// Vertical wall
@@ -310,51 +375,63 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 				const wallX = x;
 				const wallWidth = width;
 
-				openingsOnThisSide.forEach(opening => {
+				openingsOnThisSide.forEach((opening, index) => {
 					const doorCenterY = y + (height * opening.position);
 					const doorStartY = doorCenterY - doorWidth / 2;
 					const doorEndY = doorCenterY + doorWidth / 2;
 
-					// Add wall segment before door opening
+					// Add wall segment before door
 					if (currentY < doorStartY) {
-						segments.push({
-							x: wallX,
-							y: currentY,
-							width: wallWidth,
-							height: doorStartY - currentY,
-						});
+						elements.push(
+							<rect
+								key={`wall-before-${index}`}
+								x={wallX}
+								y={currentY}
+								width={wallWidth}
+								height={doorStartY - currentY}
+								fill={`url(#wall-pattern-${room.id})`}
+								opacity="0.9"
+							/>
+						);
 					}
+
+					// Add door image in place of wall segment
+					const doorImage = getDoorImageForOpening(opening.toRoomId);
+					elements.push(
+						<image
+							key={`door-${index}`}
+							href={doorImage}
+							x={wallX}
+							y={doorStartY}
+							width={wallWidth}
+							height={doorWidth}
+							style={{ cursor: 'pointer' }}
+							onClick={() => handleDoorClickForOpening(opening.toRoomId)}
+							transform={`rotate(90 ${wallX + wallWidth/2} ${doorStartY + doorWidth/2})`}
+						/>
+					);
 
 					currentY = doorEndY;
 				});
 
-				// Add final wall segment after last door opening
+				// Add final wall segment after last door
 				if (currentY < y + height) {
-					segments.push({
-						x: wallX,
-						y: currentY,
-						width: wallWidth,
-						height: y + height - currentY,
-					});
+					elements.push(
+						<rect
+							key="wall-after"
+							x={wallX}
+							y={currentY}
+							width={wallWidth}
+							height={y + height - currentY}
+							fill={`url(#wall-pattern-${room.id})`}
+							opacity="0.9"
+						/>
+					);
 				}
 			}
 		}
 
-		return (
-			<g>
-				{segments.map((segment, index) => (
-					<rect
-						key={index}
-						x={segment.x}
-						y={segment.y}
-						width={segment.width}
-						height={segment.height}
-						fill={`url(#wall-pattern-${room.id})`}
-						opacity="0.9"
-					/>
-				))}
-			</g>
-		);
+		return <g>{elements}</g>;
 	};
 
 

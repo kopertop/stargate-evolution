@@ -244,17 +244,18 @@ export class GameService {
 		console.log('Created Destiny status:', destinyStatus.id);
 
 		// Create comprehensive Destiny ship layout with proper connections
-		console.log('Creating ship room layout...');
+		console.log('Creating ship room layout with grid system...');
 
 		// Main Floor (Floor 0) - Core ship operations
+		// Gate room: 3x3 grid centered at origin, spans from (-1,-1) to (2,2)
 		const gateRoom = await this.database.get<Room>('rooms').create((room) => {
 			room.gameId = gameId;
 			room.type = 'gate_room';
-			room.x = 0;
-			room.y = 0;
+			room.gridX = -1;      // Top-left corner X
+			room.gridY = -1;      // Top-left corner Y
+			room.gridWidth = 3;   // 3 grid units wide
+			room.gridHeight = 3;  // 3 grid units tall
 			room.floor = 0;
-			room.width = 120;
-			room.height = 120;
 			room.technology = JSON.stringify(['stargate', 'dialing_computer', 'shields']);
 			room.image = 'stargate-room.png';
 			room.found = true; // Gate room starts as discovered
@@ -264,14 +265,15 @@ export class GameService {
 		});
 
 		// Corridors connected to gate room (north and south)
+		// North corridor: 1x1 grid at (0, 2) - directly north of gate room
 		const corridorNorth = await this.database.get<Room>('rooms').create((room) => {
 			room.gameId = gameId;
 			room.type = 'corridor';
-			room.x = 0;
-			room.y = 1;
+			room.gridX = 0;
+			room.gridY = 2;
+			room.gridWidth = 1;
+			room.gridHeight = 1;
 			room.floor = 0;
-			room.width = 30; // Vertical corridor - narrow width
-			room.height = 60; // Vertical corridor - longer height
 			room.technology = JSON.stringify(['lighting', 'atmosphere_sensors']);
 			room.image = 'corridor.png';
 			room.status = 'ok';
@@ -279,14 +281,15 @@ export class GameService {
 			room.doors = JSON.stringify([]);
 		});
 
+		// South corridor: 1x1 grid at (0, -2) - directly south of gate room
 		const corridorSouth = await this.database.get<Room>('rooms').create((room) => {
 			room.gameId = gameId;
 			room.type = 'corridor';
-			room.x = 0;
-			room.y = -1;
+			room.gridX = 0;
+			room.gridY = -2;
+			room.gridWidth = 1;
+			room.gridHeight = 1;
 			room.floor = 0;
-			room.width = 30; // Vertical corridor - narrow width
-			room.height = 60; // Vertical corridor - longer height
 			room.technology = JSON.stringify(['lighting', 'atmosphere_sensors']);
 			room.image = 'corridor.png';
 			room.status = 'ok';
@@ -294,15 +297,15 @@ export class GameService {
 			room.doors = JSON.stringify([]);
 		});
 
-		// Bridge - connected to north corridor
+		// Bridge: 2x2 grid at (-1, 3) - north of north corridor
 		const bridgeRoom = await this.database.get<Room>('rooms').create((room) => {
 			room.gameId = gameId;
 			room.type = 'bridge';
-			room.x = 0;
-			room.y = 2;
+			room.gridX = -1;
+			room.gridY = 3;
+			room.gridWidth = 2;
+			room.gridHeight = 2;
 			room.floor = 0;
-			room.width = 100;
-			room.height = 100;
 			room.technology = JSON.stringify(['ftl_drive_controls', 'sensors', 'communications', 'navigation']);
 			room.image = 'bridge.png';
 			room.status = 'ok';
@@ -310,15 +313,15 @@ export class GameService {
 			room.doors = JSON.stringify([]);
 		});
 
-		// Engineering - connected to south corridor
+		// Engineering: 2x2 grid at (-1, -4) - south of south corridor
 		const engineeringRoom = await this.database.get<Room>('rooms').create((room) => {
 			room.gameId = gameId;
 			room.type = 'engineering';
-			room.x = 0;
-			room.y = -2;
+			room.gridX = -1;
+			room.gridY = -4;
+			room.gridWidth = 2;
+			room.gridHeight = 2;
 			room.floor = 0;
-			room.width = 100;
-			room.height = 100;
 			room.technology = JSON.stringify(['power_systems', 'ftl_drive', 'life_support', 'reactor_controls']);
 			room.image = 'engineering.png';
 			room.status = 'ok';
@@ -326,46 +329,47 @@ export class GameService {
 			room.doors = JSON.stringify([]);
 		});
 
-		// East-West corridor connecting to quarters and other facilities
+		// East corridor: 1x1 grid at (2, 0) - east of gate room
 		const corridorEast = await this.database.get<Room>('rooms').create((room) => {
 			room.gameId = gameId;
 			room.type = 'corridor';
-			room.x = 1;
-			room.y = 0;
+			room.gridX = 2;
+			room.gridY = 0;
+			room.gridWidth = 1;
+			room.gridHeight = 1;
 			room.floor = 0;
-			room.width = 60; // Horizontal corridor - longer width
-			room.height = 30; // Horizontal corridor - narrow height
 			room.technology = JSON.stringify(['lighting', 'atmosphere_sensors']);
 			room.image = 'corridor.png';
 			room.status = 'ok';
-			room.connectedRooms = JSON.stringify([corridorNorth.id]);
+			room.connectedRooms = JSON.stringify([gateRoom.id]);
 			room.doors = JSON.stringify([]);
 		});
 
+		// West corridor: 1x1 grid at (-2, 0) - west of gate room
 		const corridorWest = await this.database.get<Room>('rooms').create((room) => {
 			room.gameId = gameId;
 			room.type = 'corridor';
-			room.x = -1;
-			room.y = 0;
+			room.gridX = -2;
+			room.gridY = 0;
+			room.gridWidth = 1;
+			room.gridHeight = 1;
 			room.floor = 0;
-			room.width = 60; // Horizontal corridor - longer width
-			room.height = 30; // Horizontal corridor - narrow height
 			room.technology = JSON.stringify(['lighting', 'atmosphere_sensors']);
 			room.image = 'corridor.png';
 			room.status = 'ok';
-			room.connectedRooms = JSON.stringify([corridorSouth.id]);
+			room.connectedRooms = JSON.stringify([gateRoom.id]);
 			room.doors = JSON.stringify([]);
 		});
 
-		// Medical Bay - connected to east corridor
+		// Medical Bay: 1x2 grid at (3, -1) - east of east corridor
 		const medBayRoom = await this.database.get<Room>('rooms').create((room) => {
 			room.gameId = gameId;
 			room.type = 'medical_bay';
-			room.x = 2;
-			room.y = 0;
+			room.gridX = 3;
+			room.gridY = -1;
+			room.gridWidth = 1;
+			room.gridHeight = 2;
 			room.floor = 0;
-			room.width = 80;
-			room.height = 80;
 			room.technology = JSON.stringify(['medical_scanners', 'healing_pods', 'surgical_equipment']);
 			room.image = 'medical-bay.png';
 			room.status = 'ok';
@@ -373,15 +377,15 @@ export class GameService {
 			room.doors = JSON.stringify([]);
 		});
 
-		// Mess Hall - connected to west corridor
+		// Mess Hall: 1x2 grid at (-3, -1) - west of west corridor
 		const messHallRoom = await this.database.get<Room>('rooms').create((room) => {
 			room.gameId = gameId;
 			room.type = 'mess_hall';
-			room.x = -2;
-			room.y = 0;
+			room.gridX = -3;
+			room.gridY = -1;
+			room.gridWidth = 1;
+			room.gridHeight = 2;
 			room.floor = 0;
-			room.width = 80;
-			room.height = 80;
 			room.technology = JSON.stringify(['food_processors', 'water_recycling']);
 			room.image = 'mess-hall.png';
 			room.status = 'ok';
@@ -389,15 +393,15 @@ export class GameService {
 			room.doors = JSON.stringify([]);
 		});
 
-		// Crew Quarters Section A - connected to east corridor
+		// Crew Quarters Section A: 1x1 grid at (2, 1) - northeast of gate room
 		const quartersA = await this.database.get<Room>('rooms').create((room) => {
 			room.gameId = gameId;
 			room.type = 'quarters';
-			room.x = 1;
-			room.y = 1;
+			room.gridX = 2;
+			room.gridY = 1;
+			room.gridWidth = 1;
+			room.gridHeight = 1;
 			room.floor = 0;
-			room.width = 90;
-			room.height = 70;
 			room.technology = JSON.stringify(['personal_storage', 'sleep_pods']);
 			room.image = 'quarters.png';
 			room.status = 'ok';
@@ -405,15 +409,15 @@ export class GameService {
 			room.doors = JSON.stringify([]);
 		});
 
-		// Crew Quarters Section B - connected to west corridor
+		// Crew Quarters Section B: 1x1 grid at (-2, -1) - southwest of gate room
 		const quartersB = await this.database.get<Room>('rooms').create((room) => {
 			room.gameId = gameId;
 			room.type = 'quarters';
-			room.x = -1;
-			room.y = -1;
+			room.gridX = -2;
+			room.gridY = -1;
+			room.gridWidth = 1;
+			room.gridHeight = 1;
 			room.floor = 0;
-			room.width = 90;
-			room.height = 70;
 			room.technology = JSON.stringify(['personal_storage', 'sleep_pods']);
 			room.image = 'quarters.png';
 			room.status = 'ok';
@@ -421,15 +425,15 @@ export class GameService {
 			room.doors = JSON.stringify([]);
 		});
 
-		// Elevator to lower levels - connected to south corridor
+		// Elevator: 1x1 grid at (1, -2) - southeast of gate room
 		const elevatorMain = await this.database.get<Room>('rooms').create((room) => {
 			room.gameId = gameId;
 			room.type = 'elevator';
-			room.x = 1;
-			room.y = -1;
+			room.gridX = 1;
+			room.gridY = -2;
+			room.gridWidth = 1;
+			room.gridHeight = 1;
 			room.floor = 0;
-			room.width = 40;
-			room.height = 40;
 			room.technology = JSON.stringify(['elevator_controls', 'artificial_gravity']);
 			room.image = 'elevator.png';
 			room.status = 'ok';
@@ -438,14 +442,15 @@ export class GameService {
 		});
 
 		// Lower Floor (Floor -1) - Storage and specialized systems
+		// Lower corridor: 1x1 grid at (1, -2) on floor -1
 		const lowerCorridor = await this.database.get<Room>('rooms').create((room) => {
 			room.gameId = gameId;
 			room.type = 'corridor';
-			room.x = 1;
-			room.y = -1;
+			room.gridX = 1;
+			room.gridY = -2;
+			room.gridWidth = 1;
+			room.gridHeight = 1;
 			room.floor = -1;
-			room.width = 60;
-			room.height = 30;
 			room.technology = JSON.stringify(['emergency_lighting', 'atmosphere_sensors']);
 			room.image = 'corridor.png';
 			room.status = 'ok';
@@ -453,15 +458,15 @@ export class GameService {
 			room.doors = JSON.stringify([]);
 		});
 
-		// Hydroponics - lower level
+		// Hydroponics: 2x1 grid at (-1, -2) on floor -1
 		const hydroponicsRoom = await this.database.get<Room>('rooms').create((room) => {
 			room.gameId = gameId;
 			room.type = 'hydroponics';
-			room.x = 0;
-			room.y = -1;
+			room.gridX = -1;
+			room.gridY = -2;
+			room.gridWidth = 2;
+			room.gridHeight = 1;
 			room.floor = -1;
-			room.width = 100;
-			room.height = 80;
 			room.technology = JSON.stringify(['growing_systems', 'air_recycling', 'water_filtration']);
 			room.image = 'hydroponics.png';
 			room.status = 'ok';
@@ -469,15 +474,15 @@ export class GameService {
 			room.doors = JSON.stringify([]);
 		});
 
-		// Storage Bay - lower level
+		// Storage Bay: 1x2 grid at (2, -3) on floor -1
 		const storageBay = await this.database.get<Room>('rooms').create((room) => {
 			room.gameId = gameId;
 			room.type = 'storage';
-			room.x = 2;
-			room.y = -1;
+			room.gridX = 2;
+			room.gridY = -3;
+			room.gridWidth = 1;
+			room.gridHeight = 2;
 			room.floor = -1;
-			room.width = 120;
-			room.height = 80;
 			room.technology = JSON.stringify(['cargo_systems', 'inventory_management']);
 			room.image = 'storage.png';
 			room.status = 'ok';
@@ -485,15 +490,15 @@ export class GameService {
 			room.doors = JSON.stringify([]);
 		});
 
-		// Shuttle Bay - lower level, initially damaged
+		// Shuttle Bay: 2x2 grid at (3, -3) on floor -1, initially damaged
 		const shuttleBayRoom = await this.database.get<Room>('rooms').create((room) => {
 			room.gameId = gameId;
 			room.type = 'shuttle_bay';
-			room.x = 3;
-			room.y = -1;
+			room.gridX = 3;
+			room.gridY = -3;
+			room.gridWidth = 2;
+			room.gridHeight = 2;
 			room.floor = -1;
-			room.width = 140;
-			room.height = 100;
 			room.technology = JSON.stringify(['shuttle_systems', 'docking_clamps', 'hangar_controls']);
 			room.image = 'shuttle-bay.png';
 			room.status = 'damaged';

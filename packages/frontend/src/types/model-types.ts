@@ -23,11 +23,11 @@ export type RoomType = {
 	id: string;
 	gameId: string;
 	type: string;
-	x: number;
-	y: number;
+	gridX: number;
+	gridY: number;
+	gridWidth: number;
+	gridHeight: number;
 	floor: number;
-	width: number;
-	height: number;
 	technology: string[]; // Parse JSON string to array
 	image?: string;
 	found: boolean;
@@ -90,11 +90,11 @@ export function roomModelToType(room: RoomModel): RoomType {
 		id: room.id,
 		gameId: room.gameId,
 		type: room.type,
-		x: room.x,
-		y: room.y,
+		gridX: room.gridX,
+		gridY: room.gridY,
+		gridWidth: room.gridWidth,
+		gridHeight: room.gridHeight,
 		floor: room.floor,
-		width: room.width,
-		height: room.height,
 		technology: JSON.parse(room.technology || '[]'),
 		image: room.image,
 		found: room.found,

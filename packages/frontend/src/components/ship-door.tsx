@@ -30,6 +30,11 @@ export const ShipDoor: React.FC<ShipDoorProps> = ({
 
 	// Get door color based on room safety
 	const getDoorColor = (): string => {
+		// If either room is not found (undiscovered), door is unknown
+		if (!fromRoom.found || !toRoom.found) {
+			return '#fbbf24'; // Yellow for unknown/undiscovered
+		}
+
 		// Both rooms must be unlocked to determine door safety
 		if (!fromRoom.unlocked || !toRoom.unlocked) {
 			return '#fbbf24'; // Yellow for unknown
@@ -51,6 +56,11 @@ export const ShipDoor: React.FC<ShipDoorProps> = ({
 	const getDoorState = (): 'opened' | 'closed' | 'locked' => {
 		const doorKey = `${fromRoom.id}-${toRoom.id}`;
 		const reverseDoorKey = `${toRoom.id}-${fromRoom.id}`;
+
+		// If either room is not found (undiscovered), door should be locked
+		if (!fromRoom.found || !toRoom.found) {
+			return 'locked';
+		}
 
 		if (doorStates[doorKey] || doorStates[reverseDoorKey]) {
 			return 'opened';
@@ -174,8 +184,8 @@ export const ShipDoor: React.FC<ShipDoorProps> = ({
 		return walls;
 	};
 
-	// Only render if at least one room is visible
-	if (!fromRoom.unlocked && !toRoom.unlocked) {
+	// Only render if at least one room is found (visible)
+	if (!fromRoom.found && !toRoom.found) {
 		return null;
 	}
 

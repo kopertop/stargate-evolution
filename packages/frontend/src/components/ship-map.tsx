@@ -8,7 +8,7 @@ import { roomModelToType } from '../types';
 
 import { CountdownClock } from './countdown-clock';
 import { ShipRoom } from './ship-room';
-import { ShipDoor } from './ship-door';
+import { getRoomScreenPosition as getGridRoomScreenPosition } from '../utils/grid-system';
 
 interface ExplorationProgress {
 	roomId: string;
@@ -298,16 +298,9 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 		}
 	};
 
-	// Convert room coordinates to screen position
+	// Convert room coordinates to screen position using grid system
 	const getRoomScreenPosition = (room: Room) => {
-		const centerX = 400;
-		const centerY = 300;
-		const scale = 160; // Doubled from 80 to 160 for larger rooms
-
-		return {
-			x: centerX + (room.x * scale),
-			y: centerY - (room.y * scale), // Invert Y for screen coordinates
-		};
+		return getGridRoomScreenPosition(room);
 	};
 
 	// Get connected rooms for a room
@@ -336,54 +329,8 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 		return doorStates;
 	};
 
-	// Render doors between rooms using ShipDoor component
-	const renderDoorsBetweenRooms = () => {
-		const renderedConnections = new Set<string>();
-		const doorElements: JSX.Element[] = [];
-
-		rooms.filter(isRoomVisible).forEach(room => {
-			room.doors.forEach(door => {
-				const connectedRoom = rooms.find(r => r.id === door.toRoomId);
-				if (!connectedRoom || !isRoomVisible(connectedRoom)) return;
-
-				// Create a unique connection ID (sorted to avoid duplicates)
-				const connectionId = [room.id, connectedRoom.id].sort().join('-');
-				if (renderedConnections.has(connectionId)) return;
-				renderedConnections.add(connectionId);
-
-				// Convert room positions to the format expected by ShipDoor
-				const roomWithPosition = {
-					...room,
-					x: getRoomScreenPosition(room).x,
-					y: getRoomScreenPosition(room).y,
-				};
-
-				const connectedRoomWithPosition = {
-					...connectedRoom,
-					x: getRoomScreenPosition(connectedRoom).x,
-					y: getRoomScreenPosition(connectedRoom).y,
-				};
-
-				// Create door states object from both rooms
-				const doorStates = {
-					...getRoomDoorStates(room),
-					...getRoomDoorStates(connectedRoom),
-				};
-
-				doorElements.push(
-					<ShipDoor
-						key={`door-${connectionId}`}
-						fromRoom={roomWithPosition}
-						toRoom={connectedRoomWithPosition}
-						doorStates={doorStates}
-						onDoorClick={handleDoorClick}
-					/>
-				);
-			});
-		});
-
-		return doorElements;
-	};
+	// Note: Door rendering is now integrated into room walls in ShipRoom component
+	// This function is no longer needed but kept as a comment for reference
 
 	// Check if door requirements are met
 	const checkDoorRequirements = (door: DoorInfo): { canOpen: boolean; unmetRequirements: DoorRequirement[] } => {
@@ -734,8 +681,7 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 						})
 					}
 
-					{/* Render doors between rooms */}
-					{renderDoorsBetweenRooms()}
+					{/* Doors are now rendered as part of room walls in ShipRoom component */}
 				</g>
 			</svg>
 

@@ -11,11 +11,11 @@ export default class Room extends Model {
 
 	@text('game_id') gameId!: string;
 	@text('type') type!: string;
-	@field('x') x!: number; // Position coordinates
-	@field('y') y!: number;
+	@field('grid_x') gridX!: number; // Grid position (top-left corner)
+	@field('grid_y') gridY!: number; // Grid position (top-left corner)
+	@field('grid_width') gridWidth!: number; // Width in grid units
+	@field('grid_height') gridHeight!: number; // Height in grid units
 	@field('floor') floor!: number; // Floor level (0 = main deck, negative = lower, positive = upper)
-	@field('width') width!: number; // Room width in pixels
-	@field('height') height!: number; // Room height in pixels
 	@text('technology') technology!: string; // JSON array
 	@text('image') image?: string; // Optional room-specific image
 	@field('found') found!: boolean; // Whether the room has been discovered

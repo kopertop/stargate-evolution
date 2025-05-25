@@ -144,11 +144,11 @@ export default appSchema({
 			columns: [
 				{ name: 'game_id', type: 'string', isIndexed: true },
 				{ name: 'type', type: 'string' },
-				{ name: 'x', type: 'number' },
-				{ name: 'y', type: 'number' },
+				{ name: 'grid_x', type: 'number' },
+				{ name: 'grid_y', type: 'number' },
+				{ name: 'grid_width', type: 'number' },
+				{ name: 'grid_height', type: 'number' },
 				{ name: 'floor', type: 'number' },
-				{ name: 'width', type: 'number' },
-				{ name: 'height', type: 'number' },
 				{ name: 'technology', type: 'string' }, // JSON array
 				{ name: 'image', type: 'string', isOptional: true }, // Optional room-specific image
 				{ name: 'found', type: 'boolean' }, // Whether the room has been discovered
