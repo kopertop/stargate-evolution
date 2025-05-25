@@ -449,11 +449,18 @@ export const GamePage: React.FC = () => {
 
 			{/* Ship View */}
 			{!isLoading && viewMode === 'ship-view' && destinyStatus && (
-				<div style={{ width: '100vw', height: '100vh', position: 'relative', overflow: 'auto' }}>
+				<div style={{ width: '100vw', height: '100vh', position: 'relative', overflow: 'hidden' }}>
 					<NavButton onClick={handleBackToMenu}>
 						<GiReturnArrow size={20} /> Back to Menu
 					</NavButton>
-					<div style={{ padding: '20px', paddingTop: '60px' }}>
+					<div style={{
+						position: 'absolute',
+						top: '60px', // Space for nav button
+						left: 0,
+						right: 0,
+						bottom: '72px', // Space for destiny status bar (approximately 72px height)
+						overflow: 'hidden'
+					}}>
 						<ShipView
 							destinyStatus={destinyStatus}
 							onStatusUpdate={handleDestinyStatusUpdate}

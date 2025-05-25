@@ -28,6 +28,12 @@ interface GameTime {
 	nextDropOut: number;
 }
 
+interface CameraTransform {
+	x: number;
+	y: number;
+	scale: number;
+}
+
 interface ShipMapProps {
 	destinyStatus: DestinyStatus;
 	onStatusUpdate: (newStatus: DestinyStatus) => void;
@@ -62,6 +68,12 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 	const [availableCrew, setAvailableCrew] = useState<string[]>([]);
 	const [crewData, setCrewData] = useState<{ [id: string]: any }>({});
 
+	// Camera state for zooming and panning
+	const [camera, setCamera] = useState<CameraTransform>({ x: 0, y: 0, scale: 1 });
+	const [isDragging, setIsDragging] = useState(false);
+	const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+	const [lastMousePos, setLastMousePos] = useState({ x: 0, y: 0 });
+
 	// Load rooms from database when component mounts or gameId changes
 	useEffect(() => {
 		const loadRooms = async () => {
@@ -91,6 +103,14 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 
 		loadRooms();
 	}, [gameId]);
+
+	// Auto-focus the SVG for keyboard controls
+	useEffect(() => {
+		const svgElement = document.querySelector('svg[tabindex="0"]') as SVGElement;
+		if (svgElement) {
+			svgElement.focus();
+		}
+	}, []);
 
 	// Real-time exploration progress updates
 	useEffect(() => {
@@ -315,6 +335,114 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 		return doorStates;
 	};
 
+	// Render doors between rooms (centralized to avoid duplicates)
+	const renderDoorsBetweenRooms = () => {
+		const renderedConnections = new Set<string>();
+		const doorElements: JSX.Element[] = [];
+
+		rooms.filter(isRoomVisible).forEach(room => {
+			room.doors.forEach(door => {
+				const connectedRoom = rooms.find(r => r.id === door.toRoomId);
+				if (!connectedRoom || !isRoomVisible(connectedRoom)) return;
+
+				// Create a unique connection ID (sorted to avoid duplicates)
+				const connectionId = [room.id, connectedRoom.id].sort().join('-');
+				if (renderedConnections.has(connectionId)) return;
+				renderedConnections.add(connectionId);
+
+				// Get positions of both rooms
+				const roomPos = getRoomScreenPosition(room);
+				const connectedPos = getRoomScreenPosition(connectedRoom);
+
+				// Calculate door position at the connection point between room edges
+				const dx = connectedPos.x - roomPos.x;
+				const dy = connectedPos.y - roomPos.y;
+				const isHorizontal = Math.abs(dx) > Math.abs(dy);
+
+				let doorX: number;
+				let doorY: number;
+
+				if (isHorizontal) {
+					// Horizontal connection (east/west)
+					const roomHalfWidth = room.width / 2;
+					const connectedHalfWidth = connectedRoom.width / 2;
+
+					if (dx > 0) {
+						// Connected room is to the east
+						doorX = roomPos.x + roomHalfWidth + (connectedPos.x - connectedHalfWidth - (roomPos.x + roomHalfWidth)) / 2;
+					} else {
+						// Connected room is to the west
+						doorX = connectedPos.x + connectedHalfWidth + (roomPos.x - roomHalfWidth - (connectedPos.x + connectedHalfWidth)) / 2;
+					}
+					doorY = roomPos.y;
+				} else {
+					// Vertical connection (north/south)
+					const roomHalfHeight = room.height / 2;
+					const connectedHalfHeight = connectedRoom.height / 2;
+
+					if (dy > 0) {
+						// Connected room is to the south (positive Y)
+						doorY = roomPos.y + roomHalfHeight + (connectedPos.y - connectedHalfHeight - (roomPos.y + roomHalfHeight)) / 2;
+					} else {
+						// Connected room is to the north (negative Y)
+						doorY = connectedPos.y + connectedHalfHeight + (roomPos.y - roomHalfHeight - (connectedPos.y + connectedHalfHeight)) / 2;
+					}
+					doorX = roomPos.x;
+				}
+
+				// Get door state and color
+				const isDoorOpened = door.state === 'opened';
+				const doorImage = isDoorOpened ? '/images/door-opened.png' : '/images/door.png';
+
+				// Get door color based on room statuses
+				const getDoorColor = (): string => {
+					if (!room.unlocked || !connectedRoom.unlocked) {
+						return '#fbbf24'; // Yellow for unknown
+					}
+					if (room.status === 'damaged' || connectedRoom.status === 'damaged' ||
+						room.status === 'destroyed' || connectedRoom.status === 'destroyed') {
+						return '#ef4444'; // Red for unsafe
+					}
+					return '#10b981'; // Green for safe
+				};
+
+				doorElements.push(
+					<g key={`door-${connectionId}`}>
+						{/* Door image */}
+						<image
+							href={doorImage}
+							x={doorX - 15}
+							y={doorY - 15}
+							width="30"
+							height="30"
+							transform={isHorizontal ? `rotate(90 ${doorX} ${doorY})` : ''}
+							style={{ cursor: 'pointer' }}
+							onClick={(e) => {
+								e.stopPropagation();
+								handleDoorClick(room.id, connectedRoom.id);
+							}}
+						/>
+						{/* Door status indicator */}
+						<rect
+							x={doorX - 16}
+							y={doorY - 16}
+							width="32"
+							height="32"
+							fill="none"
+							stroke={getDoorColor()}
+							strokeWidth="2"
+							opacity="0.7"
+							transform={isHorizontal ? `rotate(90 ${doorX} ${doorY})` : ''}
+							pointerEvents="none"
+						/>
+					</g>
+				);
+			});
+		});
+
+		return doorElements;
+	};
+
 	// Check if door requirements are met
 	const checkDoorRequirements = (door: DoorInfo): { canOpen: boolean; unmetRequirements: DoorRequirement[] } => {
 		const unmetRequirements: DoorRequirement[] = [];
@@ -486,22 +614,151 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 		updateAvailableCrew();
 	}, [explorationProgress]);
 
+	// Keyboard controls for camera movement and zoom
+	useEffect(() => {
+		const handleKeyDown = (e: KeyboardEvent) => {
+			// Prevent default behavior for our handled keys
+			if (['w', 'a', 's', 'd', 'ArrowUp', 'ArrowLeft', 'ArrowDown', 'ArrowRight', '+', '-', '='].includes(e.key.toLowerCase())) {
+				e.preventDefault();
+			}
+
+			const panSpeed = 20 / camera.scale; // Adjust pan speed based on zoom level
+			const zoomSpeed = 0.1;
+
+			switch (e.key.toLowerCase()) {
+			case 'w':
+			case 'arrowup':
+				setCamera(prev => ({ ...prev, y: prev.y - panSpeed }));
+				break;
+			case 's':
+			case 'arrowdown':
+				setCamera(prev => ({ ...prev, y: prev.y + panSpeed }));
+				break;
+			case 'a':
+			case 'arrowleft':
+				setCamera(prev => ({ ...prev, x: prev.x - panSpeed }));
+				break;
+			case 'd':
+			case 'arrowright':
+				setCamera(prev => ({ ...prev, x: prev.x + panSpeed }));
+				break;
+			case '+':
+			case '=':
+				setCamera(prev => ({
+					...prev,
+					scale: Math.min(prev.scale + zoomSpeed, 3) // Max zoom 3x
+				}));
+				break;
+			case '-':
+				setCamera(prev => ({
+					...prev,
+					scale: Math.max(prev.scale - zoomSpeed, 0.2) // Min zoom 0.2x
+				}));
+				break;
+			}
+		};
+
+		window.addEventListener('keydown', handleKeyDown);
+		return () => window.removeEventListener('keydown', handleKeyDown);
+	}, [camera.scale]);
+
+	// Mouse controls for dragging and wheel zoom
+	const handleMouseDown = (e: React.MouseEvent) => {
+		setIsDragging(true);
+		setDragStart({ x: e.clientX, y: e.clientY });
+		setLastMousePos({ x: e.clientX, y: e.clientY });
+	};
+
+	const handleMouseMove = (e: React.MouseEvent) => {
+		if (!isDragging) return;
+
+		const deltaX = e.clientX - lastMousePos.x;
+		const deltaY = e.clientY - lastMousePos.y;
+
+		setCamera(prev => ({
+			...prev,
+			x: prev.x + deltaX / prev.scale,
+			y: prev.y + deltaY / prev.scale,
+		}));
+
+		setLastMousePos({ x: e.clientX, y: e.clientY });
+	};
+
+	const handleMouseUp = () => {
+		setIsDragging(false);
+	};
+
+	const handleWheel = (e: React.WheelEvent) => {
+		e.preventDefault();
+		const zoomSpeed = 0.001;
+		const delta = -e.deltaY * zoomSpeed;
+
+		setCamera(prev => ({
+			...prev,
+			scale: Math.max(0.2, Math.min(3, prev.scale + delta)),
+		}));
+	};
+
 	// Helper function to get crew display name
 	const getCrewDisplayName = (crewId: string): string => {
 		const crew = crewData[crewId];
 		return crew ? crew.name : crewId.replace('_', ' ');
 	};
 
+	// Reset camera to default position and zoom
+	const resetCamera = () => {
+		setCamera({ x: 0, y: 0, scale: 1 });
+	};
+
 	return (
-		<div style={{ position: 'relative', width: '100%', height: '600px', backgroundColor: '#000' }}>
+		<div style={{ position: 'relative', width: '100%', height: '100%', backgroundColor: '#000' }}>
 			{/* Countdown Clock */}
 			<CountdownClock
 				timeRemaining={gameTime.nextDropOut}
 				onTimeUpdate={onCountdownUpdate}
 			/>
 
+			{/* Camera Controls UI */}
+			<div style={{
+				position: 'absolute',
+				top: '10px',
+				right: '10px',
+				background: 'rgba(0, 0, 0, 0.8)',
+				color: 'white',
+				padding: '10px',
+				borderRadius: '5px',
+				fontSize: '12px',
+				zIndex: 1000,
+			}}>
+				<div><strong>Camera Controls:</strong></div>
+				<div>WASD / Arrow Keys: Pan</div>
+				<div>+/- Keys: Zoom</div>
+				<div>Mouse: Drag to pan, wheel to zoom</div>
+				<div style={{ marginTop: '5px' }}>
+					<strong>Zoom: {Math.round(camera.scale * 100)}%</strong>
+				</div>
+				<Button
+					size="sm"
+					variant="outline-light"
+					onClick={resetCamera}
+					style={{ marginTop: '5px', fontSize: '10px' }}
+				>
+					Reset View
+				</Button>
+			</div>
+
 			{/* Ship Layout SVG */}
-			<svg width="100%" height="600" style={{ position: 'absolute', top: 0, left: 0 }}>
+						<svg
+				width="100%"
+				height="100%"
+				style={{ position: 'absolute', top: 0, left: 0, cursor: isDragging ? 'grabbing' : 'grab' }}
+				onMouseDown={handleMouseDown}
+				onMouseMove={handleMouseMove}
+				onMouseUp={handleMouseUp}
+				onMouseLeave={handleMouseUp}
+				onWheel={handleWheel}
+				tabIndex={0} // Make SVG focusable for keyboard events
+			>
 				{/* Background space pattern */}
 				<defs>
 					<pattern id="spacePattern" x="0" y="0" width="40" height="40" patternUnits="userSpaceOnUse">
@@ -510,28 +767,34 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 				</defs>
 				<rect width="100%" height="100%" fill="url(#spacePattern)"/>
 
-				{/* Render all visible rooms */}
-				{rooms
-					.filter(isRoomVisible)
-					.map(room => {
-						console.log('🏠 Rendering room:', room.type, 'at position:', getRoomScreenPosition(room));
-						return (
-							<ShipRoom
-								key={room.id}
-								room={room}
-								position={getRoomScreenPosition(room)}
-								isVisible={isRoomVisible(room)}
-								canExplore={canExploreRoom(room)}
-								exploration={explorationProgress[room.id]}
-								connectedRooms={getConnectedRooms(room)}
-								onRoomClick={handleRoomClick}
-								onDoorClick={handleDoorClick}
-								doorStates={getRoomDoorStates(room)}
-								allRooms={rooms}
-							/>
-						);
-					})
-				}
+				{/* Camera transform group */}
+				<g transform={`translate(${camera.x}, ${camera.y}) scale(${camera.scale})`}>
+					{/* Render all visible rooms */}
+					{rooms
+						.filter(isRoomVisible)
+						.map(room => {
+							console.log('🏠 Rendering room:', room.type, 'at position:', getRoomScreenPosition(room));
+							return (
+								<ShipRoom
+									key={room.id}
+									room={room}
+									position={getRoomScreenPosition(room)}
+									isVisible={isRoomVisible(room)}
+									canExplore={canExploreRoom(room)}
+									exploration={explorationProgress[room.id]}
+									connectedRooms={getConnectedRooms(room)}
+									onRoomClick={handleRoomClick}
+									onDoorClick={handleDoorClick}
+									doorStates={getRoomDoorStates(room)}
+									allRooms={rooms}
+								/>
+							);
+						})
+					}
+
+					{/* Render doors between rooms */}
+					{renderDoorsBetweenRooms()}
+				</g>
 			</svg>
 
 			{/* Exploration Assignment Modal */}

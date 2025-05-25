@@ -38,11 +38,13 @@ export const DestinyStatusBar: React.FC<DestinyStatusBarProps> = ({ status }) =>
 	const [showShuttleDetails, setShowShuttleDetails] = useState(false);
 	const [showWeaponsDetails, setShowWeaponsDetails] = useState(false);
 	const [showAtmosphereDetails, setShowAtmosphereDetails] = useState(false);
+	const [showResourcesDetails, setShowResourcesDetails] = useState(false);
 	const [expanded, setExpanded] = useState(false);
 	const [inventoryHoverTimeout, setInventoryHoverTimeout] = useState<NodeJS.Timeout | null>(null);
 	const [shuttleHoverTimeout, setShuttleHoverTimeout] = useState<NodeJS.Timeout | null>(null);
 	const [weaponsHoverTimeout, setWeaponsHoverTimeout] = useState<NodeJS.Timeout | null>(null);
 	const [atmosphereHoverTimeout, setAtmosphereHoverTimeout] = useState<NodeJS.Timeout | null>(null);
+	const [resourcesHoverTimeout, setResourcesHoverTimeout] = useState<NodeJS.Timeout | null>(null);
 
 	const handleInventoryMouseEnter = () => {
 		if (inventoryHoverTimeout) {
@@ -120,6 +122,25 @@ export const DestinyStatusBar: React.FC<DestinyStatusBarProps> = ({ status }) =>
 		setShowAtmosphereDetails(!showAtmosphereDetails);
 	};
 
+	const handleResourcesMouseEnter = () => {
+		if (resourcesHoverTimeout) {
+			clearTimeout(resourcesHoverTimeout);
+			setResourcesHoverTimeout(null);
+		}
+		setShowResourcesDetails(true);
+	};
+
+	const handleResourcesMouseLeave = () => {
+		const timeout = setTimeout(() => {
+			setShowResourcesDetails(false);
+		}, 150);
+		setResourcesHoverTimeout(timeout);
+	};
+
+	const toggleResourcesDetails = () => {
+		setShowResourcesDetails(!showResourcesDetails);
+	};
+
 	// Calculate weapons summary
 	const getWeaponsSummary = () => {
 		const mainGunActive = status.weapons.mainGun ? 1 : 0;
@@ -144,113 +165,210 @@ export const DestinyStatusBar: React.FC<DestinyStatusBarProps> = ({ status }) =>
 				borderTop: '1px solid #333',
 			}}
 		>
-			{/* Always visible critical items */}
-			<Nav className="me-auto d-flex flex-row align-items-center">
-				{/* Shield Status - Critical */}
-				<Nav.Item className="d-flex align-items-center me-3">
-					<Icon icon={GiShield} />
-					<span title="Shield" className="d-none d-sm-inline">
-						{status.shield.strength}/{status.shield.max}
-					</span>
-					<span title="Shield" className="d-sm-none">
-						{status.shield.strength}
-					</span>
-				</Nav.Item>
-
-				{/* Power Status - Critical */}
-				<Nav.Item className="d-flex align-items-center me-3">
-					<Icon icon={GiElectric} />
-					<span title="Power">
-						{status.power}/{status.maxPower}
-					</span>
-				</Nav.Item>
-
-				{/* Atmosphere Section - Critical (Always visible) */}
-				<Nav.Item className="d-flex align-items-center me-3 position-relative">
-					<span
-						title="Atmosphere (click for details)"
-						className="d-flex align-items-center"
-						style={{ cursor: 'pointer' }}
-						onClick={toggleAtmosphereDetails}
-						onMouseEnter={handleAtmosphereMouseEnter}
-						onMouseLeave={handleAtmosphereMouseLeave}
-					>
-						<Icon icon={SiO2} />
-						<span className="me-2">
-							<span className={status.atmosphere.o2 < 18 ? 'text-danger' : status.atmosphere.o2 < 20 ? 'text-warning' : 'text-success'}>
-								{status.atmosphere.o2.toFixed(1)}%
-							</span>
+			<div className="d-flex justify-content-between align-items-center w-100">
+				{/* Left section - Always visible critical items */}
+				<Nav className="d-flex flex-row align-items-center">
+					{/* Shield Status - Critical */}
+					<Nav.Item className="d-flex align-items-center me-3">
+						<Icon icon={GiShield} />
+						<span title="Shield" className="d-none d-sm-inline">
+							{status.shield.strength}/{status.shield.max}
 						</span>
-						<Icon icon={MdCo2} />
-						<span>
-							<span className={status.atmosphere.co2 > 5 ? 'text-danger' : status.atmosphere.co2 > 2 ? 'text-warning' : 'text-success'}>
-								{status.atmosphere.co2.toFixed(1)}%
-							</span>
+						<span title="Shield" className="d-sm-none">
+							{status.shield.strength}
 						</span>
-					</span>
+					</Nav.Item>
 
-					{/* Atmosphere Details Popup */}
-					{showAtmosphereDetails && (
-						<div
-							className="position-absolute bottom-100 start-0 mb-2 p-3 rounded shadow-lg"
-							style={{
-								background: 'rgba(18,20,32,0.98)',
-								border: '1px solid #333',
-								minWidth: '240px',
-								fontSize: '0.9rem',
-								zIndex: 10000,
-							}}
+					{/* Power Status - Critical */}
+					<Nav.Item className="d-flex align-items-center me-3">
+						<Icon icon={GiElectric} />
+						<span title="Power">
+							{status.power}/{status.maxPower}
+						</span>
+					</Nav.Item>
+
+					{/* Atmosphere Section - Critical (Always visible) */}
+					<Nav.Item className="d-flex align-items-center me-3 position-relative">
+						<span
+							title="Atmosphere (click for details)"
+							className="d-flex align-items-center"
+							style={{ cursor: 'pointer' }}
+							onClick={toggleAtmosphereDetails}
 							onMouseEnter={handleAtmosphereMouseEnter}
 							onMouseLeave={handleAtmosphereMouseLeave}
 						>
-							<strong className="d-flex align-items-center mb-2">
-								<Icon icon={GiGasMask} />
-								Atmosphere Control
-							</strong>
-							<div className="ms-3">
-								<div className="d-flex justify-content-between align-items-center">
-									<span className="d-flex align-items-center">
-										<Icon icon={SiO2} size={14} />
-										Oxygen:
-									</span>
-									<span className={status.atmosphere.o2 < 18 ? 'text-danger' : status.atmosphere.o2 < 20 ? 'text-warning' : 'text-success'}>
-										{status.atmosphere.o2.toFixed(1)}%
-									</span>
-								</div>
-								<div className="d-flex justify-content-between align-items-center">
-									<span className="d-flex align-items-center">
-										<Icon icon={MdCo2} size={14} />
-										Carbon Dioxide:
-									</span>
-									<span className={status.atmosphere.co2 > 5 ? 'text-danger' : status.atmosphere.co2 > 2 ? 'text-warning' : 'text-success'}>
-										{status.atmosphere.co2.toFixed(1)}%
-									</span>
-								</div>
-								<div className="mt-2 pt-2" style={{ borderTop: '1px solid #444' }}>
+							<Icon icon={SiO2} />
+							<span className="me-2">
+								<span className={status.atmosphere.o2 < 18 ? 'text-danger' : status.atmosphere.o2 < 20 ? 'text-warning' : 'text-success'}>
+									{status.atmosphere.o2.toFixed(1)}%
+								</span>
+							</span>
+							<Icon icon={MdCo2} />
+							<span>
+								<span className={status.atmosphere.co2 > 5 ? 'text-danger' : status.atmosphere.co2 > 2 ? 'text-warning' : 'text-success'}>
+									{status.atmosphere.co2.toFixed(1)}%
+								</span>
+							</span>
+						</span>
+
+						{/* Atmosphere Details Popup */}
+						{showAtmosphereDetails && (
+							<div
+								className="position-absolute bottom-100 start-0 mb-2 p-3 rounded shadow-lg"
+								style={{
+									background: 'rgba(18,20,32,0.98)',
+									border: '1px solid #333',
+									minWidth: '240px',
+									fontSize: '0.9rem',
+									zIndex: 10000,
+								}}
+								onMouseEnter={handleAtmosphereMouseEnter}
+								onMouseLeave={handleAtmosphereMouseLeave}
+							>
+								<strong className="d-flex align-items-center mb-2">
+									<Icon icon={GiGasMask} />
+									Atmosphere Control
+								</strong>
+								<div className="ms-3">
 									<div className="d-flex justify-content-between align-items-center">
 										<span className="d-flex align-items-center">
-											<Icon icon={GiBroom} size={14} />
-											CO₂ Scrubbers:
+											<Icon icon={SiO2} size={14} />
+											Oxygen:
 										</span>
-										<span className={status.atmosphere.co2Scrubbers === 0 ? 'text-danger' : status.atmosphere.co2Scrubbers < 50 ? 'text-warning' : 'text-success'}>
-											{status.atmosphere.co2Scrubbers}%
+										<span className={status.atmosphere.o2 < 18 ? 'text-danger' : status.atmosphere.o2 < 20 ? 'text-warning' : 'text-success'}>
+											{status.atmosphere.o2.toFixed(1)}%
 										</span>
+									</div>
+									<div className="d-flex justify-content-between align-items-center">
+										<span className="d-flex align-items-center">
+											<Icon icon={MdCo2} size={14} />
+											Carbon Dioxide:
+										</span>
+										<span className={status.atmosphere.co2 > 5 ? 'text-danger' : status.atmosphere.co2 > 2 ? 'text-warning' : 'text-success'}>
+											{status.atmosphere.co2.toFixed(1)}%
+										</span>
+									</div>
+									<div className="mt-2 pt-2" style={{ borderTop: '1px solid #444' }}>
+										<div className="d-flex justify-content-between align-items-center">
+											<span className="d-flex align-items-center">
+												<Icon icon={GiBroom} size={14} />
+												CO₂ Scrubbers:
+											</span>
+											<span className={status.atmosphere.co2Scrubbers === 0 ? 'text-danger' : status.atmosphere.co2Scrubbers < 50 ? 'text-warning' : 'text-success'}>
+												{status.atmosphere.co2Scrubbers}%
+											</span>
+										</div>
 									</div>
 								</div>
 							</div>
-						</div>
-					)}
-				</Nav.Item>
-			</Nav>
+						)}
+					</Nav.Item>
+				</Nav>
 
-			{/* Toggle button for smaller screens */}
-			<Navbar.Toggle
-				aria-controls="status-navbar-nav"
-				className="border-0 p-1"
-				style={{ boxShadow: 'none' }}
-			>
-				<Icon icon={GiHamburgerMenu} size={20} />
-			</Navbar.Toggle>
+				{/* Center section - Resources (always visible on large screens) */}
+				<Nav className="d-none d-lg-flex">
+					<Nav.Item className="d-flex align-items-center position-relative">
+						<span
+							title="Resources (click for details)"
+							className="d-flex align-items-center"
+							style={{ cursor: 'pointer' }}
+							onClick={toggleResourcesDetails}
+							onMouseEnter={handleResourcesMouseEnter}
+							onMouseLeave={handleResourcesMouseLeave}
+						>
+							<Icon icon={GiCardboardBox} />
+							<span className="ms-1">Resources</span>
+						</span>
+
+						{/* Resources Details Popup */}
+						{showResourcesDetails && (
+							<div
+								className="position-absolute bottom-100 start-50 translate-middle-x mb-2 p-3 rounded shadow-lg"
+								style={{
+									background: 'rgba(18,20,32,0.98)',
+									border: '1px solid #333',
+									minWidth: '320px',
+									fontSize: '0.9rem',
+									zIndex: 10000,
+								}}
+								onMouseEnter={handleResourcesMouseEnter}
+								onMouseLeave={handleResourcesMouseLeave}
+							>
+								<strong className="d-flex align-items-center mb-2">
+									<Icon icon={GiCardboardBox} />
+									Ship Resources
+								</strong>
+								<div className="ms-3">
+									<div className="row">
+										<div className="col-6">
+											<div className="d-flex justify-content-between align-items-center">
+												<span>Food:</span>
+												<span className={(status.inventory.food || 0) < 10 ? 'text-danger' : (status.inventory.food || 0) < 25 ? 'text-warning' : 'text-success'}>
+													{status.inventory.food || 0}
+												</span>
+											</div>
+											<div className="d-flex justify-content-between align-items-center">
+												<span>Water:</span>
+												<span className={(status.inventory.water || 0) < 20 ? 'text-danger' : (status.inventory.water || 0) < 50 ? 'text-warning' : 'text-success'}>
+													{status.inventory.water || 0}
+												</span>
+											</div>
+											<div className="d-flex justify-content-between align-items-center">
+												<span>Parts:</span>
+												<span className={(status.inventory.parts || 0) < 5 ? 'text-danger' : (status.inventory.parts || 0) < 15 ? 'text-warning' : 'text-success'}>
+													{status.inventory.parts || 0}
+												</span>
+											</div>
+										</div>
+										<div className="col-6">
+											<div className="d-flex justify-content-between align-items-center">
+												<span>Medicine:</span>
+												<span className={(status.inventory.medicine || 0) < 2 ? 'text-danger' : (status.inventory.medicine || 0) < 5 ? 'text-warning' : 'text-success'}>
+													{status.inventory.medicine || 0}
+												</span>
+											</div>
+											<div className="d-flex justify-content-between align-items-center">
+												<span>Ancient Tech:</span>
+												<span className="text-info">
+													{status.inventory.ancient_tech || 0}
+												</span>
+											</div>
+											<div className="d-flex justify-content-between align-items-center">
+												<span>O₂ Canisters:</span>
+												<span className={(status.inventory.oxygen_canister || 0) < 2 ? 'text-danger' : (status.inventory.oxygen_canister || 0) < 5 ? 'text-warning' : 'text-success'}>
+													{status.inventory.oxygen_canister || 0}
+												</span>
+											</div>
+										</div>
+									</div>
+									{status.inventory.lime && (
+										<div className="mt-2 pt-2" style={{ borderTop: '1px solid #444' }}>
+											<div className="d-flex justify-content-between align-items-center">
+												<span>Lime (CO₂ Scrubber):</span>
+												<span className={(status.inventory.lime || 0) < 5 ? 'text-danger' : (status.inventory.lime || 0) < 15 ? 'text-warning' : 'text-success'}>
+													{status.inventory.lime || 0}
+												</span>
+											</div>
+										</div>
+									)}
+								</div>
+							</div>
+						)}
+					</Nav.Item>
+				</Nav>
+
+				{/* Right section - Toggle and collapsible items */}
+				<div className="d-flex align-items-center">
+					{/* Toggle button for smaller screens */}
+					<Navbar.Toggle
+						aria-controls="status-navbar-nav"
+						className="border-0 p-1"
+						style={{ boxShadow: 'none' }}
+					>
+						<Icon icon={GiHamburgerMenu} size={20} />
+					</Navbar.Toggle>
+				</div>
+			</div>
 
 			{/* Collapsible secondary items */}
 			<Navbar.Collapse id="status-navbar-nav">
@@ -336,10 +454,7 @@ export const DestinyStatusBar: React.FC<DestinyStatusBarProps> = ({ status }) =>
 								const { totalActive, totalWeapons } = getWeaponsSummary();
 								return (
 									<>
-										<span className="d-none d-lg-inline">
-											{totalActive}/{totalWeapons} Weapons
-										</span>
-										<span className="d-lg-none">
+										<span className="d-inline">
 											{totalActive}/{totalWeapons}
 										</span>
 									</>

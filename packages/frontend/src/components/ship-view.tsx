@@ -1,13 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { Container, Row, Col, Card } from 'react-bootstrap';
-import {
-	GiChart,
-	GiLungs,
-	GiElectric,
-	GiWrench,
-	GiPowerLightning,
-	GiMeeple,
-} from 'react-icons/gi';
 
 import type { DestinyStatus } from '../types';
 
@@ -126,43 +117,8 @@ export const ShipView: React.FC<ShipViewProps> = ({
 	};
 
 	return (
-		<div className="ship-view">
-			{/* Resource Status Header */}
-			<div className="bg-dark text-light p-3 mb-3">
-				<Row>
-					<Col md={3}>
-						<h6><GiChart size={16} className="me-1" />Resources</h6>
-						<small>
-							Food: {destinyStatus.inventory.food || 0} |
-							Water: {destinyStatus.inventory.water || 0} |
-							Parts: {destinyStatus.inventory.parts || 0}
-						</small>
-					</Col>
-					<Col md={3}>
-						<h6><GiLungs size={16} className="me-1" />Atmosphere</h6>
-						<small>
-							O₂: {destinyStatus.atmosphere.o2.toFixed(1)}% |
-							CO₂: {destinyStatus.atmosphere.co2.toFixed(2)}%
-						</small>
-					</Col>
-					<Col md={3}>
-						<h6><GiElectric size={16} className="me-1" />Systems</h6>
-						<small>
-							Power: {destinyStatus.power}/{destinyStatus.maxPower} |
-							Crew: {crewCount}
-						</small>
-					</Col>
-					<Col md={3}>
-						<h6><GiWrench size={16} className="me-1" />Tech</h6>
-						<small>
-							Ancient Tech: {destinyStatus.inventory.ancient_tech || 0} |
-							Medicine: {destinyStatus.inventory.medicine || 0}
-						</small>
-					</Col>
-				</Row>
-			</div>
-
-			{/* Interactive Ship Map */}
+		<div className="ship-view" style={{ width: '100%', height: '100%' }}>
+			{/* Interactive Ship Map - Full Screen */}
 			<ShipMap
 				destinyStatus={destinyStatus}
 				onStatusUpdate={onStatusUpdate}

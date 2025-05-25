@@ -89,83 +89,6 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 		return '#10b981'; // Green for safe
 	};
 
-	// Check if door is opened
-	const isDoorOpened = (connectedRoom: Room): boolean => {
-		const doorId1 = `${room.id}-${connectedRoom.id}`;
-		const doorId2 = `${connectedRoom.id}-${room.id}`;
-		return doorStates[doorId1] || doorStates[doorId2] || false;
-	};
-
-	// Render door indicators for connections
-	const renderDoors = () => {
-		return connectedRooms.map(connectedRoom => {
-			if (!connectedRoom) return null;
-
-			const connectedPos = {
-				x: 400 + (connectedRoom.x * 160), // Updated scale from 80 to 160
-				y: 300 - (connectedRoom.y * 160),  // Updated scale from 80 to 160
-			};
-
-			// Calculate direction to connected room
-			const dx = connectedPos.x - position.x;
-			const dy = connectedPos.y - position.y;
-
-			// Determine which edge of the current room the door should be on
-			let doorX = position.x;
-			let doorY = position.y;
-			let isHorizontal = false;
-
-			if (Math.abs(dx) > Math.abs(dy)) {
-				// Horizontal connection (east/west)
-				isHorizontal = true;
-				doorX = position.x + (dx > 0 ? halfWidth : -halfWidth);
-				doorY = position.y;
-			} else {
-				// Vertical connection (north/south)
-				isHorizontal = false;
-				doorX = position.x;
-				doorY = position.y + (dy > 0 ? halfHeight : -halfHeight);
-			}
-
-			const doorColor = getDoorColor(connectedRoom);
-			const isOpened = isDoorOpened(connectedRoom);
-			const doorImage = isOpened ? '/images/door-opened.png' : '/images/door.png';
-
-			return (
-				<g key={`door-${room.id}-${connectedRoom.id}`}>
-					{/* Door image */}
-					<image
-						href={doorImage}
-						x={doorX - 15}
-						y={doorY - 15}
-						width="30"
-						height="30"
-						transform={isHorizontal ? `rotate(90 ${doorX} ${doorY})` : ''}
-						style={{ cursor: 'pointer' }}
-						onClick={(e) => {
-							e.stopPropagation();
-							onDoorClick(room.id, connectedRoom.id);
-						}}
-					/>
-					{/* Door status indicator (small colored border) */}
-					<rect
-						x={doorX - 16}
-						y={doorY - 16}
-						width="32"
-						height="32"
-						fill="none"
-						stroke={doorColor}
-						strokeWidth="2"
-						opacity="0.7"
-						transform={isHorizontal ? `rotate(90 ${doorX} ${doorY})` : ''}
-						pointerEvents="none"
-					/>
-				</g>
-			);
-		});
-	};
-
-	// Get room background image
 	const getRoomBackgroundImage = () => {
 		// Use room-specific image if available
 		if (room.image) {
@@ -365,22 +288,38 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 
 	return (
 		<g>
-			{/* Render doors first (behind room) */}
-			{renderDoors()}
-
-			{/* Room background image (if unlocked) */}
+			{/* Room background image (if unlocked) - tiled pattern */}
 			{room.unlocked && (
-				<image
-					href={getRoomBackgroundImage()}
-					x={position.x - halfWidth}
-					y={position.y - halfHeight}
-					width={roomDimensions.width}
-					height={roomDimensions.height}
-					opacity="0.8"
-					style={{ borderRadius: '4px' }}
-					onMouseEnter={() => setIsHovered(true)}
-					onMouseLeave={() => setIsHovered(false)}
-				/>
+				<g>
+					<defs>
+						<pattern
+							id={`room-pattern-${room.id}`}
+							patternUnits="userSpaceOnUse"
+							width="64"
+							height="64"
+						>
+							<image
+								href={getRoomBackgroundImage()}
+								x="0"
+								y="0"
+								width="64"
+								height="64"
+							/>
+						</pattern>
+					</defs>
+					<rect
+						x={position.x - halfWidth}
+						y={position.y - halfHeight}
+						width={roomDimensions.width}
+						height={roomDimensions.height}
+						fill={`url(#room-pattern-${room.id})`}
+						opacity="0.8"
+						rx="4"
+						ry="4"
+						onMouseEnter={() => setIsHovered(true)}
+						onMouseLeave={() => setIsHovered(false)}
+					/>
+				</g>
 			)}
 
 			{/* Main room rectangle */}
