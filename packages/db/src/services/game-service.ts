@@ -7,6 +7,7 @@ import DestinyStatus from '../models/destiny-status';
 import Galaxy from '../models/galaxy';
 import Game from '../models/game';
 import Race from '../models/race';
+import Room from '../models/room';
 import StarSystem from '../models/star-system';
 
 export class GameService {
@@ -128,8 +129,15 @@ export class GameService {
 			destinyStatus.crew = JSON.stringify([]);
 			destinyStatus.location = JSON.stringify({ systemId: destinySystem.id });
 			destinyStatus.shield = JSON.stringify({ strength: 400, max: 500, coverage: 80 });
-			destinyStatus.inventory = JSON.stringify({});
-			destinyStatus.unlockedRooms = JSON.stringify([]);
+			destinyStatus.inventory = JSON.stringify({
+				food: 50,
+				water: 100,
+				parts: 10,
+				medicine: 5,
+				ancient_tech: 2,
+				lime: 20,
+				oxygen_canister: 5,
+			});
 			destinyStatus.crewStatus = JSON.stringify({
 				onboard: 12,
 				capacity: 100,
@@ -142,15 +150,298 @@ export class GameService {
 				o2Scrubbers: 1,
 			});
 			destinyStatus.weapons = JSON.stringify({
-				mainGun: true,
-				turrets: { total: 6, working: 3 },
+				mainGun: false,
+				turrets: { total: 12, working: 6 },
 			});
 			destinyStatus.shuttles = JSON.stringify({ total: 2, working: 1, damaged: 1 });
-			destinyStatus.rooms = JSON.stringify([]);
-			destinyStatus.notes = JSON.stringify(['One shuttle is damaged. Some rooms are locked.']);
+			destinyStatus.notes = JSON.stringify(['Ship systems coming online. Crew exploring available sections.']);
+
+			// Initialize game time fields
+			destinyStatus.gameDays = 1;
+			destinyStatus.gameHours = 0;
+			destinyStatus.ftlStatus = 'ftl';
+			// Random countdown between 6 and 48 hours
+			destinyStatus.nextFtlTransition = 6 + Math.random() * 42;
 		});
 		console.log('Created Destiny status:', destinyStatus.id);
 
+		// Create comprehensive Destiny ship layout with proper connections
+		console.log('Creating ship room layout...');
+
+		// Main Floor (Floor 0) - Core ship operations
+		const gateRoom = await this.database.get<Room>('rooms').create((room) => {
+			room.gameId = gameId;
+			room.type = 'gate_room';
+			room.x = 0;
+			room.y = 0;
+			room.floor = 0;
+			room.assigned = JSON.stringify(['dr_rush', 'lt_scott']);
+			room.technology = JSON.stringify(['stargate', 'dialing_computer', 'shields']);
+			room.fond = false;
+			room.unlocked = true;
+			room.status = 'ok';
+			room.connectedRooms = JSON.stringify([]); // Will be updated after corridors are created
+		});
+
+		// Corridors connected to gate room (north and south)
+		const corridorNorth = await this.database.get<Room>('rooms').create((room) => {
+			room.gameId = gameId;
+			room.type = 'corridor';
+			room.x = 0;
+			room.y = 1;
+			room.floor = 0;
+			room.assigned = JSON.stringify([]);
+			room.technology = JSON.stringify(['lighting', 'atmosphere_sensors']);
+			room.fond = false;
+			room.unlocked = true;
+			room.status = 'ok';
+			room.connectedRooms = JSON.stringify([gateRoom.id]); // Will be updated
+		});
+
+		const corridorSouth = await this.database.get<Room>('rooms').create((room) => {
+			room.gameId = gameId;
+			room.type = 'corridor';
+			room.x = 0;
+			room.y = -1;
+			room.floor = 0;
+			room.assigned = JSON.stringify([]);
+			room.technology = JSON.stringify(['lighting', 'atmosphere_sensors']);
+			room.fond = false;
+			room.unlocked = true;
+			room.status = 'ok';
+			room.connectedRooms = JSON.stringify([gateRoom.id]); // Will be updated
+		});
+
+		// Bridge - connected to north corridor
+		const bridgeRoom = await this.database.get<Room>('rooms').create((room) => {
+			room.gameId = gameId;
+			room.type = 'bridge';
+			room.x = 0;
+			room.y = 2;
+			room.floor = 0;
+			room.assigned = JSON.stringify(['colonel_young', 'eli_wallace']);
+			room.technology = JSON.stringify(['ftl_drive_controls', 'sensors', 'communications', 'navigation']);
+			room.fond = false;
+			room.unlocked = true;
+			room.status = 'ok';
+			room.connectedRooms = JSON.stringify([corridorNorth.id]);
+		});
+
+		// Engineering - connected to south corridor
+		const engineeringRoom = await this.database.get<Room>('rooms').create((room) => {
+			room.gameId = gameId;
+			room.type = 'engineering';
+			room.x = 0;
+			room.y = -2;
+			room.floor = 0;
+			room.assigned = JSON.stringify(['eli_wallace', 'brody']);
+			room.technology = JSON.stringify(['power_systems', 'ftl_drive', 'life_support', 'reactor_controls']);
+			room.fond = false;
+			room.unlocked = true;
+			room.status = 'ok';
+			room.connectedRooms = JSON.stringify([corridorSouth.id]);
+		});
+
+		// East-West corridor connecting to quarters and other facilities
+		const corridorEast = await this.database.get<Room>('rooms').create((room) => {
+			room.gameId = gameId;
+			room.type = 'corridor';
+			room.x = 1;
+			room.y = 0;
+			room.floor = 0;
+			room.assigned = JSON.stringify([]);
+			room.technology = JSON.stringify(['lighting', 'atmosphere_sensors']);
+			room.fond = false;
+			room.unlocked = true;
+			room.status = 'ok';
+			room.connectedRooms = JSON.stringify([corridorNorth.id]);
+		});
+
+		const corridorWest = await this.database.get<Room>('rooms').create((room) => {
+			room.gameId = gameId;
+			room.type = 'corridor';
+			room.x = -1;
+			room.y = 0;
+			room.floor = 0;
+			room.assigned = JSON.stringify([]);
+			room.technology = JSON.stringify(['lighting', 'atmosphere_sensors']);
+			room.fond = false;
+			room.unlocked = true;
+			room.status = 'ok';
+			room.connectedRooms = JSON.stringify([corridorSouth.id]);
+		});
+
+		// Medical Bay - connected to east corridor
+		const medBayRoom = await this.database.get<Room>('rooms').create((room) => {
+			room.gameId = gameId;
+			room.type = 'medical_bay';
+			room.x = 2;
+			room.y = 0;
+			room.floor = 0;
+			room.assigned = JSON.stringify(['dr_james', 'medic_volker']);
+			room.technology = JSON.stringify(['medical_scanners', 'healing_pods', 'surgical_equipment']);
+			room.fond = false;
+			room.unlocked = true;
+			room.status = 'ok';
+			room.connectedRooms = JSON.stringify([corridorEast.id]);
+		});
+
+		// Mess Hall - connected to west corridor
+		const messHallRoom = await this.database.get<Room>('rooms').create((room) => {
+			room.gameId = gameId;
+			room.type = 'mess_hall';
+			room.x = -2;
+			room.y = 0;
+			room.floor = 0;
+			room.assigned = JSON.stringify(['chef_reynolds']);
+			room.technology = JSON.stringify(['food_processors', 'water_recycling']);
+			room.fond = false;
+			room.unlocked = true;
+			room.status = 'ok';
+			room.connectedRooms = JSON.stringify([corridorWest.id]);
+		});
+
+		// Crew Quarters Section A - connected to east corridor
+		const quartersA = await this.database.get<Room>('rooms').create((room) => {
+			room.gameId = gameId;
+			room.type = 'quarters';
+			room.x = 1;
+			room.y = 1;
+			room.floor = 0;
+			room.assigned = JSON.stringify(['colonel_young', 'dr_rush', 'eli_wallace', 'chloe_armstrong']);
+			room.technology = JSON.stringify(['personal_storage', 'sleep_pods']);
+			room.fond = false;
+			room.unlocked = true;
+			room.status = 'ok';
+			room.connectedRooms = JSON.stringify([corridorEast.id]);
+		});
+
+		// Crew Quarters Section B - connected to west corridor
+		const quartersB = await this.database.get<Room>('rooms').create((room) => {
+			room.gameId = gameId;
+			room.type = 'quarters';
+			room.x = -1;
+			room.y = -1;
+			room.floor = 0;
+			room.assigned = JSON.stringify(['lt_scott', 'greer', 'dr_james', 'dr_park']);
+			room.technology = JSON.stringify(['personal_storage', 'sleep_pods']);
+			room.fond = false;
+			room.unlocked = true;
+			room.status = 'ok';
+			room.connectedRooms = JSON.stringify([corridorWest.id]);
+		});
+
+		// Elevator to lower levels - connected to south corridor
+		const elevatorMain = await this.database.get<Room>('rooms').create((room) => {
+			room.gameId = gameId;
+			room.type = 'elevator';
+			room.x = 1;
+			room.y = -1;
+			room.floor = 0;
+			room.assigned = JSON.stringify([]);
+			room.technology = JSON.stringify(['elevator_controls', 'artificial_gravity']);
+			room.fond = false;
+			room.unlocked = true;
+			room.status = 'ok';
+			room.connectedRooms = JSON.stringify([corridorSouth.id]); // Will connect to lower floor
+		});
+
+		// Lower Floor (Floor -1) - Storage and specialized systems
+		const lowerCorridor = await this.database.get<Room>('rooms').create((room) => {
+			room.gameId = gameId;
+			room.type = 'corridor';
+			room.x = 1;
+			room.y = -1;
+			room.floor = -1;
+			room.assigned = JSON.stringify([]);
+			room.technology = JSON.stringify(['emergency_lighting', 'atmosphere_sensors']);
+			room.fond = false;
+			room.unlocked = false; // Initially locked
+			room.status = 'ok';
+			room.connectedRooms = JSON.stringify([elevatorMain.id]);
+		});
+
+		// Hydroponics - lower level
+		const hydroponicsRoom = await this.database.get<Room>('rooms').create((room) => {
+			room.gameId = gameId;
+			room.type = 'hydroponics';
+			room.x = 0;
+			room.y = -1;
+			room.floor = -1;
+			room.assigned = JSON.stringify(['dr_park', 'chloe_armstrong']);
+			room.technology = JSON.stringify(['growing_systems', 'air_recycling', 'water_filtration']);
+			room.fond = false;
+			room.unlocked = false; // Needs to be discovered
+			room.status = 'ok';
+			room.connectedRooms = JSON.stringify([lowerCorridor.id]);
+		});
+
+		// Storage Bay - lower level
+		const storageBay = await this.database.get<Room>('rooms').create((room) => {
+			room.gameId = gameId;
+			room.type = 'storage';
+			room.x = 2;
+			room.y = -1;
+			room.floor = -1;
+			room.assigned = JSON.stringify([]);
+			room.technology = JSON.stringify(['cargo_systems', 'inventory_management']);
+			room.fond = false;
+			room.unlocked = false;
+			room.status = 'ok';
+			room.connectedRooms = JSON.stringify([lowerCorridor.id]);
+		});
+
+		// Shuttle Bay - lower level, initially damaged
+		const shuttleBayRoom = await this.database.get<Room>('rooms').create((room) => {
+			room.gameId = gameId;
+			room.type = 'shuttle_bay';
+			room.x = 3;
+			room.y = -1;
+			room.floor = -1;
+			room.assigned = JSON.stringify(['lt_scott', 'greer']);
+			room.technology = JSON.stringify(['shuttle_systems', 'docking_clamps', 'hangar_controls']);
+			room.fond = false;
+			room.unlocked = false;
+			room.status = 'damaged';
+			room.connectedRooms = JSON.stringify([lowerCorridor.id]);
+		});
+
+		// Update connection arrays for all rooms directly within this writer transaction
+		console.log('Updating room connections...');
+
+		// Update gate room connections
+		await gateRoom.update((roomRecord) => {
+			roomRecord.connectedRooms = JSON.stringify([corridorNorth.id, corridorSouth.id]);
+		});
+
+		// Update corridor connections
+		await corridorNorth.update((roomRecord) => {
+			roomRecord.connectedRooms = JSON.stringify([gateRoom.id, bridgeRoom.id, corridorEast.id]);
+		});
+
+		await corridorSouth.update((roomRecord) => {
+			roomRecord.connectedRooms = JSON.stringify([gateRoom.id, engineeringRoom.id, corridorWest.id, elevatorMain.id]);
+		});
+
+		await corridorEast.update((roomRecord) => {
+			roomRecord.connectedRooms = JSON.stringify([corridorNorth.id, medBayRoom.id, quartersA.id]);
+		});
+
+		await corridorWest.update((roomRecord) => {
+			roomRecord.connectedRooms = JSON.stringify([corridorSouth.id, messHallRoom.id, quartersB.id]);
+		});
+
+		// Update elevator connections
+		await elevatorMain.update((roomRecord) => {
+			roomRecord.connectedRooms = JSON.stringify([corridorSouth.id, lowerCorridor.id]);
+		});
+
+		// Update lower corridor connections
+		await lowerCorridor.update((roomRecord) => {
+			roomRecord.connectedRooms = JSON.stringify([elevatorMain.id, hydroponicsRoom.id, storageBay.id, shuttleBayRoom.id]);
+		});
+
+		console.log('Ship layout created successfully!');
 		console.log('Game creation completed successfully!');
 
 		// TODO: Add more entities (stars, planets, people, technology, etc.) when needed
@@ -186,6 +477,7 @@ export class GameService {
 			'ships',
 			'destiny_status',
 			'people',
+			'rooms',
 		];
 		const result: Record<string, unknown[]> = {};
 
@@ -200,6 +492,75 @@ export class GameService {
 
 		console.log('Final game data result:', result);
 		return result;
+	}
+
+	/**
+	 * Get all rooms for a specific game
+	 */
+	async getRoomsByGame(gameId: string): Promise<Room[]> {
+		return await this.database
+			.get<Room>('rooms')
+			.query(Q.where('game_id', gameId))
+			.fetch();
+	}
+
+	/**
+	 * Get rooms by type (e.g., 'corridor', 'quarters', 'elevator')
+	 */
+	async getRoomsByType(gameId: string, roomType: string): Promise<Room[]> {
+		return await this.database
+			.get<Room>('rooms')
+			.query(
+				Q.where('game_id', gameId),
+				Q.where('type', roomType),
+			)
+			.fetch();
+	}
+
+	/**
+	 * Get rooms on a specific floor
+	 */
+	async getRoomsByFloor(gameId: string, floor: number): Promise<Room[]> {
+		return await this.database
+			.get<Room>('rooms')
+			.query(
+				Q.where('game_id', gameId),
+				Q.where('floor', floor),
+			)
+			.fetch();
+	}
+
+	/**
+	 * Get unlocked rooms for exploration
+	 */
+	async getUnlockedRooms(gameId: string): Promise<Room[]> {
+		return await this.database
+			.get<Room>('rooms')
+			.query(
+				Q.where('game_id', gameId),
+				Q.where('unlocked', true),
+			)
+			.fetch();
+	}
+
+	/**
+	 * Update room status (unlock, repair, etc.)
+	 */
+	async updateRoom(roomId: string, updates: Partial<{ unlocked: boolean; status: 'ok' | 'damaged' | 'destroyed'; assigned: string[] }>): Promise<void> {
+		const room = await this.database.get<Room>('rooms').find(roomId);
+		await this.database.write(async () => {
+			await room.update((roomRecord) => {
+				if (updates.unlocked !== undefined) {
+					roomRecord.unlocked = updates.unlocked;
+				}
+				if (updates.status !== undefined) {
+					roomRecord.status = updates.status;
+				}
+				if (updates.assigned !== undefined) {
+					roomRecord.assigned = JSON.stringify(updates.assigned);
+				}
+			});
+		});
 	}
 
 	/**
@@ -225,6 +586,63 @@ export class GameService {
 		}
 
 		console.log('=== End Database Debug ===');
+	}
+
+	/**
+	 * Debug room layout - display all rooms and their connections
+	 */
+	async debugRoomLayout(gameId: string): Promise<void> {
+		console.log('=== Ship Room Layout Debug ===');
+
+		const rooms = await this.getRoomsByGame(gameId);
+
+		// Group by floor
+		const roomsByFloor = rooms.reduce((acc, room) => {
+			const floor = (room as any).floor || 0;
+			if (!acc[floor]) acc[floor] = [];
+			acc[floor].push(room);
+			return acc;
+		}, {} as Record<number, any[]>);
+
+		// Sort floors
+		const floors = Object.keys(roomsByFloor).map(Number).sort((a, b) => b - a);
+
+		for (const floor of floors) {
+			console.log(`\n--- Floor ${floor} ---`);
+			const floorRooms = roomsByFloor[floor];
+
+			for (const room of floorRooms) {
+				const roomData = room as any;
+				const connections = JSON.parse(roomData.connectedRooms || '[]');
+				const technology = JSON.parse(roomData.technology || '[]');
+				const assigned = JSON.parse(roomData.assigned || '[]');
+
+				console.log(`${roomData.type.toUpperCase()} (${roomData.x}, ${roomData.y})`);
+				console.log(`  Status: ${roomData.status} | Unlocked: ${roomData.unlocked}`);
+				console.log(`  Assigned: [${assigned.join(', ')}]`);
+				console.log(`  Technology: [${technology.join(', ')}]`);
+				console.log(`  Connections: ${connections.length} room(s)`);
+
+				// Show connected room types
+				if (connections.length > 0) {
+					const connectedRoomNames = await Promise.all(
+						connections.map(async (connId: string) => {
+							try {
+								const connRoom = await this.database.get('rooms').find(connId);
+								return (connRoom as any).type;
+							} catch {
+								return 'unknown';
+							}
+						}),
+					);
+					console.log(`  Connected to: [${connectedRoomNames.join(', ')}]`);
+				}
+				console.log('');
+			}
+		}
+
+		console.log(`Total rooms: ${rooms.length}`);
+		console.log('=== End Room Layout Debug ===');
 	}
 
 	async reset() {

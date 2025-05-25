@@ -2,18 +2,20 @@ import React, { useEffect, useRef, useState } from 'react';
 import { gameService } from '@stargate/db';
 import * as PIXI from 'pixi.js';
 import type { DestinyStatus } from '@stargate/common/types/destiny';
+import { GiReturnArrow } from 'react-icons/gi';
 
 import { validateOrRefreshSession } from '../auth/session';
 import { DestinyStatusBar } from '../components/destiny-status-bar';
 import { GalaxyMap } from '../components/galaxy-map';
 import { GalaxyTravelModal } from '../components/galaxy-travel-modal';
+import { ShipView } from '../components/ship-view';
 import { Game } from '../game';
 import { MapPopover } from '../map-popover';
 import { Toast } from '../toast';
 import { useNavigate, useParams } from 'react-router-dom';
 import { NavButton } from '../components/nav-button';
 
-type ViewMode = 'galaxy-map' | 'game-view';
+type ViewMode = 'ship-view' | 'galaxy-map' | 'game-view';
 
 interface Galaxy {
 	id: string;
@@ -49,13 +51,15 @@ function parseDestinyStatus(rawStatus: any): DestinyStatus {
 		stargate: rawStatus.stargate || rawStatus.stargate_id,
 		shield: parseJson(rawStatus.shield, { strength: 0, max: 500, coverage: 0 }),
 		inventory: parseJson(rawStatus.inventory, {}),
-		unlockedRooms: parseJson(rawStatus.unlockedRooms || rawStatus.unlocked_rooms, []),
 		crewStatus: parseJson(rawStatus.crewStatus || rawStatus.crew_status, { onboard: 0, capacity: 100, manifest: [] }),
 		atmosphere: parseJson(rawStatus.atmosphere, { co2: 0, o2: 21, co2Scrubbers: 0, o2Scrubbers: 0 }),
 		weapons: parseJson(rawStatus.weapons, { mainGun: false, turrets: { total: 0, working: 0 } }),
 		shuttles: parseJson(rawStatus.shuttles, { total: 0, working: 0, damaged: 0 }),
-		rooms: parseJson(rawStatus.rooms, []),
 		notes: parseJson(rawStatus.notes, []),
+		gameDays: rawStatus.gameDays || rawStatus.game_days || 1,
+		gameHours: rawStatus.gameHours || rawStatus.game_hours || 0,
+		ftlStatus: rawStatus.ftlStatus || rawStatus.ftl_status || 'ftl',
+		nextFtlTransition: rawStatus.nextFtlTransition || rawStatus.next_ftl_transition || (6 + Math.random() * 42),
 	};
 }
 
@@ -74,7 +78,7 @@ export const GamePage: React.FC = () => {
 	const appRef = useRef<PIXI.Application | null>(null);
 	const gameInstanceRef = useRef<Game | null>(null);
 	const [destinyStatus, setDestinyStatus] = useState<DestinyStatus | null>(null);
-	const [viewMode, setViewMode] = useState<ViewMode>('galaxy-map');
+	const [viewMode, setViewMode] = useState<ViewMode>('ship-view');
 	const [gameData, setGameData] = useState<any>(null);
 	const [galaxies, setGalaxies] = useState<Galaxy[]>([]);
 	const [isLoading, setIsLoading] = useState(true);
@@ -135,7 +139,7 @@ export const GamePage: React.FC = () => {
 		console.log('Start game with ID:', gameId);
 		try {
 			// Show loading immediately when starting a game
-			setViewMode('galaxy-map');
+			setViewMode('ship-view');
 			setGalaxies([]); // Clear previous data
 
 			// Use local database instead of backend API
@@ -171,6 +175,18 @@ export const GamePage: React.FC = () => {
 				console.log('Parsed destiny status:', parsedDestinyStatus);
 				console.log('Power values - raw:', rawTyped.power, rawTyped.maxPower);
 				console.log('Power values - parsed:', parsedDestinyStatus.power, parsedDestinyStatus.maxPower);
+
+				// Initialize starting inventory if empty
+				if (!parsedDestinyStatus.inventory || Object.keys(parsedDestinyStatus.inventory).length === 0) {
+					parsedDestinyStatus.inventory = {
+						food: 50,
+						water: 100,
+						parts: 10,
+						medicine: 5,
+						ancient_tech: 2
+					};
+				}
+
 				setDestinyStatus(parsedDestinyStatus);
 
 				// Find current galaxy based on ship location
@@ -257,6 +273,20 @@ export const GamePage: React.FC = () => {
 		}
 	};
 
+	const handleBackToShip = () => {
+		setViewMode('ship-view');
+		if (appRef.current?.canvas) {
+			appRef.current.canvas.style.display = 'none';
+		}
+		// Clear the stage
+		if (appRef.current?.stage) {
+			appRef.current.stage.removeChildren();
+		}
+		if (gameInstanceRef.current) {
+			gameInstanceRef.current = null;
+		}
+	};
+
 	const handleBackToGalaxyMap = () => {
 		setViewMode('galaxy-map');
 		if (appRef.current?.canvas) {
@@ -287,6 +317,15 @@ export const GamePage: React.FC = () => {
 			gameInstanceRef.current = null;
 		}
 		navigate('/');
+	};
+
+	const handleNavigateToGalaxyMap = () => {
+		setViewMode('galaxy-map');
+	};
+
+	// Handler for updating destiny status from ship view
+	const handleDestinyStatusUpdate = (newStatus: DestinyStatus) => {
+		setDestinyStatus(newStatus);
 	};
 
 	useEffect(() => {
@@ -343,8 +382,6 @@ export const GamePage: React.FC = () => {
 			console.groupEnd();
 
 			console.group('🏠 Ship Status');
-			console.log('Unlocked Rooms:', destinyStatus.unlockedRooms);
-			console.log('Rooms:', destinyStatus.rooms);
 			console.log('Notes:', destinyStatus.notes);
 			console.groupEnd();
 
@@ -398,7 +435,7 @@ export const GamePage: React.FC = () => {
 		<div style={{
 			background: '#000',
 			minHeight: '100vh',
-			...(viewMode === 'galaxy-map' ? {} : {
+			...(viewMode === 'galaxy-map' ? {} : viewMode === 'ship-view' ? {} : {
 				display: 'flex',
 				justifyContent: 'center',
 				alignItems: 'center',
@@ -417,10 +454,27 @@ export const GamePage: React.FC = () => {
 				</div>
 			)}
 
+			{/* Ship View */}
+			{!isLoading && viewMode === 'ship-view' && destinyStatus && (
+				<div style={{ width: '100vw', height: '100vh', position: 'relative', overflow: 'auto' }}>
+					<NavButton onClick={handleBackToMenu}>
+						<GiReturnArrow size={20} /> Back to Menu
+					</NavButton>
+					<div style={{ padding: '20px', paddingTop: '60px' }}>
+						<ShipView
+							destinyStatus={destinyStatus}
+							onStatusUpdate={handleDestinyStatusUpdate}
+							onNavigateToGalaxy={handleNavigateToGalaxyMap}
+						/>
+					</div>
+				</div>
+			)}
+
+			{/* Galaxy Map View */}
 			{!isLoading && viewMode === 'galaxy-map' && galaxies.length > 0 && (
 				<div style={{ width: '100vw', height: '100vh', position: 'relative' }}>
-					<NavButton onClick={handleBackToMenu}>
-						← Back to Menu
+					<NavButton onClick={handleBackToShip}>
+						<GiReturnArrow size={20} /> Back to Ship
 					</NavButton>
 					<GalaxyMap
 						galaxies={galaxies}
@@ -434,8 +488,8 @@ export const GamePage: React.FC = () => {
 
 			{!isLoading && viewMode === 'galaxy-map' && galaxies.length === 0 && (
 				<div style={{ width: '100vw', height: '100vh', position: 'relative' }}>
-					<NavButton onClick={handleBackToMenu}>
-						← Back to Menu
+					<NavButton onClick={handleBackToShip}>
+						<GiReturnArrow size={20} /> Back to Ship
 					</NavButton>
 					<div className="text-white text-center" style={{
 						position: 'absolute',
@@ -454,11 +508,11 @@ export const GamePage: React.FC = () => {
 
 			{viewMode === 'game-view' && (
 				<NavButton onClick={handleBackToGalaxyMap}>
-					← Back to Galaxy Map
+					<GiReturnArrow size={20} /> Back to Galaxy Map
 				</NavButton>
 			)}
 
-
+			{/* Travel Modal */}
 			<GalaxyTravelModal
 				show={showTravelModal}
 				onHide={() => {

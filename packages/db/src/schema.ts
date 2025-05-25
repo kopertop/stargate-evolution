@@ -1,7 +1,7 @@
 import { appSchema, tableSchema } from '@nozbe/watermelondb';
 
 export default appSchema({
-	version: 2,
+	version: 5,
 	tables: [
 		tableSchema({
 			name: 'games',
@@ -142,8 +142,15 @@ export default appSchema({
 			columns: [
 				{ name: 'game_id', type: 'string', isIndexed: true },
 				{ name: 'type', type: 'string' },
+				{ name: 'x', type: 'number' },
+				{ name: 'y', type: 'number' },
+				{ name: 'floor', type: 'number' },
 				{ name: 'assigned', type: 'string' }, // JSON array
 				{ name: 'technology', type: 'string' }, // JSON array
+				{ name: 'fond', type: 'boolean' },
+				{ name: 'unlocked', type: 'boolean' },
+				{ name: 'status', type: 'string' }, // 'damaged' | 'destroyed' | 'ok'
+				{ name: 'connected_rooms', type: 'string' }, // JSON array of room IDs
 				{ name: 'created_at', type: 'number' },
 			],
 		}),
@@ -164,13 +171,15 @@ export default appSchema({
 				{ name: 'stargate_id', type: 'string', isOptional: true },
 				{ name: 'shield', type: 'string' }, // JSON
 				{ name: 'inventory', type: 'string' }, // JSON
-				{ name: 'unlocked_rooms', type: 'string' }, // JSON array
 				{ name: 'crew_status', type: 'string' }, // JSON
 				{ name: 'atmosphere', type: 'string' }, // JSON
 				{ name: 'weapons', type: 'string' }, // JSON
 				{ name: 'shuttles', type: 'string' }, // JSON
-				{ name: 'rooms', type: 'string' }, // JSON array
 				{ name: 'notes', type: 'string', isOptional: true }, // JSON array
+				{ name: 'game_days', type: 'number' },
+				{ name: 'game_hours', type: 'number' },
+				{ name: 'ftl_status', type: 'string' }, // 'ftl' or 'normal_space'
+				{ name: 'next_ftl_transition', type: 'number' }, // hours until next FTL transition
 				{ name: 'created_at', type: 'number' },
 			],
 		}),

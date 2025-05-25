@@ -2,15 +2,6 @@ import { z } from 'zod';
 
 import { ShipSchema, TechnologySchema } from './ship';
 
-// --- Room ---
-export const RoomSchema = z.object({
-	id: z.string(),
-	type: z.string(), // e.g., 'bridge', 'stargate', 'engine', etc.
-	assigned: z.array(z.string()).default([]), // Person or Robot IDs
-	technology: z.array(TechnologySchema).default([]),
-});
-export type Room = z.infer<typeof RoomSchema>;
-
 export const DestinyStatusSchema = ShipSchema.extend({
 	shield: z.object({
 		strength: z.number(),
@@ -18,7 +9,6 @@ export const DestinyStatusSchema = ShipSchema.extend({
 		coverage: z.number(), // percent 0-100
 	}),
 	inventory: z.record(z.string(), z.number()),
-	unlockedRooms: z.array(z.string()),
 	crewStatus: z.object({
 		onboard: z.number(),
 		capacity: z.number(),
@@ -42,8 +32,11 @@ export const DestinyStatusSchema = ShipSchema.extend({
 		working: z.number(),
 		damaged: z.number(),
 	}),
-	rooms: z.array(RoomSchema),
 	notes: z.array(z.string()).optional(),
+	gameDays: z.number().default(1),
+	gameHours: z.number().default(0),
+	ftlStatus: z.enum(['ftl', 'normal_space']).default('ftl'),
+	nextFtlTransition: z.number().default(24), // hours until next FTL transition
 });
 
 export type DestinyStatus = z.infer<typeof DestinyStatusSchema>;

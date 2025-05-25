@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { gameService } from '@stargate/db';
+import { Link, useNavigate } from 'react-router-dom';
+import { Button, Container, Row, Col, Alert } from 'react-bootstrap';
+import { Toast } from '../toast';
+import { GiReturnArrow } from 'react-icons/gi';
 
 import { renderGoogleSignInButton } from '../auth/google-auth';
 import { getSession, setSession } from '../auth/session';
-import { Toast } from '../toast';
-import { redirect, useNavigate } from 'react-router-dom';
 
 type GameSummary = {
 	id: string;
@@ -163,7 +165,7 @@ export const MenuPage: React.FC = () => {
 				className="btn btn-secondary"
 				onClick={() => setCurrentView('main')}
 			>
-				← Back
+				<GiReturnArrow size={20} className="me-1" />Back
 			</button>
 		</div>
 	);

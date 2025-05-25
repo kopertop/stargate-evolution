@@ -23,13 +23,15 @@ export default class DestinyStatus extends Model {
 	@text('stargate_id') stargateId?: string;
 	@text('shield') shield!: string; // JSON
 	@text('inventory') inventory!: string; // JSON
-	@text('unlocked_rooms') unlockedRooms!: string; // JSON array
 	@text('crew_status') crewStatus!: string; // JSON
 	@text('atmosphere') atmosphere!: string; // JSON
 	@text('weapons') weapons!: string; // JSON
 	@text('shuttles') shuttles!: string; // JSON
-	@text('rooms') rooms!: string; // JSON array
 	@text('notes') notes?: string; // JSON array
+	@field('game_days') gameDays!: number;
+	@field('game_hours') gameHours!: number;
+	@text('ftl_status') ftlStatus!: string; // 'ftl' or 'normal_space'
+	@field('next_ftl_transition') nextFtlTransition!: number; // hours until next FTL transition
 	@readonly @date('created_at') createdAt!: Date;
 
 	@relation('games', 'game_id') game!: Game;
