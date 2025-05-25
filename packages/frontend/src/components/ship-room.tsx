@@ -153,6 +153,12 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 		return openings;
 	};
 
+	// Helper function to check if there's an opening on a specific side
+	const hasOpeningOnSide = (side: 'top' | 'bottom' | 'left' | 'right'): boolean => {
+		const openings = getDoorOpenings();
+		return openings.some(opening => opening.side === side);
+	};
+
 	// Render walls with gaps for door openings
 	const renderWalls = () => {
 		if (!room.unlocked) return null;
@@ -180,11 +186,11 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 					</pattern>
 				</defs>
 
-				{/* Corner pieces */}
-				{renderCorner(position.x - halfWidth - wallThickness, position.y - halfHeight - wallThickness, 'top-left')}
-				{renderCorner(position.x + halfWidth, position.y - halfHeight - wallThickness, 'top-right')}
-				{renderCorner(position.x - halfWidth - wallThickness, position.y + halfHeight, 'bottom-left')}
-				{renderCorner(position.x + halfWidth, position.y + halfHeight, 'bottom-right')}
+				{/* Corner pieces - only render if no door opening on adjacent sides */}
+				{!hasOpeningOnSide('top') && !hasOpeningOnSide('left') && renderCorner(position.x - halfWidth - wallThickness, position.y - halfHeight - wallThickness, 'top-left')}
+				{!hasOpeningOnSide('top') && !hasOpeningOnSide('right') && renderCorner(position.x + halfWidth, position.y - halfHeight - wallThickness, 'top-right')}
+				{!hasOpeningOnSide('bottom') && !hasOpeningOnSide('left') && renderCorner(position.x - halfWidth - wallThickness, position.y + halfHeight, 'bottom-left')}
+				{!hasOpeningOnSide('bottom') && !hasOpeningOnSide('right') && renderCorner(position.x + halfWidth, position.y + halfHeight, 'bottom-right')}
 
 				{/* Top wall */}
 				{renderWallSegment(

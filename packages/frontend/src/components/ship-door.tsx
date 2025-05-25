@@ -78,16 +78,144 @@ export const ShipDoor: React.FC<ShipDoorProps> = ({
 		return '/images/door.png';
 	};
 
-	// Only render if both rooms are visible
+		// Calculate connecting walls between rooms
+	const getConnectingWalls = () => {
+		const position = getDoorPosition();
+		const dx = toRoom.x - fromRoom.x;
+		const dy = toRoom.y - fromRoom.y;
+		const isHorizontal = Math.abs(dx) > Math.abs(dy);
+
+		const wallThickness = 8;
+		const doorWidth = 32;
+		const walls: Array<{ x: number; y: number; width: number; height: number }> = [];
+
+				if (isHorizontal) {
+			// Horizontal connection between rooms
+			const wallThickness = 8;
+			let corridorStartX: number;
+			let corridorEndX: number;
+
+						if (dx > 0) {
+				// toRoom is to the right of fromRoom
+				// Start corridor exactly where fromRoom's right wall ends
+				corridorStartX = fromRoom.x + fromRoom.width / 2;
+				// End corridor exactly where toRoom's left wall begins
+				corridorEndX = toRoom.x - toRoom.width / 2;
+			} else {
+				// toRoom is to the left of fromRoom
+				// Start corridor exactly where toRoom's right wall ends
+				corridorStartX = toRoom.x + toRoom.width / 2;
+				// End corridor exactly where fromRoom's left wall begins
+				corridorEndX = fromRoom.x - fromRoom.width / 2;
+			}
+
+			const corridorLength = corridorEndX - corridorStartX;
+
+			// Only render corridor walls if there's actually space between rooms
+			if (corridorLength > 0) {
+				// Top wall of corridor (above door)
+				walls.push({
+					x: corridorStartX,
+					y: position.y - doorWidth / 2 - wallThickness,
+					width: corridorLength,
+					height: wallThickness,
+				});
+
+				// Bottom wall of corridor (below door)
+				walls.push({
+					x: corridorStartX,
+					y: position.y + doorWidth / 2,
+					width: corridorLength,
+					height: wallThickness,
+				});
+			}
+		} else {
+			// Vertical connection between rooms
+			const wallThickness = 8;
+			let corridorStartY: number;
+			let corridorEndY: number;
+
+			if (dy > 0) {
+				// toRoom is below fromRoom
+				// Start corridor exactly where fromRoom's bottom wall ends
+				corridorStartY = fromRoom.y + fromRoom.height / 2;
+				// End corridor exactly where toRoom's top wall begins
+				corridorEndY = toRoom.y - toRoom.height / 2;
+			} else {
+				// toRoom is above fromRoom
+				// Start corridor exactly where toRoom's bottom wall ends
+				corridorStartY = toRoom.y + toRoom.height / 2;
+				// End corridor exactly where fromRoom's top wall begins
+				corridorEndY = fromRoom.y - fromRoom.height / 2;
+			}
+
+			const corridorLength = corridorEndY - corridorStartY;
+
+			// Only render corridor walls if there's actually space between rooms
+			if (corridorLength > 0) {
+				// Left wall of corridor (left of door)
+				walls.push({
+					x: position.x - doorWidth / 2 - wallThickness,
+					y: corridorStartY,
+					width: wallThickness,
+					height: corridorLength,
+				});
+
+				// Right wall of corridor (right of door)
+				walls.push({
+					x: position.x + doorWidth / 2,
+					y: corridorStartY,
+					width: wallThickness,
+					height: corridorLength,
+				});
+			}
+		}
+
+		return walls;
+	};
+
+	// Only render if at least one room is visible
 	if (!fromRoom.unlocked && !toRoom.unlocked) {
 		return null;
 	}
 
 	const position = getDoorPosition();
 	const doorState = getDoorState();
+	const connectingWalls = getConnectingWalls();
 
 	return (
 		<g>
+			{/* Wall pattern definition */}
+			<defs>
+				<pattern
+					id={`wall-pattern-door-${fromRoom.id}-${toRoom.id}`}
+					patternUnits="userSpaceOnUse"
+					width="32"
+					height="32"
+				>
+					<image
+						href="/images/wall.png"
+						x="0"
+						y="0"
+						width="32"
+						height="32"
+					/>
+				</pattern>
+			</defs>
+
+			{/* Connecting walls */}
+			{connectingWalls.map((wall, index) => (
+				<rect
+					key={index}
+					x={wall.x}
+					y={wall.y}
+					width={wall.width}
+					height={wall.height}
+					fill={`url(#wall-pattern-door-${fromRoom.id}-${toRoom.id})`}
+					opacity="0.9"
+				/>
+			))}
+
 			{/* Door image */}
 			<image
 				href={getDoorImage()}
