@@ -89,21 +89,35 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 		return '#10b981'; // Green for safe
 	};
 
-	const getRoomBackgroundImage = () => {
-		// Use room-specific image if available
-		if (room.image) {
-			return `/images/${room.image}`;
+	const getFloorTileImage = () => {
+		// Determine floor tile based on room status
+		if (!room.unlocked) {
+			return '/images/floor-tiles/floor-default.png'; // Dark/unknown
 		}
 
-		// Fallback to type-based images for backward compatibility
-		if (room.type === 'gate_room') {
-			return '/images/stargate-room.png';
-		} else if (room.type === 'corridor') {
-			return '/images/corridor.png';
+		if (room.status === 'damaged' || room.status === 'destroyed') {
+			return '/images/floor-tiles/floor-red.png'; // Damaged/dangerous
 		}
 
-		// Default floor tile for other rooms
-		return '/images/floor-tile.png';
+		if (room.status === 'ok' && room.unlocked) {
+			// Check if fully explored/operational
+			if (room.type === 'gate_room' && room.technology.includes('stargate')) {
+				return '/images/floor-tiles/floor-green.png'; // Fully operational
+			}
+			// For other rooms, use white for OK but not fully unlocked/explored
+			return '/images/floor-tiles/floor-white.png';
+		}
+
+		return '/images/floor-tiles/floor-default.png'; // Fallback
+	};
+
+	const getRoomOverlayImage = () => {
+		// Check for room-specific overlay images
+		const roomImagePath = `/images/rooms/${room.type}.png`;
+
+		// For now, we'll return the path and let the browser handle 404s
+		// In a production app, you might want to check if the file exists
+		return roomImagePath;
 	};
 
 	// Render stargate if this is the gate room
@@ -293,13 +307,13 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 				<g>
 					<defs>
 						<pattern
-							id={`room-pattern-${room.id}`}
+							id={`floor-pattern-${room.id}`}
 							patternUnits="userSpaceOnUse"
 							width="64"
 							height="64"
 						>
 							<image
-								href={getRoomBackgroundImage()}
+								href={getFloorTileImage()}
 								x="0"
 								y="0"
 								width="64"
@@ -312,12 +326,27 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 						y={position.y - halfHeight}
 						width={roomDimensions.width}
 						height={roomDimensions.height}
-						fill={`url(#room-pattern-${room.id})`}
+						fill={`url(#floor-pattern-${room.id})`}
 						opacity="0.8"
 						rx="4"
 						ry="4"
 						onMouseEnter={() => setIsHovered(true)}
 						onMouseLeave={() => setIsHovered(false)}
+					/>
+					{/* Room overlay image (if available) */}
+					<image
+						href={getRoomOverlayImage()}
+						x={position.x - 32}
+						y={position.y - 32}
+						width="64"
+						height="64"
+						opacity="0.9"
+						onMouseEnter={() => setIsHovered(true)}
+						onMouseLeave={() => setIsHovered(false)}
+						onError={(e) => {
+							// Hide image if it doesn't exist
+							(e.target as SVGImageElement).style.display = 'none';
+						}}
 					/>
 				</g>
 			)}
