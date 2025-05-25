@@ -8,6 +8,7 @@ import { roomModelToType } from '../types';
 
 import { CountdownClock } from './countdown-clock';
 import { ShipRoom } from './ship-room';
+import { ShipDoor } from './ship-door';
 
 interface ExplorationProgress {
 	roomId: string;
@@ -335,7 +336,7 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 		return doorStates;
 	};
 
-	// Render doors between rooms (centralized to avoid duplicates)
+	// Render doors between rooms using ShipDoor component
 	const renderDoorsBetweenRooms = () => {
 		const renderedConnections = new Set<string>();
 		const doorElements: JSX.Element[] = [];
@@ -350,92 +351,33 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 				if (renderedConnections.has(connectionId)) return;
 				renderedConnections.add(connectionId);
 
-				// Get positions of both rooms
-				const roomPos = getRoomScreenPosition(room);
-				const connectedPos = getRoomScreenPosition(connectedRoom);
+				// Convert room positions to the format expected by ShipDoor
+				const roomWithPosition = {
+					...room,
+					x: getRoomScreenPosition(room).x,
+					y: getRoomScreenPosition(room).y,
+				};
 
-				// Calculate door position at the connection point between room edges
-				const dx = connectedPos.x - roomPos.x;
-				const dy = connectedPos.y - roomPos.y;
-				const isHorizontal = Math.abs(dx) > Math.abs(dy);
+				const connectedRoomWithPosition = {
+					...connectedRoom,
+					x: getRoomScreenPosition(connectedRoom).x,
+					y: getRoomScreenPosition(connectedRoom).y,
+				};
 
-				let doorX: number;
-				let doorY: number;
-
-				if (isHorizontal) {
-					// Horizontal connection (east/west)
-					const roomHalfWidth = room.width / 2;
-					const connectedHalfWidth = connectedRoom.width / 2;
-
-					if (dx > 0) {
-						// Connected room is to the east
-						doorX = roomPos.x + roomHalfWidth + (connectedPos.x - connectedHalfWidth - (roomPos.x + roomHalfWidth)) / 2;
-					} else {
-						// Connected room is to the west
-						doorX = connectedPos.x + connectedHalfWidth + (roomPos.x - roomHalfWidth - (connectedPos.x + connectedHalfWidth)) / 2;
-					}
-					doorY = roomPos.y;
-				} else {
-					// Vertical connection (north/south)
-					const roomHalfHeight = room.height / 2;
-					const connectedHalfHeight = connectedRoom.height / 2;
-
-					if (dy > 0) {
-						// Connected room is to the south (positive Y)
-						doorY = roomPos.y + roomHalfHeight + (connectedPos.y - connectedHalfHeight - (roomPos.y + roomHalfHeight)) / 2;
-					} else {
-						// Connected room is to the north (negative Y)
-						doorY = connectedPos.y + connectedHalfHeight + (roomPos.y - roomHalfHeight - (connectedPos.y + connectedHalfHeight)) / 2;
-					}
-					doorX = roomPos.x;
-				}
-
-				// Get door state and color
-				const isDoorOpened = door.state === 'opened';
-				const doorImage = isDoorOpened ? '/images/door-opened.png' : '/images/door.png';
-
-				// Get door color based on room statuses
-				const getDoorColor = (): string => {
-					if (!room.unlocked || !connectedRoom.unlocked) {
-						return '#fbbf24'; // Yellow for unknown
-					}
-					if (room.status === 'damaged' || connectedRoom.status === 'damaged' ||
-						room.status === 'destroyed' || connectedRoom.status === 'destroyed') {
-						return '#ef4444'; // Red for unsafe
-					}
-					return '#10b981'; // Green for safe
+				// Create door states object from both rooms
+				const doorStates = {
+					...getRoomDoorStates(room),
+					...getRoomDoorStates(connectedRoom),
 				};
 
 				doorElements.push(
-					<g key={`door-${connectionId}`}>
-						{/* Door image */}
-						<image
-							href={doorImage}
-							x={doorX - 15}
-							y={doorY - 15}
-							width="30"
-							height="30"
-							transform={isHorizontal ? `rotate(90 ${doorX} ${doorY})` : ''}
-							style={{ cursor: 'pointer' }}
-							onClick={(e) => {
-								e.stopPropagation();
-								handleDoorClick(room.id, connectedRoom.id);
-							}}
-						/>
-						{/* Door status indicator */}
-						<rect
-							x={doorX - 16}
-							y={doorY - 16}
-							width="32"
-							height="32"
-							fill="none"
-							stroke={getDoorColor()}
-							strokeWidth="2"
-							opacity="0.7"
-							transform={isHorizontal ? `rotate(90 ${doorX} ${doorY})` : ''}
-							pointerEvents="none"
-						/>
-					</g>
+					<ShipDoor
+						key={`door-${connectionId}`}
+						fromRoom={roomWithPosition}
+						toRoom={connectedRoomWithPosition}
+						doorStates={doorStates}
+						onDoorClick={handleDoorClick}
+					/>
 				);
 			});
 		});

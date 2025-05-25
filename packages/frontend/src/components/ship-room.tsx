@@ -111,7 +111,7 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 		return '/images/floor-tiles/floor-default.png'; // Fallback
 	};
 
-	const getRoomOverlayImage = () => {
+		const getRoomOverlayImage = () => {
 		// Check for room-specific overlay images
 		const roomImagePath = `/images/rooms/${room.type}.png`;
 
@@ -119,6 +119,239 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 		// In a production app, you might want to check if the file exists
 		return roomImagePath;
 	};
+
+		// Get door openings for this room (where walls should have gaps)
+	const getDoorOpenings = () => {
+		const openings: Array<{
+			side: 'top' | 'bottom' | 'left' | 'right';
+			position: number; // Position along the wall (0-1)
+		}> = [];
+
+		// Check each connected room to determine where door openings should be
+		connectedRooms.forEach(connectedRoom => {
+			const dx = connectedRoom.x - room.x;
+			const dy = connectedRoom.y - room.y;
+
+			// Determine which side the opening is on based on relative position
+			if (Math.abs(dx) > Math.abs(dy)) {
+				// Horizontal connection
+				if (dx > 0) {
+					openings.push({ side: 'right', position: 0.5 });
+				} else {
+					openings.push({ side: 'left', position: 0.5 });
+				}
+			} else {
+				// Vertical connection
+				if (dy > 0) {
+					openings.push({ side: 'bottom', position: 0.5 });
+				} else {
+					openings.push({ side: 'top', position: 0.5 });
+				}
+			}
+		});
+
+		return openings;
+	};
+
+	// Render walls with gaps for door openings
+	const renderWalls = () => {
+		if (!room.unlocked) return null;
+
+		const openings = getDoorOpenings();
+		const wallThickness = 8;
+		const doorWidth = 32;
+
+		return (
+			<g>
+				<defs>
+					<pattern
+						id={`wall-pattern-${room.id}`}
+						patternUnits="userSpaceOnUse"
+						width="32"
+						height="32"
+					>
+						<image
+							href="/images/wall.png"
+							x="0"
+							y="0"
+							width="32"
+							height="32"
+						/>
+					</pattern>
+				</defs>
+
+				{/* Corner pieces */}
+				{renderCorner(position.x - halfWidth - wallThickness, position.y - halfHeight - wallThickness, 'top-left')}
+				{renderCorner(position.x + halfWidth, position.y - halfHeight - wallThickness, 'top-right')}
+				{renderCorner(position.x - halfWidth - wallThickness, position.y + halfHeight, 'bottom-left')}
+				{renderCorner(position.x + halfWidth, position.y + halfHeight, 'bottom-right')}
+
+				{/* Top wall */}
+				{renderWallSegment(
+					position.x - halfWidth,
+					position.y - halfHeight - wallThickness,
+					roomDimensions.width,
+					wallThickness,
+					openings.filter(o => o.side === 'top'),
+					'horizontal',
+					doorWidth
+				)}
+
+				{/* Bottom wall */}
+				{renderWallSegment(
+					position.x - halfWidth,
+					position.y + halfHeight,
+					roomDimensions.width,
+					wallThickness,
+					openings.filter(o => o.side === 'bottom'),
+					'horizontal',
+					doorWidth
+				)}
+
+				{/* Left wall */}
+				{renderWallSegment(
+					position.x - halfWidth - wallThickness,
+					position.y - halfHeight,
+					wallThickness,
+					roomDimensions.height,
+					openings.filter(o => o.side === 'left'),
+					'vertical',
+					doorWidth
+				)}
+
+				{/* Right wall */}
+				{renderWallSegment(
+					position.x + halfWidth,
+					position.y - halfHeight,
+					wallThickness,
+					roomDimensions.height,
+					openings.filter(o => o.side === 'right'),
+					'vertical',
+					doorWidth
+				)}
+			</g>
+		);
+	};
+
+	// Render corner wall pieces
+	const renderCorner = (x: number, y: number, corner: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right') => {
+		const wallThickness = 8;
+
+		return (
+			<rect
+				x={x}
+				y={y}
+				width={wallThickness}
+				height={wallThickness}
+				fill={`url(#wall-pattern-${room.id})`}
+				opacity="0.9"
+			/>
+		);
+	};
+
+	// Render a wall segment with gaps for door openings
+	const renderWallSegment = (
+		x: number,
+		y: number,
+		width: number,
+		height: number,
+		openingsOnThisSide: Array<{ side: string; position: number }>,
+		orientation: 'horizontal' | 'vertical',
+		doorWidth: number
+	) => {
+		const segments: Array<{ x: number; y: number; width: number; height: number }> = [];
+
+		if (openingsOnThisSide.length === 0) {
+			// No openings, render full wall
+			segments.push({ x, y, width, height });
+		} else {
+			// Calculate wall segments around door openings
+			if (orientation === 'horizontal') {
+				let currentX = x;
+				const wallY = y;
+				const wallHeight = height;
+
+				openingsOnThisSide.forEach(opening => {
+					const doorCenterX = x + (width * opening.position);
+					const doorStartX = doorCenterX - doorWidth / 2;
+					const doorEndX = doorCenterX + doorWidth / 2;
+
+					// Add wall segment before door opening
+					if (currentX < doorStartX) {
+						segments.push({
+							x: currentX,
+							y: wallY,
+							width: doorStartX - currentX,
+							height: wallHeight,
+						});
+					}
+
+					currentX = doorEndX;
+				});
+
+				// Add final wall segment after last door opening
+				if (currentX < x + width) {
+					segments.push({
+						x: currentX,
+						y: wallY,
+						width: x + width - currentX,
+						height: wallHeight,
+					});
+				}
+			} else {
+				// Vertical wall
+				let currentY = y;
+				const wallX = x;
+				const wallWidth = width;
+
+				openingsOnThisSide.forEach(opening => {
+					const doorCenterY = y + (height * opening.position);
+					const doorStartY = doorCenterY - doorWidth / 2;
+					const doorEndY = doorCenterY + doorWidth / 2;
+
+					// Add wall segment before door opening
+					if (currentY < doorStartY) {
+						segments.push({
+							x: wallX,
+							y: currentY,
+							width: wallWidth,
+							height: doorStartY - currentY,
+						});
+					}
+
+					currentY = doorEndY;
+				});
+
+				// Add final wall segment after last door opening
+				if (currentY < y + height) {
+					segments.push({
+						x: wallX,
+						y: currentY,
+						width: wallWidth,
+						height: y + height - currentY,
+					});
+				}
+			}
+		}
+
+		return (
+			<g>
+				{segments.map((segment, index) => (
+					<rect
+						key={index}
+						x={segment.x}
+						y={segment.y}
+						width={segment.width}
+						height={segment.height}
+						fill={`url(#wall-pattern-${room.id})`}
+						opacity="0.9"
+					/>
+				))}
+			</g>
+		);
+	};
+
+
 
 	// Render stargate if this is the gate room
 	const renderStargate = () => {
@@ -351,17 +584,14 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 				</g>
 			)}
 
-			{/* Main room rectangle */}
+			{/* Room click area (invisible) */}
 			<rect
 				x={position.x - halfWidth}
 				y={position.y - halfHeight}
 				width={roomDimensions.width}
 				height={roomDimensions.height}
-				fill={room.unlocked ? 'none' : getRoomColor()}
-				stroke={getBorderColor()}
-				strokeWidth="2"
-				rx="4"
-				ry="4"
+				fill={room.unlocked ? 'transparent' : getRoomColor()}
+				stroke="none"
 				style={{
 					cursor: canExplore ? 'pointer' : 'default',
 					filter: room.unlocked ? 'none' : 'brightness(0.6)',
@@ -370,6 +600,9 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 				onMouseEnter={() => setIsHovered(true)}
 				onMouseLeave={() => setIsHovered(false)}
 			/>
+
+			{/* Walls with door gaps */}
+			{renderWalls()}
 
 			{/* Stargate (for gate room) */}
 			{renderStargate()}
