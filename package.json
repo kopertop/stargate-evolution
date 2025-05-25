@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "start": "pnpm -r --parallel run dev",
-    "check": "pnpm -r run typecheck && pnpm -r run lint",
+    "check": "pnpm -r run typecheck && pnpm run lint",
+    "lint": "eslint packages --ext .ts,.tsx --fix",
     "db:up": "pnpm -r run db:up",
     "db:down": "pnpm -r run db:down",
     "db:init": "pnpm --filter backend run db:init",
@@ -29,7 +30,7 @@
     "eslint-plugin-unicorn": "^59.0.1",
     "globals": "^16.1.0",
     "sass": "^1.86.3",
-    "typescript": "^4.9.5",
+    "typescript": "^5.8.3",
     "vite": "^6.3.5",
     "wrangler": "^4.15.2"
   },

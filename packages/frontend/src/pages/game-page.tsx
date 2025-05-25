@@ -1,19 +1,19 @@
-import React, { useEffect, useRef, useState } from 'react';
 import { gameService } from '@stargate/db';
 import * as PIXI from 'pixi.js';
-import type { DestinyStatus } from '@stargate/common/types/destiny';
+import React, { useEffect, useRef, useState } from 'react';
 import { GiReturnArrow } from 'react-icons/gi';
+import { useNavigate, useParams } from 'react-router-dom';
 
 import { validateOrRefreshSession } from '../auth/session';
 import { DestinyStatusBar } from '../components/destiny-status-bar';
 import { GalaxyMap } from '../components/galaxy-map';
 import { GalaxyTravelModal } from '../components/galaxy-travel-modal';
+import { NavButton } from '../components/nav-button';
 import { ShipView } from '../components/ship-view';
 import { Game } from '../game';
 import { MapPopover } from '../map-popover';
 import { Toast } from '../toast';
-import { useNavigate, useParams } from 'react-router-dom';
-import { NavButton } from '../components/nav-button';
+import type { DestinyStatus } from '../types';
 
 type ViewMode = 'ship-view' | 'galaxy-map' | 'game-view';
 
@@ -27,7 +27,7 @@ interface Galaxy {
 // Helper function to parse destiny status JSON fields
 function parseDestinyStatus(rawStatus: any): DestinyStatus {
 	const parseJson = (str: string | undefined | null, fallback: any = {}) => {
-		if (!str || typeof str !== 'string') return fallback;
+		if (!str) return fallback;
 		try {
 			return JSON.parse(str);
 		} catch {
@@ -36,23 +36,23 @@ function parseDestinyStatus(rawStatus: any): DestinyStatus {
 	};
 
 	return {
-		// Map database fields to TypeScript interface fields
 		id: rawStatus.id,
-		name: rawStatus.name,
-		power: rawStatus.power,
-		maxPower: rawStatus.maxPower || rawStatus.max_power, // Handle both camelCase and snake_case
-		shields: rawStatus.shields,
+		gameId: rawStatus.gameId || rawStatus.game_id,
+		name: rawStatus.name || 'Destiny',
+		power: rawStatus.power || 0,
+		maxPower: rawStatus.maxPower || rawStatus.max_power,
+		shields: rawStatus.shields || 0,
 		maxShields: rawStatus.maxShields || rawStatus.max_shields,
 		hull: rawStatus.hull,
 		maxHull: rawStatus.maxHull || rawStatus.max_hull,
 		raceId: rawStatus.raceId || rawStatus.race_id,
 		crew: parseJson(rawStatus.crew, []),
 		location: parseJson(rawStatus.location, {}),
-		stargate: rawStatus.stargate || rawStatus.stargate_id,
+		stargateId: rawStatus.stargate || rawStatus.stargate_id,
 		shield: parseJson(rawStatus.shield, { strength: 0, max: 500, coverage: 0 }),
 		inventory: parseJson(rawStatus.inventory, {}),
 		crewStatus: parseJson(rawStatus.crewStatus || rawStatus.crew_status, { onboard: 0, capacity: 100, manifest: [] }),
-		atmosphere: parseJson(rawStatus.atmosphere, { co2: 0, o2: 21, co2Scrubbers: 0, o2Scrubbers: 0 }),
+		atmosphere: parseJson(rawStatus.atmosphere, { co2: 0, o2: 21, co2Scrubbers: 0 }),
 		weapons: parseJson(rawStatus.weapons, { mainGun: false, turrets: { total: 0, working: 0 } }),
 		shuttles: parseJson(rawStatus.shuttles, { total: 0, working: 0, damaged: 0 }),
 		notes: parseJson(rawStatus.notes, []),
@@ -60,6 +60,7 @@ function parseDestinyStatus(rawStatus: any): DestinyStatus {
 		gameHours: rawStatus.gameHours || rawStatus.game_hours || 0,
 		ftlStatus: rawStatus.ftlStatus || rawStatus.ftl_status || 'ftl',
 		nextFtlTransition: rawStatus.nextFtlTransition || rawStatus.next_ftl_transition || (6 + Math.random() * 42),
+		createdAt: rawStatus.createdAt ? new Date(rawStatus.createdAt) : new Date(),
 	};
 }
 
@@ -107,14 +108,6 @@ export const GamePage: React.FC = () => {
 
 			canvasRef.current.appendChild(app.canvas);
 			appRef.current = app;
-
-			const API_URL = import.meta.env.VITE_PUBLIC_API_URL || '';
-
-			// Session persistence: check for existing session and validate/refresh
-			const session = await validateOrRefreshSession(API_URL);
-			if (session && session.user) {
-				Toast.show(`Welcome back, ${session.user.name || session.user.email}!`, 3500);
-			}
 
 			// Hide the canvas initially
 			if (app.canvas) {
@@ -183,7 +176,7 @@ export const GamePage: React.FC = () => {
 						water: 100,
 						parts: 10,
 						medicine: 5,
-						ancient_tech: 2
+						ancient_tech: 2,
 					};
 				}
 
@@ -234,7 +227,7 @@ export const GamePage: React.FC = () => {
 		// Update power and current galaxy
 		const updatedStatus = {
 			...destinyStatus,
-			power: destinyStatus.power - travelCost
+			power: destinyStatus.power - travelCost,
 		};
 		setDestinyStatus(updatedStatus);
 		setCurrentGalaxyId(selectedGalaxy.id);
@@ -401,7 +394,7 @@ export const GamePage: React.FC = () => {
 				gameData,
 				powerPercentage: Math.round((destinyStatus.power / destinyStatus.maxPower) * 100),
 				hullPercentage: Math.round((destinyStatus.hull / destinyStatus.maxHull) * 100),
-				shieldPercentage: Math.round((destinyStatus.shields / destinyStatus.maxShields) * 100)
+				shieldPercentage: Math.round((destinyStatus.shields / destinyStatus.maxShields) * 100),
 			};
 		};
 
@@ -412,7 +405,7 @@ export const GamePage: React.FC = () => {
 			maxTravelRange,
 			galaxies,
 			gameData,
-			viewMode
+			viewMode,
 		};
 
 		console.log('🔧 Debug functions available:');
@@ -439,7 +432,7 @@ export const GamePage: React.FC = () => {
 				display: 'flex',
 				justifyContent: 'center',
 				alignItems: 'center',
-			})
+			}),
 		}}>
 			<div ref={canvasRef} />
 
@@ -448,7 +441,7 @@ export const GamePage: React.FC = () => {
 					position: 'absolute',
 					top: '50%',
 					left: '50%',
-					transform: 'translate(-50%, -50%)'
+					transform: 'translate(-50%, -50%)',
 				}}>
 					<h3>Loading Stargate Evolution...</h3>
 				</div>
@@ -465,6 +458,7 @@ export const GamePage: React.FC = () => {
 							destinyStatus={destinyStatus}
 							onStatusUpdate={handleDestinyStatusUpdate}
 							onNavigateToGalaxy={handleNavigateToGalaxyMap}
+							gameId={params.gameId}
 						/>
 					</div>
 				</div>
@@ -495,7 +489,7 @@ export const GamePage: React.FC = () => {
 						position: 'absolute',
 						top: '50%',
 						left: '50%',
-						transform: 'translate(-50%, -50%)'
+						transform: 'translate(-50%, -50%)',
 					}}>
 						<div className="spinner-border text-primary mb-3" role="status">
 							<span className="visually-hidden">Loading...</span>

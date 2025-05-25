@@ -13,19 +13,19 @@ const SPEED_MULTIPLIERS: { [key in TimeSpeed]: number } = {
 	'normal': 1,
 	'60x': 60,
 	'120x': 120,
-	'3600x': 3600
+	'3600x': 3600,
 };
 
 const SPEED_OPTIONS: { value: Exclude<TimeSpeed, 'paused'>; label: string; description: string }[] = [
 	{ value: 'normal', label: '1x', description: 'Normal Speed' },
 	{ value: '60x', label: '60x', description: '1 min = 1 sec' },
 	{ value: '120x', label: '120x', description: '2 min = 1 sec' },
-	{ value: '3600x', label: '3600x', description: '1 hour = 1 sec' }
+	{ value: '3600x', label: '3600x', description: '1 hour = 1 sec' },
 ];
 
 export const CountdownClock: React.FC<CountdownClockProps> = ({
 	timeRemaining,
-	onTimeUpdate
+	onTimeUpdate,
 }) => {
 	const [currentTime, setCurrentTime] = useState(timeRemaining);
 	const [isPaused, setIsPaused] = useState(true);
@@ -149,7 +149,7 @@ export const CountdownClock: React.FC<CountdownClockProps> = ({
 			zIndex: 20,
 			display: 'flex',
 			alignItems: 'center',
-			gap: '8px'
+			gap: '8px',
 		}}>
 			{/* Pause/Play button - Left side */}
 			<button
@@ -168,7 +168,7 @@ export const CountdownClock: React.FC<CountdownClockProps> = ({
 					userSelect: 'none',
 					transition: 'all 0.3s ease',
 					boxShadow: `0 0 10px ${isPaused ? '#ff444430' : '#28a74530'}`,
-					minWidth: '40px'
+					minWidth: '40px',
 				}}
 				onMouseEnter={(e) => {
 					e.currentTarget.style.transform = 'scale(1.05)';
@@ -196,7 +196,7 @@ export const CountdownClock: React.FC<CountdownClockProps> = ({
 					border: `1px solid ${textColor}`,
 					boxShadow: `0 0 15px ${textColor}30`,
 					transition: 'all 0.3s ease',
-					userSelect: 'none'
+					userSelect: 'none',
 				}}
 			>
 				{timeDisplay.split('').map((char, index) => (
@@ -209,7 +209,7 @@ export const CountdownClock: React.FC<CountdownClockProps> = ({
 							textAlign: 'center',
 							...(char === ':' && {
 								animation: pulseAnimation,
-							})
+							}),
 						}}
 					>
 						{char}
@@ -239,7 +239,7 @@ export const CountdownClock: React.FC<CountdownClockProps> = ({
 						display: 'flex',
 						alignItems: 'center',
 						justifyContent: 'space-between',
-						animation: !isPaused && speed !== 'normal' ? 'speedIndicator 1s infinite' : 'none'
+						animation: !isPaused && speed !== 'normal' ? 'speedIndicator 1s infinite' : 'none',
 					}}
 					onMouseEnter={(e) => {
 						e.currentTarget.style.transform = 'scale(1.05)';
@@ -265,7 +265,7 @@ export const CountdownClock: React.FC<CountdownClockProps> = ({
 							borderRadius: '6px',
 							boxShadow: '0 4px 12px rgba(0, 123, 255, 0.3)',
 							zIndex: 1000,
-							minWidth: '160px'
+							minWidth: '160px',
 						}}
 					>
 						{SPEED_OPTIONS.map((option) => (
@@ -284,7 +284,7 @@ export const CountdownClock: React.FC<CountdownClockProps> = ({
 									fontFamily: "'Orbitron', 'Share Tech Mono', 'Courier New', monospace",
 									fontSize: '11px',
 									borderRadius: speed === option.value ? '4px' : '0',
-									transition: 'all 0.2s ease'
+									transition: 'all 0.2s ease',
 								}}
 								onMouseEnter={(e) => {
 									if (speed !== option.value) {
@@ -314,7 +314,7 @@ export const CountdownClock: React.FC<CountdownClockProps> = ({
 						left: 0,
 						right: 0,
 						bottom: 0,
-						zIndex: 999
+						zIndex: 999,
 					}}
 					onClick={() => setShowSpeedDropdown(false)}
 				/>

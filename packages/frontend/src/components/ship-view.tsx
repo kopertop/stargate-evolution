@@ -1,20 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { Row, Col } from 'react-bootstrap';
-import type { DestinyStatus } from '@stargate/common/types/destiny';
-import { ShipMap } from './ship-map';
+import { Container, Row, Col, Card } from 'react-bootstrap';
 import {
 	GiChart,
 	GiLungs,
 	GiElectric,
 	GiWrench,
 	GiPowerLightning,
-	GiMeeple
+	GiMeeple,
 } from 'react-icons/gi';
+
+import type { DestinyStatus } from '../types';
+
+import { ShipMap } from './ship-map';
 
 interface ShipViewProps {
 	destinyStatus: DestinyStatus;
 	onStatusUpdate: (newStatus: DestinyStatus) => void;
 	onNavigateToGalaxy: () => void;
+	gameId?: string;
 }
 
 // Resource consumption rates (per crew member per day)
@@ -22,14 +25,18 @@ const RESOURCE_CONSUMPTION = {
 	food: 1,
 	water: 2,
 	oxygen: 24, // per hour
-	co2_generation: 20 // per hour
+	co2_generation: 20, // per hour
 };
 
 export const ShipView: React.FC<ShipViewProps> = ({
 	destinyStatus,
 	onStatusUpdate,
-	onNavigateToGalaxy
+	onNavigateToGalaxy,
+	gameId,
 }) => {
+	const [gameIsPaused, setGameIsPaused] = useState(true);
+	const [lastTimeRemaining, setLastTimeRemaining] = useState(destinyStatus.nextFtlTransition);
+
 	// Calculate daily resource consumption
 	const crewCount = destinyStatus.crewStatus.onboard;
 	const dailyFoodConsumption = crewCount * RESOURCE_CONSUMPTION.food;
@@ -42,13 +49,17 @@ export const ShipView: React.FC<ShipViewProps> = ({
 		days: destinyStatus.gameDays,
 		hours: destinyStatus.gameHours,
 		ftlStatus: destinyStatus.ftlStatus as 'ftl' | 'normal_space',
-		nextDropOut: destinyStatus.nextFtlTransition
+		nextDropOut: destinyStatus.nextFtlTransition,
 	};
 
 	// Handle real-time countdown updates from the clock
 	const handleCountdownUpdate = (newTimeRemaining: number) => {
+		// Check if game is paused by seeing if time is advancing
+		const timeDelta = lastTimeRemaining - newTimeRemaining;
+		setGameIsPaused(timeDelta <= 0.001); // Allow for small floating point errors
+		setLastTimeRemaining(newTimeRemaining);
+
 		// Calculate how much time has passed
-		const timeDelta = destinyStatus.nextFtlTransition - newTimeRemaining;
 		if (timeDelta > 0) {
 			advanceTime(timeDelta);
 		}
@@ -110,7 +121,7 @@ export const ShipView: React.FC<ShipViewProps> = ({
 			ftlStatus: newFtlStatus as 'ftl' | 'normal_space',
 			nextFtlTransition: Math.max(0, newNextFtlTransition),
 			inventory: newInventory,
-			atmosphere: newAtmosphere
+			atmosphere: newAtmosphere,
 		});
 	};
 
@@ -159,6 +170,8 @@ export const ShipView: React.FC<ShipViewProps> = ({
 				gameTime={gameTime}
 				onTimeAdvance={advanceTime}
 				onCountdownUpdate={handleCountdownUpdate}
+				gameIsPaused={gameIsPaused}
+				gameId={gameId}
 			/>
 		</div>
 	);

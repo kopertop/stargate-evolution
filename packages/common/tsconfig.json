@@ -1,7 +1,12 @@
 {
 	"extends": "../../tsconfig.json",
-	"include": [
-		"types/**/*.ts",
-		"normalize/**/*.ts"
-	]
+  "compilerOptions": {
+		"outDir": "./dist",
+		"declaration": true,
+		"declarationMap": true,
+		"experimentalDecorators": true,
+		"emitDecoratorMetadata": true
+	},
+	"include": ["src/**/*"],
+	"exclude": ["dist", "node_modules", "**/*.spec.ts", "**/*.test.ts"]
 }

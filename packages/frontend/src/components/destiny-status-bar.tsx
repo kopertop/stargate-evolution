@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import { Navbar, Nav, Navbar as BSNavbar } from 'react-bootstrap';
-import type { DestinyStatus } from '@stargate/common/types/destiny';
+import { Navbar, Nav, Container, ProgressBar, Badge, Dropdown, Modal, Button, Form } from 'react-bootstrap';
 import type { IconType } from 'react-icons';
 import {
 	GiShield,
@@ -13,8 +12,13 @@ import {
 	GiGasMask,
 	GiBottledBolt,
 	GiHamburgerMenu,
-	GiCannonShot
+	GiCannonShot,
 } from 'react-icons/gi';
+import { MdCo2 } from 'react-icons/md';
+import { SiO2 } from 'react-icons/si';
+
+import type { DestinyStatus } from '../types';
+
 
 interface DestinyStatusBarProps {
 	status: DestinyStatus;
@@ -24,7 +28,7 @@ interface DestinyStatusBarProps {
 const Icon: React.FC<{ icon: IconType; size?: number; className?: string }> = ({
 	icon: IconComponent,
 	size = 16,
-	className = ''
+	className = '',
 }) => {
 	return <IconComponent size={size} className={className} />;
 };
@@ -33,24 +37,26 @@ export const DestinyStatusBar: React.FC<DestinyStatusBarProps> = ({ status }) =>
 	const [showInventoryDetails, setShowInventoryDetails] = useState(false);
 	const [showShuttleDetails, setShowShuttleDetails] = useState(false);
 	const [showWeaponsDetails, setShowWeaponsDetails] = useState(false);
+	const [showAtmosphereDetails, setShowAtmosphereDetails] = useState(false);
 	const [expanded, setExpanded] = useState(false);
-	const [hoverTimeout, setHoverTimeout] = useState<NodeJS.Timeout | null>(null);
+	const [inventoryHoverTimeout, setInventoryHoverTimeout] = useState<NodeJS.Timeout | null>(null);
 	const [shuttleHoverTimeout, setShuttleHoverTimeout] = useState<NodeJS.Timeout | null>(null);
 	const [weaponsHoverTimeout, setWeaponsHoverTimeout] = useState<NodeJS.Timeout | null>(null);
+	const [atmosphereHoverTimeout, setAtmosphereHoverTimeout] = useState<NodeJS.Timeout | null>(null);
 
-	const handleMouseEnter = () => {
-		if (hoverTimeout) {
-			clearTimeout(hoverTimeout);
-			setHoverTimeout(null);
+	const handleInventoryMouseEnter = () => {
+		if (inventoryHoverTimeout) {
+			clearTimeout(inventoryHoverTimeout);
+			setInventoryHoverTimeout(null);
 		}
 		setShowInventoryDetails(true);
 	};
 
-	const handleMouseLeave = () => {
+	const handleInventoryMouseLeave = () => {
 		const timeout = setTimeout(() => {
 			setShowInventoryDetails(false);
 		}, 150); // Small delay to prevent flickering
-		setHoverTimeout(timeout);
+		setInventoryHoverTimeout(timeout);
 	};
 
 	const handleShuttleMouseEnter = () => {
@@ -83,6 +89,21 @@ export const DestinyStatusBar: React.FC<DestinyStatusBarProps> = ({ status }) =>
 		setWeaponsHoverTimeout(timeout);
 	};
 
+	const handleAtmosphereMouseEnter = () => {
+		if (atmosphereHoverTimeout) {
+			clearTimeout(atmosphereHoverTimeout);
+			setAtmosphereHoverTimeout(null);
+		}
+		setShowAtmosphereDetails(true);
+	};
+
+	const handleAtmosphereMouseLeave = () => {
+		const timeout = setTimeout(() => {
+			setShowAtmosphereDetails(false);
+		}, 150);
+		setAtmosphereHoverTimeout(timeout);
+	};
+
 	const toggleInventoryDetails = () => {
 		setShowInventoryDetails(!showInventoryDetails);
 	};
@@ -93,6 +114,10 @@ export const DestinyStatusBar: React.FC<DestinyStatusBarProps> = ({ status }) =>
 
 	const toggleWeaponsDetails = () => {
 		setShowWeaponsDetails(!showWeaponsDetails);
+	};
+
+	const toggleAtmosphereDetails = () => {
+		setShowAtmosphereDetails(!showAtmosphereDetails);
 	};
 
 	// Calculate weapons summary
@@ -116,7 +141,7 @@ export const DestinyStatusBar: React.FC<DestinyStatusBarProps> = ({ status }) =>
 				minHeight: '56px',
 				fontSize: '1.1rem',
 				zIndex: 5001,
-				borderTop: '1px solid #333'
+				borderTop: '1px solid #333',
 			}}
 		>
 			{/* Always visible critical items */}
@@ -140,75 +165,77 @@ export const DestinyStatusBar: React.FC<DestinyStatusBarProps> = ({ status }) =>
 					</span>
 				</Nav.Item>
 
-				{/* Combined Inventory & Atmosphere Section - Critical */}
+				{/* Atmosphere Section - Critical (Always visible) */}
 				<Nav.Item className="d-flex align-items-center me-3 position-relative">
 					<span
-						title="Inventory & Atmosphere (click for details)"
+						title="Atmosphere (click for details)"
 						className="d-flex align-items-center"
 						style={{ cursor: 'pointer' }}
-						onClick={toggleInventoryDetails}
-						onMouseEnter={handleMouseEnter}
-						onMouseLeave={handleMouseLeave}
+						onClick={toggleAtmosphereDetails}
+						onMouseEnter={handleAtmosphereMouseEnter}
+						onMouseLeave={handleAtmosphereMouseLeave}
 					>
-						<Icon icon={GiCardboardBox} />
-						<span className="d-none d-sm-inline">Supplies</span>
+						<Icon icon={SiO2} />
+						<span className="me-2">
+							<span className={status.atmosphere.o2 < 18 ? 'text-danger' : status.atmosphere.o2 < 20 ? 'text-warning' : 'text-success'}>
+								{status.atmosphere.o2.toFixed(1)}%
+							</span>
+						</span>
+						<Icon icon={MdCo2} />
+						<span>
+							<span className={status.atmosphere.co2 > 5 ? 'text-danger' : status.atmosphere.co2 > 2 ? 'text-warning' : 'text-success'}>
+								{status.atmosphere.co2.toFixed(1)}%
+							</span>
+						</span>
 					</span>
 
-					{/* Inventory Details Popup */}
-					{showInventoryDetails && (
+					{/* Atmosphere Details Popup */}
+					{showAtmosphereDetails && (
 						<div
 							className="position-absolute bottom-100 start-0 mb-2 p-3 rounded shadow-lg"
 							style={{
 								background: 'rgba(18,20,32,0.98)',
 								border: '1px solid #333',
-								minWidth: '280px',
+								minWidth: '240px',
 								fontSize: '0.9rem',
-								zIndex: 10000
+								zIndex: 10000,
 							}}
-							onMouseEnter={handleMouseEnter}
-							onMouseLeave={handleMouseLeave}
+							onMouseEnter={handleAtmosphereMouseEnter}
+							onMouseLeave={handleAtmosphereMouseLeave}
 						>
-							<div className="mb-2">
-								<strong className="d-flex align-items-center mb-2">
-									<Icon icon={GiGasMask} />
-									Atmosphere
-								</strong>
-								<div className="ms-3">
-									<div className="d-flex justify-content-between">
-										<span>O₂:</span>
-										<span className={status.atmosphere.o2 < 18 ? 'text-danger' : status.atmosphere.o2 < 20 ? 'text-warning' : 'text-success'}>
-											{status.atmosphere.o2.toFixed(1)}%
-										</span>
-									</div>
-									<div className="d-flex justify-content-between">
-										<span>CO₂:</span>
-										<span className={status.atmosphere.co2 > 5 ? 'text-danger' : status.atmosphere.co2 > 2 ? 'text-warning' : 'text-success'}>
-											{status.atmosphere.co2.toFixed(2)}%
-										</span>
-									</div>
+							<strong className="d-flex align-items-center mb-2">
+								<Icon icon={GiGasMask} />
+								Atmosphere Control
+							</strong>
+							<div className="ms-3">
+								<div className="d-flex justify-content-between align-items-center">
+									<span className="d-flex align-items-center">
+										<Icon icon={SiO2} size={14} />
+										Oxygen:
+									</span>
+									<span className={status.atmosphere.o2 < 18 ? 'text-danger' : status.atmosphere.o2 < 20 ? 'text-warning' : 'text-success'}>
+										{status.atmosphere.o2.toFixed(1)}%
+									</span>
 								</div>
-							</div>
-
-							<div>
-								<strong className="d-flex align-items-center mb-2">
-									<Icon icon={GiBottledBolt} />
-									Inventory
-								</strong>
-								<div className="ms-3">
-									{Object.entries(status.inventory).length > 0 ? (
-										Object.entries(status.inventory).map(([resource, amount]) => (
-											<div key={resource} className="d-flex justify-content-between">
-												<span style={{ textTransform: 'capitalize' }}>
-													{resource.replace('_', ' ')}:
-												</span>
-												<span className={amount === 0 ? 'text-danger' : amount < 5 ? 'text-warning' : 'text-light'}>
-													{amount}
-												</span>
-											</div>
-										))
-									) : (
-										<div className="text-muted">Empty</div>
-									)}
+								<div className="d-flex justify-content-between align-items-center">
+									<span className="d-flex align-items-center">
+										<Icon icon={MdCo2} size={14} />
+										Carbon Dioxide:
+									</span>
+									<span className={status.atmosphere.co2 > 5 ? 'text-danger' : status.atmosphere.co2 > 2 ? 'text-warning' : 'text-success'}>
+										{status.atmosphere.co2.toFixed(1)}%
+									</span>
+								</div>
+								<div className="mt-2 pt-2" style={{ borderTop: '1px solid #444' }}>
+									<div className="d-flex justify-content-between align-items-center">
+										<span className="d-flex align-items-center">
+											<Icon icon={GiBroom} size={14} />
+											CO₂ Scrubbers:
+										</span>
+										<span className={status.atmosphere.co2Scrubbers === 0 ? 'text-danger' : status.atmosphere.co2Scrubbers < 50 ? 'text-warning' : 'text-success'}>
+											{status.atmosphere.co2Scrubbers}%
+										</span>
+									</div>
 								</div>
 							</div>
 						</div>
@@ -236,17 +263,6 @@ export const DestinyStatusBar: React.FC<DestinyStatusBarProps> = ({ status }) =>
 						</span>
 					</Nav.Item>
 
-					{/* Scrubbers Status */}
-					<Nav.Item className="d-flex align-items-center me-3">
-						<Icon icon={GiBroom} />
-						<span title="Scrubbers" className="d-none d-md-inline">
-							{status.atmosphere.co2Scrubbers} CO₂, {status.atmosphere.o2Scrubbers} O₂
-						</span>
-						<span title="Scrubbers" className="d-md-none">
-							{status.atmosphere.co2Scrubbers + status.atmosphere.o2Scrubbers}
-						</span>
-					</Nav.Item>
-
 					{/* Shuttles Section with Details on Hover */}
 					<Nav.Item className="d-flex align-items-center me-3 position-relative">
 						<span
@@ -270,7 +286,7 @@ export const DestinyStatusBar: React.FC<DestinyStatusBarProps> = ({ status }) =>
 									border: '1px solid #333',
 									minWidth: '200px',
 									fontSize: '0.9rem',
-									zIndex: 10000
+									zIndex: 10000,
 								}}
 								onMouseEnter={handleShuttleMouseEnter}
 								onMouseLeave={handleShuttleMouseLeave}
@@ -340,7 +356,7 @@ export const DestinyStatusBar: React.FC<DestinyStatusBarProps> = ({ status }) =>
 									border: '1px solid #333',
 									minWidth: '240px',
 									fontSize: '0.9rem',
-									zIndex: 10000
+									zIndex: 10000,
 								}}
 								onMouseEnter={handleWeaponsMouseEnter}
 								onMouseLeave={handleWeaponsMouseLeave}
@@ -394,6 +410,63 @@ export const DestinyStatusBar: React.FC<DestinyStatusBarProps> = ({ status }) =>
 											<Icon icon={GiTurret} size={12} />
 											Ready for: Missiles • Rail Guns • Energy Weapons
 										</small>
+									</div>
+								</div>
+							</div>
+						)}
+					</Nav.Item>
+
+					{/* Inventory Section - At the end */}
+					<Nav.Item className="d-flex align-items-center position-relative">
+						<span
+							title="Inventory (click for details)"
+							className="d-flex align-items-center"
+							style={{ cursor: 'pointer' }}
+							onClick={toggleInventoryDetails}
+							onMouseEnter={handleInventoryMouseEnter}
+							onMouseLeave={handleInventoryMouseLeave}
+						>
+							<Icon icon={GiCardboardBox} />
+							<span className="d-none d-sm-inline">Supplies</span>
+						</span>
+
+						{/* Inventory Details Popup */}
+						{showInventoryDetails && (
+							<div
+								className="position-absolute bottom-100 end-0 mb-2 p-3 rounded shadow-lg"
+								style={{
+									background: 'rgba(18,20,32,0.98)',
+									border: '1px solid #333',
+									minWidth: '280px',
+									fontSize: '0.9rem',
+									zIndex: 10000,
+								}}
+								onMouseEnter={handleInventoryMouseEnter}
+								onMouseLeave={handleInventoryMouseLeave}
+							>
+								<div>
+									<strong className="d-flex align-items-center mb-2">
+										<Icon icon={GiBottledBolt} />
+										Inventory
+									</strong>
+									<div className="ms-3">
+										{Object.entries(status.inventory).length > 0 ? (
+											Object.entries(status.inventory).map(([resource, amount]) => {
+												const numAmount = Number(amount);
+												return (
+													<div key={resource} className="d-flex justify-content-between">
+														<span style={{ textTransform: 'capitalize' }}>
+															{resource.replace('_', ' ')}:
+														</span>
+														<span className={numAmount === 0 ? 'text-danger' : numAmount < 5 ? 'text-warning' : 'text-light'}>
+															{numAmount}
+														</span>
+													</div>
+												);
+											})
+										) : (
+											<div className="text-muted">Empty</div>
+										)}
 									</div>
 								</div>
 							</div>

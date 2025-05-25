@@ -1,7 +1,7 @@
 import { appSchema, tableSchema } from '@nozbe/watermelondb';
 
 export default appSchema({
-	version: 5,
+	version: 2,
 	tables: [
 		tableSchema({
 			name: 'games',
@@ -79,6 +79,8 @@ export default appSchema({
 				{ name: 'name', type: 'string' },
 				{ name: 'role', type: 'string' },
 				{ name: 'location', type: 'string' }, // JSON
+				{ name: 'assigned_to', type: 'string', isOptional: true }, // Room ID where person is assigned
+				{ name: 'skills', type: 'string' }, // JSON array of skills
 				{ name: 'description', type: 'string', isOptional: true },
 				{ name: 'image', type: 'string', isOptional: true },
 				{ name: 'conditions', type: 'string' }, // JSON array
@@ -145,12 +147,15 @@ export default appSchema({
 				{ name: 'x', type: 'number' },
 				{ name: 'y', type: 'number' },
 				{ name: 'floor', type: 'number' },
-				{ name: 'assigned', type: 'string' }, // JSON array
+				{ name: 'width', type: 'number' },
+				{ name: 'height', type: 'number' },
 				{ name: 'technology', type: 'string' }, // JSON array
-				{ name: 'fond', type: 'boolean' },
-				{ name: 'unlocked', type: 'boolean' },
+				{ name: 'image', type: 'string', isOptional: true }, // Optional room-specific image
+				{ name: 'found', type: 'boolean' }, // Whether the room has been discovered
+				{ name: 'locked', type: 'boolean' },
 				{ name: 'status', type: 'string' }, // 'damaged' | 'destroyed' | 'ok'
-				{ name: 'connected_rooms', type: 'string' }, // JSON array of room IDs
+				{ name: 'connected_rooms', type: 'string' }, // JSON array of room IDs (for backwards compatibility)
+				{ name: 'doors', type: 'string' }, // JSON array of door info with states and requirements
 				{ name: 'created_at', type: 'number' },
 			],
 		}),

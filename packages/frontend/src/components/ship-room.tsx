@@ -1,0 +1,437 @@
+import React, { useState } from 'react';
+
+import type { Room } from '../types';
+
+interface ExplorationProgress {
+	roomId: string;
+	progress: number; // 0-100
+	crewAssigned: string[];
+	timeRemaining: number; // in hours
+	startTime: number; // timestamp
+}
+
+interface DoorState {
+	[doorId: string]: boolean; // true = opened, false = closed
+}
+
+interface ShipRoomProps {
+	room: Room;
+	position: { x: number; y: number };
+	isVisible: boolean;
+	canExplore: boolean;
+	exploration?: ExplorationProgress;
+	connectedRooms: Room[];
+	onRoomClick: (room: Room) => void;
+	onDoorClick: (fromRoomId: string, toRoomId: string) => void;
+	doorStates: DoorState;
+	allRooms: Room[];
+}
+
+export const ShipRoom: React.FC<ShipRoomProps> = ({
+	room,
+	position,
+	isVisible,
+	canExplore,
+	exploration,
+	connectedRooms,
+	onRoomClick,
+	onDoorClick,
+	doorStates,
+	allRooms,
+}) => {
+	// State for hover - must be declared before any conditional returns
+	const [isHovered, setIsHovered] = useState(false);
+
+	// Don't render if not visible (fog of war)
+	if (!isVisible) return null;
+
+	// Calculate corridor orientation and size
+	const getCorridorDimensions = () => {
+		// Use the actual room width and height from the database
+		return { width: room.width, height: room.height };
+	};
+
+	const roomDimensions = getCorridorDimensions();
+	const halfWidth = roomDimensions.width / 2;
+	const halfHeight = roomDimensions.height / 2;
+
+	// Get room color - simplified to just show basic room background
+	const getRoomColor = (): string => {
+		if (exploration) return '#2d1b1b'; // Dark during exploration
+		return '#1a1a1a'; // Dark room background
+	};
+
+	// Get border color - simplified to green/grey only
+	const getBorderColor = (): string => {
+		if (exploration) return '#fbbf24'; // Orange during exploration
+		if (room.unlocked && room.status === 'ok') {
+			return '#10b981'; // Green for fully explored and operational
+		}
+		return '#6b7280'; // Grey for unexplored or damaged
+	};
+
+	// Get door color between this room and connected room
+	const getDoorColor = (connectedRoom: Room): string => {
+		// Both rooms must be unlocked to determine door safety
+		if (!room.unlocked || !connectedRoom.unlocked) {
+			return '#fbbf24'; // Yellow for unknown
+		}
+
+		// Check for atmospheric or structural hazards
+		if (room.status === 'damaged' || connectedRoom.status === 'damaged') {
+			return '#ef4444'; // Red for unsafe
+		}
+
+		if (room.status === 'destroyed' || connectedRoom.status === 'destroyed') {
+			return '#ef4444'; // Red for unsafe
+		}
+
+		return '#10b981'; // Green for safe
+	};
+
+	// Check if door is opened
+	const isDoorOpened = (connectedRoom: Room): boolean => {
+		const doorId1 = `${room.id}-${connectedRoom.id}`;
+		const doorId2 = `${connectedRoom.id}-${room.id}`;
+		return doorStates[doorId1] || doorStates[doorId2] || false;
+	};
+
+	// Render door indicators for connections
+	const renderDoors = () => {
+		return connectedRooms.map(connectedRoom => {
+			if (!connectedRoom) return null;
+
+			const connectedPos = {
+				x: 400 + (connectedRoom.x * 160), // Updated scale from 80 to 160
+				y: 300 - (connectedRoom.y * 160),  // Updated scale from 80 to 160
+			};
+
+			// Calculate direction to connected room
+			const dx = connectedPos.x - position.x;
+			const dy = connectedPos.y - position.y;
+
+			// Determine which edge of the current room the door should be on
+			let doorX = position.x;
+			let doorY = position.y;
+			let isHorizontal = false;
+
+			if (Math.abs(dx) > Math.abs(dy)) {
+				// Horizontal connection (east/west)
+				isHorizontal = true;
+				doorX = position.x + (dx > 0 ? halfWidth : -halfWidth);
+				doorY = position.y;
+			} else {
+				// Vertical connection (north/south)
+				isHorizontal = false;
+				doorX = position.x;
+				doorY = position.y + (dy > 0 ? halfHeight : -halfHeight);
+			}
+
+			const doorColor = getDoorColor(connectedRoom);
+			const isOpened = isDoorOpened(connectedRoom);
+			const doorImage = isOpened ? '/images/door-opened.png' : '/images/door.png';
+
+			return (
+				<g key={`door-${room.id}-${connectedRoom.id}`}>
+					{/* Door image */}
+					<image
+						href={doorImage}
+						x={doorX - 15}
+						y={doorY - 15}
+						width="30"
+						height="30"
+						transform={isHorizontal ? `rotate(90 ${doorX} ${doorY})` : ''}
+						style={{ cursor: 'pointer' }}
+						onClick={(e) => {
+							e.stopPropagation();
+							onDoorClick(room.id, connectedRoom.id);
+						}}
+					/>
+					{/* Door status indicator (small colored border) */}
+					<rect
+						x={doorX - 16}
+						y={doorY - 16}
+						width="32"
+						height="32"
+						fill="none"
+						stroke={doorColor}
+						strokeWidth="2"
+						opacity="0.7"
+						transform={isHorizontal ? `rotate(90 ${doorX} ${doorY})` : ''}
+						pointerEvents="none"
+					/>
+				</g>
+			);
+		});
+	};
+
+	// Get room background image
+	const getRoomBackgroundImage = () => {
+		// Use room-specific image if available
+		if (room.image) {
+			return `/images/${room.image}`;
+		}
+
+		// Fallback to type-based images for backward compatibility
+		if (room.type === 'gate_room') {
+			return '/images/stargate-room.png';
+		} else if (room.type === 'corridor') {
+			return '/images/corridor.png';
+		}
+
+		// Default floor tile for other rooms
+		return '/images/floor-tile.png';
+	};
+
+	// Render stargate if this is the gate room
+	const renderStargate = () => {
+		if (room.type !== 'gate_room') return null;
+
+		const isActive = room.technology.includes('stargate') && room.status === 'ok';
+		const stargateImage = isActive ? '/images/stargate-active.png' : '/images/stargate.png';
+
+		return (
+			<image
+				href={stargateImage}
+				x={position.x - 60}  // Increased from 30 to 60 for larger size
+				y={position.y - 60}  // Increased from 30 to 60 for larger size
+				width="120"          // Increased from 60 to 120 for larger size
+				height="120"         // Increased from 60 to 120 for larger size
+				opacity={room.unlocked ? 1 : 0.6}
+				onMouseEnter={() => setIsHovered(true)}
+				onMouseLeave={() => setIsHovered(false)}
+			/>
+		);
+	};
+
+	// Render room type icon (only for non-gate rooms and only if unlocked)
+	const renderRoomIcon = () => {
+		if (room.type === 'gate_room' || !room.unlocked) return null;
+
+		const iconSize = 32; // Doubled from 16 to 32 for larger rooms
+		let icon = '?';
+
+		switch (room.type) {
+		case 'bridge': icon = '⚓'; break;
+		case 'medical_bay': icon = '⚕'; break;
+		case 'engineering': icon = '⚙'; break;
+		case 'hydroponics': icon = '🌱'; break;
+		case 'quarters': icon = '🛏'; break;
+		case 'corridor': return null; // Corridors don't need icons
+		case 'storage': icon = '📦'; break;
+		case 'shuttle_bay': icon = '🚀'; break;
+		case 'science_lab': icon = '🔬'; break;
+		case 'mess_hall': icon = '🍽'; break;
+		case 'elevator': icon = '⏫'; break;
+		default: icon = '?'; break;
+		}
+
+		return (
+			<text
+				x={position.x}
+				y={position.y + 5}
+				textAnchor="middle"
+				fill="#ffffff"
+				fontSize={iconSize}
+				pointerEvents="none"
+				style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.8)' }}
+			>
+				{icon}
+			</text>
+		);
+	};
+
+	// Render exploration progress
+	const renderExplorationProgress = () => {
+		if (!exploration) return null;
+
+		const maxDimension = Math.max(halfWidth, halfHeight);
+		const progressRadius = maxDimension + 16; // Use larger dimension for progress ring
+		const circumference = 2 * Math.PI * progressRadius;
+		const strokeDasharray = `${(exploration.progress / 100) * circumference} ${circumference}`;
+
+		return (
+			<g>
+				{/* Progress ring */}
+				<circle
+					cx={position.x}
+					cy={position.y}
+					r={progressRadius}
+					fill="none"
+					stroke="#fbbf24"
+					strokeWidth="6" // Increased from 4 to 6 for larger visibility
+					strokeDasharray={strokeDasharray}
+					transform={`rotate(-90 ${position.x} ${position.y})`}
+					opacity="0.8"
+				/>
+				{/* Crew indicators */}
+				{exploration.crewAssigned.map((crew, index) => {
+					const angle = (index * 60) - 90; // 60 degrees apart
+					const rad = (angle * Math.PI) / 180;
+					const crewX = position.x + Math.cos(rad) * (maxDimension + 25); // Use max dimension
+					const crewY = position.y + Math.sin(rad) * (maxDimension + 25);
+
+					return (
+						<circle
+							key={crew}
+							cx={crewX}
+							cy={crewY}
+							r="5" // Increased from 3 to 5 for larger visibility
+							fill="#10b981"
+							opacity="0.8"
+						/>
+					);
+				})}
+				{/* Progress percentage text */}
+				<text
+					x={position.x}
+					y={position.y - maxDimension - 20} // Use max dimension
+					textAnchor="middle"
+					fill="#fbbf24"
+					fontSize="18" // Increased from 12 to 18
+					fontWeight="bold"
+					style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.8)' }}
+				>
+					{Math.round(exploration.progress)}%
+				</text>
+			</g>
+		);
+	};
+
+	// Render locked indicator
+	const renderLockedIndicator = () => {
+		if (room.unlocked || exploration) return null;
+
+		return (
+			<g>
+				<circle
+					cx={position.x + halfWidth - 12} // Use halfWidth
+					cy={position.y - halfHeight + 12} // Use halfHeight
+					r="10" // Increased from 6 to 10
+					fill="#ef4444"
+					stroke="#ffffff"
+					strokeWidth="2" // Increased from 1 to 2
+				/>
+				<text
+					x={position.x + halfWidth - 12} // Use halfWidth
+					y={position.y - halfHeight + 18} // Use halfHeight
+					textAnchor="middle"
+					fill="#ffffff"
+					fontSize="14" // Increased from 10 to 14
+					fontWeight="bold"
+				>
+					🔒
+				</text>
+			</g>
+		);
+	};
+
+	// Render hover overlay with room name
+	const renderHoverOverlay = () => {
+		if (!isHovered) return null;
+
+		const roomName = room.type.replace('_', ' ').toUpperCase();
+
+		return (
+			<g>
+				{/* Semi-transparent overlay */}
+				<rect
+					x={position.x - halfWidth}
+					y={position.y - halfHeight}
+					width={roomDimensions.width}
+					height={roomDimensions.height}
+					fill="#000000"
+					opacity="0.7"
+					rx="4"
+					ry="4"
+					pointerEvents="none"
+				/>
+				{/* Centered room name */}
+				<text
+					x={position.x}
+					y={position.y + 5}
+					textAnchor="middle"
+					fill="#ffffff"
+					fontSize="16"
+					fontWeight="bold"
+					style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.8)' }}
+					pointerEvents="none"
+				>
+					{roomName}
+				</text>
+			</g>
+		);
+	};
+
+	return (
+		<g>
+			{/* Render doors first (behind room) */}
+			{renderDoors()}
+
+			{/* Room background image (if unlocked) */}
+			{room.unlocked && (
+				<image
+					href={getRoomBackgroundImage()}
+					x={position.x - halfWidth}
+					y={position.y - halfHeight}
+					width={roomDimensions.width}
+					height={roomDimensions.height}
+					opacity="0.8"
+					style={{ borderRadius: '4px' }}
+					onMouseEnter={() => setIsHovered(true)}
+					onMouseLeave={() => setIsHovered(false)}
+				/>
+			)}
+
+			{/* Main room rectangle */}
+			<rect
+				x={position.x - halfWidth}
+				y={position.y - halfHeight}
+				width={roomDimensions.width}
+				height={roomDimensions.height}
+				fill={room.unlocked ? 'none' : getRoomColor()}
+				stroke={getBorderColor()}
+				strokeWidth="2"
+				rx="4"
+				ry="4"
+				style={{
+					cursor: canExplore ? 'pointer' : 'default',
+					filter: room.unlocked ? 'none' : 'brightness(0.6)',
+				}}
+				onClick={() => onRoomClick(room)}
+				onMouseEnter={() => setIsHovered(true)}
+				onMouseLeave={() => setIsHovered(false)}
+			/>
+
+			{/* Stargate (for gate room) */}
+			{renderStargate()}
+
+			{/* Room type icon */}
+			{renderRoomIcon()}
+
+			{/* Exploration progress */}
+			{renderExplorationProgress()}
+
+			{/* Locked indicator */}
+			{renderLockedIndicator()}
+
+			{/* Room label */}
+			{renderHoverOverlay()}
+
+			{/* Fog of war overlay for partially visible rooms */}
+			{!room.unlocked && (
+				<rect
+					x={position.x - halfWidth}
+					y={position.y - halfHeight}
+					width={roomDimensions.width}
+					height={roomDimensions.height}
+					fill="#000000"
+					opacity="0.4"
+					pointerEvents="none"
+					rx="4"
+					ry="4"
+				/>
+			)}
+		</g>
+	);
+};

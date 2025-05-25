@@ -30,7 +30,7 @@ export const GalaxyMap: React.FC<GalaxyMapProps> = ({
 	onGalaxySelect,
 	currentGalaxyId,
 	shipPower = 0,
-	maxTravelRange = 500 // Default travel range
+	maxTravelRange = 500, // Default travel range
 }) => {
 	const canvasRef = useRef<HTMLCanvasElement>(null);
 

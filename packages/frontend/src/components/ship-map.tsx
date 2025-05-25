@@ -1,30 +1,24 @@
+import { gameService } from '@stargate/db';
 import React, { useState, useEffect } from 'react';
-import { Button, Modal, Badge } from 'react-bootstrap';
-import type { DestinyStatus } from '@stargate/common/types/destiny';
-import { CountdownClock } from './countdown-clock';
-import { GiGalaxy } from 'react-icons/gi';
+import { Button, Modal, Alert, Badge } from 'react-bootstrap';
+import { GiMeeple, GiCog, GiKey } from 'react-icons/gi';
 
-interface Room {
-	id: string;
-	name: string;
-	type: string;
-	status: 'locked' | 'damaged' | 'operational' | 'exploring' | 'empty' | 'unexplored';
-	description: string;
-	position: { x: number; y: number };
-	discovered: boolean;
-	requiredResources?: { [key: string]: number };
-	requiredTime?: number;
-	unlockedTechnology?: string[];
-	doors: Door[];
+import type { DestinyStatus, Room, DoorInfo, DoorRequirement } from '../types';
+import { roomModelToType } from '../types';
+
+import { CountdownClock } from './countdown-clock';
+import { ShipRoom } from './ship-room';
+
+interface ExplorationProgress {
+	roomId: string;
+	progress: number; // 0-100
+	crewAssigned: string[];
+	timeRemaining: number; // in hours
+	startTime: number; // timestamp
 }
 
-interface Door {
-	id: string;
-	position: { x: number; y: number };
-	direction: 'north' | 'south' | 'east' | 'west';
-	type: 'door' | 'elevator' | 'hatch' | 'sealed';
-	leadsTo: string; // Room ID
-	unlocked: boolean;
+interface DoorState {
+	[doorId: string]: boolean; // true = opened, false = closed
 }
 
 interface GameTime {
@@ -41,430 +35,9 @@ interface ShipMapProps {
 	gameTime: GameTime;
 	onTimeAdvance: (hours: number) => void;
 	onCountdownUpdate: (newTimeRemaining: number) => void;
+	gameIsPaused: boolean;
+	gameId?: string;
 }
-
-// Predefined ship layout - Fixed room positions and connections
-const SHIP_LAYOUT: { [roomId: string]: Room } = {
-	// Starting room - Gate Room (MUCH LARGER)
-	'gateroom': {
-		id: 'gateroom',
-		name: 'Gate Room',
-		type: 'stargate',
-		status: 'operational',
-		description: 'The main stargate chamber. The heart of Destiny\'s exploration capabilities.',
-		position: { x: 400, y: 300 },
-		discovered: true,
-		unlockedTechnology: ['stargate_operations'],
-		doors: [
-			{
-				id: 'gate_north',
-				position: { x: 400, y: 200 }, // Adjusted for larger room
-				direction: 'north',
-				type: 'door',
-				leadsTo: 'corridor_north',
-				unlocked: true
-			},
-			{
-				id: 'gate_east',
-				position: { x: 500, y: 300 }, // Adjusted for larger room
-				direction: 'east',
-				type: 'door',
-				leadsTo: 'corridor_east',
-				unlocked: true
-			},
-			{
-				id: 'gate_west',
-				position: { x: 300, y: 300 }, // Adjusted for larger room
-				direction: 'west',
-				type: 'hatch',
-				leadsTo: 'storage_bay_1',
-				unlocked: true
-			}
-		]
-	},
-
-	// North corridor from gate room
-	'corridor_north': {
-		id: 'corridor_north',
-		name: 'North Corridor',
-		type: 'corridor',
-		status: 'unexplored',
-		description: 'A long corridor leading north from the gate room.',
-		position: { x: 400, y: 120 }, // Adjusted for larger gateroom
-		discovered: false,
-		doors: [
-			{
-				id: 'corridor_n_south',
-				position: { x: 400, y: 160 }, // Adjusted for larger gateroom
-				direction: 'south',
-				type: 'door',
-				leadsTo: 'gateroom',
-				unlocked: true
-			},
-			{
-				id: 'corridor_n_west',
-				position: { x: 340, y: 120 },
-				direction: 'west',
-				type: 'door',
-				leadsTo: 'bridge',
-				unlocked: true
-			},
-			{
-				id: 'corridor_n_east',
-				position: { x: 460, y: 120 },
-				direction: 'east',
-				type: 'door',
-				leadsTo: 'medical',
-				unlocked: true
-			},
-			{
-				id: 'corridor_n_north',
-				position: { x: 400, y: 80 },
-				direction: 'north',
-				type: 'elevator',
-				leadsTo: 'engineering',
-				unlocked: true
-			}
-		]
-	},
-
-	// Bridge - West of north corridor
-	'bridge': {
-		id: 'bridge',
-		name: 'Bridge',
-		type: 'bridge',
-		status: 'locked',
-		description: 'Command center of the ship. Contains navigation and ship control systems.',
-		position: { x: 240, y: 120 }, // Adjusted for larger gateroom
-		discovered: false,
-		requiredResources: { 'ancient_tech': 2, 'power': 50 },
-		requiredTime: 8,
-		unlockedTechnology: ['navigation_systems', 'ship_diagnostics'],
-		doors: [
-			{
-				id: 'bridge_east',
-				position: { x: 300, y: 120 },
-				direction: 'east',
-				type: 'door',
-				leadsTo: 'corridor_north',
-				unlocked: true
-			},
-			{
-				id: 'bridge_north',
-				position: { x: 240, y: 80 },
-				direction: 'north',
-				type: 'sealed',
-				leadsTo: 'captain_quarters',
-				unlocked: false
-			}
-		]
-	},
-
-	// Medical - East of north corridor
-	'medical': {
-		id: 'medical',
-		name: 'Medical Bay',
-		type: 'medical',
-		status: 'damaged',
-		description: 'Medical facility for treating crew injuries and illnesses.',
-		position: { x: 560, y: 120 }, // Adjusted for larger gateroom
-		discovered: false,
-		requiredResources: { 'medicine': 3, 'parts': 2 },
-		requiredTime: 6,
-		unlockedTechnology: ['medical_scanner', 'surgical_suite'],
-		doors: [
-			{
-				id: 'medical_west',
-				position: { x: 500, y: 120 },
-				direction: 'west',
-				type: 'door',
-				leadsTo: 'corridor_north',
-				unlocked: true
-			},
-			{
-				id: 'medical_north',
-				position: { x: 560, y: 80 },
-				direction: 'north',
-				type: 'door',
-				leadsTo: 'laboratory',
-				unlocked: true
-			}
-		]
-	},
-
-	// Engineering - North of north corridor (elevator access)
-	'engineering': {
-		id: 'engineering',
-		name: 'Engineering',
-		type: 'engineering',
-		status: 'locked',
-		description: 'Main engineering section. Controls power distribution and ship systems.',
-		position: { x: 400, y: 40 }, // Adjusted for larger gateroom
-		discovered: false,
-		requiredResources: { 'ancient_tech': 5, 'parts': 10 },
-		requiredTime: 16,
-		unlockedTechnology: ['power_management', 'system_repair', 'shield_control'],
-		doors: [
-			{
-				id: 'engineering_south',
-				position: { x: 400, y: 80 },
-				direction: 'south',
-				type: 'elevator',
-				leadsTo: 'corridor_north',
-				unlocked: true
-			},
-			{
-				id: 'engineering_west',
-				position: { x: 340, y: 40 },
-				direction: 'west',
-				type: 'hatch',
-				leadsTo: 'power_core',
-				unlocked: true
-			}
-		]
-	},
-
-	// East corridor from gate room
-	'corridor_east': {
-		id: 'corridor_east',
-		name: 'East Corridor',
-		type: 'corridor',
-		status: 'unexplored',
-		description: 'A corridor leading east from the gate room.',
-		position: { x: 600, y: 300 }, // Adjusted for larger gateroom
-		discovered: false,
-		doors: [
-			{
-				id: 'corridor_e_west',
-				position: { x: 540, y: 300 }, // Adjusted for larger gateroom
-				direction: 'west',
-				type: 'door',
-				leadsTo: 'gateroom',
-				unlocked: true
-			},
-			{
-				id: 'corridor_e_north',
-				position: { x: 600, y: 260 },
-				direction: 'north',
-				type: 'door',
-				leadsTo: 'hydroponics',
-				unlocked: true
-			},
-			{
-				id: 'corridor_e_south',
-				position: { x: 600, y: 340 },
-				direction: 'south',
-				type: 'door',
-				leadsTo: 'crew_quarters',
-				unlocked: true
-			}
-		]
-	},
-
-	// Hydroponics - North of east corridor
-	'hydroponics': {
-		id: 'hydroponics',
-		name: 'Hydroponics Bay',
-		type: 'hydroponics',
-		status: 'locked',
-		description: 'Food production facility. Essential for long-term survival.',
-		position: { x: 600, y: 180 }, // Adjusted for larger gateroom
-		discovered: false,
-		requiredResources: { 'parts': 5, 'water': 10 },
-		requiredTime: 12,
-		unlockedTechnology: ['food_production', 'water_recycling'],
-		doors: [
-			{
-				id: 'hydro_south',
-				position: { x: 600, y: 220 },
-				direction: 'south',
-				type: 'door',
-				leadsTo: 'corridor_east',
-				unlocked: true
-			}
-		]
-	},
-
-	// Crew Quarters - South of east corridor
-	'crew_quarters': {
-		id: 'crew_quarters',
-		name: 'Crew Quarters',
-		type: 'quarters',
-		status: 'locked',
-		description: 'Living quarters for the crew. Contains personal belongings and rest areas.',
-		position: { x: 600, y: 420 },
-		discovered: false,
-		requiredResources: { 'parts': 2 },
-		requiredTime: 4,
-		unlockedTechnology: ['crew_comfort'],
-		doors: [
-			{
-				id: 'quarters_north',
-				position: { x: 600, y: 380 },
-				direction: 'north',
-				type: 'door',
-				leadsTo: 'corridor_east',
-				unlocked: true
-			},
-			{
-				id: 'quarters_west',
-				position: { x: 540, y: 420 },
-				direction: 'west',
-				type: 'door',
-				leadsTo: 'observation_deck',
-				unlocked: true
-			}
-		]
-	},
-
-	// Storage Bay - West of gate room
-	'storage_bay_1': {
-		id: 'storage_bay_1',
-		name: 'Storage Bay Alpha',
-		type: 'storage',
-		status: 'unexplored',
-		description: 'Storage area containing various supplies and equipment.',
-		position: { x: 200, y: 300 }, // Adjusted for larger gateroom
-		discovered: false,
-		requiredResources: { 'parts': 1 },
-		requiredTime: 2,
-		unlockedTechnology: ['inventory_management'],
-		doors: [
-			{
-				id: 'storage_east',
-				position: { x: 260, y: 300 }, // Adjusted for larger gateroom
-				direction: 'east',
-				type: 'hatch',
-				leadsTo: 'gateroom',
-				unlocked: true
-			},
-			{
-				id: 'storage_south',
-				position: { x: 200, y: 340 },
-				direction: 'south',
-				type: 'door',
-				leadsTo: 'storage_bay_2',
-				unlocked: true
-			}
-		]
-	},
-
-	// Additional rooms for exploration...
-	'laboratory': {
-		id: 'laboratory',
-		name: 'Science Lab',
-		type: 'laboratory',
-		status: 'locked',
-		description: 'Research facility for analyzing alien technology and specimens.',
-		position: { x: 560, y: 40 }, // Adjusted for larger gateroom
-		discovered: false,
-		requiredResources: { 'ancient_tech': 3, 'parts': 3 },
-		requiredTime: 10,
-		unlockedTechnology: ['research_protocols', 'analysis_tools'],
-		doors: [
-			{
-				id: 'lab_south',
-				position: { x: 560, y: 80 },
-				direction: 'south',
-				type: 'door',
-				leadsTo: 'medical',
-				unlocked: true
-			}
-		]
-	},
-
-	'power_core': {
-		id: 'power_core',
-		name: 'Power Core',
-		type: 'power',
-		status: 'locked',
-		description: 'The ship\'s main power generation facility.',
-		position: { x: 240, y: 40 }, // Adjusted for larger gateroom
-		discovered: false,
-		requiredResources: { 'ancient_tech': 8, 'parts': 15 },
-		requiredTime: 20,
-		unlockedTechnology: ['advanced_power_systems', 'energy_weapons'],
-		doors: [
-			{
-				id: 'power_east',
-				position: { x: 300, y: 40 },
-				direction: 'east',
-				type: 'hatch',
-				leadsTo: 'engineering',
-				unlocked: true
-			}
-		]
-	},
-
-	'storage_bay_2': {
-		id: 'storage_bay_2',
-		name: 'Storage Bay Beta',
-		type: 'storage',
-		status: 'empty',
-		description: 'Another storage area, mostly empty.',
-		position: { x: 200, y: 420 },
-		discovered: false,
-		requiredResources: {},
-		requiredTime: 1,
-		unlockedTechnology: [],
-		doors: [
-			{
-				id: 'storage2_north',
-				position: { x: 200, y: 380 },
-				direction: 'north',
-				type: 'door',
-				leadsTo: 'storage_bay_1',
-				unlocked: true
-			}
-		]
-	},
-
-	'captain_quarters': {
-		id: 'captain_quarters',
-		name: 'Captain\'s Quarters',
-		type: 'quarters',
-		status: 'locked',
-		description: 'Private quarters of the ship\'s captain.',
-		position: { x: 240, y: 40 }, // Adjusted for larger gateroom
-		discovered: false,
-		requiredResources: { 'ancient_tech': 1 },
-		requiredTime: 3,
-		unlockedTechnology: ['command_codes'],
-		doors: [
-			{
-				id: 'captain_south',
-				position: { x: 240, y: 80 },
-				direction: 'south',
-				type: 'sealed',
-				leadsTo: 'bridge',
-				unlocked: false
-			}
-		]
-	},
-
-	'observation_deck': {
-		id: 'observation_deck',
-		name: 'Observation Deck',
-		type: 'observation',
-		status: 'operational',
-		description: 'A viewing area with large windows showing the stars.',
-		position: { x: 450, y: 420 },
-		discovered: false,
-		requiredResources: {},
-		requiredTime: 1,
-		unlockedTechnology: ['stellar_navigation'],
-		doors: [
-			{
-				id: 'obs_east',
-				position: { x: 510, y: 420 },
-				direction: 'east',
-				type: 'door',
-				leadsTo: 'crew_quarters',
-				unlocked: true
-			}
-		]
-	}
-};
 
 export const ShipMap: React.FC<ShipMapProps> = ({
 	destinyStatus,
@@ -472,386 +45,612 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 	onNavigateToGalaxy,
 	gameTime,
 	onTimeAdvance,
-	onCountdownUpdate
+	onCountdownUpdate,
+	gameIsPaused,
+	gameId,
 }) => {
-	const [rooms, setRooms] = useState<{ [roomId: string]: Room }>({});
+	const [rooms, setRooms] = useState<Room[]>([]);
+	const [explorationProgress, setExplorationProgress] = useState<{ [roomId: string]: ExplorationProgress }>({});
 	const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
-	const [showActionModal, setShowActionModal] = useState(false);
-	const [hoveredElement, setHoveredElement] = useState<{ type: 'door' | 'room', id: string } | null>(null);
-	const [stargateActive, setStargateActive] = useState(false); // State for stargate activation
+	const [showExplorationModal, setShowExplorationModal] = useState(false);
+	const [showDoorModal, setShowDoorModal] = useState(false);
+	const [selectedDoor, setSelectedDoor] = useState<{ fromRoom: Room; door: DoorInfo } | null>(null);
+	const [lastUpdateTime, setLastUpdateTime] = useState(Date.now());
+	const [selectedCrew, setSelectedCrew] = useState<string[]>([]);
 
-	// Initialize ship layout
+	// State for available crew
+	const [availableCrew, setAvailableCrew] = useState<string[]>([]);
+	const [crewData, setCrewData] = useState<{ [id: string]: any }>({});
+
+	// Load rooms from database when component mounts or gameId changes
 	useEffect(() => {
-		// Start with only the gate room discovered
-		const initialRooms = { ...SHIP_LAYOUT };
-		setRooms(initialRooms);
-	}, []);
+		const loadRooms = async () => {
+			console.log('🏠 Loading rooms for gameId:', gameId);
 
-	// Helper function to get room dimensions
-	const getRoomDimensions = (room: Room) => {
-		if (room.type === 'stargate') {
-			// Make gateroom much larger
-			return { width: 200, height: 160 };
-		}
-		// Standard room size
-		return { width: 120, height: 80 };
-	};
-
-	// Helper function to toggle stargate state (for future use)
-	const toggleStargate = () => {
-		setStargateActive(!stargateActive);
-	};
-
-	const handleDoorClick = (doorId: string, fromRoomId: string) => {
-		const fromRoom = rooms[fromRoomId];
-		if (!fromRoom) return;
-
-		const door = fromRoom.doors.find(d => d.id === doorId);
-		if (!door || !door.unlocked) return;
-
-		const targetRoomId = door.leadsTo;
-		const targetRoom = rooms[targetRoomId];
-
-		if (targetRoom && !targetRoom.discovered) {
-			// Discover the room
-			setRooms(prev => ({
-				...prev,
-				[targetRoomId]: {
-					...prev[targetRoomId],
-					discovered: true
-				}
-			}));
-
-			// Advance time for exploration
-			onTimeAdvance(1);
-		}
-	};
-
-	const handleRoomAction = (room: Room) => {
-		if (room.status === 'operational' || room.status === 'unexplored') return;
-		setSelectedRoom(room);
-		setShowActionModal(true);
-	};
-
-	const confirmRoomAction = () => {
-		if (!selectedRoom) return;
-
-		const actionType = selectedRoom.status === 'locked' ? 'unlock' : 'repair';
-		const timeRequired = selectedRoom.requiredTime || 4;
-
-		// Check resources
-		const requiredResources = selectedRoom.requiredResources || {};
-		const currentInventory = destinyStatus.inventory;
-
-		for (const [resource, amount] of Object.entries(requiredResources)) {
-			if ((currentInventory[resource] || 0) < amount) {
-				alert(`Insufficient ${resource}. Need ${amount}, have ${currentInventory[resource] || 0}.`);
+			if (!gameId) {
+				console.warn('No gameId provided, cannot load rooms');
+				setRooms([]);
 				return;
 			}
-		}
 
-		// Consume resources
-		const newInventory = { ...currentInventory };
-		for (const [resource, amount] of Object.entries(requiredResources)) {
-			newInventory[resource] = (newInventory[resource] || 0) - amount;
-		}
+			try {
+				const roomData = await gameService.getRoomsByGame(gameId);
+				console.log('🏠 Raw room data from database:', roomData);
 
-		// Add unlocked technology
-		if (selectedRoom.unlockedTechnology) {
-			selectedRoom.unlockedTechnology.forEach(tech => {
-				newInventory[tech] = (newInventory[tech] || 0) + 1;
-			});
-		}
+				const formattedRooms: Room[] = roomData.map((room: any) => roomModelToType(room));
 
-		// Update room status
-		setRooms(prev => ({
-			...prev,
-			[selectedRoom.id]: {
-				...prev[selectedRoom.id],
-				status: 'operational'
+				console.log('🏠 Formatted rooms:', formattedRooms);
+				console.log('🏠 Gate room specifically:', formattedRooms.find(r => r.type === 'gate_room'));
+
+				setRooms(formattedRooms);
+			} catch (error) {
+				console.error('Failed to load rooms:', error);
+				setRooms([]);
 			}
-		}));
+		};
 
-		onStatusUpdate({
-			...destinyStatus,
-			inventory: newInventory
+		loadRooms();
+	}, [gameId]);
+
+	// Real-time exploration progress updates
+	useEffect(() => {
+		if (gameIsPaused) return;
+
+		const interval = setInterval(() => {
+			const now = Date.now();
+			const deltaRealSeconds = (now - lastUpdateTime) / 1000;
+			setLastUpdateTime(now);
+
+			setExplorationProgress(prev => {
+				const updated = { ...prev };
+				let hasChanges = false;
+
+				Object.values(updated).forEach(exploration => {
+					if (exploration.progress < 100) {
+						// Calculate exploration speed based on crew count
+						const crewCount = exploration.crewAssigned.length;
+						const baseRate = 1; // 1% per real second base rate
+						const crewMultiplier = Math.max(1, crewCount * 0.5); // Each crew member adds 50% speed
+						const progressRate = baseRate * crewMultiplier;
+
+						exploration.progress = Math.min(100, exploration.progress + (progressRate * deltaRealSeconds));
+						exploration.timeRemaining = Math.max(0, exploration.timeRemaining - (deltaRealSeconds / 3600));
+						hasChanges = true;
+
+						// Complete exploration when done
+						if (exploration.progress >= 100) {
+							completeExploration(exploration.roomId);
+						}
+					}
+				});
+
+				return hasChanges ? updated : prev;
+			});
+		}, 100);
+
+		return () => clearInterval(interval);
+	}, [gameIsPaused, lastUpdateTime]);
+
+	// Complete room exploration
+	const completeExploration = async (roomId: string) => {
+		// Get exploration data before removing it
+		const exploration = explorationProgress[roomId];
+
+		setRooms(prev => prev.map(room =>
+			room.id === roomId
+				? { ...room, unlocked: true }
+				: room,
+		));
+
+		setExplorationProgress(prev => {
+			const updated = { ...prev };
+			delete updated[roomId];
+			return updated;
 		});
 
-		onTimeAdvance(timeRequired);
-		setShowActionModal(false);
+		// Update database
+		if (gameId) {
+			try {
+				await gameService.updateRoom(roomId, { found: true });
+			} catch (error) {
+				console.error('Failed to update room in database:', error);
+			}
+		}
+
+		// Release crew from exploration assignments
+		if (exploration) {
+			try {
+				for (const crewId of exploration.crewAssigned) {
+					await gameService.assignCrewToRoom(crewId, null); // Unassign crew
+				}
+				console.log(`Crew returned from exploration: ${exploration.crewAssigned.map(id => getCrewDisplayName(id)).join(', ')}`);
+
+				// Update available crew list
+				const updatedCrew = await getAvailableCrew();
+				setAvailableCrew(updatedCrew);
+			} catch (error) {
+				console.error('Failed to release crew from exploration:', error);
+			}
+		}
+
+		// Add discovered technology to inventory or unlock new systems
+		const room = rooms.find(r => r.id === roomId);
+		if (room && room.technology && room.technology.length > 0) {
+			// This would update the game state with new technology
+			console.log(`Discovered technology in ${room.type}:`, room.technology);
+
+			// Add technology to inventory
+			const newInventory = { ...destinyStatus.inventory };
+			room.technology.forEach(tech => {
+				newInventory[tech] = (newInventory[tech] || 0) + 1;
+			});
+
+			onStatusUpdate({
+				...destinyStatus,
+				inventory: newInventory,
+			});
+		}
+	};
+
+	// Check if room is visible (only found rooms are visible)
+	const isRoomVisible = (room: Room): boolean => {
+		// Only show rooms that have been found
+		return room.found;
+	};
+
+	// Check if room can be explored (found but not unlocked rooms adjacent to unlocked rooms)
+	const canExploreRoom = (room: Room): boolean => {
+		if (room.locked) return false; // Room is locked
+		if (!room.found) return false; // Must be found first
+		if (gameIsPaused) return false; // Game must be running
+		if (explorationProgress[room.id]) return false; // Already being explored
+
+		// Must be adjacent to an unlocked room
+		const isAdjacentToUnlocked = room.connectedRooms.some(connectedId => {
+			const connectedRoom = rooms.find(r => r.id === connectedId);
+			return connectedRoom?.found || false;
+		});
+
+		return isAdjacentToUnlocked;
+	};
+
+	// Toggle crew selection
+	const toggleCrewSelection = (crewMember: string) => {
+		setSelectedCrew(prev =>
+			prev.includes(crewMember)
+				? prev.filter(c => c !== crewMember)
+				: [...prev, crewMember],
+		);
+	};
+
+	// Start room exploration
+	const startExploration = async (room: Room, assignedCrew: string[]) => {
+		if (!canExploreRoom(room) || assignedCrew.length === 0) return;
+
+		const baseTime = 2; // 2 hours base exploration time
+		const crewMultiplier = Math.max(0.5, 1 / assignedCrew.length); // More crew = faster
+		const explorationTime = baseTime * crewMultiplier;
+
+		// Assign crew to exploration in database (temporarily assign to room)
+		try {
+			for (const crewId of assignedCrew) {
+				await gameService.assignCrewToRoom(crewId, room.id);
+			}
+		} catch (error) {
+			console.error('Failed to assign crew to exploration:', error);
+			return;
+		}
+
+		setExplorationProgress(prev => ({
+			...prev,
+			[room.id]: {
+				roomId: room.id,
+				progress: 0,
+				crewAssigned: assignedCrew,
+				timeRemaining: explorationTime,
+				startTime: Date.now(),
+			},
+		}));
+
+		setShowExplorationModal(false);
 		setSelectedRoom(null);
+		setSelectedCrew([]);
+
+		// Update available crew list
+		const updatedCrew = await getAvailableCrew();
+		setAvailableCrew(updatedCrew);
 	};
 
-	const canAccessGalaxyMap = () => {
-		return gameTime.ftlStatus === 'normal_space' &&
-			   Object.values(rooms).some(r => r.type === 'bridge' && r.status === 'operational');
-	};
+	// Handle room click
+	const handleRoomClick = (room: Room) => {
+		if (!isRoomVisible(room)) return;
 
-	const getRoomColor = (room: Room) => {
-		if (!room.discovered) return '#1a1a1a'; // Dark for unexplored
-
-		switch (room.status) {
-			case 'operational': return '#28a745';
-			case 'damaged': return '#ffc107';
-			case 'locked': return '#6c757d';
-			case 'empty': return '#17a2b8';
-			case 'unexplored': return '#444';
-			default: return '#6c757d';
+		if (canExploreRoom(room)) {
+			setSelectedRoom(room);
+			setShowExplorationModal(true);
+		} else if (!room.locked) {
+			// Show room details or allow crew assignment
+			console.log(`Accessing ${room.type}`);
+		} else if (gameIsPaused) {
+			// Show message about needing to unpause
+			console.log('Game must be running to explore rooms');
 		}
 	};
 
-	const getDoorColor = (doorType: string, unlocked: boolean) => {
-		if (!unlocked) return '#dc3545'; // Red for locked/sealed
+	// Convert room coordinates to screen position
+	const getRoomScreenPosition = (room: Room) => {
+		const centerX = 400;
+		const centerY = 300;
+		const scale = 160; // Doubled from 80 to 160 for larger rooms
 
-		switch (doorType) {
-			case 'elevator': return '#007bff';
-			case 'sealed': return '#dc3545';
-			case 'hatch': return '#fd7e14';
-			default: return '#ffffff';
+		return {
+			x: centerX + (room.x * scale),
+			y: centerY - (room.y * scale), // Invert Y for screen coordinates
+		};
+	};
+
+	// Get connected rooms for a room
+	const getConnectedRooms = (room: Room): Room[] => {
+		return room.connectedRooms
+			.map(roomId => rooms.find(r => r.id === roomId))
+			.filter(Boolean) as Room[];
+	};
+
+	// Helper function to check if door is opened between two rooms
+	const isDoorOpened = (fromRoomId: string, toRoomId: string): boolean => {
+		const fromRoom = rooms.find(r => r.id === fromRoomId);
+		if (!fromRoom) return false;
+
+		const door = fromRoom.doors.find(d => d.toRoomId === toRoomId);
+		return door?.state === 'opened';
+	};
+
+	// Helper function to convert room doors to DoorState format
+	const getRoomDoorStates = (room: Room): DoorState => {
+		const doorStates: DoorState = {};
+		room.doors.forEach(door => {
+			const doorId = `${room.id}-${door.toRoomId}`;
+			doorStates[doorId] = door.state === 'opened';
+		});
+		return doorStates;
+	};
+
+	// Check if door requirements are met
+	const checkDoorRequirements = (door: DoorInfo): { canOpen: boolean; unmetRequirements: DoorRequirement[] } => {
+		const unmetRequirements: DoorRequirement[] = [];
+
+		for (const requirement of door.requirements) {
+			let met = requirement.met;
+
+			// Check requirement based on type
+			switch (requirement.type) {
+			case 'power_level': {
+				const requiredPower = parseInt(requirement.value);
+				met = destinyStatus.power >= requiredPower;
+				break;
+			}
+			case 'item':
+				met = destinyStatus.inventory && destinyStatus.inventory[requirement.value] > 0;
+				break;
+			case 'technology':
+				met = destinyStatus.inventory && destinyStatus.inventory[requirement.value] > 0;
+				break;
+			case 'crew_skill':
+				// For now, assume we have qualified crew if they're available
+				met = availableCrew.length > 0;
+				break;
+			case 'story_progress':
+				// This would be checked against game progress flags
+				met = false; // Default to false for now
+				break;
+			case 'code':
+				// Codes need to be discovered through gameplay
+				met = false; // Default to false for now
+				break;
+			}
+
+			if (!met) {
+				unmetRequirements.push({ ...requirement, met });
+			}
 		}
+
+		return {
+			canOpen: unmetRequirements.length === 0,
+			unmetRequirements,
+		};
+	};
+
+	// Handle door click to open/close/unlock doors
+	const handleDoorClick = async (fromRoomId: string, toRoomId: string) => {
+		const fromRoom = rooms.find(r => r.id === fromRoomId);
+		if (!fromRoom) return;
+
+		const door = fromRoom.doors.find(d => d.toRoomId === toRoomId);
+		if (!door) return;
+
+		if (door.state === 'locked') {
+			// Check if requirements are met
+			const { canOpen, unmetRequirements } = checkDoorRequirements(door);
+
+			if (canOpen) {
+				// Requirements met, unlock the door
+				await updateDoorState(fromRoomId, toRoomId, 'opened');
+				// Mark the connected room as found when door is unlocked and opened
+				await markRoomAsFound(toRoomId);
+			} else {
+				// Show requirements modal
+				setSelectedDoor({ fromRoom, door });
+				setShowDoorModal(true);
+			}
+		} else {
+			// Toggle between closed and opened
+			const newState = door.state === 'opened' ? 'closed' : 'opened';
+			await updateDoorState(fromRoomId, toRoomId, newState);
+
+			// If opening a door, mark the connected room as found
+			if (newState === 'opened') {
+				await markRoomAsFound(toRoomId);
+			}
+		}
+	};
+
+	// Mark a room as found (discovered)
+	const markRoomAsFound = async (roomId: string) => {
+		// Update local state
+		setRooms(prev => prev.map(room =>
+			room.id === roomId
+				? { ...room, found: true }
+				: room,
+		));
+
+		// Update database
+		if (gameId) {
+			try {
+				await gameService.updateRoom(roomId, { found: true } as any);
+			} catch (error) {
+				console.error('Failed to update room found status in database:', error);
+			}
+		}
+	};
+
+	// Update door state in database and local state
+	const updateDoorState = async (fromRoomId: string, toRoomId: string, newState: 'closed' | 'opened' | 'locked') => {
+		// Update local state
+		setRooms(prev => prev.map(room => {
+			if (room.id === fromRoomId) {
+				const updatedDoors = room.doors.map(door =>
+					door.toRoomId === toRoomId
+						? { ...door, state: newState }
+						: door,
+				);
+				return { ...room, doors: updatedDoors };
+			}
+			return room;
+		}));
+
+		// Update database if gameId is available
+		if (gameId) {
+			try {
+				// This would need a new method in gameService to update door states
+				// For now, we'll just update locally
+				console.log(`Door ${fromRoomId} -> ${toRoomId} set to ${newState}`);
+			} catch (error) {
+				console.error('Failed to update door state in database:', error);
+			}
+		}
+	};
+
+	// Calculate available crew (not assigned to any room)
+	const getAvailableCrew = async (): Promise<string[]> => {
+		if (!gameId) return [];
+
+		try {
+			// Get available crew from database
+			const availableCrew = await gameService.getAvailableCrew(gameId);
+			return availableCrew.map((person: any) => person.id);
+		} catch (error) {
+			console.error('Failed to get available crew:', error);
+			return [];
+		}
+	};
+
+	// Load available crew when component mounts or gameId changes
+	useEffect(() => {
+		const loadAvailableCrew = async () => {
+			const crew = await getAvailableCrew();
+			setAvailableCrew(crew);
+
+			// Also load all crew data for display purposes
+			if (gameId) {
+				try {
+					const allCrew = await gameService.getCrewByGame(gameId);
+					const crewMap = allCrew.reduce((acc: any, person: any) => {
+						acc[person.id] = person;
+						return acc;
+					}, {});
+					setCrewData(crewMap);
+				} catch (error) {
+					console.error('Failed to load crew data:', error);
+				}
+			}
+		};
+		loadAvailableCrew();
+	}, [gameId]);
+
+	// Update available crew when exploration progress changes
+	useEffect(() => {
+		const updateAvailableCrew = async () => {
+			const crew = await getAvailableCrew();
+			setAvailableCrew(crew);
+		};
+		updateAvailableCrew();
+	}, [explorationProgress]);
+
+	// Helper function to get crew display name
+	const getCrewDisplayName = (crewId: string): string => {
+		const crew = crewData[crewId];
+		return crew ? crew.name : crewId.replace('_', ' ');
 	};
 
 	return (
-		<div className="ship-map" style={{ width: '100%', height: '600px', position: 'relative', background: '#0a0a0a', border: '2px solid #333' }}>
-			{/* Countdown Clock - Top Center */}
-			<CountdownClock timeRemaining={gameTime.nextDropOut} onTimeUpdate={onCountdownUpdate} />
+		<div style={{ position: 'relative', width: '100%', height: '600px', backgroundColor: '#000' }}>
+			{/* Countdown Clock */}
+			<CountdownClock
+				timeRemaining={gameTime.nextDropOut}
+				onTimeUpdate={onCountdownUpdate}
+			/>
 
-			{/* Time and Status Header */}
-			<div className="position-absolute top-0 start-0 bg-dark text-light p-2 m-2 rounded" style={{ zIndex: 10 }}>
-				<small>
-					Day {gameTime.days}, Hour {gameTime.hours} |
-					<Badge bg={gameTime.ftlStatus === 'ftl' ? 'primary' : 'success'} className="ms-1">
-						{gameTime.ftlStatus === 'ftl' ? 'FTL' : 'Normal Space'}
-					</Badge>
-				</small>
-				{canAccessGalaxyMap() && (
-					<Button
-						variant="outline-light"
-						size="sm"
-						className="ms-2"
-						onClick={onNavigateToGalaxy}
-					>
-						<GiGalaxy size={16} className="me-1" />Galaxy Map
-					</Button>
-				)}
-			</div>
-
-			{/* Ship Map SVG */}
-			<svg width="100%" height="100%" style={{ position: 'absolute', top: 0, left: 0 }}>
-				{/* Define patterns and images */}
+			{/* Ship Layout SVG */}
+			<svg width="100%" height="600" style={{ position: 'absolute', top: 0, left: 0 }}>
+				{/* Background space pattern */}
 				<defs>
-					{/* Floor tile pattern */}
-					<pattern id="floorTile" patternUnits="userSpaceOnUse" width="64" height="64">
-						<image href="/images/floor-tile.png" x="0" y="0" width="64" height="64" />
-					</pattern>
-
-					{/* Fog of war pattern */}
-					<pattern id="fog" patternUnits="userSpaceOnUse" width="20" height="20">
-						<rect width="20" height="20" fill="#111" opacity="0.8"/>
-						<circle cx="10" cy="10" r="1" fill="#333"/>
+					<pattern id="spacePattern" x="0" y="0" width="40" height="40" patternUnits="userSpaceOnUse">
+						<circle cx="20" cy="20" r="0.5" fill="#334155" opacity="0.3"/>
 					</pattern>
 				</defs>
+				<rect width="100%" height="100%" fill="url(#spacePattern)"/>
 
-				{/* Render discovered rooms */}
-				{Object.values(rooms).filter(room => room.discovered).map(room => {
-					const dimensions = getRoomDimensions(room);
-					const halfWidth = dimensions.width / 2;
-					const halfHeight = dimensions.height / 2;
-
-					return (
-						<g key={room.id}>
-							{/* Room floor background with tile pattern */}
-							<rect
-								x={room.position.x - halfWidth}
-								y={room.position.y - halfHeight}
-								width={dimensions.width}
-								height={dimensions.height}
-								fill="url(#floorTile)"
-								opacity="0.8"
-								rx="5"
+				{/* Render all visible rooms */}
+				{rooms
+					.filter(isRoomVisible)
+					.map(room => {
+						console.log('🏠 Rendering room:', room.type, 'at position:', getRoomScreenPosition(room));
+						return (
+							<ShipRoom
+								key={room.id}
+								room={room}
+								position={getRoomScreenPosition(room)}
+								isVisible={isRoomVisible(room)}
+								canExplore={canExploreRoom(room)}
+								exploration={explorationProgress[room.id]}
+								connectedRooms={getConnectedRooms(room)}
+								onRoomClick={handleRoomClick}
+								onDoorClick={handleDoorClick}
+								doorStates={getRoomDoorStates(room)}
+								allRooms={rooms}
 							/>
-
-							{/* Room border */}
-							<rect
-								x={room.position.x - halfWidth}
-								y={room.position.y - halfHeight}
-								width={dimensions.width}
-								height={dimensions.height}
-								fill="none"
-								stroke="#fff"
-								strokeWidth="2"
-								rx="5"
-								style={{ cursor: room.status !== 'operational' && room.status !== 'unexplored' ? 'pointer' : 'default' }}
-								onClick={() => handleRoomAction(room)}
-							/>
-
-							{/* Room status overlay */}
-							<rect
-								x={room.position.x - halfWidth}
-								y={room.position.y - halfHeight}
-								width={dimensions.width}
-								height={dimensions.height}
-								fill={getRoomColor(room)}
-								opacity="0.3"
-								rx="5"
-								style={{ cursor: room.status !== 'operational' && room.status !== 'unexplored' ? 'pointer' : 'default' }}
-								onClick={() => handleRoomAction(room)}
-							/>
-
-							{/* Special rendering for stargate room */}
-							{room.type === 'stargate' && (
-								<g>
-									{/* Stargate image in center of room */}
-									<image
-										href={stargateActive ? "/images/stargate-active.png" : "/images/stargate.png"}
-										x={room.position.x - 60} // Center the 120px wide stargate
-										y={room.position.y - 60} // Center the 120px high stargate
-										width="120"
-										height="120"
-										style={{ cursor: 'pointer' }}
-										onClick={toggleStargate}
-									/>
-								</g>
-							)}
-
-							{/* Room name */}
-							<text
-								x={room.position.x}
-								y={room.position.y - halfHeight + 15}
-								textAnchor="middle"
-								fill="#fff"
-								fontSize="12"
-								fontWeight="bold"
-								style={{ pointerEvents: 'none' }}
-							>
-								{room.name}
-							</text>
-
-							{/* Room status text */}
-							{room.type !== 'stargate' && (
-								<text
-									x={room.position.x}
-									y={room.position.y + 10}
-									textAnchor="middle"
-									fill="#fff"
-									fontSize="10"
-									style={{ pointerEvents: 'none' }}
-								>
-									{room.status.charAt(0).toUpperCase() + room.status.slice(1)}
-								</text>
-							)}
-
-							{/* Render doors */}
-							{room.doors.map(door => {
-								const targetRoom = rooms[door.leadsTo];
-								const isTargetUndiscovered = !targetRoom?.discovered;
-
-								return (
-									<g key={door.id}>
-										{/* Door rectangle */}
-										<rect
-											x={door.position.x - 10}
-											y={door.position.y - 4}
-											width={20}
-											height={8}
-											fill={getDoorColor(door.type, door.unlocked)}
-											stroke="#ccc"
-											strokeWidth="1"
-											rx="2"
-											style={{ cursor: isTargetUndiscovered && door.unlocked ? 'pointer' : 'default' }}
-											onClick={() => isTargetUndiscovered && door.unlocked && handleDoorClick(door.id, room.id)}
-											onMouseEnter={() => setHoveredElement({ type: 'door', id: door.id })}
-											onMouseLeave={() => setHoveredElement(null)}
-										/>
-
-										{/* Door hover tooltip */}
-										{hoveredElement?.type === 'door' && hoveredElement.id === door.id && (
-											<text
-												x={door.position.x}
-												y={door.position.y - 15}
-												textAnchor="middle"
-												fill="#fff"
-												fontSize="10"
-												style={{ pointerEvents: 'none' }}
-											>
-												{isTargetUndiscovered ? (door.unlocked ? 'Explore' : 'Locked') : door.type}
-											</text>
-										)}
-
-										{/* Show darkened room behind unexplored doors */}
-										{isTargetUndiscovered && targetRoom && (
-											<g opacity="0.3">
-												{(() => {
-													const targetDimensions = getRoomDimensions(targetRoom);
-													const targetHalfWidth = targetDimensions.width / 2;
-													const targetHalfHeight = targetDimensions.height / 2;
-
-													return (
-														<rect
-															x={targetRoom.position.x - targetHalfWidth}
-															y={targetRoom.position.y - targetHalfHeight}
-															width={targetDimensions.width}
-															height={targetDimensions.height}
-															fill="#333"
-															stroke="#666"
-															strokeWidth="1"
-															rx="5"
-															strokeDasharray="4,4"
-														/>
-													);
-												})()}
-												<text
-													x={targetRoom.position.x}
-													y={targetRoom.position.y}
-													textAnchor="middle"
-													fill="#999"
-													fontSize="10"
-													style={{ pointerEvents: 'none' }}
-												>
-													Unexplored
-												</text>
-											</g>
-										)}
-									</g>
-								);
-							})}
-						</g>
-					);
-				})}
+						);
+					})
+				}
 			</svg>
 
-			{/* Action Modal */}
-			<Modal show={showActionModal} onHide={() => setShowActionModal(false)}>
-				<Modal.Header closeButton style={{ background: '#1a1c2e', borderColor: '#333' }}>
-					<Modal.Title className="text-light">
-						{selectedRoom?.status === 'locked' ? 'Unlock Room' : 'Repair Room'}
-					</Modal.Title>
+			{/* Exploration Assignment Modal */}
+			<Modal show={showExplorationModal} onHide={() => setShowExplorationModal(false)}>
+				<Modal.Header closeButton>
+					<Modal.Title>Explore {selectedRoom?.type?.replace('_', ' ')}</Modal.Title>
 				</Modal.Header>
-				<Modal.Body style={{ background: '#2a2c3e', color: '#fff' }}>
+				<Modal.Body>
 					{selectedRoom && (
 						<div>
-							<h5>{selectedRoom.name}</h5>
-							<p>{selectedRoom.description}</p>
+							<p>Select crew members to explore this room. More crew members will speed up exploration.</p>
+							<p><strong>Technology:</strong> {selectedRoom.technology.join(', ') || 'None detected'}</p>
+							<p><strong>Estimated time:</strong> {2 / Math.max(1, selectedCrew.length)} hours</p>
 
-							<h6>This action will:</h6>
-							<ul>
-								<li>Take {selectedRoom.requiredTime} hours</li>
-								{selectedRoom.requiredResources && Object.entries(selectedRoom.requiredResources).map(([resource, amount]) => (
-									<li key={resource}>Use {amount} {resource} (have: {destinyStatus.inventory[resource] || 0})</li>
-								))}
-								{selectedRoom.unlockedTechnology && selectedRoom.unlockedTechnology.length > 0 && (
-									<li>Unlock: {selectedRoom.unlockedTechnology.join(', ')}</li>
+							<div className="mb-3">
+								<strong>Available Crew ({availableCrew.length}):</strong>
+								{availableCrew.length === 0 && (
+									<Alert variant="warning" className="mt-2">
+										No crew members are currently available. All crew are assigned to rooms or exploring.
+									</Alert>
 								)}
-							</ul>
+								<div className="mt-2">
+									{availableCrew.map(crew => (
+										<Badge
+											key={crew}
+											bg={selectedCrew.includes(crew) ? 'primary' : 'secondary'}
+											className="me-2 mb-2"
+											style={{ cursor: 'pointer' }}
+											onClick={() => toggleCrewSelection(crew)}
+										>
+											<GiMeeple className="me-1" />
+											{getCrewDisplayName(crew)}
+										</Badge>
+									))}
+								</div>
+							</div>
+
+							{selectedCrew.length > 0 && (
+								<div className="mb-3">
+									<strong>Selected for Exploration ({selectedCrew.length}):</strong>
+									<div className="mt-2">
+										{selectedCrew.map(crew => (
+											<Badge key={crew} bg="success" className="me-2 mb-2">
+												<GiMeeple className="me-1" />
+												{getCrewDisplayName(crew)}
+											</Badge>
+										))}
+									</div>
+								</div>
+							)}
+
+							{gameIsPaused && (
+								<Alert variant="warning">
+									<GiCog className="me-2" />
+									Game must be running to explore rooms. Click play on the countdown timer.
+								</Alert>
+							)}
 						</div>
 					)}
 				</Modal.Body>
-				<Modal.Footer style={{ background: '#1a1c2e', borderColor: '#333' }}>
-					<Button variant="secondary" onClick={() => setShowActionModal(false)}>
+				<Modal.Footer>
+					<Button variant="secondary" onClick={() => setShowExplorationModal(false)}>
 						Cancel
 					</Button>
-					<Button variant="primary" onClick={confirmRoomAction}>
-						Confirm
+					<Button
+						variant="primary"
+						onClick={() => selectedRoom && startExploration(selectedRoom, selectedCrew)}
+						disabled={gameIsPaused || selectedCrew.length === 0}
+					>
+						Start Exploration ({selectedCrew.length} crew)
+					</Button>
+				</Modal.Footer>
+			</Modal>
+
+			{/* Door Requirements Modal */}
+			<Modal show={showDoorModal} onHide={() => setShowDoorModal(false)}>
+				<Modal.Header closeButton>
+					<Modal.Title>
+						<GiKey className="me-2" />
+						Door Locked
+					</Modal.Title>
+				</Modal.Header>
+				<Modal.Body>
+					{selectedDoor && (
+						<div>
+							<p><strong>Door:</strong> {selectedDoor.door.description || `${selectedDoor.fromRoom.type} to ${selectedDoor.door.toRoomId}`}</p>
+
+							<Alert variant="warning">
+								This door is locked and requires the following to unlock:
+							</Alert>
+
+							{selectedDoor.door.requirements.map((req, index) => {
+								const { canOpen } = checkDoorRequirements(selectedDoor.door);
+								const isReqMet = checkDoorRequirements({ ...selectedDoor.door, requirements: [req] }).canOpen;
+
+								return (
+									<div key={index} className={`alert ${isReqMet ? 'alert-success' : 'alert-danger'} mb-2`}>
+										<strong>{req.type.replace('_', ' ').toUpperCase()}:</strong> {req.description}
+										{req.type === 'power_level' && (
+											<div className="mt-1">
+												<small>Required: {req.value} | Current: {destinyStatus.power}</small>
+											</div>
+										)}
+										{(req.type === 'item' || req.type === 'technology') && (
+											<div className="mt-1">
+												<small>
+													In inventory: {destinyStatus.inventory?.[req.value] || 0}
+												</small>
+											</div>
+										)}
+									</div>
+								);
+							})}
+						</div>
+					)}
+				</Modal.Body>
+				<Modal.Footer>
+					<Button variant="secondary" onClick={() => setShowDoorModal(false)}>
+						Close
 					</Button>
 				</Modal.Footer>
 			</Modal>

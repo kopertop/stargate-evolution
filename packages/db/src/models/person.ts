@@ -16,6 +16,8 @@ export default class Person extends Model {
 	@text('name') name!: string;
 	@text('role') role!: string;
 	@text('location') location!: string; // JSON
+	@text('assigned_to') assignedTo?: string; // Room ID where person is assigned
+	@text('skills') skills!: string; // JSON array of skills
 	@text('description') description?: string;
 	@text('image') image?: string;
 	@text('conditions') conditions!: string; // JSON array

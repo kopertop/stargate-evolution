@@ -1,12 +1,12 @@
-import React, { useState, useEffect } from 'react';
 import { gameService } from '@stargate/db';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
 import { Button, Container, Row, Col, Alert } from 'react-bootstrap';
-import { Toast } from '../toast';
 import { GiReturnArrow } from 'react-icons/gi';
+import { Link, useNavigate } from 'react-router-dom';
 
 import { renderGoogleSignInButton } from '../auth/google-auth';
 import { getSession, setSession } from '../auth/session';
+import { Toast } from '../toast';
 
 type GameSummary = {
 	id: string;
@@ -235,7 +235,7 @@ export const MenuPage: React.FC = () => {
 			className="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center"
 			style={{
 				backgroundColor: 'rgba(10,12,24,0.92)',
-				zIndex: 3000
+				zIndex: 3000,
 			}}
 		>
 			<div
@@ -243,7 +243,7 @@ export const MenuPage: React.FC = () => {
 				style={{
 					minWidth: '340px',
 					maxWidth: '90vw',
-					backgroundColor: '#181a2a !important'
+					backgroundColor: '#181a2a !important',
 				}}
 			>
 				<div className="text-center mb-4">

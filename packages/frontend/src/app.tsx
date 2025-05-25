@@ -1,5 +1,6 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, redirect } from 'react-router-dom';
+
 import { GamePage } from './pages/game-page';
 import { MenuPage } from './pages/menu-page';
 
@@ -12,4 +13,4 @@ export const App: React.FC = () => {
 			</Routes>
 		</Router>
 	);
-}
+};

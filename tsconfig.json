@@ -19,7 +19,10 @@
     "baseUrl": ".",
     "paths": {
       "@stargate/common/*": [
-        "packages/common/*"
+        "packages/common/src/*"
+      ],
+      "@stargate/common": [
+        "packages/common/src"
       ],
       "@stargate/db/*": [
         "packages/db/src/*"

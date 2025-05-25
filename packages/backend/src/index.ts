@@ -1,8 +1,6 @@
-import { UserSchema, SessionSchema } from '@stargate/common/types/user';
 import { jwtVerify, SignJWT } from 'jose';
 
-import { handleGetGameRequest } from './games/get-game';
-import { handleListGamesRequest } from './games/list-games';
+import { validateUser, validateSession } from './auth-types';
 import { Env } from './types';
 
 const corsHeaders = {
@@ -66,25 +64,19 @@ export default {
 				headers: { 'content-type': 'text/plain' },
 			}));
 		}
-		if (url.pathname === '/api/games/list' && request.method === 'POST') {
-			return withCors(await handleListGamesRequest(request, env));
-		}
-		if (url.pathname === '/api/games/get' && request.method === 'POST') {
-			return withCors(await handleGetGameRequest(request, env));
-		}
 		if (url.pathname === '/api/auth/google' && request.method === 'POST') {
 			try {
 				const { idToken } = await request.json() as any;
 				if (!idToken || typeof idToken !== 'string') throw new Error('Missing idToken');
 				const payload = await verifyGoogleIdToken(idToken);
-				const userResult = UserSchema.safeParse({
+				const userResult = validateUser({
 					id: payload.sub,
 					email: payload.email,
 					name: payload.name,
 					picture: payload.picture,
 				});
 				if (!userResult.success) throw new Error('Invalid user payload');
-				const user = userResult.data;
+				const user = userResult.data!;
 				const now = Date.now();
 				// Upsert user into users table (preserving original created_at)
 				await env.DB.prepare(
@@ -106,7 +98,7 @@ export default {
 					user,
 					expiresAt: now + ACCESS_TOKEN_EXP * 1000,
 				};
-				const sessionResult = SessionSchema.safeParse(session);
+				const sessionResult = validateSession(session);
 				if (!sessionResult.success) throw new Error('Invalid session');
 				return withCors(new Response(JSON.stringify(session), {
 					headers: { 'content-type': 'application/json' },
@@ -120,7 +112,7 @@ export default {
 				const { token } = await request.json() as any;
 				if (!token || typeof token !== 'string') throw new Error('Missing token');
 				const { payload } = await verifyJwt(token);
-				const userResult = UserSchema.safeParse(payload.user);
+				const userResult = validateUser(payload.user);
 				if (!userResult.success) throw new Error('Invalid user');
 				return withCors(new Response(JSON.stringify({ valid: true, user: userResult.data }), {
 					headers: { 'content-type': 'application/json' },
@@ -134,9 +126,9 @@ export default {
 				const { refreshToken } = await request.json() as any;
 				if (!refreshToken || typeof refreshToken !== 'string') throw new Error('Missing refreshToken');
 				const { payload } = await verifyJwt(refreshToken);
-				const userResult = UserSchema.safeParse(payload.user);
+				const userResult = validateUser(payload.user);
 				if (!userResult.success) throw new Error('Invalid user');
-				const user = userResult.data;
+				const user = userResult.data!;
 				const now = Date.now();
 				const newAccessToken = await signJwt({ user }, ACCESS_TOKEN_EXP);
 				const newRefreshToken = await signJwt({ user }, REFRESH_TOKEN_EXP);
@@ -146,7 +138,7 @@ export default {
 					user,
 					expiresAt: now + ACCESS_TOKEN_EXP * 1000,
 				};
-				const sessionResult = SessionSchema.safeParse(session);
+				const sessionResult = validateSession(session);
 				if (!sessionResult.success) throw new Error('Invalid session');
 				return withCors(new Response(JSON.stringify(session), {
 					headers: { 'content-type': 'application/json' },

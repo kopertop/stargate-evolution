@@ -1,4 +1,4 @@
-import type { Session } from '@stargate/common/types/user';
+import type { Session } from '../types';
 
 const SESSION_KEY = 'stargate-session';
 

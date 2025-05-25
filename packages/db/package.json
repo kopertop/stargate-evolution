@@ -8,9 +8,7 @@
 		"build": "tsc",
 		"dev": "tsc --watch",
 		"typecheck": "tsc --noEmit",
-		"clean": "rm -rf dist",
-		"lint": "eslint src --ext .ts,.tsx",
-		"lint:fix": "eslint src --ext .ts,.tsx --fix"
+		"clean": "rm -rf dist"
 	},
 	"dependencies": {
 		"@nozbe/watermelondb": "^0.28.0",
@@ -19,6 +17,6 @@
 	},
 	"devDependencies": {
 		"@types/node": "^20.11.24",
-		"typescript": "^5.4.2"
+		"typescript": "^5.8.3"
 	}
 }

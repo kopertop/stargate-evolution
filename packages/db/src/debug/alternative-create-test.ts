@@ -1,3 +1,4 @@
+/* eslint-disable no-console, @typescript-eslint/no-explicit-any */
 import { Database } from '@nozbe/watermelondb';
 
 import { database } from '../index';
@@ -6,7 +7,7 @@ import Game from '../models/game';
 export class AlternativeCreateTest {
 	constructor(private database: Database) {}
 
-	async testDirectFieldAssignment() {
+	async testDirectFieldAssignment(): Promise<void> {
 		console.log('=== Test: Direct Field Assignment ===');
 
 		await this.database.write(async () => {
@@ -22,7 +23,7 @@ export class AlternativeCreateTest {
 		});
 	}
 
-	async testManualPreparedUpdate() {
+	async testManualPreparedUpdate(): Promise<void> {
 		console.log('\n=== Test: Manual Prepared Update ===');
 
 		await this.database.write(async () => {
@@ -40,7 +41,7 @@ export class AlternativeCreateTest {
 		});
 	}
 
-	async testEmptyCreateThenUpdate() {
+	async testEmptyCreateThenUpdate(): Promise<void> {
 		console.log('\n=== Test: Empty Create Then Update ===');
 
 		await this.database.write(async () => {
@@ -62,7 +63,7 @@ export class AlternativeCreateTest {
 		});
 	}
 
-	async testWithExplicitTimestamps() {
+	async testWithExplicitTimestamps(): Promise<void> {
 		console.log('\n=== Test: With Explicit Timestamps ===');
 
 		await this.database.write(async () => {
@@ -78,7 +79,7 @@ export class AlternativeCreateTest {
 		});
 	}
 
-	async runAllTests() {
+	async runAllTests(): Promise<void> {
 		await this.testDirectFieldAssignment();
 		await this.testManualPreparedUpdate();
 		await this.testEmptyCreateThenUpdate();
@@ -86,7 +87,7 @@ export class AlternativeCreateTest {
 	}
 }
 
-export async function runAlternativeCreateTests() {
+export async function runAlternativeCreateTests(): Promise<void> {
 	const tester = new AlternativeCreateTest(database);
 	await tester.runAllTests();
 }

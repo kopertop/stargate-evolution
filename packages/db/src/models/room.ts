@@ -14,12 +14,15 @@ export default class Room extends Model {
 	@field('x') x!: number; // Position coordinates
 	@field('y') y!: number;
 	@field('floor') floor!: number; // Floor level (0 = main deck, negative = lower, positive = upper)
-	@text('assigned') assigned!: string; // JSON array
+	@field('width') width!: number; // Room width in pixels
+	@field('height') height!: number; // Room height in pixels
 	@text('technology') technology!: string; // JSON array
-	@field('fond') fond!: boolean;
-	@field('unlocked') unlocked!: boolean;
+	@text('image') image?: string; // Optional room-specific image
+	@field('found') found!: boolean; // Whether the room has been discovered
+	@field('locked') locked!: boolean; // Whether the room is locked (reverse of unlocked)
 	@text('status') status!: 'damaged' | 'destroyed' | 'ok';
-	@text('connected_rooms') connectedRooms!: string; // JSON array of room IDs
+	@text('connected_rooms') connectedRooms!: string; // JSON array of room IDs (for backwards compatibility)
+	@text('doors') doors!: string; // JSON array of door info with states and requirements
 	@readonly @date('created_at') createdAt!: Date;
 
 	@relation('games', 'game_id') game!: Game;
