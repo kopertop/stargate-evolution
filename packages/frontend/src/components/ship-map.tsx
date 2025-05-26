@@ -1,10 +1,11 @@
 import { gameService } from '@stargate/db';
 import React, { useState, useEffect } from 'react';
 import { Button, Modal, Alert, Badge } from 'react-bootstrap';
-import { GiMeeple, GiCog, GiKey } from 'react-icons/gi';
+import { GiMeeple, GiCog, GiKey, GiPauseButton } from 'react-icons/gi';
 
 import type { DestinyStatus, Room, DoorInfo, DoorRequirement } from '../types';
 import { roomModelToType } from '../types';
+import { useGameState } from '../contexts/game-state-context';
 
 import { CountdownClock } from './countdown-clock';
 import { ShipRoom } from './ship-room';
@@ -56,6 +57,7 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 	gameIsPaused,
 	gameId,
 }) => {
+	const { isPaused: gameStatePaused, resumeGame } = useGameState();
 	const [rooms, setRooms] = useState<Room[]>([]);
 	const [explorationProgress, setExplorationProgress] = useState<{ [roomId: string]: ExplorationProgress }>({});
 	const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
@@ -74,6 +76,8 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 	const [isDragging, setIsDragging] = useState(false);
 	const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
 	const [lastMousePos, setLastMousePos] = useState({ x: 0, y: 0 });
+
+
 
 	// Load rooms from database when component mounts or gameId changes
 	useEffect(() => {
@@ -115,7 +119,7 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 
 	// Real-time exploration progress updates
 	useEffect(() => {
-		if (gameIsPaused) return;
+		if (gameStatePaused) return;
 
 		const interval = setInterval(() => {
 			const now = Date.now();
@@ -150,7 +154,7 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 		}, 100);
 
 		return () => clearInterval(interval);
-	}, [gameIsPaused, lastUpdateTime]);
+	}, [gameStatePaused, lastUpdateTime]);
 
 	// Complete room exploration
 	const completeExploration = async (roomId: string) => {
@@ -223,7 +227,7 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 	const canExploreRoom = (room: Room): boolean => {
 		if (room.locked) return false; // Room is locked
 		if (!room.found) return false; // Must be found first
-		if (gameIsPaused) return false; // Game must be running
+		if (gameStatePaused) return false; // Game must be running
 		if (explorationProgress[room.id]) return false; // Already being explored
 
 		// Must be adjacent to an unlocked room
@@ -284,7 +288,7 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 
 	// Handle room click
 	const handleRoomClick = (room: Room) => {
-		if (!isRoomVisible(room)) return;
+		if (!isRoomVisible(room) || gameStatePaused) return;
 
 		if (canExploreRoom(room)) {
 			setSelectedRoom(room);
@@ -292,9 +296,6 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 		} else if (!room.locked) {
 			// Show room details or allow crew assignment
 			console.log(`Accessing ${room.type}`);
-		} else if (gameIsPaused) {
-			// Show message about needing to unpause
-			console.log('Game must be running to explore rooms');
 		}
 	};
 
@@ -379,6 +380,8 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 
 	// Handle door click to open/close/unlock doors
 	const handleDoorClick = async (fromRoomId: string, toRoomId: string) => {
+		if (gameStatePaused) return; // Prevent door interaction when paused
+
 		const fromRoom = rooms.find(r => r.id === fromRoomId);
 		if (!fromRoom) return;
 
@@ -640,13 +643,19 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 						<svg
 				width="100%"
 				height="100%"
-				style={{ position: 'absolute', top: 0, left: 0, cursor: isDragging ? 'grabbing' : 'grab' }}
-				onMouseDown={handleMouseDown}
-				onMouseMove={handleMouseMove}
-				onMouseUp={handleMouseUp}
-				onMouseLeave={handleMouseUp}
-				onWheel={handleWheel}
-				tabIndex={0} // Make SVG focusable for keyboard events
+				style={{
+					position: 'absolute',
+					top: 0,
+					left: 0,
+					cursor: gameStatePaused ? 'default' : (isDragging ? 'grabbing' : 'grab'),
+					pointerEvents: gameStatePaused ? 'none' : 'auto'
+				}}
+				onMouseDown={gameStatePaused ? undefined : handleMouseDown}
+				onMouseMove={gameStatePaused ? undefined : handleMouseMove}
+				onMouseUp={gameStatePaused ? undefined : handleMouseUp}
+				onMouseLeave={gameStatePaused ? undefined : handleMouseUp}
+				onWheel={gameStatePaused ? undefined : handleWheel}
+				tabIndex={gameStatePaused ? -1 : 0} // Make SVG focusable for keyboard events only when not paused
 			>
 				{/* Background space pattern */}
 				<defs>
@@ -684,6 +693,58 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 					{/* Doors are now rendered as part of room walls in ShipRoom component */}
 				</g>
 			</svg>
+
+			{/* Pause Overlay */}
+			{gameStatePaused && (
+				<div
+					style={{
+						position: 'absolute',
+						top: 0,
+						left: 0,
+						width: '100%',
+						height: '100%',
+						backgroundColor: 'rgba(0, 0, 0, 0.7)',
+						display: 'flex',
+						alignItems: 'center',
+						justifyContent: 'center',
+						cursor: 'pointer',
+						zIndex: 1000,
+					}}
+					onClick={() => {
+						// Resume game by calling resumeGame from context
+						resumeGame();
+					}}
+				>
+					<div
+						style={{
+							display: 'flex',
+							flexDirection: 'column',
+							alignItems: 'center',
+							color: 'white',
+							fontSize: '24px',
+							fontWeight: 'bold',
+							textShadow: '2px 2px 4px rgba(0,0,0,0.8)',
+						}}
+					>
+						{/* Pause Symbol */}
+						<div
+							style={{
+								fontSize: '120px',
+								marginBottom: '20px',
+								opacity: 0.8,
+							}}
+						>
+							<GiPauseButton size={120} />
+						</div>
+						<div style={{ fontSize: '32px', marginBottom: '10px' }}>
+							GAME PAUSED
+						</div>
+						<div style={{ fontSize: '18px', opacity: 0.8 }}>
+							Click to Resume
+						</div>
+					</div>
+				</div>
+			)}
 
 			{/* Exploration Assignment Modal */}
 			<Modal show={showExplorationModal} onHide={() => setShowExplorationModal(false)}>
@@ -734,7 +795,7 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 								</div>
 							)}
 
-							{gameIsPaused && (
+							{gameStatePaused && (
 								<Alert variant="warning">
 									<GiCog className="me-2" />
 									Game must be running to explore rooms. Click play on the countdown timer.
@@ -750,7 +811,7 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 					<Button
 						variant="primary"
 						onClick={() => selectedRoom && startExploration(selectedRoom, selectedCrew)}
-						disabled={gameIsPaused || selectedCrew.length === 0}
+						disabled={gameStatePaused || selectedCrew.length === 0}
 					>
 						Start Exploration ({selectedCrew.length} crew)
 					</Button>

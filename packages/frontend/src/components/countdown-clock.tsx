@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { GiPlayButton, GiPauseButton, GiExpand } from 'react-icons/gi';
 
+import { useGameState } from '../contexts/game-state-context';
+
 interface CountdownClockProps {
 	timeRemaining: number; // in hours (can be fractional)
 	onTimeUpdate: (newTimeRemaining: number) => void; // Callback when time changes
@@ -27,9 +29,8 @@ export const CountdownClock: React.FC<CountdownClockProps> = ({
 	timeRemaining,
 	onTimeUpdate,
 }) => {
+	const { isPaused, timeSpeed, togglePause, setTimeSpeed } = useGameState();
 	const [currentTime, setCurrentTime] = useState(timeRemaining);
-	const [isPaused, setIsPaused] = useState(true);
-	const [speed, setSpeed] = useState<Exclude<TimeSpeed, 'paused'>>('normal');
 	const [lastUpdateTime, setLastUpdateTime] = useState(Date.now());
 	const [showSpeedDropdown, setShowSpeedDropdown] = useState(false);
 
@@ -45,7 +46,7 @@ export const CountdownClock: React.FC<CountdownClockProps> = ({
 		const interval = setInterval(() => {
 			const now = Date.now();
 			const deltaRealSeconds = (now - lastUpdateTime) / 1000;
-			const speedMultiplier = SPEED_MULTIPLIERS[speed];
+			const speedMultiplier = SPEED_MULTIPLIERS[timeSpeed];
 			const deltaGameHours = (deltaRealSeconds * speedMultiplier) / 3600;
 
 			setCurrentTime(prevTime => {
@@ -58,36 +59,31 @@ export const CountdownClock: React.FC<CountdownClockProps> = ({
 		}, 100); // Update every 100ms for smooth animation
 
 		return () => clearInterval(interval);
-	}, [isPaused, speed, lastUpdateTime, onTimeUpdate]);
+	}, [isPaused, timeSpeed, lastUpdateTime, onTimeUpdate]);
 
 	// Reset last update time when pause state or speed changes
 	useEffect(() => {
 		setLastUpdateTime(Date.now());
-	}, [isPaused, speed]);
+	}, [isPaused, timeSpeed]);
 
 	// Keyboard controls
 	useEffect(() => {
 		const handleKeyPress = (event: KeyboardEvent) => {
 			if (event.code === 'Space') {
 				event.preventDefault();
-				setIsPaused(prev => !prev);
+				togglePause();
 			}
 		};
 
 		window.addEventListener('keydown', handleKeyPress);
 		return () => window.removeEventListener('keydown', handleKeyPress);
-	}, []);
-
-	// Toggle pause/play
-	const togglePause = useCallback(() => {
-		setIsPaused(prev => !prev);
-	}, []);
+	}, [togglePause]);
 
 	// Handle speed change
 	const handleSpeedChange = useCallback((newSpeed: Exclude<TimeSpeed, 'paused'>) => {
-		setSpeed(newSpeed);
+		setTimeSpeed(newSpeed);
 		setShowSpeedDropdown(false);
-	}, []);
+	}, [setTimeSpeed]);
 
 	// Convert hours to display format
 	const totalMinutes = Math.max(0, Math.floor(currentTime * 60));
@@ -138,7 +134,7 @@ export const CountdownClock: React.FC<CountdownClockProps> = ({
 		}
 	}, []);
 
-	const currentSpeedOption = SPEED_OPTIONS.find(opt => opt.value === speed) || SPEED_OPTIONS[0];
+	const currentSpeedOption = SPEED_OPTIONS.find(opt => opt.value === timeSpeed) || SPEED_OPTIONS[0];
 
 	return (
 		<div style={{
@@ -239,7 +235,7 @@ export const CountdownClock: React.FC<CountdownClockProps> = ({
 						display: 'flex',
 						alignItems: 'center',
 						justifyContent: 'space-between',
-						animation: !isPaused && speed !== 'normal' ? 'speedIndicator 1s infinite' : 'none',
+						animation: !isPaused && timeSpeed !== 'normal' ? 'speedIndicator 1s infinite' : 'none',
 					}}
 					onMouseEnter={(e) => {
 						e.currentTarget.style.transform = 'scale(1.05)';
@@ -276,23 +272,23 @@ export const CountdownClock: React.FC<CountdownClockProps> = ({
 									display: 'block',
 									width: '100%',
 									padding: '8px 12px',
-									backgroundColor: speed === option.value ? 'rgba(0, 123, 255, 0.3)' : 'transparent',
+									backgroundColor: timeSpeed === option.value ? 'rgba(0, 123, 255, 0.3)' : 'transparent',
 									color: '#ffffff',
 									border: 'none',
 									textAlign: 'left',
 									cursor: 'pointer',
 									fontFamily: "'Orbitron', 'Share Tech Mono', 'Courier New', monospace",
 									fontSize: '11px',
-									borderRadius: speed === option.value ? '4px' : '0',
+									borderRadius: timeSpeed === option.value ? '4px' : '0',
 									transition: 'all 0.2s ease',
 								}}
 								onMouseEnter={(e) => {
-									if (speed !== option.value) {
+									if (timeSpeed !== option.value) {
 										e.currentTarget.style.backgroundColor = 'rgba(0, 123, 255, 0.1)';
 									}
 								}}
 								onMouseLeave={(e) => {
-									if (speed !== option.value) {
+									if (timeSpeed !== option.value) {
 										e.currentTarget.style.backgroundColor = 'transparent';
 									}
 								}}
