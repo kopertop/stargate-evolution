@@ -8,21 +8,11 @@ interface CountdownClockProps {
 	onTimeUpdate: (newTimeRemaining: number) => void; // Callback when time changes
 }
 
-type TimeSpeed = 'paused' | 'normal' | '60x' | '120x' | '3600x';
-
-const SPEED_MULTIPLIERS: { [key in TimeSpeed]: number } = {
-	'paused': 0,
-	'normal': 1,
-	'60x': 60,
-	'120x': 120,
-	'3600x': 3600,
-};
-
-const SPEED_OPTIONS: { value: Exclude<TimeSpeed, 'paused'>; label: string; description: string }[] = [
-	{ value: 'normal', label: '1x', description: 'Normal Speed' },
-	{ value: '60x', label: '60x', description: '1 min = 1 sec' },
-	{ value: '120x', label: '120x', description: '2 min = 1 sec' },
-	{ value: '3600x', label: '3600x', description: '1 hour = 1 sec' },
+const SPEED_OPTIONS: { value: number; label: string; description: string }[] = [
+	{ value: 1, label: '1x', description: 'Normal Speed' },
+	{ value: 60, label: '60x', description: '1 min = 1 sec' },
+	{ value: 120, label: '120x', description: '2 min = 1 sec' },
+	{ value: 3600, label: '3600x', description: '1 hour = 1 sec' },
 ];
 
 export const CountdownClock: React.FC<CountdownClockProps> = ({
@@ -46,8 +36,7 @@ export const CountdownClock: React.FC<CountdownClockProps> = ({
 		const interval = setInterval(() => {
 			const now = Date.now();
 			const deltaRealSeconds = (now - lastUpdateTime) / 1000;
-			const speedMultiplier = SPEED_MULTIPLIERS[timeSpeed];
-			const deltaGameHours = (deltaRealSeconds * speedMultiplier) / 3600;
+			const deltaGameHours = (deltaRealSeconds * timeSpeed) / 3600;
 
 			setCurrentTime(prevTime => {
 				const newTime = Math.max(0, prevTime - deltaGameHours);
@@ -80,7 +69,7 @@ export const CountdownClock: React.FC<CountdownClockProps> = ({
 	}, [togglePause]);
 
 	// Handle speed change
-	const handleSpeedChange = useCallback((newSpeed: Exclude<TimeSpeed, 'paused'>) => {
+	const handleSpeedChange = useCallback((newSpeed: number) => {
 		setTimeSpeed(newSpeed);
 		setShowSpeedDropdown(false);
 	}, [setTimeSpeed]);
@@ -235,7 +224,7 @@ export const CountdownClock: React.FC<CountdownClockProps> = ({
 						display: 'flex',
 						alignItems: 'center',
 						justifyContent: 'space-between',
-						animation: !isPaused && timeSpeed !== 'normal' ? 'speedIndicator 1s infinite' : 'none',
+						animation: !isPaused && timeSpeed !== 1 ? 'speedIndicator 1s infinite' : 'none',
 					}}
 					onMouseEnter={(e) => {
 						e.currentTarget.style.transform = 'scale(1.05)';

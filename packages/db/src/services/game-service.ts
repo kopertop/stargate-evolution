@@ -1,35 +1,16 @@
 import { Database, Q } from '@nozbe/watermelondb';
 import { writer } from '@nozbe/watermelondb/decorators';
 import { synchronize } from '@nozbe/watermelondb/sync';
-import sleep from '@stargate/common/src/sleep';
 
 import DestinyStatus from '../models/destiny-status';
 import Galaxy from '../models/galaxy';
 import Game from '../models/game';
-import Person from '../models/person';
 import Race from '../models/race';
 import Room from '../models/room';
 import StarSystem from '../models/star-system';
 
 export class GameService {
 	constructor(private database: Database) {}
-
-	async test() {
-		const game = await this.database.write(async () => {
-			return await this.database.get<Game>('games').create((gameRecord) => {
-				gameRecord.name = 'Milky Way';
-			});
-		});
-		await sleep(1000);
-
-		console.log('Created game:', game);
-		console.log('Game name after create:', game.name);
-		console.log('Game _raw after create:', game._raw);
-		const gameLookup = await this.database.get<Game>('games').find(game.id);
-		console.log('Game lookup:', gameLookup.name);
-
-		return game;
-	}
 
 	/**
 	 * Create a new game with all initial data

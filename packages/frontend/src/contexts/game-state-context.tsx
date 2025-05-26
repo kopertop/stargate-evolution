@@ -1,10 +1,20 @@
-import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import DB from '@stargate/db/index';
+import Game from '@stargate/db/models/game';
+import React, {
+	createContext,
+	useContext,
+	useState,
+	useCallback,
+	ReactNode,
+	useEffect,
+} from 'react';
 
 interface GameStateContextType {
 	isPaused: boolean;
-	timeSpeed: 'normal' | '60x' | '120x' | '3600x';
+	timeSpeed: number;
+	currentTime: number;
 	togglePause: () => void;
-	setTimeSpeed: (speed: 'normal' | '60x' | '120x' | '3600x') => void;
+	setTimeSpeed: (speed: number) => void;
 	resumeGame: () => void;
 	pauseGame: () => void;
 }
@@ -12,31 +22,60 @@ interface GameStateContextType {
 const GameStateContext = createContext<GameStateContextType | undefined>(undefined);
 
 interface GameStateProviderProps {
+	gameId: string;
 	children: ReactNode;
 }
 
-export const GameStateProvider: React.FC<GameStateProviderProps> = ({ children }) => {
-	const [isPaused, setIsPaused] = useState(true); // Start paused
-	const [timeSpeed, setTimeSpeed] = useState<'normal' | '60x' | '120x' | '3600x'>('normal');
+export const GameStateProvider: React.FC<GameStateProviderProps> = ({ gameId, children }) => {
+	// Start at normal speed
+	const [timeSpeed, setTimeSpeed] = useState(1);
+	const [currentTime, setCurrentTime] = useState(0);
+	const [game, setGame] = useState<Game | null>(null);
+
+	useEffect(() => {
+		DB.get<Game>('games').find(gameId).then((g) => {
+			setGame(g);
+			setCurrentTime(g.totalTimeProgressed);
+		});
+	}, [gameId]);
+
+	useEffect(() => {
+		if (game && timeSpeed > 0) {
+			const interval = setInterval(() => {
+				setCurrentTime((prev) => {
+					const t = prev + timeSpeed;
+					DB.write(async () => {
+						await game.update((record) => {
+							record.totalTimeProgressed = t;
+							record.lastPlayed = new Date();
+						});
+					});
+					return t;
+				});
+			}, 1000);
+			return () => clearInterval(interval);
+		}
+	}, [game, timeSpeed]);
 
 	const togglePause = useCallback(() => {
-		setIsPaused(prev => !prev);
+		setTimeSpeed(prev => prev === 1 ? 0 : 1);
 	}, []);
 
 	const resumeGame = useCallback(() => {
-		setIsPaused(false);
+		setTimeSpeed(1);
 	}, []);
 
 	const pauseGame = useCallback(() => {
-		setIsPaused(true);
+		setTimeSpeed(0);
 	}, []);
 
-	const handleSetTimeSpeed = useCallback((speed: 'normal' | '60x' | '120x' | '3600x') => {
+	const handleSetTimeSpeed = useCallback((speed: number) => {
 		setTimeSpeed(speed);
 	}, []);
 
 	const value: GameStateContextType = {
-		isPaused,
+		isPaused: timeSpeed === 0,
+		currentTime,
 		timeSpeed,
 		togglePause,
 		setTimeSpeed: handleSetTimeSpeed,
