@@ -40,6 +40,7 @@ export class GameService {
 		// Try using create with explicit _raw assignment
 		const game = await this.database.get<Game>('games').create((gameRecord) => {
 			gameRecord.name = 'New Stargate Game';
+			gameRecord.totalTimeProgressed = 0; // Start with 0 hours progressed
 		});
 
 		console.log('Created game:', game);
@@ -263,9 +264,10 @@ export class GameService {
 		});
 
 		// Helper function to set default room discovery state
-		const setDefaultRoomState = (room: any, isInitiallyDiscovered: boolean = false) => {
-			room.found = isInitiallyDiscovered;
+		const setDefaultRoomState = (room: any, isInitiallyFound: boolean = false) => {
+			room.found = isInitiallyFound;
 			room.locked = false;
+			room.explored = false;
 		};
 
 		// Main Floor (Floor 0) - Core ship operations
@@ -278,12 +280,10 @@ export class GameService {
 			room.gridWidth = 3;   // 3 grid units wide
 			room.gridHeight = 3;  // 3 grid units tall
 			room.floor = 0;
-			// Found and explored by default
-			room.found = true;
-			room.explored = false;
 			room.technology = JSON.stringify(['stargate', 'dialing_computer', 'shields']);
 			room.image = 'stargate-room.png';
-			setDefaultRoomState(room, true); // Gate room starts as discovered and unlocked
+			// Gate room starts as initially found
+			setDefaultRoomState(room, true);
 			room.status = 'ok';
 			room.connectedRooms = JSON.stringify([]); // Will be updated after corridors are created
 			room.doors = JSON.stringify([]); // Will be updated with door info later
@@ -1248,6 +1248,57 @@ export class GameService {
 				// toRoom might not exist or might not have a return door - that's okay
 				console.log(`No bidirectional door found from ${toRoomId} to ${fromRoomId}`);
 			}
+		});
+	}
+
+	/**
+	 * Update destiny status in the database
+	 */
+	@writer async updateDestinyStatus(gameId: string, destinyStatus: any): Promise<void> {
+		const existingStatus = await this.database.get<DestinyStatus>('destiny_status')
+			.query(Q.where('game_id', gameId))
+			.fetch();
+
+		if (existingStatus.length > 0) {
+			const status = existingStatus[0];
+			await status.update((record) => {
+				record.power = destinyStatus.power;
+				record.maxPower = destinyStatus.maxPower;
+				record.shields = destinyStatus.shield.strength;
+				record.maxShields = destinyStatus.shield.max;
+				record.hull = destinyStatus.hull;
+				record.maxHull = destinyStatus.maxHull;
+				record.shield = JSON.stringify(destinyStatus.shield);
+				record.inventory = JSON.stringify(destinyStatus.inventory);
+				record.crewStatus = JSON.stringify(destinyStatus.crewStatus);
+				record.atmosphere = JSON.stringify(destinyStatus.atmosphere);
+				record.weapons = JSON.stringify(destinyStatus.weapons);
+				record.shuttles = JSON.stringify(destinyStatus.shuttles);
+				record.notes = JSON.stringify(destinyStatus.notes || []);
+				record.gameDays = destinyStatus.gameDays;
+				record.gameHours = destinyStatus.gameHours;
+				record.ftlStatus = destinyStatus.ftlStatus;
+				record.nextFtlTransition = destinyStatus.nextFtlTransition;
+			});
+		}
+	}
+
+	/**
+	 * Get total time progressed for a game
+	 */
+	async getGameTimeProgressed(gameId: string): Promise<number> {
+		const game = await this.database.get<Game>('games').find(gameId);
+		return (game as any).totalTimeProgressed || 0;
+	}
+
+	/**
+	 * Update total time progressed for a game
+	 */
+	@writer async updateGameTimeProgressed(gameId: string, totalTimeProgressed: number): Promise<void> {
+		const game = await this.database.get<Game>('games').find(gameId);
+		await game.update((record) => {
+			record.totalTimeProgressed = totalTimeProgressed;
+			record.lastPlayed = new Date();
 		});
 	}
 }

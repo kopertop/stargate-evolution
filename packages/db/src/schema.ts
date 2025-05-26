@@ -1,14 +1,16 @@
 import { appSchema, tableSchema } from '@nozbe/watermelondb';
 
 export default appSchema({
-	version: 3,
+	version: 4,
 	tables: [
 		tableSchema({
 			name: 'games',
 			columns: [
 				{ name: 'name', type: 'string' },
+				{ name: 'total_time_progressed', type: 'number' },
 				{ name: 'created_at', type: 'number' },
 				{ name: 'updated_at', type: 'number' },
+				{ name: 'last_played', type: 'number' },
 			],
 		}),
 		tableSchema({

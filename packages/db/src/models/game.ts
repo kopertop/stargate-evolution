@@ -1,5 +1,5 @@
 import { Model } from '@nozbe/watermelondb';
-import { date, readonly, text } from '@nozbe/watermelondb/decorators';
+import { date, field, readonly, text } from '@nozbe/watermelondb/decorators';
 
 export default class Game extends Model {
 	static table = 'games';
@@ -19,6 +19,8 @@ export default class Game extends Model {
 	};
 
 	@text('name') name!: string;
+	@field('total_time_progressed') totalTimeProgressed!: number; // total hours progressed since game start
+	@field('last_played') lastPlayed!: Date; // last time the game was played
 	@readonly @date('created_at') createdAt!: Date;
 	@date('updated_at') updatedAt!: Date;
 }
