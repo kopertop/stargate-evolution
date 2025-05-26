@@ -370,8 +370,7 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 				width="120"          // Increased from 60 to 120 for larger size
 				height="120"         // Increased from 60 to 120 for larger size
 				opacity={room.found ? 1 : 0.6}
-				onMouseEnter={() => setIsHovered(true)}
-				onMouseLeave={() => setIsHovered(false)}
+				style={{ pointerEvents: 'none' }} // Prevent interference with room clicks
 			/>
 		);
 	};
@@ -533,8 +532,7 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 						opacity="0.8"
 						rx="4"
 						ry="4"
-						onMouseEnter={() => setIsHovered(true)}
-						onMouseLeave={() => setIsHovered(false)}
+						style={{ pointerEvents: 'none' }} // Prevent interference with room clicks
 					/>
 					{/* Room overlay image (if available) */}
 					<image
@@ -544,8 +542,7 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 						width="64"
 						height="64"
 						opacity="0.9"
-						onMouseEnter={() => setIsHovered(true)}
-						onMouseLeave={() => setIsHovered(false)}
+						style={{ pointerEvents: 'none' }} // Prevent interference with room clicks
 						// eslint-disable-next-line react/no-unknown-property
 						onError={(e) => {
 							// Hide image if it doesn't exist
