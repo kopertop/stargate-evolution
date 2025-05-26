@@ -178,6 +178,7 @@ export class GameService {
 
 		// Create Destiny status
 		const destinyStatus = await this.database.get<DestinyStatus>('destiny_status').create((destinyStatus) => {
+			destinyStatus._raw.id = gameId;
 			destinyStatus.gameId = gameId;
 			destinyStatus.name = 'Destiny';
 			destinyStatus.power = 800;
@@ -1142,6 +1143,9 @@ export class GameService {
 						// Store exploration data in a custom field (we'll need to add this to the schema)
 						// For now, store it as JSON in the room's notes or a custom field
 						roomRecord.explorationData = JSON.stringify(exploration);
+						if (exploration.progress >= 100) {
+							roomRecord.explored = true;
+						}
 					});
 				});
 			} catch (error) {

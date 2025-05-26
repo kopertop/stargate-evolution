@@ -1,5 +1,7 @@
-import { Model } from '@nozbe/watermelondb';
-import { date, field, readonly, text } from '@nozbe/watermelondb/decorators';
+import { Model, Relation } from '@nozbe/watermelondb';
+import { children, date, field, readonly, text } from '@nozbe/watermelondb/decorators';
+
+import type DestinyStatus from './destiny-status';
 
 export default class Game extends Model {
 	static table = 'games';
@@ -23,4 +25,6 @@ export default class Game extends Model {
 	@field('last_played') lastPlayed!: Date; // last time the game was played
 	@readonly @date('created_at') createdAt!: Date;
 	@date('updated_at') updatedAt!: Date;
+
+	@children('destiny_status') destinyStatus!: Relation<DestinyStatus>;
 }

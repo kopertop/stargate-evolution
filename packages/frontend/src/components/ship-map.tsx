@@ -1,11 +1,12 @@
-import { gameService } from '@stargate/db';
+import { withObservables } from '@nozbe/watermelondb/react';
+import database, { DestinyStatus, Game, gameService, Room } from '@stargate/db';
 import React, { useState, useEffect } from 'react';
 import { Button, Modal, Alert, Badge } from 'react-bootstrap';
 import { GiMeeple, GiCog, GiKey, GiPauseButton } from 'react-icons/gi';
 
 import { useGameState } from '../contexts/game-state-context';
-import type { DestinyStatus, Room, DoorInfo, DoorRequirement } from '../types';
-import { roomModelToType } from '../types';
+import type { DoorInfo, DoorRequirement } from '../types';
+import { destinyStatusModelToType, DestinyStatusType, roomModelToType, RoomType } from '../types/model-types';
 import { getRoomScreenPosition as getGridRoomScreenPosition } from '../utils/grid-system';
 
 import { CountdownClock } from './countdown-clock';
@@ -24,13 +25,6 @@ interface DoorState {
 	[doorId: string]: boolean; // true = opened, false = closed
 }
 
-interface GameTime {
-	days: number;
-	hours: number;
-	ftlStatus: 'ftl' | 'normal_space';
-	nextDropOut: number;
-}
-
 interface CameraTransform {
 	x: number;
 	y: number;
@@ -39,29 +33,27 @@ interface CameraTransform {
 
 interface ShipMapProps {
 	destinyStatus: DestinyStatus;
-	onStatusUpdate: (newStatus: DestinyStatus) => void;
-	onNavigateToGalaxy: () => void;
-	gameTime: GameTime;
-	onTimeAdvance: (hours: number) => void;
-	onCountdownUpdate: (newTimeRemaining: number) => void;
-	gameIsPaused: boolean;
-	gameId?: string;
+	game: Game;
+	rooms: Room[];
 }
 
-export const ShipMap: React.FC<ShipMapProps> = ({
+const enhance = withObservables(['gameId'], ({ gameId }) => ({
+	game: database.get<Game>('games').findAndObserve(gameId),
+	rooms: database.get<Room>('rooms').query().observe(),
+	destinyStatus: database.get<DestinyStatus>('destiny_status').findAndObserve(gameId),
+}));
+
+const ShipMapComponent: React.FC<ShipMapProps> = ({
 	destinyStatus,
-	onStatusUpdate,
-	gameIsPaused,
-	gameId,
+	game,
+	rooms,
 }) => {
-	const { isPaused: gameStatePaused, resumeGame } = useGameState();
-	const [rooms, setRooms] = useState<Room[]>([]);
+	const { isPaused: gameStatePaused, resumeGame, gameTime } = useGameState();
 	const [explorationProgress, setExplorationProgress] = useState<{ [roomId: string]: ExplorationProgress }>({});
-	const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
+	const [selectedRoom, setSelectedRoom] = useState<RoomType | null>(null);
 	const [showExplorationModal, setShowExplorationModal] = useState(false);
 	const [showDoorModal, setShowDoorModal] = useState(false);
 	const [selectedDoor, setSelectedDoor] = useState<{ fromRoom: Room; door: DoorInfo } | null>(null);
-	const [lastUpdateTime, setLastUpdateTime] = useState(Date.now());
 	const [selectedCrew, setSelectedCrew] = useState<string[]>([]);
 	const [showDangerWarning, setShowDangerWarning] = useState(false);
 	const [dangerousDoor, setDangerousDoor] = useState<{ fromRoomId: string; toRoomId: string; reason: string } | null>(null);
@@ -73,53 +65,7 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 	// Camera state for zooming and panning
 	const [camera, setCamera] = useState<CameraTransform>({ x: 0, y: 0, scale: 1 });
 	const [isDragging, setIsDragging] = useState(false);
-	const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
 	const [lastMousePos, setLastMousePos] = useState({ x: 0, y: 0 });
-
-
-
-	// Load rooms from database when component mounts or gameId changes
-	useEffect(() => {
-		const loadRooms = async () => {
-			console.log('🏠 Loading rooms for gameId:', gameId);
-
-			if (!gameId) {
-				console.warn('No gameId provided, cannot load rooms');
-				setRooms([]);
-				return;
-			}
-
-			try {
-				const roomData = await gameService.getRoomsByGame(gameId);
-				console.log('🏠 Raw room data from database:', roomData);
-
-				const formattedRooms: Room[] = roomData.map((room: any) => {
-					const formattedRoom = roomModelToType(room);
-
-					if (formattedRoom.type === 'gate_room') {
-						console.log('🏠 Gate room raw data:', { found: room.found, locked: room.locked });
-						console.log('🏠 Gate room formatted:', { found: formattedRoom.found, locked: formattedRoom.locked });
-					}
-					return formattedRoom;
-				});
-
-				console.log('🏠 Formatted rooms:', formattedRooms);
-				console.log('🏠 Gate room specifically:', formattedRooms.find(r => r.type === 'gate_room'));
-
-				setRooms(formattedRooms);
-
-				// Load exploration progress from database
-				const savedExplorationProgress = await gameService.loadExplorationProgress(gameId);
-				console.log('🔍 Loaded exploration progress:', savedExplorationProgress);
-				setExplorationProgress(savedExplorationProgress);
-			} catch (error) {
-				console.error('Failed to load rooms:', error);
-				setRooms([]);
-			}
-		};
-
-		loadRooms();
-	}, [gameId]);
 
 	// Auto-focus the SVG for keyboard controls
 	useEffect(() => {
@@ -129,136 +75,22 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 		}
 	}, []);
 
-	// Real-time exploration progress updates
-	useEffect(() => {
-		if (gameStatePaused) return;
-
-		const interval = setInterval(() => {
-			const now = Date.now();
-			const deltaRealSeconds = (now - lastUpdateTime) / 1000;
-			setLastUpdateTime(now);
-
-			setExplorationProgress(prev => {
-				const updated = { ...prev };
-				let hasChanges = false;
-
-				Object.values(updated).forEach(exploration => {
-					if (exploration.progress < 100) {
-						// Calculate exploration speed based on crew count and game time
-						const crewCount = exploration.crewAssigned.length;
-						const baseRate = 0.5; // 0.5% per real second base rate (slower than before)
-						const crewMultiplier = Math.max(1, crewCount * 0.5); // Each crew member adds 50% speed
-
-						// Game time multiplier - exploration should progress based on game time, not real time
-						// If game is running at normal speed, this should be 1
-						// The game time advancement happens in ship-view.tsx based on countdown
-						const gameTimeMultiplier = gameIsPaused ? 0 : 1;
-
-						const progressRate = baseRate * crewMultiplier * gameTimeMultiplier;
-
-						exploration.progress = Math.min(100, exploration.progress + (progressRate * deltaRealSeconds));
-						exploration.timeRemaining = Math.max(0, exploration.timeRemaining - (deltaRealSeconds / 3600));
-						hasChanges = true;
-
-						// Complete exploration when done
-						if (exploration.progress >= 100) {
-							completeExploration(exploration.roomId);
-						}
-					}
-				});
-
-				// Save progress to database every 10 seconds if there are changes
-				if (hasChanges && gameId && Date.now() % 10000 < 1000) {
-					gameService.saveExplorationProgress(gameId, updated).catch(error => {
-						console.error('Failed to save exploration progress:', error);
-					});
-				}
-
-				return hasChanges ? updated : prev;
-			});
-		}, 100);
-
-		return () => clearInterval(interval);
-	}, [gameStatePaused, lastUpdateTime, gameIsPaused]);
-
-	// Complete room exploration
-	const completeExploration = async (roomId: string) => {
-		// Get exploration data before removing it
-		const exploration = explorationProgress[roomId];
-
-		setRooms(prev => prev.map(room =>
-			room.id === roomId
-				? { ...room, found: true, locked: false }
-				: room,
-		));
-
-		setExplorationProgress(prev => {
-			const updated = { ...prev };
-			delete updated[roomId];
-			return updated;
-		});
-
-		// Update database - set both found and unlocked, and clear exploration progress
-		if (gameId) {
-			try {
-				await gameService.updateRoom(roomId, { found: true, locked: false } as any);
-				await gameService.clearExplorationProgress(roomId);
-				console.log(`✅ Room ${roomId} exploration completed and marked as unlocked`);
-			} catch (error) {
-				console.error('Failed to update room in database:', error);
-			}
-		}
-
-		// Release crew from exploration assignments
-		if (exploration) {
-			try {
-				for (const crewId of exploration.crewAssigned) {
-					await gameService.assignCrewToRoom(crewId, null); // Unassign crew
-				}
-				console.log(`Crew returned from exploration: ${exploration.crewAssigned.map(id => getCrewDisplayName(id)).join(', ')}`);
-
-				// Update available crew list
-				const updatedCrew = await getAvailableCrew();
-				setAvailableCrew(updatedCrew);
-			} catch (error) {
-				console.error('Failed to release crew from exploration:', error);
-			}
-		}
-
-		// Add discovered technology to inventory or unlock new systems
-		const room = rooms.find(r => r.id === roomId);
-		if (room && room.technology && room.technology.length > 0) {
-			// This would update the game state with new technology
-			console.log(`Discovered technology in ${room.type}:`, room.technology);
-
-			// Add technology to inventory
-			const newInventory = { ...destinyStatus.inventory };
-			room.technology.forEach(tech => {
-				newInventory[tech] = (newInventory[tech] || 0) + 1;
-			});
-
-			onStatusUpdate({
-				...destinyStatus,
-				inventory: newInventory,
-			});
-		}
-	};
-
 	// Check if room is visible (only found rooms are visible)
-	const isRoomVisible = (room: Room): boolean => {
+	const isRoomVisible = (room: RoomType): boolean => {
 		// Only show rooms that have been found
 		return room.found;
 	};
 
 	// Check if room can be explored (found but locked rooms adjacent to unlocked rooms)
-	const canExploreRoom = (room: Room): boolean => {
+	const canExploreRoom = (room: RoomType): boolean => {
 		if (!room.found) return false; // Must be found first
 		if (room.explored) return false; // Already explored, no need to explore
 		if (gameStatePaused) return false; // Game must be running
 		if (explorationProgress[room.id]) return false; // Already being explored
 
 		// Must be adjacent to an unlocked room
-		const isAdjacentToUnlocked = room.connectedRooms.some(connectedId => {
+		if (room.connectedRooms.length === 0) return false;
+		const isAdjacentToUnlocked = room.connectedRooms.some((connectedId: string) => {
 			const connectedRoom = rooms.find(r => r.id === connectedId);
 			return !(connectedRoom?.locked || false);
 		});
@@ -276,7 +108,7 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 	};
 
 	// Start room exploration
-	const startExploration = async (room: Room, assignedCrew: string[]) => {
+	const startExploration = async (room: RoomType, assignedCrew: string[]) => {
 		if (!canExploreRoom(room) || assignedCrew.length === 0) return;
 
 		const baseTime = 2; // 2 hours base exploration time
@@ -298,7 +130,7 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 			progress: 0,
 			crewAssigned: assignedCrew,
 			timeRemaining: explorationTime,
-			startTime: Date.now(),
+			startTime: gameTime,
 		};
 
 		setExplorationProgress(prev => ({
@@ -307,9 +139,9 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 		}));
 
 		// Save exploration progress to database
-		if (gameId) {
+		if (game.id) {
 			try {
-				await gameService.saveExplorationProgress(gameId, { [room.id]: newExploration });
+				await gameService.saveExplorationProgress(game.id, { [room.id]: newExploration });
 				console.log(`🔍 Started exploration of ${room.type} with ${assignedCrew.length} crew members`);
 			} catch (error) {
 				console.error('Failed to save exploration progress:', error);
@@ -327,10 +159,10 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 
 	// Handle room click
 	const handleRoomClick = (room: Room) => {
-		if (!isRoomVisible(room) || gameStatePaused) return;
+		if (!isRoomVisible(roomModelToType(room)) || gameStatePaused) return;
 
-		if (canExploreRoom(room)) {
-			setSelectedRoom(room);
+		if (canExploreRoom(roomModelToType(room))) {
+			setSelectedRoom(roomModelToType(room));
 			setShowExplorationModal(true);
 		} else if (!room.locked) {
 			// Show room details or allow crew assignment
@@ -345,27 +177,19 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 
 	// Get connected rooms for a room
 	const getConnectedRooms = (room: Room): Room[] => {
-		return room.connectedRooms
-			.map(roomId => rooms.find(r => r.id === roomId))
+		return JSON.parse(room.connectedRooms || '[]')
+			.map((roomId: string) => rooms.find(r => r.id === roomId))
 			.filter(Boolean) as Room[];
-	};
-
-	// Helper function to check if door is opened between two rooms
-	const isDoorOpened = (fromRoomId: string, toRoomId: string): boolean => {
-		const fromRoom = rooms.find(r => r.id === fromRoomId);
-		if (!fromRoom) return false;
-
-		const door = fromRoom.doors.find(d => d.toRoomId === toRoomId);
-		return door?.state === 'opened';
 	};
 
 	// Helper function to convert room doors to DoorState format
 	const getRoomDoorStates = (room: Room): DoorState => {
 		const doorStates: DoorState = {};
-		room.doors.forEach(door => {
+		const doors = JSON.parse(room.doors || '[]') as DoorInfo[];
+		for (const door of doors) {
 			const doorId = `${room.id}-${door.toRoomId}`;
 			doorStates[doorId] = door.state === 'opened';
-		});
+		}
 		return doorStates;
 	};
 
@@ -422,10 +246,12 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 				break;
 			}
 			case 'item':
-				met = destinyStatus.inventory && destinyStatus.inventory[requirement.value] > 0;
+				// met = destinyStatus.inventory && destinyStatus.inventory[requirement.value] > 0;
+				met = false;
 				break;
 			case 'technology':
-				met = destinyStatus.inventory && destinyStatus.inventory[requirement.value] > 0;
+				// met = destinyStatus.inventory && destinyStatus.inventory[requirement.value] > 0;
+				met = false;
 				break;
 			case 'crew_skill':
 				// For now, assume we have qualified crew if they're available
@@ -459,12 +285,13 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 		const fromRoom = rooms.find(r => r.id === fromRoomId);
 		if (!fromRoom) return;
 
-		const door = fromRoom.doors.find(d => d.toRoomId === toRoomId);
+		const doors = JSON.parse(fromRoom.doors || '[]') as DoorInfo[];
+		const door = doors.find(d => d.toRoomId === toRoomId);
 		if (!door) return;
 
 		if (door.state === 'locked') {
 			// Check if requirements are met
-			const { canOpen, unmetRequirements } = checkDoorRequirements(door);
+			const { canOpen } = checkDoorRequirements(door);
 
 			if (canOpen) {
 				// Requirements met, unlock the door
@@ -504,17 +331,11 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 
 	// Mark a room as found (discovered)
 	const markRoomAsFound = async (roomId: string) => {
-		// Update local state - set found
-		setRooms(prev => prev.map(room =>
-			room.id === roomId
-				? { ...room, found: true }
-				: room,
-		));
-
+		console.log('markRoomAsFound', roomId);
 		// Update database - set found
-		if (gameId) {
+		if (game.id) {
 			try {
-				await gameService.updateRoom(roomId, { found: true } as any);
+				await gameService.updateRoom(roomId, { found: true });
 			} catch (error) {
 				console.error('Failed to update room found status in database:', error);
 			}
@@ -530,26 +351,30 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 
 			if (toRoom?.status === 'damaged') {
 				// Moderate atmospheric loss
-				const newAtmosphere = { ...destinyStatus.atmosphere };
+				const newAtmosphere = JSON.parse(destinyStatus.atmosphere || '{}') as DestinyStatusType['atmosphere'];
 				newAtmosphere.o2 = Math.max(0, newAtmosphere.o2 - 2); // Lose 2% O2
 				newAtmosphere.co2 = Math.min(10, newAtmosphere.co2 + 1); // Gain 1% CO2
 
+				/*
 				onStatusUpdate({
 					...destinyStatus,
 					atmosphere: newAtmosphere,
 				});
+				*/
 
 				console.log('⚠️ Atmospheric breach detected! O2 levels dropping due to damaged room connection.');
 			} else if (toRoom?.status === 'destroyed') {
 				// Severe atmospheric loss
-				const newAtmosphere = { ...destinyStatus.atmosphere };
+				const newAtmosphere = JSON.parse(destinyStatus.atmosphere || '{}') as DestinyStatusType['atmosphere'];
 				newAtmosphere.o2 = Math.max(0, newAtmosphere.o2 - 5); // Lose 5% O2
 				newAtmosphere.co2 = Math.min(10, newAtmosphere.co2 + 2); // Gain 2% CO2
 
+				/*
 				onStatusUpdate({
 					...destinyStatus,
 					atmosphere: newAtmosphere,
 				});
+				*/
 
 				console.log('🚨 CRITICAL BREACH! Massive atmospheric loss due to destroyed room exposure!');
 			}
@@ -559,7 +384,7 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 	// Update door state in database and local state
 	const updateDoorState = async (fromRoomId: string, toRoomId: string, newState: 'closed' | 'opened' | 'locked') => {
 		// Update database first
-		if (gameId) {
+		if (game?.id) {
 			try {
 				await gameService.updateDoorState(fromRoomId, toRoomId, newState);
 				console.log(`Door ${fromRoomId} -> ${toRoomId} set to ${newState}`);
@@ -570,6 +395,7 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 		}
 
 		// Update local state (bidirectional)
+		/*
 		setRooms(prev => prev.map(room => {
 			// Update door in fromRoom
 			if (room.id === fromRoomId) {
@@ -591,53 +417,22 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 			}
 			return room;
 		}));
+		*/
 	};
 
 	// Calculate available crew (not assigned to any room)
 	const getAvailableCrew = async (): Promise<string[]> => {
-		if (!gameId) return [];
+		if (!game?.id) return [];
 
 		try {
 			// Get available crew from database
-			const availableCrew = await gameService.getAvailableCrew(gameId);
+			const availableCrew = await gameService.getAvailableCrew(game.id);
 			return availableCrew.map((person: any) => person.id);
 		} catch (error) {
 			console.error('Failed to get available crew:', error);
 			return [];
 		}
 	};
-
-	// Load available crew when component mounts or gameId changes
-	useEffect(() => {
-		const loadAvailableCrew = async () => {
-			const crew = await getAvailableCrew();
-			setAvailableCrew(crew);
-
-			// Also load all crew data for display purposes
-			if (gameId) {
-				try {
-					const allCrew = await gameService.getCrewByGame(gameId);
-					const crewMap = allCrew.reduce((acc: any, person: any) => {
-						acc[person.id] = person;
-						return acc;
-					}, {});
-					setCrewData(crewMap);
-				} catch (error) {
-					console.error('Failed to load crew data:', error);
-				}
-			}
-		};
-		loadAvailableCrew();
-	}, [gameId]);
-
-	// Update available crew when exploration progress changes
-	useEffect(() => {
-		const updateAvailableCrew = async () => {
-			const crew = await getAvailableCrew();
-			setAvailableCrew(crew);
-		};
-		updateAvailableCrew();
-	}, [explorationProgress]);
 
 	// Monitor open dangerous doors for continuous atmospheric drain
 	useEffect(() => {
@@ -648,8 +443,9 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 			let hasOpenDangerousDoor = false;
 			let severityMultiplier = 0;
 
-			rooms.forEach(room => {
-				room.doors.forEach(door => {
+			for (const room of rooms) {
+				const doors = JSON.parse(room.doors || '[]') as DoorInfo[];
+				for (const door of doors) {
 					if (door.state === 'opened') {
 						const { isDangerous } = checkDoorDanger(room.id, door.toRoomId);
 						if (isDangerous) {
@@ -664,21 +460,23 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 							}
 						}
 					}
-				});
-			});
+				}
+			}
 
 			// Apply continuous atmospheric drain if dangerous doors are open
 			if (hasOpenDangerousDoor && severityMultiplier > 0) {
 				const drainRate = 0.1 * severityMultiplier; // Base drain per second
 
-				const newAtmosphere = { ...destinyStatus.atmosphere };
+				const newAtmosphere = JSON.parse(destinyStatus.atmosphere || '{}') as DestinyStatusType['atmosphere'];
 				newAtmosphere.o2 = Math.max(0, newAtmosphere.o2 - drainRate);
 				newAtmosphere.co2 = Math.min(10, newAtmosphere.co2 + (drainRate * 0.5));
 
+				/*
 				onStatusUpdate({
 					...destinyStatus,
 					atmosphere: newAtmosphere,
 				});
+				*/
 
 				// Log warning every 10 seconds
 				if (Date.now() % 10000 < 1000) {
@@ -688,7 +486,11 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 		}, 1000); // Check every second
 
 		return () => clearInterval(interval);
-	}, [gameStatePaused, rooms, destinyStatus.atmosphere, onStatusUpdate]);
+	}, [
+		gameStatePaused,
+		rooms,
+		destinyStatus.atmosphere,
+	]);
 
 	// Keyboard controls for camera movement and zoom
 	useEffect(() => {
@@ -741,7 +543,6 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 	// Mouse controls for dragging and wheel zoom
 	const handleMouseDown = (e: React.MouseEvent) => {
 		setIsDragging(true);
-		setDragStart({ x: e.clientX, y: e.clientY });
 		setLastMousePos({ x: e.clientX, y: e.clientY });
 	};
 
@@ -768,7 +569,7 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 	};
 
 	const handleWheel = (e: React.WheelEvent) => {
-		e.preventDefault();
+		// e.preventDefault();
 		const zoomSpeed = 0.005;
 		const delta = -e.deltaY * zoomSpeed;
 
@@ -875,21 +676,18 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 				<g transform={`translate(${camera.x}, ${camera.y}) scale(${camera.scale})`}>
 					{/* Render all visible rooms */}
 					{rooms
-						.filter(isRoomVisible)
+						.filter(room => isRoomVisible(roomModelToType(room)))
 						.map(room => {
-							console.log('🏠 Rendering room:', room.type, 'at position:', getRoomScreenPosition(room));
+							// console.log('🏠 Rendering room:', room.type, 'at position:', getRoomScreenPosition(room));
 							return (
 								<ShipRoom
 									key={room.id}
 									room={room}
 									position={getRoomScreenPosition(room)}
-									isVisible={isRoomVisible(room)}
-									canExplore={canExploreRoom(room)}
+									isVisible={isRoomVisible(roomModelToType(room))}
+									canExplore={canExploreRoom(roomModelToType(room))}
 									exploration={explorationProgress[room.id]}
-									connectedRooms={getConnectedRooms(room)}
 									onRoomClick={handleRoomClick}
-									onDoorClick={handleDoorClick}
-									doorStates={getRoomDoorStates(room)}
 									allRooms={rooms}
 								/>
 							);
@@ -898,7 +696,7 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 
 					{/* Centralized door rendering - prevents duplicates */}
 					<ShipDoors
-						rooms={rooms}
+						rooms={rooms.map(roomModelToType)}
 						onDoorClick={handleDoorClick}
 					/>
 				</g>
@@ -968,7 +766,7 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 							<p><strong>Technology:</strong> {selectedRoom.technology.join(', ') || 'None detected'}</p>
 							{selectedCrew.length > 0 && (
 								<p>
-									<strong>Estimated time:</strong> {2 / Math.max(1, selectedCrew.length)} hours
+									<strong>Estimated time:</strong> {selectedRoom.baseExplorationTime / Math.max(1, selectedCrew.length)} hours
 								</p>
 							)}
 
@@ -1074,7 +872,7 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 										{(req.type === 'item' || req.type === 'technology') && (
 											<div className="mt-1">
 												<small>
-													In inventory: {destinyStatus.inventory?.[req.value] || 0}
+													In inventory: {destinyStatusModelToType(destinyStatus).inventory?.[req.value] || 0}
 												</small>
 											</div>
 										)}
@@ -1139,3 +937,5 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 		</div>
 	);
 };
+
+export const ShipMap = enhance(ShipMapComponent);

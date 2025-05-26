@@ -1,4 +1,4 @@
-import type { Room } from '../types';
+import type { Room } from '@stargate/db';
 
 // Grid system constants
 export const GRID_UNIT = 64;           // Base grid unit (64px)

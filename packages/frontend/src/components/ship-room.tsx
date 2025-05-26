@@ -1,7 +1,9 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { gameService, Room } from '@stargate/db';
+import React, { useState, useEffect } from 'react';
 
-import type { Room } from '../types';
-import { getRoomScreenBounds, getConnectionSide, GRID_UNIT, WALL_THICKNESS, DOOR_SIZE } from '../utils/grid-system';
+import { useGameState } from '../contexts/game-state-context';
+import { DoorInfo } from '../types/model-types';
+import { getConnectionSide, GRID_UNIT, WALL_THICKNESS, DOOR_SIZE } from '../utils/grid-system';
 
 interface ExplorationProgress {
 	roomId: string;
@@ -11,20 +13,13 @@ interface ExplorationProgress {
 	startTime: number; // timestamp
 }
 
-interface DoorState {
-	[doorId: string]: boolean; // true = opened, false = closed
-}
-
 interface ShipRoomProps {
 	room: Room;
 	position: { x: number; y: number };
 	isVisible: boolean;
 	canExplore: boolean;
 	exploration?: ExplorationProgress;
-	connectedRooms: Room[];
 	onRoomClick: (room: Room) => void;
-	onDoorClick: (fromRoomId: string, toRoomId: string) => void;
-	doorStates: DoorState;
 	allRooms: Room[];
 }
 
@@ -34,14 +29,33 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 	isVisible,
 	canExplore,
 	exploration,
-	connectedRooms,
 	onRoomClick,
-	onDoorClick,
-	doorStates,
 	allRooms,
 }) => {
 	// State for hover - must be declared before any conditional returns
 	const [isHovered, setIsHovered] = useState(false);
+	const { gameTime } = useGameState();
+
+	useEffect(() => {
+		if (room && !room.explored && exploration?.crewAssigned?.length) {
+			const explorationTime = (room.baseExplorationTime / exploration.crewAssigned.length) * 3600;
+			const exploredTime = gameTime - exploration.startTime;
+			const progress = (exploredTime / explorationTime) * 100;
+			if (progress > 0) {
+				gameService.saveExplorationProgress(room.gameId, { [room.id]: {
+					progress: Math.min(progress, 100),
+					crewAssigned: exploration.crewAssigned,
+					timeRemaining: 0,
+					startTime: exploration.startTime,
+				} });
+			}
+			console.log('progress', {
+				explorationTime,
+				exploredTime,
+				progress,
+			});
+		}
+	}, [room, exploration, gameTime]);
 
 	// Don't render if not visible (fog of war)
 	if (!isVisible) return null;
@@ -110,7 +124,8 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 
 		// Check each door in room.doors to determine where door openings should be
 		// This includes doors to undiscovered rooms
-		room.doors.forEach(door => {
+		const doors = JSON.parse(room.doors || '[]') as DoorInfo[];
+		for (const door of doors) {
 			// Find the connected room from allRooms (includes undiscovered rooms)
 			const connectedRoom = allRooms.find(r => r.id === door.toRoomId);
 			if (!connectedRoom) return;
@@ -120,7 +135,7 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 			if (side) {
 				openings.push({ side, position: 0.5, toRoomId: door.toRoomId });
 			}
-		});
+		}
 
 		return openings;
 	};
@@ -128,7 +143,7 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 	// Helper function to check if there's an opening on a specific side
 	const hasOpeningOnSide = (side: 'top' | 'bottom' | 'left' | 'right'): boolean => {
 		const openings = getDoorOpenings();
-		return openings.some(opening => opening.side === side);
+		return openings?.some(opening => opening.side === side) ?? false;
 	};
 
 	// Door rendering is now handled by the centralized ShipDoors component
@@ -161,10 +176,10 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 				</defs>
 
 				{/* Corner pieces - only render if no door opening on adjacent sides */}
-				{!hasOpeningOnSide('top') && !hasOpeningOnSide('left') && renderCorner(position.x - halfWidth, position.y - halfHeight, 'top-left')}
-				{!hasOpeningOnSide('top') && !hasOpeningOnSide('right') && renderCorner(position.x + halfWidth - wallThickness, position.y - halfHeight, 'top-right')}
-				{!hasOpeningOnSide('bottom') && !hasOpeningOnSide('left') && renderCorner(position.x - halfWidth, position.y + halfHeight - wallThickness, 'bottom-left')}
-				{!hasOpeningOnSide('bottom') && !hasOpeningOnSide('right') && renderCorner(position.x + halfWidth - wallThickness, position.y + halfHeight - wallThickness, 'bottom-right')}
+				{!hasOpeningOnSide('top') && !hasOpeningOnSide('left') && renderCorner(position.x - halfWidth, position.y - halfHeight)}
+				{!hasOpeningOnSide('top') && !hasOpeningOnSide('right') && renderCorner(position.x + halfWidth - wallThickness, position.y - halfHeight)}
+				{!hasOpeningOnSide('bottom') && !hasOpeningOnSide('left') && renderCorner(position.x - halfWidth, position.y + halfHeight - wallThickness)}
+				{!hasOpeningOnSide('bottom') && !hasOpeningOnSide('right') && renderCorner(position.x + halfWidth - wallThickness, position.y + halfHeight - wallThickness)}
 
 				{/* Top wall */}
 				{renderWallSegment(
@@ -172,7 +187,7 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 					position.y - halfHeight,
 					roomDimensions.width,
 					wallThickness,
-					openings.filter(o => o.side === 'top'),
+					openings?.filter(o => o.side === 'top') ?? [],
 					'horizontal',
 					doorWidth,
 				)}
@@ -183,7 +198,7 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 					position.y + halfHeight - wallThickness,
 					roomDimensions.width,
 					wallThickness,
-					openings.filter(o => o.side === 'bottom'),
+					openings?.filter(o => o.side === 'bottom') ?? [],
 					'horizontal',
 					doorWidth,
 				)}
@@ -194,7 +209,7 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 					position.y - halfHeight,
 					wallThickness,
 					roomDimensions.height,
-					openings.filter(o => o.side === 'left'),
+					openings?.filter(o => o.side === 'left') ?? [],
 					'vertical',
 					doorWidth,
 				)}
@@ -205,7 +220,7 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 					position.y - halfHeight,
 					wallThickness,
 					roomDimensions.height,
-					openings.filter(o => o.side === 'right'),
+					openings?.filter(o => o.side === 'right') ?? [],
 					'vertical',
 					doorWidth,
 				)}
@@ -214,7 +229,7 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 	};
 
 	// Render corner wall pieces
-	const renderCorner = (x: number, y: number, corner: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right') => {
+	const renderCorner = (x: number, y: number) => {
 		const wallThickness = WALL_THICKNESS;
 
 		return (
@@ -537,10 +552,10 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 					{/* Room overlay image (if available) */}
 					<image
 						href={getRoomOverlayImage()}
-						x={position.x - 32}
-						y={position.y - 32}
-						width="64"
-						height="64"
+						x={position.x - 24}
+						y={position.y - 24}
+						width="48"
+						height="48"
 						opacity="0.9"
 						style={{ pointerEvents: 'none' }} // Prevent interference with room clicks
 						// eslint-disable-next-line react/no-unknown-property
