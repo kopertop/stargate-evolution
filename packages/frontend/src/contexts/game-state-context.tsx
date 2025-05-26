@@ -44,45 +44,68 @@ export const GameStateProvider: React.FC<GameStateProviderProps> = ({ gameId, ch
 		});
 	}, [gameId]);
 
+
+	/**
+	 * Main Game Loop
+	 */
 	useEffect(() => {
 		if (game && timeSpeed > 0) {
 			const interval = setInterval(async () => {
-				setGameTime((prev) => {
-					const t = prev + timeSpeed;
+				// GameTick: Update game time
+				const newTime = await new Promise<number>((resolve) => {
+					setGameTime((prev) => {
+						const t = prev + timeSpeed;
+						resolve(t);
+						return t;
+					});
+				});
 
-					// Update game time in database
-					DB.write(async () => {
+				// Update game time and exploration progress in a single DB transaction
+				try {
+					await DB.write(async () => {
+						// Update game time
 						await game.update((record) => {
-							record.totalTimeProgressed = t;
+							record.totalTimeProgressed = newTime;
 							record.lastPlayed = new Date();
 						});
 					});
 
 					// Update exploration progress for all ongoing explorations
-					updateExplorationProgress(game.id, t);
-
-					return t;
-				});
+					await updateExplorationProgressInTransaction(newTime);
+				} catch (error) {
+					console.error('Error in game loop:', error);
+				}
 			}, 1000);
 			return () => clearInterval(interval);
 		}
 	}, [game, timeSpeed]);
 
-	// Handle exploration progress updates in the game loop
-	const updateExplorationProgress = async (gameId: string, currentGameTime: number) => {
+	// Handle exploration progress updates within an existing DB transaction
+	const updateExplorationProgressInTransaction = async (currentGameTime: number) => {
+		if (!gameId) {
+			return;
+		}
+
 		try {
 			// Get all rooms with ongoing exploration
 			const rooms = await gameService.getRoomsByGame(gameId);
+			let exploringRoomsCount = 0;
 
 			for (const room of rooms) {
 				if (room.explorationData) {
+					exploringRoomsCount++;
 					try {
 						const exploration = JSON.parse(room.explorationData);
-						const timeElapsed = (currentGameTime - exploration.startTime) / 1000 / 3600; // Convert to hours
+
+						// Convert game time (seconds) to hours for calculation
+						const timeElapsed = (currentGameTime - exploration.startTime) / 3600; // currentGameTime is in seconds
 						const newProgress = Math.min(100, (timeElapsed / exploration.timeRemaining) * 100);
 
 						if (newProgress >= 100) {
 							// Exploration complete - mark room as explored and free crew
+							console.log(`🎉 Exploration of ${room.type} (${room.id}) completed!`);
+
+							// These operations are now within the existing DB.write transaction
 							await gameService.updateRoom(room.id, { explored: true });
 
 							// Free up assigned crew
@@ -92,17 +115,22 @@ export const GameStateProvider: React.FC<GameStateProviderProps> = ({ gameId, ch
 
 							// Clear exploration progress
 							await gameService.clearExplorationProgress(room.id);
-
-							console.log(`🎉 Exploration of room ${room.id} completed!`);
 						} else if (Math.abs(newProgress - exploration.progress) > 0.1) {
 							// Update progress in database (only if significant change)
 							const updatedExploration = { ...exploration, progress: newProgress };
+
+							// This operation is now within the existing DB.write transaction
 							await gameService.updateRoom(room.id, { explorationData: JSON.stringify(updatedExploration) });
 						}
 					} catch (error) {
 						console.error(`Failed to parse exploration data for room ${room.id}:`, error);
 					}
 				}
+			}
+
+			// Debug log every 10 seconds
+			if (Math.floor(currentGameTime) % 10 === 0) {
+				console.log(`🔍 Game Loop: ${exploringRoomsCount} rooms currently being explored`);
 			}
 		} catch (error) {
 			console.error('Failed to update exploration progress:', error);
