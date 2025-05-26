@@ -246,6 +246,28 @@ export class GameService {
 		// Create comprehensive Destiny ship layout with proper connections
 		console.log('Creating ship room layout with grid system...');
 
+		// Helper function to create door info
+		const createDoorInfo = (toRoomId: string, state: 'closed' | 'opened' | 'locked' = 'closed', requirements: any[] = [], description?: string) => ({
+			toRoomId,
+			state,
+			requirements,
+			description,
+		});
+
+		// Helper function to create door requirements
+		const createDoorRequirement = (type: 'code' | 'item' | 'technology' | 'crew_skill' | 'power_level' | 'story_progress', value: string, description: string, met: boolean = false) => ({
+			type,
+			value,
+			description,
+			met,
+		});
+
+		// Helper function to set default room discovery state
+		const setDefaultRoomState = (room: any, isInitiallyDiscovered: boolean = false) => {
+			room.found = isInitiallyDiscovered;
+			room.locked = !isInitiallyDiscovered; // Locked if not discovered
+		};
+
 		// Main Floor (Floor 0) - Core ship operations
 		// Gate room: 3x3 grid centered at origin, spans from (-1,-1) to (2,2)
 		const gateRoom = await this.database.get<Room>('rooms').create((room) => {
@@ -258,7 +280,7 @@ export class GameService {
 			room.floor = 0;
 			room.technology = JSON.stringify(['stargate', 'dialing_computer', 'shields']);
 			room.image = 'stargate-room.png';
-			room.found = true; // Gate room starts as discovered
+			setDefaultRoomState(room, true); // Gate room starts as discovered and unlocked
 			room.status = 'ok';
 			room.connectedRooms = JSON.stringify([]); // Will be updated after corridors are created
 			room.doors = JSON.stringify([]); // Will be updated with door info later
@@ -276,6 +298,7 @@ export class GameService {
 			room.floor = 0;
 			room.technology = JSON.stringify(['lighting', 'atmosphere_sensors']);
 			room.image = 'corridor.png';
+			setDefaultRoomState(room, false); // Not discovered initially
 			room.status = 'ok';
 			room.connectedRooms = JSON.stringify([gateRoom.id]); // Will be updated
 			room.doors = JSON.stringify([]);
@@ -292,6 +315,7 @@ export class GameService {
 			room.floor = 0;
 			room.technology = JSON.stringify(['lighting', 'atmosphere_sensors']);
 			room.image = 'corridor.png';
+			setDefaultRoomState(room, false); // Not discovered initially
 			room.status = 'ok';
 			room.connectedRooms = JSON.stringify([gateRoom.id]); // Will be updated
 			room.doors = JSON.stringify([]);
@@ -308,24 +332,41 @@ export class GameService {
 			room.floor = 0;
 			room.technology = JSON.stringify(['ftl_drive_controls', 'sensors', 'communications', 'navigation']);
 			room.image = 'bridge.png';
+			setDefaultRoomState(room, false); // Not discovered initially
 			room.status = 'ok';
 			room.connectedRooms = JSON.stringify([corridorNorth.id]);
 			room.doors = JSON.stringify([]);
 		});
 
-		// Engineering: 2x2 grid at (-1, -4) - south of south corridor
-		const engineeringRoom = await this.database.get<Room>('rooms').create((room) => {
+		// Damaged Corridor: 1x1 grid at (-1, -4) - south of south corridor, venting to space
+		const damagedCorridor = await this.database.get<Room>('rooms').create((room) => {
 			room.gameId = gameId;
-			room.type = 'engineering';
+			room.type = 'corridor';
 			room.gridX = -1;
 			room.gridY = -4;
-			room.gridWidth = 2;
-			room.gridHeight = 2;
+			room.gridWidth = 1;
+			room.gridHeight = 1;
 			room.floor = 0;
-			room.technology = JSON.stringify(['power_systems', 'ftl_drive', 'life_support', 'reactor_controls']);
-			room.image = 'engineering.png';
-			room.status = 'ok';
+			room.technology = JSON.stringify(['emergency_lighting']);
+			room.image = 'corridor.png';
+			room.status = 'damaged'; // This corridor is damaged and venting atmosphere
 			room.connectedRooms = JSON.stringify([corridorSouth.id]);
+			room.doors = JSON.stringify([]);
+		});
+
+		// Destroyed Storage: 1x1 grid at (0, -4) - east of damaged corridor, completely vented
+		const destroyedStorage = await this.database.get<Room>('rooms').create((room) => {
+			room.gameId = gameId;
+			room.type = 'storage';
+			room.gridX = 0;
+			room.gridY = -4;
+			room.gridWidth = 1;
+			room.gridHeight = 1;
+			room.floor = 0;
+			room.technology = JSON.stringify([]);
+			room.image = 'storage.png';
+			room.status = 'destroyed'; // This room is completely destroyed and open to space
+			room.connectedRooms = JSON.stringify([damagedCorridor.id]);
 			room.doors = JSON.stringify([]);
 		});
 
@@ -441,6 +482,39 @@ export class GameService {
 			room.doors = JSON.stringify([]);
 		});
 
+		// Upper Floor (Floor 1) - Engineering and restricted areas
+		// Upper corridor: 1x1 grid at (0, 0) on floor 1
+		const upperCorridor = await this.database.get<Room>('rooms').create((room) => {
+			room.gameId = gameId;
+			room.type = 'corridor';
+			room.gridX = 0;
+			room.gridY = 0;
+			room.gridWidth = 1;
+			room.gridHeight = 1;
+			room.floor = 1;
+			room.technology = JSON.stringify(['emergency_lighting', 'atmosphere_sensors']);
+			room.image = 'corridor.png';
+			room.status = 'ok';
+			room.connectedRooms = JSON.stringify([elevatorMain.id]); // Will be updated
+			room.doors = JSON.stringify([]);
+		});
+
+		// Engineering: 2x2 grid at (-1, -1) on floor 1 - isolated on upper level
+		const engineeringRoom = await this.database.get<Room>('rooms').create((room) => {
+			room.gameId = gameId;
+			room.type = 'engineering';
+			room.gridX = -1;
+			room.gridY = -1;
+			room.gridWidth = 2;
+			room.gridHeight = 2;
+			room.floor = 1;
+			room.technology = JSON.stringify(['power_systems', 'ftl_drive', 'life_support', 'reactor_controls']);
+			room.image = 'engineering.png';
+			room.status = 'ok';
+			room.connectedRooms = JSON.stringify([upperCorridor.id]);
+			room.doors = JSON.stringify([]);
+		});
+
 		// Lower Floor (Floor -1) - Storage and specialized systems
 		// Lower corridor: 1x1 grid at (1, -2) on floor -1
 		const lowerCorridor = await this.database.get<Room>('rooms').create((room) => {
@@ -509,28 +583,14 @@ export class GameService {
 		// Update connection arrays for all rooms directly within this writer transaction
 		console.log('Updating room connections...');
 
-		// Helper function to create door info
-		const createDoorInfo = (toRoomId: string, state: 'closed' | 'opened' | 'locked' = 'closed', requirements: any[] = [], description?: string) => ({
-			toRoomId,
-			state,
-			requirements,
-			description,
-		});
-
-		// Helper function to create door requirements
-		const createDoorRequirement = (type: 'code' | 'item' | 'technology' | 'crew_skill' | 'power_level' | 'story_progress', value: string, description: string, met: boolean = false) => ({
-			type,
-			value,
-			description,
-			met,
-		});
-
 		// Update gate room connections - starts with all doors closed
 		await gateRoom.update((roomRecord) => {
-			roomRecord.connectedRooms = JSON.stringify([corridorNorth.id, corridorSouth.id]);
+			roomRecord.connectedRooms = JSON.stringify([corridorNorth.id, corridorSouth.id, corridorEast.id, corridorWest.id]);
 			roomRecord.doors = JSON.stringify([
 				createDoorInfo(corridorNorth.id, 'closed', [], 'Northern corridor access'),
 				createDoorInfo(corridorSouth.id, 'closed', [], 'Southern corridor access'),
+				createDoorInfo(corridorEast.id, 'closed', [], 'Eastern corridor access'),
+				createDoorInfo(corridorWest.id, 'closed', [], 'Western corridor access'),
 			]);
 		});
 
@@ -541,27 +601,25 @@ export class GameService {
 				createDoorInfo(gateRoom.id, 'closed', [], 'Gate room access'),
 				createDoorInfo(bridgeRoom.id, 'locked', [
 					createDoorRequirement('code', 'bridge_access_code', 'Bridge requires an access code found in the ship\'s command protocols'),
-				], 'Bridge command center - Locked'),
+				], 'Bridge command center - Code required'),
 				createDoorInfo(corridorEast.id, 'closed', [], 'Eastern corridor'),
 			]);
 		});
 
 		await corridorSouth.update((roomRecord) => {
-			roomRecord.connectedRooms = JSON.stringify([gateRoom.id, engineeringRoom.id, corridorWest.id, elevatorMain.id]);
+			roomRecord.connectedRooms = JSON.stringify([gateRoom.id, damagedCorridor.id, corridorWest.id, elevatorMain.id]);
 			roomRecord.doors = JSON.stringify([
 				createDoorInfo(gateRoom.id, 'closed', [], 'Gate room access'),
-				createDoorInfo(engineeringRoom.id, 'locked', [
-					createDoorRequirement('crew_skill', 'engineering_expertise', 'Engineering section requires advanced technical knowledge'),
-					createDoorRequirement('power_level', '50', 'Engineering systems need at least 50 power to operate'),
-				], 'Engineering section - Restricted'),
+				createDoorInfo(damagedCorridor.id, 'locked', [], 'Damaged corridor - DANGER: Atmospheric breach detected'),
 				createDoorInfo(corridorWest.id, 'closed', [], 'Western corridor'),
-				createDoorInfo(elevatorMain.id, 'closed', [], 'Elevator to lower levels'),
+				createDoorInfo(elevatorMain.id, 'closed', [], 'Elevator to other levels'),
 			]);
 		});
 
 		await corridorEast.update((roomRecord) => {
-			roomRecord.connectedRooms = JSON.stringify([corridorNorth.id, medBayRoom.id, quartersA.id]);
+			roomRecord.connectedRooms = JSON.stringify([gateRoom.id, corridorNorth.id, medBayRoom.id, quartersA.id]);
 			roomRecord.doors = JSON.stringify([
+				createDoorInfo(gateRoom.id, 'closed', [], 'Gate room access'),
 				createDoorInfo(corridorNorth.id, 'closed', [], 'Northern corridor'),
 				createDoorInfo(medBayRoom.id, 'locked', [
 					createDoorRequirement('technology', 'medical_scanner', 'Medical bay requires functional scanner systems'),
@@ -571,44 +629,75 @@ export class GameService {
 		});
 
 		await corridorWest.update((roomRecord) => {
-			roomRecord.connectedRooms = JSON.stringify([corridorSouth.id, messHallRoom.id, quartersB.id]);
+			roomRecord.connectedRooms = JSON.stringify([gateRoom.id, corridorSouth.id, messHallRoom.id, quartersB.id]);
 			roomRecord.doors = JSON.stringify([
+				createDoorInfo(gateRoom.id, 'closed', [], 'Gate room access'),
 				createDoorInfo(corridorSouth.id, 'closed', [], 'Southern corridor'),
 				createDoorInfo(messHallRoom.id, 'closed', [], 'Mess hall'),
 				createDoorInfo(quartersB.id, 'closed', [], 'Crew quarters section B'),
 			]);
 		});
 
-		// Update elevator connections - lower levels require power
+		// Update elevator connections - upper and lower levels require power
 		await elevatorMain.update((roomRecord) => {
-			roomRecord.connectedRooms = JSON.stringify([corridorSouth.id, lowerCorridor.id]);
+			roomRecord.connectedRooms = JSON.stringify([corridorSouth.id, lowerCorridor.id, upperCorridor.id]);
 			roomRecord.doors = JSON.stringify([
 				createDoorInfo(corridorSouth.id, 'closed', [], 'Main corridor'),
 				createDoorInfo(lowerCorridor.id, 'locked', [
 					createDoorRequirement('power_level', '75', 'Elevator to lower levels requires significant power'),
 					createDoorRequirement('technology', 'elevator_controls', 'Elevator systems must be operational'),
 				], 'Lower levels - Power required'),
+				createDoorInfo(upperCorridor.id, 'locked', [
+					createDoorRequirement('power_level', '100', 'Elevator to upper levels requires full power'),
+					createDoorRequirement('technology', 'elevator_controls', 'Elevator systems must be operational'),
+				], 'Upper levels - Full power required'),
 			]);
 		});
 
-		// Update bridge room connections - highly restricted
+		// Update bridge room connections - highly restricted, single access point
 		await bridgeRoom.update((roomRecord) => {
 			roomRecord.connectedRooms = JSON.stringify([corridorNorth.id]);
 			roomRecord.doors = JSON.stringify([
 				createDoorInfo(corridorNorth.id, 'locked', [
 					createDoorRequirement('code', 'bridge_access_code', 'Bridge requires an access code found in the ship\'s command protocols'),
-				], 'Exit to corridor - Locked from inside'),
+				], 'Exit to corridor - Code required'),
 			]);
 		});
 
-		// Update engineering room connections - technical requirements
-		await engineeringRoom.update((roomRecord) => {
-			roomRecord.connectedRooms = JSON.stringify([corridorSouth.id]);
+		// Update upper corridor connections
+		await upperCorridor.update((roomRecord) => {
+			roomRecord.connectedRooms = JSON.stringify([elevatorMain.id, engineeringRoom.id]);
 			roomRecord.doors = JSON.stringify([
-				createDoorInfo(corridorSouth.id, 'locked', [
-					createDoorRequirement('crew_skill', 'engineering_expertise', 'Engineering section requires advanced technical knowledge'),
-					createDoorRequirement('power_level', '50', 'Engineering systems need at least 50 power to operate'),
-				], 'Exit to corridor - Technical lock'),
+				createDoorInfo(elevatorMain.id, 'locked', [
+					createDoorRequirement('power_level', '100', 'Elevator requires full power'),
+					createDoorRequirement('technology', 'elevator_controls', 'Elevator systems must be operational'),
+				], 'Elevator to main level'),
+				createDoorInfo(engineeringRoom.id, 'closed', [], 'Engineering section'),
+			]);
+		});
+
+		// Update engineering room connections - now on upper floor, less restricted
+		await engineeringRoom.update((roomRecord) => {
+			roomRecord.connectedRooms = JSON.stringify([upperCorridor.id]);
+			roomRecord.doors = JSON.stringify([
+				createDoorInfo(upperCorridor.id, 'closed', [], 'Exit to upper corridor'),
+			]);
+		});
+
+		// Update damaged corridor connections - DANGEROUS
+		await damagedCorridor.update((roomRecord) => {
+			roomRecord.connectedRooms = JSON.stringify([corridorSouth.id, destroyedStorage.id]);
+			roomRecord.doors = JSON.stringify([
+				createDoorInfo(corridorSouth.id, 'locked', [], 'Exit to main corridor - DANGER: Atmospheric breach'),
+				createDoorInfo(destroyedStorage.id, 'locked', [], 'Storage room - DANGER: Open to space'),
+			]);
+		});
+
+		// Update destroyed storage connections - EXTREMELY DANGEROUS
+		await destroyedStorage.update((roomRecord) => {
+			roomRecord.connectedRooms = JSON.stringify([damagedCorridor.id]);
+			roomRecord.doors = JSON.stringify([
+				createDoorInfo(damagedCorridor.id, 'locked', [], 'Exit to corridor - DANGER: Catastrophic decompression'),
 			]);
 		});
 
@@ -694,6 +783,21 @@ export class GameService {
 				], 'Exit to corridor - Damaged door'),
 			]);
 		});
+
+		// Set default discovery state for all rooms that don't have it explicitly set
+		// (All rooms except gate room should start as undiscovered and locked)
+		const allRoomsToUpdate = [
+			damagedCorridor, destroyedStorage, corridorEast, corridorWest, medBayRoom,
+			messHallRoom, quartersA, quartersB, elevatorMain, upperCorridor,
+			engineeringRoom, lowerCorridor, hydroponicsRoom, storageBay, shuttleBayRoom,
+		];
+
+		for (const roomToUpdate of allRoomsToUpdate) {
+			await roomToUpdate.update((roomRecord) => {
+				if (roomRecord.found === undefined) roomRecord.found = false;
+				if (roomRecord.locked === undefined) roomRecord.locked = true;
+			});
+		}
 
 		console.log('Ship layout created successfully!');
 		console.log('Game creation completed successfully!');
@@ -1040,6 +1144,42 @@ export class GameService {
 		await game.markAsDeleted();
 
 		console.log('Game deletion completed successfully');
+	}
+
+	/**
+	 * Update door state between two rooms (bidirectional)
+	 */
+	async updateDoorState(fromRoomId: string, toRoomId: string, newState: 'closed' | 'opened' | 'locked'): Promise<void> {
+		await this.database.write(async () => {
+			// Update the door state in the fromRoom
+			const fromRoom = await this.database.get<Room>('rooms').find(fromRoomId);
+			await fromRoom.update((roomRecord) => {
+				const doors = JSON.parse(roomRecord.doors || '[]');
+				const updatedDoors = doors.map((door: any) =>
+					door.toRoomId === toRoomId
+						? { ...door, state: newState }
+						: door,
+				);
+				roomRecord.doors = JSON.stringify(updatedDoors);
+			});
+
+			// Update the corresponding door state in the toRoom (bidirectional)
+			try {
+				const toRoom = await this.database.get<Room>('rooms').find(toRoomId);
+				await toRoom.update((roomRecord) => {
+					const doors = JSON.parse(roomRecord.doors || '[]');
+					const updatedDoors = doors.map((door: any) =>
+						door.toRoomId === fromRoomId
+							? { ...door, state: newState }
+							: door,
+					);
+					roomRecord.doors = JSON.stringify(updatedDoors);
+				});
+			} catch (error) {
+				// toRoom might not exist or might not have a return door - that's okay
+				console.log(`No bidirectional door found from ${toRoomId} to ${fromRoomId}`);
+			}
+		});
 	}
 }
 

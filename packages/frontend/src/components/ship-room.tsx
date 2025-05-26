@@ -154,40 +154,7 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 		return openings.some(opening => opening.side === side);
 	};
 
-	// Get the appropriate door image based on door state and toRoomId
-	const getDoorImageForOpening = (toRoomId: string): string => {
-		// Find the connected room from allRooms
-		const connectedRoom = allRooms.find(r => r.id === toRoomId);
-
-		// Find the door info from room.doors
-		const doorInfo = room.doors.find(door => door.toRoomId === toRoomId);
-
-		if (!doorInfo) {
-			return '/images/doors/door-locked.png';
-		}
-
-		// Determine door image based on state and safety
-		switch (doorInfo.state) {
-		case 'opened':
-			return '/images/doors/door-opened.png';
-		case 'closed':
-			// Check if door should be restricted (unsafe conditions)
-			if (connectedRoom && (room.status === 'damaged' || connectedRoom.status === 'damaged' ||
-				room.status === 'destroyed' || connectedRoom.status === 'destroyed')) {
-				return '/images/doors/door-restricted.png';
-			}
-			return '/images/doors/door-closed.png';
-		case 'locked':
-			return '/images/doors/door-locked.png';
-		default:
-			return '/images/doors/door-closed.png';
-		}
-	};
-
-	// Handle door click for a specific toRoomId
-	const handleDoorClickForOpening = (toRoomId: string) => {
-		onDoorClick(room.id, toRoomId);
-	};
+	// Door rendering is now handled by the centralized ShipDoors component
 
 	// Render walls with gaps for door openings
 	const renderWalls = () => {
@@ -337,20 +304,8 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 						);
 					}
 
-					// Add door image in place of wall segment
-					const doorImage = getDoorImageForOpening(opening.toRoomId);
-					elements.push(
-						<image
-							key={`door-${index}`}
-							href={doorImage}
-							x={doorStartX}
-							y={wallY}
-							width={doorWidth}
-							height={wallHeight}
-							style={{ cursor: 'pointer' }}
-							onClick={() => handleDoorClickForOpening(opening.toRoomId)}
-						/>,
-					);
+					// Add door gap (no wall segment) - door will be rendered by ShipDoors component
+					// Just leave the gap empty
 
 					currentX = doorEndX;
 				});
@@ -395,21 +350,8 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 						);
 					}
 
-					// Add door image in place of wall segment
-					const doorImage = getDoorImageForOpening(opening.toRoomId);
-					elements.push(
-						<image
-							key={`door-${index}`}
-							href={doorImage}
-							x={wallX}
-							y={doorStartY}
-							width={wallWidth}
-							height={doorWidth}
-							style={{ cursor: 'pointer' }}
-							onClick={() => handleDoorClickForOpening(opening.toRoomId)}
-							transform={`rotate(90 ${wallX + wallWidth/2} ${doorStartY + doorWidth/2})`}
-						/>,
-					);
+					// Add door gap (no wall segment) - door will be rendered by ShipDoors component
+					// Just leave the gap empty
 
 					currentY = doorEndY;
 				});
@@ -565,6 +507,8 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 	// Render hover overlay with room name
 	const renderHoverOverlay = () => {
 		if (!isHovered) return null;
+		// No hover for Corridors
+		if (room.type === 'corridor') return null;
 
 		const roomName = room.type.replace('_', ' ').toUpperCase();
 
@@ -577,7 +521,7 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 					width={roomDimensions.width}
 					height={roomDimensions.height}
 					fill="#000000"
-					opacity="0.7"
+					opacity="0.2"
 					rx="4"
 					ry="4"
 					pointerEvents="none"
@@ -588,7 +532,7 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 					y={position.y + 5}
 					textAnchor="middle"
 					fill="#ffffff"
-					fontSize="16"
+					fontSize="8"
 					fontWeight="bold"
 					style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.8)' }}
 					pointerEvents="none"

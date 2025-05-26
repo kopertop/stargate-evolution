@@ -16,6 +16,7 @@ export class Toast {
 		}
 		const toast = document.createElement('div');
 		toast.textContent = message;
+		toast.style.zIndex = '9999';
 		toast.style.background = 'rgba(30,30,40,0.95)';
 		toast.style.color = '#fff';
 		toast.style.padding = '12px 32px';

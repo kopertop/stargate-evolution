@@ -9,6 +9,7 @@ import { roomModelToType } from '../types';
 import { getRoomScreenPosition as getGridRoomScreenPosition } from '../utils/grid-system';
 
 import { CountdownClock } from './countdown-clock';
+import { ShipDoors } from './ship-doors';
 import { ShipRoom } from './ship-room';
 
 interface ExplorationProgress {
@@ -465,19 +466,19 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 		}
 	};
 
-	// Mark a room as found (discovered)
+	// Mark a room as found (discovered) and unlocked
 	const markRoomAsFound = async (roomId: string) => {
-		// Update local state
+		// Update local state - set both found and unlocked
 		setRooms(prev => prev.map(room =>
 			room.id === roomId
-				? { ...room, found: true }
+				? { ...room, found: true, locked: false }
 				: room,
 		));
 
-		// Update database
+		// Update database - set both found and unlocked
 		if (gameId) {
 			try {
-				await gameService.updateRoom(roomId, { found: true } as any);
+				await gameService.updateRoom(roomId, { found: true, locked: false } as any);
 			} catch (error) {
 				console.error('Failed to update room found status in database:', error);
 			}
@@ -521,8 +522,20 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 
 	// Update door state in database and local state
 	const updateDoorState = async (fromRoomId: string, toRoomId: string, newState: 'closed' | 'opened' | 'locked') => {
-		// Update local state
+		// Update database first
+		if (gameId) {
+			try {
+				await gameService.updateDoorState(fromRoomId, toRoomId, newState);
+				console.log(`Door ${fromRoomId} -> ${toRoomId} set to ${newState}`);
+			} catch (error) {
+				console.error('Failed to update door state in database:', error);
+				return; // Don't update local state if database update fails
+			}
+		}
+
+		// Update local state (bidirectional)
 		setRooms(prev => prev.map(room => {
+			// Update door in fromRoom
 			if (room.id === fromRoomId) {
 				const updatedDoors = room.doors.map(door =>
 					door.toRoomId === toRoomId
@@ -531,19 +544,17 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 				);
 				return { ...room, doors: updatedDoors };
 			}
+			// Update corresponding door in toRoom
+			if (room.id === toRoomId) {
+				const updatedDoors = room.doors.map(door =>
+					door.toRoomId === fromRoomId
+						? { ...door, state: newState }
+						: door,
+				);
+				return { ...room, doors: updatedDoors };
+			}
 			return room;
 		}));
-
-		// Update database if gameId is available
-		if (gameId) {
-			try {
-				// This would need a new method in gameService to update door states
-				// For now, we'll just update locally
-				console.log(`Door ${fromRoomId} -> ${toRoomId} set to ${newState}`);
-			} catch (error) {
-				console.error('Failed to update door state in database:', error);
-			}
-		}
 	};
 
 	// Calculate available crew (not assigned to any room)
@@ -651,25 +662,25 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 				e.preventDefault();
 			}
 
-			const panSpeed = 20 / camera.scale; // Adjust pan speed based on zoom level
+			const panSpeed = 100 / camera.scale; // Adjust pan speed based on zoom level
 			const zoomSpeed = 0.1;
 
 			switch (e.key.toLowerCase()) {
 			case 'w':
 			case 'arrowup':
-				setCamera(prev => ({ ...prev, y: prev.y - panSpeed }));
+				setCamera(prev => ({ ...prev, y: prev.y + panSpeed }));
 				break;
 			case 's':
 			case 'arrowdown':
-				setCamera(prev => ({ ...prev, y: prev.y + panSpeed }));
+				setCamera(prev => ({ ...prev, y: prev.y - panSpeed }));
 				break;
 			case 'a':
 			case 'arrowleft':
-				setCamera(prev => ({ ...prev, x: prev.x - panSpeed }));
+				setCamera(prev => ({ ...prev, x: prev.x + panSpeed }));
 				break;
 			case 'd':
 			case 'arrowright':
-				setCamera(prev => ({ ...prev, x: prev.x + panSpeed }));
+				setCamera(prev => ({ ...prev, x: prev.x - panSpeed }));
 				break;
 			case '+':
 			case '=':
@@ -849,7 +860,11 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 						})
 					}
 
-					{/* Doors are now rendered as part of room walls in ShipRoom component */}
+					{/* Centralized door rendering - prevents duplicates */}
+					<ShipDoors
+						rooms={rooms}
+						onDoorClick={handleDoorClick}
+					/>
 				</g>
 			</svg>
 
