@@ -4,12 +4,13 @@ import React, { useEffect, useRef, useState } from 'react';
 import { GiReturnArrow } from 'react-icons/gi';
 import { useNavigate, useParams } from 'react-router-dom';
 
-import { validateOrRefreshSession } from '../auth/session';
 import { DestinyStatusBar } from '../components/destiny-status-bar';
 import { GalaxyMap } from '../components/galaxy-map';
 import { GalaxyTravelModal } from '../components/galaxy-travel-modal';
 import { NavButton } from '../components/nav-button';
 import { ShipView } from '../components/ship-view';
+import { DestinyStatusProvider } from '../contexts/destiny-status-context';
+import { GameStateProvider } from '../contexts/game-state-context';
 import { Game } from '../game';
 import { MapPopover } from '../map-popover';
 import { Toast } from '../toast';
@@ -425,112 +426,116 @@ export const GamePage: React.FC = () => {
 	const travelCost = calculateTravelCost(travelDistance);
 
 	return (
-		<div style={{
-			background: '#000',
-			minHeight: '100vh',
-			...(viewMode === 'galaxy-map' ? {} : viewMode === 'ship-view' ? {} : {
-				display: 'flex',
-				justifyContent: 'center',
-				alignItems: 'center',
-			}),
-		}}>
-			<div ref={canvasRef} />
-
-			{isLoading && (
-				<div className="text-white" style={{
-					position: 'absolute',
-					top: '50%',
-					left: '50%',
-					transform: 'translate(-50%, -50%)',
+		<GameStateProvider gameId={params.gameId}>
+			<DestinyStatusProvider>
+				<div style={{
+					background: '#000',
+					minHeight: '100vh',
+					...(viewMode === 'galaxy-map' ? {} : viewMode === 'ship-view' ? {} : {
+						display: 'flex',
+						justifyContent: 'center',
+						alignItems: 'center',
+					}),
 				}}>
-					<h3>Loading Stargate Evolution...</h3>
-				</div>
-			)}
+					<div ref={canvasRef} />
 
-			{/* Ship View */}
-			{!isLoading && viewMode === 'ship-view' && destinyStatus && (
-				<div style={{ width: '100vw', height: '100vh', position: 'relative', overflow: 'hidden' }}>
-					<NavButton onClick={handleBackToMenu}>
-						<GiReturnArrow size={20} /> Back to Menu
-					</NavButton>
-					<div style={{
-						position: 'absolute',
-						top: '60px', // Space for nav button
-						left: 0,
-						right: 0,
-						bottom: '72px', // Space for destiny status bar (approximately 72px height)
-						overflow: 'hidden',
-					}}>
-						<ShipView
-							destinyStatus={destinyStatus}
-							onStatusUpdate={handleDestinyStatusUpdate}
-							onNavigateToGalaxy={handleNavigateToGalaxyMap}
-							gameId={params.gameId}
-						/>
-					</div>
-				</div>
-			)}
-
-			{/* Galaxy Map View */}
-			{!isLoading && viewMode === 'galaxy-map' && galaxies.length > 0 && (
-				<div style={{ width: '100vw', height: '100vh', position: 'relative' }}>
-					<NavButton onClick={handleBackToShip}>
-						<GiReturnArrow size={20} /> Back to Ship
-					</NavButton>
-					<GalaxyMap
-						galaxies={galaxies}
-						onGalaxySelect={handleGalaxySelect}
-						currentGalaxyId={currentGalaxyId || undefined}
-						shipPower={destinyStatus?.power || 0}
-						maxTravelRange={maxTravelRange}
-					/>
-				</div>
-			)}
-
-			{!isLoading && viewMode === 'galaxy-map' && galaxies.length === 0 && (
-				<div style={{ width: '100vw', height: '100vh', position: 'relative' }}>
-					<NavButton onClick={handleBackToShip}>
-						<GiReturnArrow size={20} /> Back to Ship
-					</NavButton>
-					<div className="text-white text-center" style={{
-						position: 'absolute',
-						top: '50%',
-						left: '50%',
-						transform: 'translate(-50%, -50%)',
-					}}>
-						<div className="spinner-border text-primary mb-3" role="status">
-							<span className="visually-hidden">Loading...</span>
+					{isLoading && (
+						<div className="text-white" style={{
+							position: 'absolute',
+							top: '50%',
+							left: '50%',
+							transform: 'translate(-50%, -50%)',
+						}}>
+							<h3>Loading Stargate Evolution...</h3>
 						</div>
-						<h4>Loading Game Data...</h4>
-						<p>Preparing galaxy map...</p>
-					</div>
+					)}
+
+					{/* Ship View */}
+					{!isLoading && viewMode === 'ship-view' && destinyStatus && (
+						<div style={{ width: '100vw', height: '100vh', position: 'relative', overflow: 'hidden' }}>
+							<NavButton onClick={handleBackToMenu}>
+								<GiReturnArrow size={20} /> Back to Menu
+							</NavButton>
+							<div style={{
+								position: 'absolute',
+								top: '60px', // Space for nav button
+								left: 0,
+								right: 0,
+								bottom: '72px', // Space for destiny status bar (approximately 72px height)
+								overflow: 'hidden',
+							}}>
+								<ShipView
+									destinyStatus={destinyStatus}
+									onStatusUpdate={handleDestinyStatusUpdate}
+									onNavigateToGalaxy={handleNavigateToGalaxyMap}
+									gameId={params.gameId}
+								/>
+							</div>
+						</div>
+					)}
+
+					{/* Galaxy Map View */}
+					{!isLoading && viewMode === 'galaxy-map' && galaxies.length > 0 && (
+						<div style={{ width: '100vw', height: '100vh', position: 'relative' }}>
+							<NavButton onClick={handleBackToShip}>
+								<GiReturnArrow size={20} /> Back to Ship
+							</NavButton>
+							<GalaxyMap
+								galaxies={galaxies}
+								onGalaxySelect={handleGalaxySelect}
+								currentGalaxyId={currentGalaxyId || undefined}
+								shipPower={destinyStatus?.power || 0}
+								maxTravelRange={maxTravelRange}
+							/>
+						</div>
+					)}
+
+					{!isLoading && viewMode === 'galaxy-map' && galaxies.length === 0 && (
+						<div style={{ width: '100vw', height: '100vh', position: 'relative' }}>
+							<NavButton onClick={handleBackToShip}>
+								<GiReturnArrow size={20} /> Back to Ship
+							</NavButton>
+							<div className="text-white text-center" style={{
+								position: 'absolute',
+								top: '50%',
+								left: '50%',
+								transform: 'translate(-50%, -50%)',
+							}}>
+								<div className="spinner-border text-primary mb-3" role="status">
+									<span className="visually-hidden">Loading...</span>
+								</div>
+								<h4>Loading Game Data...</h4>
+								<p>Preparing galaxy map...</p>
+							</div>
+						</div>
+					)}
+
+					{viewMode === 'game-view' && (
+						<NavButton onClick={handleBackToGalaxyMap}>
+							<GiReturnArrow size={20} /> Back to Galaxy Map
+						</NavButton>
+					)}
+
+					{/* Travel Modal */}
+					<GalaxyTravelModal
+						show={showTravelModal}
+						onHide={() => {
+							setShowTravelModal(false);
+							setSelectedGalaxy(null);
+						}}
+						onConfirm={handleConfirmTravel}
+						sourceGalaxy={currentGalaxy}
+						targetGalaxy={selectedGalaxy}
+						travelCost={travelCost}
+						currentPower={destinyStatus?.power || 0}
+						distance={travelDistance}
+					/>
+
+					{destinyStatus && (
+						<DestinyStatusBar status={destinyStatus} />
+					)}
 				</div>
-			)}
-
-			{viewMode === 'game-view' && (
-				<NavButton onClick={handleBackToGalaxyMap}>
-					<GiReturnArrow size={20} /> Back to Galaxy Map
-				</NavButton>
-			)}
-
-			{/* Travel Modal */}
-			<GalaxyTravelModal
-				show={showTravelModal}
-				onHide={() => {
-					setShowTravelModal(false);
-					setSelectedGalaxy(null);
-				}}
-				onConfirm={handleConfirmTravel}
-				sourceGalaxy={currentGalaxy}
-				targetGalaxy={selectedGalaxy}
-				travelCost={travelCost}
-				currentPower={destinyStatus?.power || 0}
-				distance={travelDistance}
-			/>
-
-			{destinyStatus && (
-				<DestinyStatusBar status={destinyStatus} />
-			)}
-		</div>
+			</DestinyStatusProvider>
+		</GameStateProvider>
 	);
 };

@@ -12,7 +12,8 @@ import React, {
 interface GameStateContextType {
 	isPaused: boolean;
 	timeSpeed: number;
-	currentTime: number;
+	gameTime: number;
+	game: Game | null;
 	togglePause: () => void;
 	setTimeSpeed: (speed: number) => void;
 	resumeGame: () => void;
@@ -22,27 +23,31 @@ interface GameStateContextType {
 const GameStateContext = createContext<GameStateContextType | undefined>(undefined);
 
 interface GameStateProviderProps {
-	gameId: string;
+	gameId?: string;
 	children: ReactNode;
 }
 
 export const GameStateProvider: React.FC<GameStateProviderProps> = ({ gameId, children }) => {
 	// Start at normal speed
 	const [timeSpeed, setTimeSpeed] = useState(1);
-	const [currentTime, setCurrentTime] = useState(0);
+	const [gameTime, setGameTime] = useState(0);
 	const [game, setGame] = useState<Game | null>(null);
 
 	useEffect(() => {
+		if (!gameId) {
+			return;
+		}
+
 		DB.get<Game>('games').find(gameId).then((g) => {
 			setGame(g);
-			setCurrentTime(g.totalTimeProgressed);
+			setGameTime(g.totalTimeProgressed);
 		});
 	}, [gameId]);
 
 	useEffect(() => {
 		if (game && timeSpeed > 0) {
 			const interval = setInterval(() => {
-				setCurrentTime((prev) => {
+				setGameTime((prev) => {
 					const t = prev + timeSpeed;
 					DB.write(async () => {
 						await game.update((record) => {
@@ -75,7 +80,8 @@ export const GameStateProvider: React.FC<GameStateProviderProps> = ({ gameId, ch
 
 	const value: GameStateContextType = {
 		isPaused: timeSpeed === 0,
-		currentTime,
+		gameTime,
+		game,
 		timeSpeed,
 		togglePause,
 		setTimeSpeed: handleSetTimeSpeed,

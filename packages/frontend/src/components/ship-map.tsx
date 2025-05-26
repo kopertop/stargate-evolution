@@ -51,10 +51,6 @@ interface ShipMapProps {
 export const ShipMap: React.FC<ShipMapProps> = ({
 	destinyStatus,
 	onStatusUpdate,
-	onNavigateToGalaxy,
-	gameTime,
-	onTimeAdvance,
-	onCountdownUpdate,
 	gameIsPaused,
 	gameId,
 }) => {
@@ -818,10 +814,7 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 	return (
 		<div style={{ position: 'relative', width: '100%', height: '100%', backgroundColor: '#000' }}>
 			{/* Countdown Clock */}
-			<CountdownClock
-				timeRemaining={gameTime.nextDropOut}
-				onTimeUpdate={onCountdownUpdate}
-			/>
+			<CountdownClock />
 
 			{/* Camera Controls UI */}
 			<div style={{
