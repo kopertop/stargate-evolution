@@ -66,6 +66,8 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 	const [selectedDoor, setSelectedDoor] = useState<{ fromRoom: Room; door: DoorInfo } | null>(null);
 	const [lastUpdateTime, setLastUpdateTime] = useState(Date.now());
 	const [selectedCrew, setSelectedCrew] = useState<string[]>([]);
+	const [showDangerWarning, setShowDangerWarning] = useState(false);
+	const [dangerousDoor, setDangerousDoor] = useState<{ fromRoomId: string; toRoomId: string; reason: string } | null>(null);
 
 	// State for available crew
 	const [availableCrew, setAvailableCrew] = useState<string[]>([]);
@@ -333,6 +335,41 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 	// Note: Door rendering is now integrated into room walls in ShipRoom component
 	// This function is no longer needed but kept as a comment for reference
 
+	// Check if a door is dangerous to open
+	const checkDoorDanger = (fromRoomId: string, toRoomId: string): { isDangerous: boolean; reason: string } => {
+		const fromRoom = rooms.find(r => r.id === fromRoomId);
+		const toRoom = rooms.find(r => r.id === toRoomId);
+
+		if (!fromRoom || !toRoom) {
+			return { isDangerous: false, reason: '' };
+		}
+
+		// Check for atmospheric hazards
+		if (toRoom.status === 'damaged') {
+			return {
+				isDangerous: true,
+				reason: 'The adjacent room shows signs of structural damage. Opening this door may cause rapid atmospheric decompression.',
+			};
+		}
+
+		if (toRoom.status === 'destroyed') {
+			return {
+				isDangerous: true,
+				reason: 'The adjacent room has been destroyed and is venting to space. Opening this door will cause catastrophic decompression.',
+			};
+		}
+
+		// Check for other hazards (can be expanded)
+		if (toRoom.type === 'airlock' && toRoom.status !== 'ok') {
+			return {
+				isDangerous: true,
+				reason: 'The airlock systems are malfunctioning. Opening this door may result in atmospheric loss.',
+			};
+		}
+
+		return { isDangerous: false, reason: '' };
+	};
+
 	// Check if door requirements are met
 	const checkDoorRequirements = (door: DoorInfo): { canOpen: boolean; unmetRequirements: DoorRequirement[] } => {
 		const unmetRequirements: DoorRequirement[] = [];
@@ -405,11 +442,25 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 		} else {
 			// Toggle between closed and opened
 			const newState = door.state === 'opened' ? 'closed' : 'opened';
+
+			// If opening a door, check for dangers first
+			if (newState === 'opened') {
+				const { isDangerous, reason } = checkDoorDanger(fromRoomId, toRoomId);
+
+				if (isDangerous) {
+					// Show warning modal instead of opening immediately
+					setDangerousDoor({ fromRoomId, toRoomId, reason });
+					setShowDangerWarning(true);
+					return;
+				}
+			}
+
 			await updateDoorState(fromRoomId, toRoomId, newState);
 
-			// If opening a door, mark the connected room as found
+			// If opening a door, mark the connected room as found and handle consequences
 			if (newState === 'opened') {
 				await markRoomAsFound(toRoomId);
+				await handleDoorOpenConsequences(fromRoomId, toRoomId);
 			}
 		}
 	};
@@ -429,6 +480,41 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 				await gameService.updateRoom(roomId, { found: true } as any);
 			} catch (error) {
 				console.error('Failed to update room found status in database:', error);
+			}
+		}
+	};
+
+	// Handle consequences of opening a door (atmospheric effects, etc.)
+	const handleDoorOpenConsequences = async (fromRoomId: string, toRoomId: string) => {
+		const { isDangerous } = checkDoorDanger(fromRoomId, toRoomId);
+
+		if (isDangerous) {
+			const toRoom = rooms.find(r => r.id === toRoomId);
+
+			if (toRoom?.status === 'damaged') {
+				// Moderate atmospheric loss
+				const newAtmosphere = { ...destinyStatus.atmosphere };
+				newAtmosphere.o2 = Math.max(0, newAtmosphere.o2 - 2); // Lose 2% O2
+				newAtmosphere.co2 = Math.min(10, newAtmosphere.co2 + 1); // Gain 1% CO2
+
+				onStatusUpdate({
+					...destinyStatus,
+					atmosphere: newAtmosphere,
+				});
+
+				console.log('⚠️ Atmospheric breach detected! O2 levels dropping due to damaged room connection.');
+			} else if (toRoom?.status === 'destroyed') {
+				// Severe atmospheric loss
+				const newAtmosphere = { ...destinyStatus.atmosphere };
+				newAtmosphere.o2 = Math.max(0, newAtmosphere.o2 - 5); // Lose 5% O2
+				newAtmosphere.co2 = Math.min(10, newAtmosphere.co2 + 2); // Gain 2% CO2
+
+				onStatusUpdate({
+					...destinyStatus,
+					atmosphere: newAtmosphere,
+				});
+
+				console.log('🚨 CRITICAL BREACH! Massive atmospheric loss due to destroyed room exposure!');
 			}
 		}
 	};
@@ -505,6 +591,57 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 		};
 		updateAvailableCrew();
 	}, [explorationProgress]);
+
+	// Monitor open dangerous doors for continuous atmospheric drain
+	useEffect(() => {
+		if (gameStatePaused) return;
+
+		const interval = setInterval(() => {
+			// Check for open doors to dangerous rooms
+			let hasOpenDangerousDoor = false;
+			let severityMultiplier = 0;
+
+			rooms.forEach(room => {
+				room.doors.forEach(door => {
+					if (door.state === 'opened') {
+						const { isDangerous } = checkDoorDanger(room.id, door.toRoomId);
+						if (isDangerous) {
+							hasOpenDangerousDoor = true;
+							const toRoom = rooms.find(r => r.id === door.toRoomId);
+
+							// Increase severity based on room status
+							if (toRoom?.status === 'destroyed') {
+								severityMultiplier += 2; // Severe drain
+							} else if (toRoom?.status === 'damaged') {
+								severityMultiplier += 1; // Moderate drain
+							}
+						}
+					}
+				});
+			});
+
+			// Apply continuous atmospheric drain if dangerous doors are open
+			if (hasOpenDangerousDoor && severityMultiplier > 0) {
+				const drainRate = 0.1 * severityMultiplier; // Base drain per second
+
+				const newAtmosphere = { ...destinyStatus.atmosphere };
+				newAtmosphere.o2 = Math.max(0, newAtmosphere.o2 - drainRate);
+				newAtmosphere.co2 = Math.min(10, newAtmosphere.co2 + (drainRate * 0.5));
+
+				onStatusUpdate({
+					...destinyStatus,
+					atmosphere: newAtmosphere,
+				});
+
+				// Log warning every 10 seconds
+				if (Date.now() % 10000 < 1000) {
+					console.log(`🚨 Atmospheric breach ongoing! O2: ${newAtmosphere.o2.toFixed(1)}% | CO2: ${newAtmosphere.co2.toFixed(1)}%`);
+				}
+			}
+		}, 1000); // Check every second
+
+		return () => clearInterval(interval);
+	}, [gameStatePaused, rooms, destinyStatus.atmosphere, onStatusUpdate]);
 
 	// Keyboard controls for camera movement and zoom
 	useEffect(() => {
@@ -600,6 +737,28 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 	// Reset camera to default position and zoom
 	const resetCamera = () => {
 		setCamera({ x: 0, y: 0, scale: 1 });
+	};
+
+	// Handle user overriding the danger warning
+	const handleDangerOverride = async () => {
+		if (!dangerousDoor) return;
+
+		const { fromRoomId, toRoomId } = dangerousDoor;
+
+		// Close the warning modal
+		setShowDangerWarning(false);
+		setDangerousDoor(null);
+
+		// Open the door despite the danger
+		await updateDoorState(fromRoomId, toRoomId, 'opened');
+		await markRoomAsFound(toRoomId);
+		await handleDoorOpenConsequences(fromRoomId, toRoomId);
+	};
+
+	// Handle user canceling the dangerous door operation
+	const handleDangerCancel = () => {
+		setShowDangerWarning(false);
+		setDangerousDoor(null);
 	};
 
 	return (
@@ -863,6 +1022,52 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 				<Modal.Footer>
 					<Button variant="secondary" onClick={() => setShowDoorModal(false)}>
 						Close
+					</Button>
+				</Modal.Footer>
+			</Modal>
+
+			{/* Danger Warning Modal */}
+			<Modal show={showDangerWarning} onHide={handleDangerCancel} centered>
+				<Modal.Header closeButton className="bg-danger text-white">
+					<Modal.Title>
+						⚠️ DANGER WARNING
+					</Modal.Title>
+				</Modal.Header>
+				<Modal.Body className="bg-dark text-white">
+					{dangerousDoor && (
+						<div>
+							<Alert variant="danger" className="mb-3">
+								<strong>DESTINY COMPUTER ADVISORY:</strong><br />
+								This door is sealed for safety reasons.
+							</Alert>
+
+							<p className="mb-3">
+								<strong>Detected Hazard:</strong><br />
+								{dangerousDoor.reason}
+							</p>
+
+							<Alert variant="warning" className="mb-3">
+								<strong>WARNING:</strong> Opening this door may result in:
+								<ul className="mt-2 mb-0">
+									<li>Rapid atmospheric decompression</li>
+									<li>Loss of oxygen and life support</li>
+									<li>Potential crew casualties</li>
+									<li>Ship-wide system failures</li>
+								</ul>
+							</Alert>
+
+							<p className="text-center mb-0">
+								<strong>Do you wish to override the safety protocols?</strong>
+							</p>
+						</div>
+					)}
+				</Modal.Body>
+				<Modal.Footer className="bg-dark">
+					<Button variant="secondary" onClick={handleDangerCancel}>
+						Cancel - Keep Door Sealed
+					</Button>
+					<Button variant="danger" onClick={handleDangerOverride}>
+						⚠️ Override Safety Protocols
 					</Button>
 				</Modal.Footer>
 			</Modal>

@@ -42,18 +42,6 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 }) => {
 	// State for hover - must be declared before any conditional returns
 	const [isHovered, setIsHovered] = useState(false);
-	const imageRef = useRef<SVGImageElement>(null);
-
-	useEffect(() => {
-		const img = imageRef.current;
-		if (img) {
-			const handleError = () => {
-				img.style.display = 'none';
-			};
-			img.addEventListener('error', handleError);
-			return () => img.removeEventListener('error', handleError);
-		}
-	}, []);
 
 	// Don't render if not visible (fog of war)
 	if (!isVisible) return null;
@@ -646,7 +634,6 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 					/>
 					{/* Room overlay image (if available) */}
 					<image
-						ref={imageRef}
 						href={getRoomOverlayImage()}
 						x={position.x - 32}
 						y={position.y - 32}
@@ -655,6 +642,11 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 						opacity="0.9"
 						onMouseEnter={() => setIsHovered(true)}
 						onMouseLeave={() => setIsHovered(false)}
+						// eslint-disable-next-line react/no-unknown-property
+						onError={(e) => {
+							// Hide image if it doesn't exist
+							(e.target as SVGImageElement).style.display = 'none';
+						}}
 					/>
 				</g>
 			)}
