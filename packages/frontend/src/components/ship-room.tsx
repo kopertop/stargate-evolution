@@ -229,15 +229,15 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 				</defs>
 
 				{/* Corner pieces - only render if no door opening on adjacent sides */}
-				{!hasOpeningOnSide('top') && !hasOpeningOnSide('left') && renderCorner(position.x - halfWidth - wallThickness, position.y - halfHeight - wallThickness, 'top-left')}
-				{!hasOpeningOnSide('top') && !hasOpeningOnSide('right') && renderCorner(position.x + halfWidth, position.y - halfHeight - wallThickness, 'top-right')}
-				{!hasOpeningOnSide('bottom') && !hasOpeningOnSide('left') && renderCorner(position.x - halfWidth - wallThickness, position.y + halfHeight, 'bottom-left')}
-				{!hasOpeningOnSide('bottom') && !hasOpeningOnSide('right') && renderCorner(position.x + halfWidth, position.y + halfHeight, 'bottom-right')}
+				{!hasOpeningOnSide('top') && !hasOpeningOnSide('left') && renderCorner(position.x - halfWidth, position.y - halfHeight, 'top-left')}
+				{!hasOpeningOnSide('top') && !hasOpeningOnSide('right') && renderCorner(position.x + halfWidth - wallThickness, position.y - halfHeight, 'top-right')}
+				{!hasOpeningOnSide('bottom') && !hasOpeningOnSide('left') && renderCorner(position.x - halfWidth, position.y + halfHeight - wallThickness, 'bottom-left')}
+				{!hasOpeningOnSide('bottom') && !hasOpeningOnSide('right') && renderCorner(position.x + halfWidth - wallThickness, position.y + halfHeight - wallThickness, 'bottom-right')}
 
 				{/* Top wall */}
 				{renderWallSegment(
 					position.x - halfWidth,
-					position.y - halfHeight - wallThickness,
+					position.y - halfHeight,
 					roomDimensions.width,
 					wallThickness,
 					openings.filter(o => o.side === 'top'),
@@ -248,7 +248,7 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 				{/* Bottom wall */}
 				{renderWallSegment(
 					position.x - halfWidth,
-					position.y + halfHeight,
+					position.y + halfHeight - wallThickness,
 					roomDimensions.width,
 					wallThickness,
 					openings.filter(o => o.side === 'bottom'),
@@ -258,7 +258,7 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 
 				{/* Left wall */}
 				{renderWallSegment(
-					position.x - halfWidth - wallThickness,
+					position.x - halfWidth,
 					position.y - halfHeight,
 					wallThickness,
 					roomDimensions.height,
@@ -269,7 +269,7 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 
 				{/* Right wall */}
 				{renderWallSegment(
-					position.x + halfWidth,
+					position.x + halfWidth - wallThickness,
 					position.y - halfHeight,
 					wallThickness,
 					roomDimensions.height,
