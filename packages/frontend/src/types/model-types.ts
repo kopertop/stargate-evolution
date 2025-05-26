@@ -37,6 +37,7 @@ export type RoomType = {
 	connectedRooms: string[]; // Parse JSON string to array
 	doors: DoorInfo[]; // Parse JSON string to array
 	createdAt: Date;
+	baseExplorationTime: number;
 };
 
 // DestinyStatus type with parsed JSON fields
@@ -103,6 +104,7 @@ export function roomModelToType(room: RoomModel): RoomType {
 		connectedRooms: JSON.parse(room.connectedRooms || '[]'),
 		doors: JSON.parse(room.doors || '[]'),
 		createdAt: room.createdAt,
+		baseExplorationTime: room.baseExplorationTime || 2,
 	};
 }
 

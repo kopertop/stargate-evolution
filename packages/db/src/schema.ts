@@ -1,7 +1,7 @@
 import { appSchema, tableSchema } from '@nozbe/watermelondb';
 
 export default appSchema({
-	version: 4,
+	version: 5,
 	tables: [
 		tableSchema({
 			name: 'games',
@@ -160,6 +160,7 @@ export default appSchema({
 				{ name: 'connected_rooms', type: 'string' }, // JSON array of room IDs (for backwards compatibility)
 				{ name: 'doors', type: 'string' }, // JSON array of door info with states and requirements
 				{ name: 'exploration_data', type: 'string', isOptional: true }, // JSON object for ongoing exploration progress
+				{ name: 'base_exploration_time', type: 'number', isOptional: true }, // Base exploration time in hours
 				{ name: 'created_at', type: 'number' },
 			],
 		}),

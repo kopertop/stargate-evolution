@@ -966,10 +966,24 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 						<div>
 							<p>Select crew members to explore this room. More crew members will speed up exploration.</p>
 							<p><strong>Technology:</strong> {selectedRoom.technology.join(', ') || 'None detected'}</p>
-							<p><strong>Estimated time:</strong> {2 / Math.max(1, selectedCrew.length)} hours</p>
+							{selectedCrew.length > 0 && (
+								<p>
+									<strong>Estimated time:</strong> {2 / Math.max(1, selectedCrew.length)} hours
+								</p>
+							)}
 
 							<div className="mb-3">
 								<strong>Available Crew ({availableCrew.length}):</strong>
+								<Button
+									variant="outline-primary"
+									size="sm"
+									className="ms-2"
+									onClick={() => setSelectedCrew(availableCrew.length === selectedCrew.length ? [] : availableCrew)}
+									disabled={availableCrew.length === 0 && selectedCrew.length === 0}
+								>
+									<GiMeeple className="me-1" />
+									{selectedCrew.length === availableCrew.length ? 'Unassign All' : 'Assign All'}
+								</Button>
 								{availableCrew.length === 0 && (
 									<Alert variant="warning" className="mt-2">
 										No crew members are currently available. All crew are assigned to rooms or exploring.

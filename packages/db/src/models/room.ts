@@ -25,6 +25,7 @@ export default class Room extends Model {
 	@text('connected_rooms') connectedRooms!: string; // JSON array of room IDs (for backwards compatibility)
 	@text('doors') doors!: string; // JSON array of door info with states and requirements
 	@text('exploration_data') explorationData?: string; // JSON object for ongoing exploration progress
+	@field('base_exploration_time') baseExplorationTime!: number; // Base exploration time in hours
 	@readonly @date('created_at') createdAt!: Date;
 
 	@relation('games', 'game_id') game!: Game;
