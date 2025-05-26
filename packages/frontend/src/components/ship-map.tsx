@@ -1,8 +1,9 @@
+import { Q } from '@nozbe/watermelondb';
 import { withObservables } from '@nozbe/watermelondb/react';
 import database, { DestinyStatus, Game, gameService, Room } from '@stargate/db';
 import React, { useState, useEffect } from 'react';
-import { Button, Modal, Alert, Badge } from 'react-bootstrap';
-import { GiMeeple, GiCog, GiKey, GiPauseButton } from 'react-icons/gi';
+import { Button, Modal, Alert } from 'react-bootstrap';
+import { GiKey, GiPauseButton } from 'react-icons/gi';
 
 import { useGameState } from '../contexts/game-state-context';
 import type { DoorInfo, DoorRequirement } from '../types';
@@ -10,16 +11,9 @@ import { destinyStatusModelToType, DestinyStatusType, roomModelToType, RoomType 
 import { getRoomScreenPosition as getGridRoomScreenPosition } from '../utils/grid-system';
 
 import { CountdownClock } from './countdown-clock';
+import { RoomExploration } from './room-exploration';
 import { ShipDoors } from './ship-doors';
 import { ShipRoom } from './ship-room';
-
-interface ExplorationProgress {
-	roomId: string;
-	progress: number; // 0-100
-	crewAssigned: string[];
-	timeRemaining: number; // in hours
-	startTime: number; // timestamp
-}
 
 interface DoorState {
 	[doorId: string]: boolean; // true = opened, false = closed
@@ -32,6 +26,7 @@ interface CameraTransform {
 }
 
 interface ShipMapProps {
+	gameId: string;
 	destinyStatus: DestinyStatus;
 	game: Game;
 	rooms: Room[];
@@ -39,28 +34,23 @@ interface ShipMapProps {
 
 const enhance = withObservables(['gameId'], ({ gameId }) => ({
 	game: database.get<Game>('games').findAndObserve(gameId),
-	rooms: database.get<Room>('rooms').query().observe(),
+	rooms: database.get<Room>('rooms').query(Q.where('game_id', gameId)).observe(),
 	destinyStatus: database.get<DestinyStatus>('destiny_status').findAndObserve(gameId),
 }));
 
 const ShipMapComponent: React.FC<ShipMapProps> = ({
+	gameId,
 	destinyStatus,
 	game,
 	rooms,
 }) => {
 	const { isPaused: gameStatePaused, resumeGame, gameTime } = useGameState();
-	const [explorationProgress, setExplorationProgress] = useState<{ [roomId: string]: ExplorationProgress }>({});
 	const [selectedRoom, setSelectedRoom] = useState<RoomType | null>(null);
 	const [showExplorationModal, setShowExplorationModal] = useState(false);
 	const [showDoorModal, setShowDoorModal] = useState(false);
 	const [selectedDoor, setSelectedDoor] = useState<{ fromRoom: Room; door: DoorInfo } | null>(null);
-	const [selectedCrew, setSelectedCrew] = useState<string[]>([]);
 	const [showDangerWarning, setShowDangerWarning] = useState(false);
 	const [dangerousDoor, setDangerousDoor] = useState<{ fromRoomId: string; toRoomId: string; reason: string } | null>(null);
-
-	// State for available crew
-	const [availableCrew, setAvailableCrew] = useState<string[]>([]);
-	const [crewData, setCrewData] = useState<{ [id: string]: any }>({});
 
 	// Camera state for zooming and panning
 	const [camera, setCamera] = useState<CameraTransform>({ x: 0, y: 0, scale: 1 });
@@ -81,88 +71,26 @@ const ShipMapComponent: React.FC<ShipMapProps> = ({
 		return room.found;
 	};
 
-	// Check if room can be explored (found but locked rooms adjacent to unlocked rooms)
-	const canExploreRoom = (room: RoomType): boolean => {
-		if (!room.found) return false; // Must be found first
-		if (room.explored) return false; // Already explored, no need to explore
-		if (gameStatePaused) return false; // Game must be running
-		if (explorationProgress[room.id]) return false; // Already being explored
 
-		// Must be adjacent to an unlocked room
-		if (room.connectedRooms.length === 0) return false;
-		const isAdjacentToUnlocked = room.connectedRooms.some((connectedId: string) => {
-			const connectedRoom = rooms.find(r => r.id === connectedId);
-			return !(connectedRoom?.locked || false);
-		});
 
-		return isAdjacentToUnlocked;
-	};
 
-	// Toggle crew selection
-	const toggleCrewSelection = (crewMember: string) => {
-		setSelectedCrew(prev =>
-			prev.includes(crewMember)
-				? prev.filter(c => c !== crewMember)
-				: [...prev, crewMember],
-		);
-	};
-
-	// Start room exploration
-	const startExploration = async (room: RoomType, assignedCrew: string[]) => {
-		if (!canExploreRoom(room) || assignedCrew.length === 0) return;
-
-		const baseTime = 2; // 2 hours base exploration time
-		const crewMultiplier = Math.max(0.5, 1 / assignedCrew.length); // More crew = faster
-		const explorationTime = baseTime * crewMultiplier;
-
-		// Assign crew to exploration in database (temporarily assign to room)
-		try {
-			for (const crewId of assignedCrew) {
-				await gameService.assignCrewToRoom(crewId, room.id);
-			}
-		} catch (error) {
-			console.error('Failed to assign crew to exploration:', error);
-			return;
-		}
-
-		const newExploration = {
-			roomId: room.id,
-			progress: 0,
-			crewAssigned: assignedCrew,
-			timeRemaining: explorationTime,
-			startTime: gameTime,
-		};
-
-		setExplorationProgress(prev => ({
-			...prev,
-			[room.id]: newExploration,
-		}));
-
-		// Save exploration progress to database
-		if (game.id) {
-			try {
-				await gameService.saveExplorationProgress(game.id, { [room.id]: newExploration });
-				console.log(`🔍 Started exploration of ${room.type} with ${assignedCrew.length} crew members`);
-			} catch (error) {
-				console.error('Failed to save exploration progress:', error);
-			}
-		}
-
-		setShowExplorationModal(false);
-		setSelectedRoom(null);
-		setSelectedCrew([]);
-
-		// Update available crew list
-		const updatedCrew = await getAvailableCrew();
-		setAvailableCrew(updatedCrew);
-	};
 
 	// Handle room click
 	const handleRoomClick = (room: Room) => {
 		if (!isRoomVisible(roomModelToType(room)) || gameStatePaused) return;
 
-		if (canExploreRoom(roomModelToType(room))) {
-			setSelectedRoom(roomModelToType(room));
+		const roomType = roomModelToType(room);
+
+		// Check if room is currently being explored
+		if (roomType.explorationData) {
+			setSelectedRoom(roomType);
+			setShowExplorationModal(true);
+			return;
+		}
+
+		// Check if room can be explored (found but not explored)
+		if (roomType.found && !roomType.explored && !gameStatePaused) {
+			setSelectedRoom(roomType);
 			setShowExplorationModal(true);
 		} else if (!room.locked) {
 			// Show room details or allow crew assignment
@@ -174,27 +102,6 @@ const ShipMapComponent: React.FC<ShipMapProps> = ({
 	const getRoomScreenPosition = (room: Room) => {
 		return getGridRoomScreenPosition(room);
 	};
-
-	// Get connected rooms for a room
-	const getConnectedRooms = (room: Room): Room[] => {
-		return JSON.parse(room.connectedRooms || '[]')
-			.map((roomId: string) => rooms.find(r => r.id === roomId))
-			.filter(Boolean) as Room[];
-	};
-
-	// Helper function to convert room doors to DoorState format
-	const getRoomDoorStates = (room: Room): DoorState => {
-		const doorStates: DoorState = {};
-		const doors = JSON.parse(room.doors || '[]') as DoorInfo[];
-		for (const door of doors) {
-			const doorId = `${room.id}-${door.toRoomId}`;
-			doorStates[doorId] = door.state === 'opened';
-		}
-		return doorStates;
-	};
-
-	// Note: Door rendering is now integrated into room walls in ShipRoom component
-	// This function is no longer needed but kept as a comment for reference
 
 	// Check if a door is dangerous to open
 	const checkDoorDanger = (fromRoomId: string, toRoomId: string): { isDangerous: boolean; reason: string } => {
@@ -254,8 +161,8 @@ const ShipMapComponent: React.FC<ShipMapProps> = ({
 				met = false;
 				break;
 			case 'crew_skill':
-				// For now, assume we have qualified crew if they're available
-				met = availableCrew.length > 0;
+				// For now, assume we have qualified crew
+				met = true; // Simplified for now
 				break;
 			case 'story_progress':
 				// This would be checked against game progress flags
@@ -420,19 +327,7 @@ const ShipMapComponent: React.FC<ShipMapProps> = ({
 		*/
 	};
 
-	// Calculate available crew (not assigned to any room)
-	const getAvailableCrew = async (): Promise<string[]> => {
-		if (!game?.id) return [];
 
-		try {
-			// Get available crew from database
-			const availableCrew = await gameService.getAvailableCrew(game.id);
-			return availableCrew.map((person: any) => person.id);
-		} catch (error) {
-			console.error('Failed to get available crew:', error);
-			return [];
-		}
-	};
 
 	// Monitor open dangerous doors for continuous atmospheric drain
 	useEffect(() => {
@@ -579,11 +474,7 @@ const ShipMapComponent: React.FC<ShipMapProps> = ({
 		}));
 	};
 
-	// Helper function to get crew display name
-	const getCrewDisplayName = (crewId: string): string => {
-		const crew = crewData[crewId];
-		return crew ? crew.name : crewId.replace('_', ' ');
-	};
+
 
 	// Reset camera to default position and zoom
 	const resetCamera = () => {
@@ -678,15 +569,15 @@ const ShipMapComponent: React.FC<ShipMapProps> = ({
 					{rooms
 						.filter(room => isRoomVisible(roomModelToType(room)))
 						.map(room => {
+							const roomType = roomModelToType(room);
 							// console.log('🏠 Rendering room:', room.type, 'at position:', getRoomScreenPosition(room));
 							return (
 								<ShipRoom
 									key={room.id}
 									room={room}
 									position={getRoomScreenPosition(room)}
-									isVisible={isRoomVisible(roomModelToType(room))}
-									canExplore={canExploreRoom(roomModelToType(room))}
-									exploration={explorationProgress[room.id]}
+									isVisible={isRoomVisible(roomType)}
+									canExplore={roomType.found && !roomType.explored && !roomType.explorationData && !gameStatePaused}
 									onRoomClick={handleRoomClick}
 									allRooms={rooms}
 								/>
@@ -696,7 +587,7 @@ const ShipMapComponent: React.FC<ShipMapProps> = ({
 
 					{/* Centralized door rendering - prevents duplicates */}
 					<ShipDoors
-						rooms={rooms.map(roomModelToType)}
+						rooms={rooms}
 						onDoorClick={handleDoorClick}
 					/>
 				</g>
@@ -754,91 +645,20 @@ const ShipMapComponent: React.FC<ShipMapProps> = ({
 				</div>
 			)}
 
-			{/* Exploration Assignment Modal */}
-			<Modal show={showExplorationModal} onHide={() => setShowExplorationModal(false)}>
-				<Modal.Header closeButton>
-					<Modal.Title>Explore {selectedRoom?.type?.replace('_', ' ')}</Modal.Title>
-				</Modal.Header>
-				<Modal.Body>
-					{selectedRoom && (
-						<div>
-							<p>Select crew members to explore this room. More crew members will speed up exploration.</p>
-							<p><strong>Technology:</strong> {selectedRoom.technology.join(', ') || 'None detected'}</p>
-							{selectedCrew.length > 0 && (
-								<p>
-									<strong>Estimated time:</strong> {selectedRoom.baseExplorationTime / Math.max(1, selectedCrew.length)} hours
-								</p>
-							)}
-
-							<div className="mb-3">
-								<strong>Available Crew ({availableCrew.length}):</strong>
-								<Button
-									variant="outline-primary"
-									size="sm"
-									className="ms-2"
-									onClick={() => setSelectedCrew(availableCrew.length === selectedCrew.length ? [] : availableCrew)}
-									disabled={availableCrew.length === 0 && selectedCrew.length === 0}
-								>
-									<GiMeeple className="me-1" />
-									{selectedCrew.length === availableCrew.length ? 'Unassign All' : 'Assign All'}
-								</Button>
-								{availableCrew.length === 0 && (
-									<Alert variant="warning" className="mt-2">
-										No crew members are currently available. All crew are assigned to rooms or exploring.
-									</Alert>
-								)}
-								<div className="mt-2">
-									{availableCrew.map(crew => (
-										<Badge
-											key={crew}
-											bg={selectedCrew.includes(crew) ? 'primary' : 'secondary'}
-											className="me-2 mb-2"
-											style={{ cursor: 'pointer' }}
-											onClick={() => toggleCrewSelection(crew)}
-										>
-											<GiMeeple className="me-1" />
-											{getCrewDisplayName(crew)}
-										</Badge>
-									))}
-								</div>
-							</div>
-
-							{selectedCrew.length > 0 && (
-								<div className="mb-3">
-									<strong>Selected for Exploration ({selectedCrew.length}):</strong>
-									<div className="mt-2">
-										{selectedCrew.map(crew => (
-											<Badge key={crew} bg="success" className="me-2 mb-2">
-												<GiMeeple className="me-1" />
-												{getCrewDisplayName(crew)}
-											</Badge>
-										))}
-									</div>
-								</div>
-							)}
-
-							{gameStatePaused && (
-								<Alert variant="warning">
-									<GiCog className="me-2" />
-									Game must be running to explore rooms. Click play on the countdown timer.
-								</Alert>
-							)}
-						</div>
-					)}
-				</Modal.Body>
-				<Modal.Footer>
-					<Button variant="secondary" onClick={() => setShowExplorationModal(false)}>
-						Cancel
-					</Button>
-					<Button
-						variant="primary"
-						onClick={() => selectedRoom && startExploration(selectedRoom, selectedCrew)}
-						disabled={gameStatePaused || selectedCrew.length === 0}
-					>
-						Start Exploration ({selectedCrew.length} crew)
-					</Button>
-				</Modal.Footer>
-			</Modal>
+			{/* Room Exploration Component */}
+			<RoomExploration
+				gameId={game.id}
+				rooms={rooms}
+				selectedRoom={selectedRoom}
+				showModal={showExplorationModal}
+				onClose={() => {
+					setShowExplorationModal(false);
+					setSelectedRoom(null);
+				}}
+				onExplorationStart={(roomId: string, crewIds: string[]) => {
+					console.log(`🔍 Started exploration of room ${roomId} with ${crewIds.length} crew members`);
+				}}
+			/>
 
 			{/* Door Requirements Modal */}
 			<Modal show={showDoorModal} onHide={() => setShowDoorModal(false)}>

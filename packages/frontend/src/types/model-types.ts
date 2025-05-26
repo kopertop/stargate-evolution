@@ -18,6 +18,15 @@ export interface DoorRequirement {
 	met: boolean;
 }
 
+// Exploration progress interface
+export interface ExplorationProgress {
+	roomId: string;
+	progress: number; // 0-100
+	crewAssigned: string[];
+	timeRemaining: number; // in hours
+	startTime: number; // timestamp
+}
+
 // Room type with parsed JSON fields
 export type RoomType = {
 	id: string;
@@ -36,6 +45,7 @@ export type RoomType = {
 	status: 'damaged' | 'destroyed' | 'ok';
 	connectedRooms: string[]; // Parse JSON string to array
 	doors: DoorInfo[]; // Parse JSON string to array
+	explorationData?: ExplorationProgress; // Parse JSON string to object
 	createdAt: Date;
 	baseExplorationTime: number;
 };
@@ -87,6 +97,15 @@ export type PersonType = {
 
 // Utility functions to convert model instances to typed objects
 export function roomModelToType(room: RoomModel): RoomType {
+	let explorationData: ExplorationProgress | undefined;
+	if (room.explorationData) {
+		try {
+			explorationData = JSON.parse(room.explorationData);
+		} catch (error) {
+			console.error('Failed to parse exploration data:', error);
+		}
+	}
+
 	return {
 		id: room.id,
 		gameId: room.gameId,
@@ -100,9 +119,11 @@ export function roomModelToType(room: RoomModel): RoomType {
 		image: room.image,
 		found: room.found,
 		locked: room.locked,
+		explored: room.explored,
 		status: room.status,
 		connectedRooms: JSON.parse(room.connectedRooms || '[]'),
 		doors: JSON.parse(room.doors || '[]'),
+		explorationData,
 		createdAt: room.createdAt,
 		baseExplorationTime: room.baseExplorationTime || 2,
 	};

@@ -1,24 +1,14 @@
-import { gameService, Room } from '@stargate/db';
-import React, { useState, useEffect } from 'react';
+import { Room } from '@stargate/db';
+import React, { useState } from 'react';
 
-import { useGameState } from '../contexts/game-state-context';
-import { DoorInfo } from '../types/model-types';
+import { roomModelToType, DoorInfo } from '../types/model-types';
 import { getConnectionSide, GRID_UNIT, WALL_THICKNESS, DOOR_SIZE } from '../utils/grid-system';
-
-interface ExplorationProgress {
-	roomId: string;
-	progress: number; // 0-100
-	crewAssigned: string[];
-	timeRemaining: number; // in hours
-	startTime: number; // timestamp
-}
 
 interface ShipRoomProps {
 	room: Room;
 	position: { x: number; y: number };
 	isVisible: boolean;
-	canExplore: boolean;
-	exploration?: ExplorationProgress;
+	canExplore?: boolean;
 	onRoomClick: (room: Room) => void;
 	allRooms: Room[];
 }
@@ -28,34 +18,14 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 	position,
 	isVisible,
 	canExplore,
-	exploration,
 	onRoomClick,
 	allRooms,
 }) => {
 	// State for hover - must be declared before any conditional returns
 	const [isHovered, setIsHovered] = useState(false);
-	const { gameTime } = useGameState();
 
-	useEffect(() => {
-		if (room && !room.explored && exploration?.crewAssigned?.length) {
-			const explorationTime = (room.baseExplorationTime / exploration.crewAssigned.length) * 3600;
-			const exploredTime = gameTime - exploration.startTime;
-			const progress = (exploredTime / explorationTime) * 100;
-			if (progress > 0) {
-				gameService.saveExplorationProgress(room.gameId, { [room.id]: {
-					progress: Math.min(progress, 100),
-					crewAssigned: exploration.crewAssigned,
-					timeRemaining: 0,
-					startTime: exploration.startTime,
-				} });
-			}
-			console.log('progress', {
-				explorationTime,
-				exploredTime,
-				progress,
-			});
-		}
-	}, [room, exploration, gameTime]);
+	// Convert room model to typed room for easier access to exploration data
+	const roomType = roomModelToType(room);
 
 	// Don't render if not visible (fog of war)
 	if (!isVisible) return null;
@@ -74,7 +44,7 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 
 	// Get room color - simplified to just show basic room background
 	const getRoomColor = (): string => {
-		if (exploration) return '#2d1b1b'; // Dark during exploration
+		if (roomType.explorationData) return '#2d1b1b'; // Dark during exploration
 		return '#1a1a1a'; // Dark room background
 	};
 
@@ -412,12 +382,12 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 
 	// Render exploration progress
 	const renderExplorationProgress = () => {
-		if (!exploration) return null;
+		if (!roomType.explorationData) return null;
 
 		const maxDimension = Math.max(halfWidth, halfHeight);
 		const progressRadius = maxDimension + 8; // Use larger dimension for progress ring
 		const circumference = 2 * Math.PI * progressRadius;
-		const strokeDasharray = `${(exploration.progress / 100) * circumference} ${circumference}`;
+		const strokeDasharray = `${(roomType.explorationData.progress / 100) * circumference} ${circumference}`;
 
 		return (
 			<g>
@@ -443,7 +413,7 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 					fontWeight="bold"
 					style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.8)' }}
 				>
-					{Math.round(exploration.progress)}%
+					{Math.round(roomType.explorationData.progress)}%
 				</text>
 			</g>
 		);
@@ -451,7 +421,7 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 
 	// Render locked indicator
 	const renderLockedIndicator = () => {
-		if (!room.found || !room.locked || exploration) return null;
+		if (!room.found || !room.locked || roomType.explorationData) return null;
 
 		return (
 			<g>

@@ -1,0 +1,29 @@
+---
+description:
+globs: packages/frontend/**/*.tsx,packages/frontend/**/*.ts
+alwaysApply: false
+---
+# React/Frontend Rules
+- Always use WatermelonDB for state and persistence
+- Use the DB models directly when possible
+- Use the `withObservables` function to wrap components
+- Use components for "display" separately from services or providers for logic
+- Run `pnpm run check` from the base directory to verify typechecks and lint rules
+
+## WatermelonDB rules and integration patterns
+
+See [https://watermelondb.dev/docs/Components]
+
+- When working with WatermelonDB models, prefer keeping the original model types (e.g., `Room` from `@stargate/db`) when utilities and functions expect them
+- Use proper JSON parsing with type assertions: `JSON.parse(model.jsonField) as ExpectedType[]`
+- Use `for...of` loops instead of `.forEach` when iterating over arrays
+- Use `continue` in loops instead of `return` when skipping iterations
+- When creating components that need WatermelonDB observables, use `withObservables` HOC and query the database directly
+- Separate business logic into dedicated components rather than cramming everything into large components
+- When splitting components, ensure proper prop interfaces and type safety between parent and child components
+
+## Prefer React Bootstrap components
+- Use `<Button>` over `<button>` or `className="btn"` when possible
+- Style using React Bootstrap before applying custom styles
+- Try to avoid custom styles if possible
+- If absolutely necessary, use flexbox custom styles instead of absolute positioning

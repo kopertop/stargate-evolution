@@ -898,6 +898,12 @@ export class GameService {
 				if (updates.status !== undefined) {
 					roomRecord.status = updates.status;
 				}
+				if (updates.explorationData !== undefined) {
+					roomRecord.explorationData = updates.explorationData;
+				}
+				if (updates.explored !== undefined) {
+					roomRecord.explored = updates.explored;
+				}
 			});
 		});
 	}

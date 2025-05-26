@@ -1,6 +1,7 @@
+import type { Room } from '@stargate/db';
 import React from 'react';
 
-import type { Room } from '../types';
+import { DoorInfo } from '../types';
 import { getDoorPosition, WALL_THICKNESS, DOOR_SIZE } from '../utils/grid-system';
 
 interface ShipDoorsProps {
@@ -23,12 +24,13 @@ export const ShipDoors: React.FC<ShipDoorsProps> = ({
 		const connections: DoorConnection[] = [];
 		const processedPairs = new Set<string>();
 
-		rooms.forEach(room => {
-			if (!room.found) return; // Only render doors for discovered rooms
+		for (const room of rooms) {
+			if (!room.found) continue; // Only render doors for discovered rooms
 
-			room.doors.forEach(doorInfo => {
-				const toRoom = rooms.find(r => r.id === doorInfo.toRoomId);
-				if (!toRoom) return;
+			const doors = JSON.parse(room.doors) as DoorInfo[];
+			for (const doorInfo of doors) {
+				const toRoom = rooms.find((r) => r.id === doorInfo.toRoomId);
+				if (!toRoom) continue;
 
 				// Create a deterministic pair ID to prevent duplicates
 				const pairId = [room.id, toRoom.id].sort().join('-');
@@ -41,8 +43,8 @@ export const ShipDoors: React.FC<ShipDoorsProps> = ({
 						doorInfo,
 					});
 				}
-			});
-		});
+			}
+		}
 
 		return connections;
 	};

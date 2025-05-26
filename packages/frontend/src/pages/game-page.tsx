@@ -1,4 +1,4 @@
-import { gameService } from '@stargate/db';
+import database, { DestinyStatus, gameService } from '@stargate/db';
 import * as PIXI from 'pixi.js';
 import React, { useEffect, useRef, useState } from 'react';
 import { GiReturnArrow } from 'react-icons/gi';
@@ -14,7 +14,7 @@ import { GameStateProvider } from '../contexts/game-state-context';
 import { Game } from '../game';
 import { MapPopover } from '../map-popover';
 import { Toast } from '../toast';
-import type { DestinyStatus } from '../types';
+import { destinyStatusModelToType, type DestinyStatusType } from '../types/model-types';
 
 type ViewMode = 'ship-view' | 'galaxy-map' | 'game-view';
 
@@ -26,7 +26,7 @@ interface Galaxy {
 }
 
 // Helper function to parse destiny status JSON fields
-function parseDestinyStatus(rawStatus: any): DestinyStatus {
+function parseDestinyStatus(rawStatus: any): DestinyStatusType {
 	const parseJson = (str: string | undefined | null, fallback: any = {}) => {
 		if (!str) return fallback;
 		try {
@@ -79,7 +79,7 @@ export const GamePage: React.FC = () => {
 	const canvasRef = useRef<HTMLDivElement>(null);
 	const appRef = useRef<PIXI.Application | null>(null);
 	const gameInstanceRef = useRef<Game | null>(null);
-	const [destinyStatus, setDestinyStatus] = useState<DestinyStatus | null>(null);
+	const [destinyStatus, setDestinyStatus] = useState<DestinyStatusType | null>(null);
 	const [viewMode, setViewMode] = useState<ViewMode>('ship-view');
 	const [gameData, setGameData] = useState<any>(null);
 	const [galaxies, setGalaxies] = useState<Galaxy[]>([]);
@@ -318,13 +318,22 @@ export const GamePage: React.FC = () => {
 	};
 
 	// Handler for updating destiny status from ship view
-	const handleDestinyStatusUpdate = (newStatus: DestinyStatus) => {
+	const handleDestinyStatusUpdate = (newStatus: DestinyStatusType) => {
 		setDestinyStatus(newStatus);
 	};
 
 	useEffect(() => {
 		if (params.gameId) {
 			handleStartGame(params.gameId);
+			const subscription = database
+				.get<DestinyStatus>('destiny_status')
+				.findAndObserve(params.gameId)
+				.subscribe((status) => {
+					setDestinyStatus(destinyStatusModelToType(status));
+				});
+			return () => {
+				subscription.unsubscribe();
+			};
 		}
 	}, [params.gameId]);
 

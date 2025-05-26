@@ -18,20 +18,20 @@ Follow the guide in the `ROADMAP.md` file.
 ## 3. PixiJS Game Development
 
 * **Rendering:** All rendering in front-end must use PixiJS. Do not mix DOM-based UIs unless strictly necessary (and only in overlay elements).
-* **Game Loop:** All game logic and animations should be inside the `Game` class, updated via Pixi’s ticker.
+* **Game Loop:** All game logic and animations should be inside the `Game` class, updated via Pixi's ticker.
 * **State Management:** Use plain classes or Zustand (if a state library is needed) to manage front-end game state. Do not use Redux.
 
 ## 4. Backend (Cloudflare Workers)
 
 * **APIs:** Expose only `/api/*` endpoints. Never expose internal state structures or keys.
 * **Game State:** Use Cloudflare KV for player/game state, and Durable Objects if session coordination is needed.
-* **Secrets:** Never commit secrets (API keys, etc). Use Wrangler’s `secrets` to configure them for Cloudflare.
+* **Secrets:** Never commit secrets (API keys, etc). Use Wrangler's `secrets` to configure them for Cloudflare.
 * **OpenAI Integration:** All OpenAI or LLM API calls must happen server-side (never expose API keys to the front-end).
 
 ## 5. AI/LLM Usage
 
 * **Prompt Engineering:** Always include relevant `system` and `memory` context in AI prompts. Truncate or summarize long history to fit within context window.
-* **Personality:** Destiny AI must be persistent, context-aware, and match SGU’s tone (dark, survival-focused, with subtle humor).
+* **Personality:** Destiny AI must be persistent, context-aware, and match SGU's tone (dark, survival-focused, with subtle humor).
 * **Function Calling:** If using OpenAI function calling, always validate and sanitize AI requests before executing actions in the game.
 
 ## 6. Procedural Generation
@@ -53,7 +53,7 @@ Follow the guide in the `ROADMAP.md` file.
 
 ## 9. Bones Files
 
-* **Persistence:** Store “bones files” only after game over or abandonment. Never store personal data—only game world/narrative content.
+* **Persistence:** Store "bones files" only after game over or abandonment. Never store personal data—only game world/narrative content.
 * **Integration:** When spawning bones events, display a warning if data is missing or malformed.
 
 ## 10. Documentation
@@ -92,4 +92,11 @@ Then analize the results, and fix any issues. After fixing the issues, you shoul
 again to ensure the issues are fixed.
 
 Continue this process until all tests are passing.
+
+
+## TypeScript and TSX files
+
+- Use `for...of` syntax over `.forEach`
+- Prevent repeating code, search for existing functionality first
+- Separate logical components, do not put styles in with display code, or lookup code
 
