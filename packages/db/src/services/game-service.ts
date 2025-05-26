@@ -265,7 +265,7 @@ export class GameService {
 		// Helper function to set default room discovery state
 		const setDefaultRoomState = (room: any, isInitiallyDiscovered: boolean = false) => {
 			room.found = isInitiallyDiscovered;
-			room.locked = !isInitiallyDiscovered; // Locked if not discovered
+			room.locked = false;
 		};
 
 		// Main Floor (Floor 0) - Core ship operations
@@ -278,6 +278,9 @@ export class GameService {
 			room.gridWidth = 3;   // 3 grid units wide
 			room.gridHeight = 3;  // 3 grid units tall
 			room.floor = 0;
+			// Found and explored by default
+			room.found = true;
+			room.explored = false;
 			room.technology = JSON.stringify(['stargate', 'dialing_computer', 'shields']);
 			room.image = 'stargate-room.png';
 			setDefaultRoomState(room, true); // Gate room starts as discovered and unlocked
@@ -596,31 +599,28 @@ export class GameService {
 
 		// Update corridor connections - some locked doors with requirements
 		await corridorNorth.update((roomRecord) => {
-			roomRecord.connectedRooms = JSON.stringify([gateRoom.id, bridgeRoom.id, corridorEast.id]);
+			roomRecord.connectedRooms = JSON.stringify([gateRoom.id, bridgeRoom.id]);
 			roomRecord.doors = JSON.stringify([
 				createDoorInfo(gateRoom.id, 'closed', [], 'Gate room access'),
 				createDoorInfo(bridgeRoom.id, 'locked', [
 					createDoorRequirement('code', 'bridge_access_code', 'Bridge requires an access code found in the ship\'s command protocols'),
 				], 'Bridge command center - Code required'),
-				createDoorInfo(corridorEast.id, 'closed', [], 'Eastern corridor'),
 			]);
 		});
 
 		await corridorSouth.update((roomRecord) => {
-			roomRecord.connectedRooms = JSON.stringify([gateRoom.id, damagedCorridor.id, corridorWest.id, elevatorMain.id]);
+			roomRecord.connectedRooms = JSON.stringify([gateRoom.id, damagedCorridor.id, elevatorMain.id]);
 			roomRecord.doors = JSON.stringify([
 				createDoorInfo(gateRoom.id, 'closed', [], 'Gate room access'),
 				createDoorInfo(damagedCorridor.id, 'locked', [], 'Damaged corridor - DANGER: Atmospheric breach detected'),
-				createDoorInfo(corridorWest.id, 'closed', [], 'Western corridor'),
 				createDoorInfo(elevatorMain.id, 'closed', [], 'Elevator to other levels'),
 			]);
 		});
 
 		await corridorEast.update((roomRecord) => {
-			roomRecord.connectedRooms = JSON.stringify([gateRoom.id, corridorNorth.id, medBayRoom.id, quartersA.id]);
+			roomRecord.connectedRooms = JSON.stringify([gateRoom.id, medBayRoom.id, quartersA.id]);
 			roomRecord.doors = JSON.stringify([
 				createDoorInfo(gateRoom.id, 'closed', [], 'Gate room access'),
-				createDoorInfo(corridorNorth.id, 'closed', [], 'Northern corridor'),
 				createDoorInfo(medBayRoom.id, 'locked', [
 					createDoorRequirement('technology', 'medical_scanner', 'Medical bay requires functional scanner systems'),
 				], 'Medical bay - Biometric lock'),
@@ -629,10 +629,9 @@ export class GameService {
 		});
 
 		await corridorWest.update((roomRecord) => {
-			roomRecord.connectedRooms = JSON.stringify([gateRoom.id, corridorSouth.id, messHallRoom.id, quartersB.id]);
+			roomRecord.connectedRooms = JSON.stringify([gateRoom.id, messHallRoom.id, quartersB.id]);
 			roomRecord.doors = JSON.stringify([
 				createDoorInfo(gateRoom.id, 'closed', [], 'Gate room access'),
-				createDoorInfo(corridorSouth.id, 'closed', [], 'Southern corridor'),
 				createDoorInfo(messHallRoom.id, 'closed', [], 'Mess hall'),
 				createDoorInfo(quartersB.id, 'closed', [], 'Crew quarters section B'),
 			]);
@@ -1144,6 +1143,76 @@ export class GameService {
 		await game.markAsDeleted();
 
 		console.log('Game deletion completed successfully');
+	}
+
+	/**
+	 * Save exploration progress to database
+	 */
+	async saveExplorationProgress(gameId: string, explorationData: Record<string, any>): Promise<void> {
+		// For now, we'll store exploration progress in the room's assignedTo field for crew
+		// and use a simple JSON storage approach
+		// In a more complex system, we'd have a separate exploration table
+
+		for (const [roomId, exploration] of Object.entries(explorationData)) {
+			try {
+				const room = await this.database.get<Room>('rooms').find(roomId);
+				await this.database.write(async () => {
+					await room.update((roomRecord) => {
+						// Store exploration data in a custom field (we'll need to add this to the schema)
+						// For now, store it as JSON in the room's notes or a custom field
+						roomRecord.explorationData = JSON.stringify(exploration);
+					});
+				});
+			} catch (error) {
+				console.error(`Failed to save exploration progress for room ${roomId}:`, error);
+			}
+		}
+	}
+
+	/**
+	 * Load exploration progress from database
+	 */
+	async loadExplorationProgress(gameId: string): Promise<Record<string, any>> {
+		const explorationData: Record<string, any> = {};
+
+		try {
+			const rooms = await this.getRoomsByGame(gameId);
+
+			for (const room of rooms) {
+				const roomData = room as any;
+				if (roomData.explorationData) {
+					try {
+						const exploration = JSON.parse(roomData.explorationData);
+						// Only include ongoing explorations (not completed ones)
+						if (exploration.progress < 100) {
+							explorationData[room.id] = exploration;
+						}
+					} catch (error) {
+						console.error(`Failed to parse exploration data for room ${room.id}:`, error);
+					}
+				}
+			}
+		} catch (error) {
+			console.error('Failed to load exploration progress:', error);
+		}
+
+		return explorationData;
+	}
+
+	/**
+	 * Clear exploration progress for a room (when exploration completes)
+	 */
+	async clearExplorationProgress(roomId: string): Promise<void> {
+		try {
+			const room = await this.database.get<Room>('rooms').find(roomId);
+			await this.database.write(async () => {
+				await room.update((roomRecord) => {
+					roomRecord.explorationData = undefined;
+				});
+			});
+		} catch (error) {
+			console.error(`Failed to clear exploration progress for room ${roomId}:`, error);
+		}
 	}
 
 	/**

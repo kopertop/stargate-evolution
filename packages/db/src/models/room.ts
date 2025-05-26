@@ -19,10 +19,12 @@ export default class Room extends Model {
 	@text('technology') technology!: string; // JSON array
 	@text('image') image?: string; // Optional room-specific image
 	@field('found') found!: boolean; // Whether the room has been discovered
+	@field('explored') explored!: boolean; // Whether the room has been explored
 	@field('locked') locked!: boolean; // Whether the room is locked (reverse of unlocked)
 	@text('status') status!: 'damaged' | 'destroyed' | 'ok';
 	@text('connected_rooms') connectedRooms!: string; // JSON array of room IDs (for backwards compatibility)
 	@text('doors') doors!: string; // JSON array of door info with states and requirements
+	@text('exploration_data') explorationData?: string; // JSON object for ongoing exploration progress
 	@readonly @date('created_at') createdAt!: Date;
 
 	@relation('games', 'game_id') game!: Game;

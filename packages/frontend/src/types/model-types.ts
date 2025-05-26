@@ -31,12 +31,12 @@ export type RoomType = {
 	technology: string[]; // Parse JSON string to array
 	image?: string;
 	found: boolean;
-	locked: boolean;
+	locked?: boolean;
+	explored?: boolean;
 	status: 'damaged' | 'destroyed' | 'ok';
 	connectedRooms: string[]; // Parse JSON string to array
 	doors: DoorInfo[]; // Parse JSON string to array
 	createdAt: Date;
-	unlocked?: boolean; // Add computed property
 };
 
 // DestinyStatus type with parsed JSON fields
@@ -103,7 +103,6 @@ export function roomModelToType(room: RoomModel): RoomType {
 		connectedRooms: JSON.parse(room.connectedRooms || '[]'),
 		doors: JSON.parse(room.doors || '[]'),
 		createdAt: room.createdAt,
-		unlocked: !room.locked && room.found, // Computed property
 	};
 }
 

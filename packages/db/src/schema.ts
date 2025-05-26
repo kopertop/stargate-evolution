@@ -1,7 +1,7 @@
 import { appSchema, tableSchema } from '@nozbe/watermelondb';
 
 export default appSchema({
-	version: 2,
+	version: 3,
 	tables: [
 		tableSchema({
 			name: 'games',
@@ -151,11 +151,13 @@ export default appSchema({
 				{ name: 'floor', type: 'number' },
 				{ name: 'technology', type: 'string' }, // JSON array
 				{ name: 'image', type: 'string', isOptional: true }, // Optional room-specific image
-				{ name: 'found', type: 'boolean' }, // Whether the room has been discovered
-				{ name: 'locked', type: 'boolean' },
+				{ name: 'found', type: 'boolean', isOptional: true }, // Whether the room has been discovered
+				{ name: 'locked', type: 'boolean', isOptional: true },
+				{ name: 'explored', type: 'boolean', isOptional: true },
 				{ name: 'status', type: 'string' }, // 'damaged' | 'destroyed' | 'ok'
 				{ name: 'connected_rooms', type: 'string' }, // JSON array of room IDs (for backwards compatibility)
 				{ name: 'doors', type: 'string' }, // JSON array of door info with states and requirements
+				{ name: 'exploration_data', type: 'string', isOptional: true }, // JSON object for ongoing exploration progress
 				{ name: 'created_at', type: 'number' },
 			],
 		}),

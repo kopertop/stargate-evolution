@@ -97,12 +97,25 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 				const roomData = await gameService.getRoomsByGame(gameId);
 				console.log('🏠 Raw room data from database:', roomData);
 
-				const formattedRooms: Room[] = roomData.map((room: any) => roomModelToType(room));
+				const formattedRooms: Room[] = roomData.map((room: any) => {
+					const formattedRoom = roomModelToType(room);
+
+					if (formattedRoom.type === 'gate_room') {
+						console.log('🏠 Gate room raw data:', { found: room.found, locked: room.locked });
+						console.log('🏠 Gate room formatted:', { found: formattedRoom.found, locked: formattedRoom.locked });
+					}
+					return formattedRoom;
+				});
 
 				console.log('🏠 Formatted rooms:', formattedRooms);
 				console.log('🏠 Gate room specifically:', formattedRooms.find(r => r.type === 'gate_room'));
 
 				setRooms(formattedRooms);
+
+				// Load exploration progress from database
+				const savedExplorationProgress = await gameService.loadExplorationProgress(gameId);
+				console.log('🔍 Loaded exploration progress:', savedExplorationProgress);
+				setExplorationProgress(savedExplorationProgress);
 			} catch (error) {
 				console.error('Failed to load rooms:', error);
 				setRooms([]);
@@ -135,11 +148,17 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 
 				Object.values(updated).forEach(exploration => {
 					if (exploration.progress < 100) {
-						// Calculate exploration speed based on crew count
+						// Calculate exploration speed based on crew count and game time
 						const crewCount = exploration.crewAssigned.length;
-						const baseRate = 1; // 1% per real second base rate
+						const baseRate = 0.5; // 0.5% per real second base rate (slower than before)
 						const crewMultiplier = Math.max(1, crewCount * 0.5); // Each crew member adds 50% speed
-						const progressRate = baseRate * crewMultiplier;
+
+						// Game time multiplier - exploration should progress based on game time, not real time
+						// If game is running at normal speed, this should be 1
+						// The game time advancement happens in ship-view.tsx based on countdown
+						const gameTimeMultiplier = gameIsPaused ? 0 : 1;
+
+						const progressRate = baseRate * crewMultiplier * gameTimeMultiplier;
 
 						exploration.progress = Math.min(100, exploration.progress + (progressRate * deltaRealSeconds));
 						exploration.timeRemaining = Math.max(0, exploration.timeRemaining - (deltaRealSeconds / 3600));
@@ -152,12 +171,19 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 					}
 				});
 
+				// Save progress to database every 10 seconds if there are changes
+				if (hasChanges && gameId && Date.now() % 10000 < 1000) {
+					gameService.saveExplorationProgress(gameId, updated).catch(error => {
+						console.error('Failed to save exploration progress:', error);
+					});
+				}
+
 				return hasChanges ? updated : prev;
 			});
 		}, 100);
 
 		return () => clearInterval(interval);
-	}, [gameStatePaused, lastUpdateTime]);
+	}, [gameStatePaused, lastUpdateTime, gameIsPaused]);
 
 	// Complete room exploration
 	const completeExploration = async (roomId: string) => {
@@ -166,7 +192,7 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 
 		setRooms(prev => prev.map(room =>
 			room.id === roomId
-				? { ...room, unlocked: true }
+				? { ...room, found: true, locked: false }
 				: room,
 		));
 
@@ -176,10 +202,12 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 			return updated;
 		});
 
-		// Update database
+		// Update database - set both found and unlocked, and clear exploration progress
 		if (gameId) {
 			try {
-				await gameService.updateRoom(roomId, { found: true });
+				await gameService.updateRoom(roomId, { found: true, locked: false } as any);
+				await gameService.clearExplorationProgress(roomId);
+				console.log(`✅ Room ${roomId} exploration completed and marked as unlocked`);
 			} catch (error) {
 				console.error('Failed to update room in database:', error);
 			}
@@ -226,17 +254,17 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 		return room.found;
 	};
 
-	// Check if room can be explored (found but not unlocked rooms adjacent to unlocked rooms)
+	// Check if room can be explored (found but locked rooms adjacent to unlocked rooms)
 	const canExploreRoom = (room: Room): boolean => {
-		if (room.locked) return false; // Room is locked
 		if (!room.found) return false; // Must be found first
+		if (room.explored) return false; // Already explored, no need to explore
 		if (gameStatePaused) return false; // Game must be running
 		if (explorationProgress[room.id]) return false; // Already being explored
 
 		// Must be adjacent to an unlocked room
 		const isAdjacentToUnlocked = room.connectedRooms.some(connectedId => {
 			const connectedRoom = rooms.find(r => r.id === connectedId);
-			return connectedRoom?.found || false;
+			return !(connectedRoom?.locked || false);
 		});
 
 		return isAdjacentToUnlocked;
@@ -269,16 +297,28 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 			return;
 		}
 
+		const newExploration = {
+			roomId: room.id,
+			progress: 0,
+			crewAssigned: assignedCrew,
+			timeRemaining: explorationTime,
+			startTime: Date.now(),
+		};
+
 		setExplorationProgress(prev => ({
 			...prev,
-			[room.id]: {
-				roomId: room.id,
-				progress: 0,
-				crewAssigned: assignedCrew,
-				timeRemaining: explorationTime,
-				startTime: Date.now(),
-			},
+			[room.id]: newExploration,
 		}));
+
+		// Save exploration progress to database
+		if (gameId) {
+			try {
+				await gameService.saveExplorationProgress(gameId, { [room.id]: newExploration });
+				console.log(`🔍 Started exploration of ${room.type} with ${assignedCrew.length} crew members`);
+			} catch (error) {
+				console.error('Failed to save exploration progress:', error);
+			}
+		}
 
 		setShowExplorationModal(false);
 		setSelectedRoom(null);
@@ -466,19 +506,19 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 		}
 	};
 
-	// Mark a room as found (discovered) and unlocked
+	// Mark a room as found (discovered)
 	const markRoomAsFound = async (roomId: string) => {
-		// Update local state - set both found and unlocked
+		// Update local state - set found
 		setRooms(prev => prev.map(room =>
 			room.id === roomId
-				? { ...room, found: true, locked: false }
+				? { ...room, found: true }
 				: room,
 		));
 
-		// Update database - set both found and unlocked
+		// Update database - set found
 		if (gameId) {
 			try {
-				await gameService.updateRoom(roomId, { found: true, locked: false } as any);
+				await gameService.updateRoom(roomId, { found: true } as any);
 			} catch (error) {
 				console.error('Failed to update room found status in database:', error);
 			}
@@ -709,16 +749,19 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 		setLastMousePos({ x: e.clientX, y: e.clientY });
 	};
 
+	/** Mouse Drag Controls */
 	const handleMouseMove = (e: React.MouseEvent) => {
 		if (!isDragging) return;
 
-		const deltaX = e.clientX - lastMousePos.x;
-		const deltaY = e.clientY - lastMousePos.y;
+		const deltaX = (e.clientX - lastMousePos.x);
+		const deltaY = (e.clientY - lastMousePos.y);
 
 		setCamera(prev => ({
 			...prev,
-			x: prev.x + deltaX / prev.scale,
-			y: prev.y + deltaY / prev.scale,
+			// NOTE: DO NOT adjust by scale here, or it will feel very weird
+			// Dragging here moves the camera at the same speed regardless of zoom level
+			x: prev.x + deltaX,
+			y: prev.y + deltaY,
 		}));
 
 		setLastMousePos({ x: e.clientX, y: e.clientY });
@@ -730,7 +773,7 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 
 	const handleWheel = (e: React.WheelEvent) => {
 		e.preventDefault();
-		const zoomSpeed = 0.001;
+		const zoomSpeed = 0.005;
 		const delta = -e.deltaY * zoomSpeed;
 
 		setCamera(prev => ({

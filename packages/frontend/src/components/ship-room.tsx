@@ -64,51 +64,28 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 		return '#1a1a1a'; // Dark room background
 	};
 
-	// Get border color - simplified to green/grey only
-	const getBorderColor = (): string => {
-		if (exploration) return '#fbbf24'; // Orange during exploration
-		if (room.unlocked && room.status === 'ok') {
-			return '#10b981'; // Green for fully explored and operational
-		}
-		return '#6b7280'; // Grey for unexplored or damaged
-	};
-
-	// Get door color between this room and connected room
-	const getDoorColor = (connectedRoom: Room): string => {
-		// Both rooms must be unlocked to determine door safety
-		if (!room.unlocked || !connectedRoom.unlocked) {
-			return '#fbbf24'; // Yellow for unknown
-		}
-
-		// Check for atmospheric or structural hazards
-		if (room.status === 'damaged' || connectedRoom.status === 'damaged') {
-			return '#ef4444'; // Red for unsafe
-		}
-
-		if (room.status === 'destroyed' || connectedRoom.status === 'destroyed') {
-			return '#ef4444'; // Red for unsafe
-		}
-
-		return '#10b981'; // Green for safe
-	};
 
 	const getFloorTileImage = () => {
 		// Determine floor tile based on room status
-		if (!room.unlocked) {
-			return '/images/floor-tiles/floor-default.png'; // Dark/unknown
+		if (!room.found) {
+			return '/images/floor-tiles/floor-default.png'; // Dark/unknown - not discovered
 		}
 
 		if (room.status === 'damaged' || room.status === 'destroyed') {
 			return '/images/floor-tiles/floor-red.png'; // Damaged/dangerous
 		}
 
-		if (room.status === 'ok' && room.unlocked) {
-			// Check if fully explored/operational
-			if (room.type === 'gate_room' && room.technology.includes('stargate')) {
-				return '/images/floor-tiles/floor-green.png'; // Fully operational
-			}
-			// For other rooms, use white for OK but not fully unlocked/explored
+		if (room.found && !room.explored) {
+			// Found but not explored - needs exploration (white tiles)
 			return '/images/floor-tiles/floor-white.png';
+		}
+
+		if (room.found && room.explored && !room.locked) {
+			// Fully explored and operational
+			if (room.type === 'gate_room' && room.technology.includes('stargate')) {
+				return '/images/floor-tiles/floor-green.png'; // Fully operational stargate
+			}
+			return '/images/floor-tiles/floor-green.png'; // Fully explored
 		}
 
 		return '/images/floor-tiles/floor-default.png'; // Fallback
@@ -158,7 +135,7 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 
 	// Render walls with gaps for door openings
 	const renderWalls = () => {
-		if (!room.unlocked) return null;
+		if (!room.found) return null;
 
 		const openings = getDoorOpenings();
 		const wallThickness = WALL_THICKNESS;
@@ -392,16 +369,16 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 				y={position.y - 60}  // Increased from 30 to 60 for larger size
 				width="120"          // Increased from 60 to 120 for larger size
 				height="120"         // Increased from 60 to 120 for larger size
-				opacity={room.unlocked ? 1 : 0.6}
+				opacity={room.found ? 1 : 0.6}
 				onMouseEnter={() => setIsHovered(true)}
 				onMouseLeave={() => setIsHovered(false)}
 			/>
 		);
 	};
 
-	// Render room type icon (only for non-gate rooms and only if unlocked)
+	// Render room type icon (only for non-gate rooms and only if found)
 	const renderRoomIcon = () => {
-		if (room.type === 'gate_room' || !room.unlocked) return null;
+		if (room.type === 'gate_room' || !room.found) return null;
 
 		const iconSize = 32; // Doubled from 16 to 32 for larger rooms
 
@@ -424,7 +401,7 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 		if (!exploration) return null;
 
 		const maxDimension = Math.max(halfWidth, halfHeight);
-		const progressRadius = maxDimension + 16; // Use larger dimension for progress ring
+		const progressRadius = maxDimension + 8; // Use larger dimension for progress ring
 		const circumference = 2 * Math.PI * progressRadius;
 		const strokeDasharray = `${(exploration.progress / 100) * circumference} ${circumference}`;
 
@@ -442,28 +419,10 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 					transform={`rotate(-90 ${position.x} ${position.y})`}
 					opacity="0.8"
 				/>
-				{/* Crew indicators */}
-				{exploration.crewAssigned.map((crew, index) => {
-					const angle = (index * 60) - 90; // 60 degrees apart
-					const rad = (angle * Math.PI) / 180;
-					const crewX = position.x + Math.cos(rad) * (maxDimension + 25); // Use max dimension
-					const crewY = position.y + Math.sin(rad) * (maxDimension + 25);
-
-					return (
-						<circle
-							key={crew}
-							cx={crewX}
-							cy={crewY}
-							r="5" // Increased from 3 to 5 for larger visibility
-							fill="#10b981"
-							opacity="0.8"
-						/>
-					);
-				})}
-				{/* Progress percentage text */}
+				{/* Progress percentage text - centered in the room */}
 				<text
 					x={position.x}
-					y={position.y - maxDimension - 20} // Use max dimension
+					y={position.y + 6} // Centered vertically (slight offset for better visual alignment)
 					textAnchor="middle"
 					fill="#fbbf24"
 					fontSize="18" // Increased from 12 to 18
@@ -478,7 +437,7 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 
 	// Render locked indicator
 	const renderLockedIndicator = () => {
-		if (room.unlocked || exploration) return null;
+		if (!room.found || !room.locked || exploration) return null;
 
 		return (
 			<g>
@@ -491,6 +450,7 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 					strokeWidth="2" // Increased from 1 to 2
 				/>
 				<text
+					data-testid={`locked-indicator: ${JSON.stringify(room)}`}
 					x={position.x + halfWidth - 12} // Use halfWidth
 					y={position.y - halfHeight + 18} // Use halfHeight
 					textAnchor="middle"
@@ -498,7 +458,7 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 					fontSize="14" // Increased from 10 to 14
 					fontWeight="bold"
 				>
-					🔒
+					{room.locked ? '🔒' : '?'}
 				</text>
 			</g>
 		);
@@ -545,8 +505,8 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 
 	return (
 		<g>
-			{/* Room background image (if unlocked) - tiled pattern */}
-			{room.unlocked && (
+			{/* Room background image (if found) - tiled pattern */}
+			{room.found && (
 				<g>
 					<defs>
 						<pattern
@@ -601,11 +561,11 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 				y={position.y - halfHeight}
 				width={roomDimensions.width}
 				height={roomDimensions.height}
-				fill={room.unlocked ? 'transparent' : getRoomColor()}
+				fill={room.found ? 'transparent' : getRoomColor()}
 				stroke="none"
 				style={{
 					cursor: canExplore ? 'pointer' : 'default',
-					filter: room.unlocked ? 'none' : 'brightness(0.6)',
+					filter: room.found ? 'none' : 'brightness(0.6)',
 				}}
 				onClick={() => onRoomClick(room)}
 				onMouseEnter={() => setIsHovered(true)}
@@ -630,8 +590,8 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 			{/* Room label */}
 			{renderHoverOverlay()}
 
-			{/* Fog of war overlay for partially visible rooms */}
-			{!room.unlocked && (
+			{/* Fog of war overlay for locked rooms */}
+			{room.found && room.locked && (
 				<rect
 					x={position.x - halfWidth}
 					y={position.y - halfHeight}
