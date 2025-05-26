@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 
 import type { Room } from '../types';
 import { getRoomScreenBounds, getConnectionSide, GRID_UNIT, WALL_THICKNESS, DOOR_SIZE } from '../utils/grid-system';
@@ -42,6 +42,18 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 }) => {
 	// State for hover - must be declared before any conditional returns
 	const [isHovered, setIsHovered] = useState(false);
+	const imageRef = useRef<SVGImageElement>(null);
+
+	useEffect(() => {
+		const img = imageRef.current;
+		if (img) {
+			const handleError = () => {
+				img.style.display = 'none';
+			};
+			img.addEventListener('error', handleError);
+			return () => img.removeEventListener('error', handleError);
+		}
+	}, []);
 
 	// Don't render if not visible (fog of war)
 	if (!isVisible) return null;
@@ -114,7 +126,7 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 		return '/images/floor-tiles/floor-default.png'; // Fallback
 	};
 
-		const getRoomOverlayImage = () => {
+	const getRoomOverlayImage = () => {
 		// Check for room-specific overlay images
 		const roomImagePath = `/images/rooms/${room.type}.png`;
 
@@ -123,7 +135,7 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 		return roomImagePath;
 	};
 
-		// Get door openings for this room (where walls should have gaps)
+	// Get door openings for this room (where walls should have gaps)
 	const getDoorOpenings = () => {
 		const openings: Array<{
 			side: 'top' | 'bottom' | 'left' | 'right';
@@ -154,7 +166,7 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 		return openings.some(opening => opening.side === side);
 	};
 
-		// Get the appropriate door image based on door state and toRoomId
+	// Get the appropriate door image based on door state and toRoomId
 	const getDoorImageForOpening = (toRoomId: string): string => {
 		// Find the connected room from allRooms
 		const connectedRoom = allRooms.find(r => r.id === toRoomId);
@@ -230,7 +242,7 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 					wallThickness,
 					openings.filter(o => o.side === 'top'),
 					'horizontal',
-					doorWidth
+					doorWidth,
 				)}
 
 				{/* Bottom wall */}
@@ -241,7 +253,7 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 					wallThickness,
 					openings.filter(o => o.side === 'bottom'),
 					'horizontal',
-					doorWidth
+					doorWidth,
 				)}
 
 				{/* Left wall */}
@@ -252,7 +264,7 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 					roomDimensions.height,
 					openings.filter(o => o.side === 'left'),
 					'vertical',
-					doorWidth
+					doorWidth,
 				)}
 
 				{/* Right wall */}
@@ -263,7 +275,7 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 					roomDimensions.height,
 					openings.filter(o => o.side === 'right'),
 					'vertical',
-					doorWidth
+					doorWidth,
 				)}
 			</g>
 		);
@@ -293,7 +305,7 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 		height: number,
 		openingsOnThisSide: Array<{ side: string; position: number; toRoomId: string }>,
 		orientation: 'horizontal' | 'vertical',
-		doorWidth: number
+		doorWidth: number,
 	) => {
 		const elements: JSX.Element[] = [];
 
@@ -308,7 +320,7 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 					height={height}
 					fill={`url(#wall-pattern-${room.id})`}
 					opacity="0.9"
-				/>
+				/>,
 			);
 		} else {
 			// Render wall segments and doors
@@ -333,7 +345,7 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 								height={wallHeight}
 								fill={`url(#wall-pattern-${room.id})`}
 								opacity="0.9"
-							/>
+							/>,
 						);
 					}
 
@@ -349,7 +361,7 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 							height={wallHeight}
 							style={{ cursor: 'pointer' }}
 							onClick={() => handleDoorClickForOpening(opening.toRoomId)}
-						/>
+						/>,
 					);
 
 					currentX = doorEndX;
@@ -366,7 +378,7 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 							height={wallHeight}
 							fill={`url(#wall-pattern-${room.id})`}
 							opacity="0.9"
-						/>
+						/>,
 					);
 				}
 			} else {
@@ -391,7 +403,7 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 								height={doorStartY - currentY}
 								fill={`url(#wall-pattern-${room.id})`}
 								opacity="0.9"
-							/>
+							/>,
 						);
 					}
 
@@ -408,7 +420,7 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 							style={{ cursor: 'pointer' }}
 							onClick={() => handleDoorClickForOpening(opening.toRoomId)}
 							transform={`rotate(90 ${wallX + wallWidth/2} ${doorStartY + doorWidth/2})`}
-						/>
+						/>,
 					);
 
 					currentY = doorEndY;
@@ -425,7 +437,7 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 							height={y + height - currentY}
 							fill={`url(#wall-pattern-${room.id})`}
 							opacity="0.9"
-						/>
+						/>,
 					);
 				}
 			}
@@ -462,22 +474,6 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 		if (room.type === 'gate_room' || !room.unlocked) return null;
 
 		const iconSize = 32; // Doubled from 16 to 32 for larger rooms
-		let icon = '?';
-
-		switch (room.type) {
-		case 'bridge': icon = '⚓'; break;
-		case 'medical_bay': icon = '⚕'; break;
-		case 'engineering': icon = '⚙'; break;
-		case 'hydroponics': icon = '🌱'; break;
-		case 'quarters': icon = '🛏'; break;
-		case 'corridor': return null; // Corridors don't need icons
-		case 'storage': icon = '📦'; break;
-		case 'shuttle_bay': icon = '🚀'; break;
-		case 'science_lab': icon = '🔬'; break;
-		case 'mess_hall': icon = '🍽'; break;
-		case 'elevator': icon = '⏫'; break;
-		default: icon = '?'; break;
-		}
 
 		return (
 			<text
@@ -489,7 +485,6 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 				pointerEvents="none"
 				style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.8)' }}
 			>
-				{icon}
 			</text>
 		);
 	};
@@ -651,6 +646,7 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 					/>
 					{/* Room overlay image (if available) */}
 					<image
+						ref={imageRef}
 						href={getRoomOverlayImage()}
 						x={position.x - 32}
 						y={position.y - 32}
@@ -659,10 +655,6 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 						opacity="0.9"
 						onMouseEnter={() => setIsHovered(true)}
 						onMouseLeave={() => setIsHovered(false)}
-						onError={(e) => {
-							// Hide image if it doesn't exist
-							(e.target as SVGImageElement).style.display = 'none';
-						}}
 					/>
 				</g>
 			)}

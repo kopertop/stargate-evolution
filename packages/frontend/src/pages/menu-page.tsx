@@ -1,6 +1,7 @@
 import { gameService } from '@stargate/db';
 import React, { useState, useEffect } from 'react';
-import { Button, Container, Row, Col, Alert } from 'react-bootstrap';
+import { Button, Container, Row, Col, Alert, Modal } from 'react-bootstrap';
+import { FaTrash } from 'react-icons/fa';
 import { GiReturnArrow } from 'react-icons/gi';
 import { Link, useNavigate } from 'react-router-dom';
 
@@ -24,6 +25,9 @@ export const MenuPage: React.FC = () => {
 	const [currentView, setCurrentView] = useState<MenuView>('loading');
 	const [isAuthenticated, setIsAuthenticated] = useState(false);
 	const [isCreatingGame, setIsCreatingGame] = useState(false);
+	const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+	const [gameToDelete, setGameToDelete] = useState<GameSummary | null>(null);
+	const [isDeletingGame, setIsDeletingGame] = useState(false);
 	const navigate = useNavigate();
 
 	useEffect(() => {
@@ -121,6 +125,36 @@ export const MenuPage: React.FC = () => {
 		}
 	};
 
+	const handleDeleteGame = async (game: GameSummary) => {
+		setGameToDelete(game);
+		setShowDeleteConfirm(true);
+	};
+
+	const confirmDeleteGame = async () => {
+		if (!gameToDelete) return;
+
+		try {
+			setIsDeletingGame(true);
+			await gameService.deleteGame(gameToDelete.id);
+			Toast.show(`Game "${gameToDelete.name}" deleted successfully!`, 3000);
+
+			// Refresh the games list
+			await loadGames();
+
+			setShowDeleteConfirm(false);
+			setGameToDelete(null);
+		} catch (err: any) {
+			Toast.show(`Failed to delete game: ${err.message || err}`, 4000);
+		} finally {
+			setIsDeletingGame(false);
+		}
+	};
+
+	const cancelDeleteGame = () => {
+		setShowDeleteConfirm(false);
+		setGameToDelete(null);
+	};
+
 	// Google Sign-in button component
 	const GoogleSignInButton: React.FC = () => {
 		const buttonRef = React.useRef<HTMLDivElement>(null);
@@ -139,26 +173,40 @@ export const MenuPage: React.FC = () => {
 			<h2 className="mb-4">Load Game</h2>
 			<div className="list-group mb-4">
 				{games.map((game) => (
-					<button
+					<div
 						key={game.id}
-						className="list-group-item list-group-item-action bg-dark text-white border-secondary text-center"
-						onClick={() => handleLoadGame(game.id)}
+						className="list-group-item list-group-item-action bg-dark text-white border-secondary d-flex justify-content-between align-items-center"
 					>
-						<div className="d-flex flex-column align-items-center">
-							<div className="d-flex w-100 justify-content-center align-items-center mb-1">
-								<h5 className="mb-0 me-2">{game.name}</h5>
-								{game.current && <span className="badge bg-primary">Current</span>}
+						<button
+							className="btn btn-link text-white text-decoration-none flex-grow-1 text-start p-0"
+							onClick={() => handleLoadGame(game.id)}
+						>
+							<div className="d-flex flex-column align-items-start">
+								<div className="d-flex w-100 justify-content-start align-items-center mb-1">
+									<h5 className="mb-0 me-2">{game.name}</h5>
+									{game.current && <span className="badge bg-primary">Current</span>}
+								</div>
+								{(game.last_played || game.updated_at) && (
+									<small className="text-muted">
+										{game.last_played
+											? `${new Date(game.last_played).toLocaleDateString()} at ${new Date(game.last_played).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+											: `${new Date(game.updated_at!).toLocaleDateString()} at ${new Date(game.updated_at!).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+										}
+									</small>
+								)}
 							</div>
-							{(game.last_played || game.updated_at) && (
-								<small className="text-muted">
-									{game.last_played
-										? `${new Date(game.last_played).toLocaleDateString()} at ${new Date(game.last_played).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
-										: `${new Date(game.updated_at!).toLocaleDateString()} at ${new Date(game.updated_at!).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
-									}
-								</small>
-							)}
-						</div>
-					</button>
+						</button>
+						<button
+							className="btn btn-outline-danger btn-sm ms-2"
+							onClick={(e) => {
+								e.stopPropagation();
+								handleDeleteGame(game);
+							}}
+							title="Delete Game"
+						>
+							<FaTrash size={14} />
+						</button>
+					</div>
 				))}
 			</div>
 			<button
@@ -167,6 +215,39 @@ export const MenuPage: React.FC = () => {
 			>
 				<GiReturnArrow size={20} className="me-1" />Back
 			</button>
+
+			{/* Delete Confirmation Modal */}
+			<Modal show={showDeleteConfirm} onHide={cancelDeleteGame} centered>
+				<Modal.Header closeButton className="bg-dark text-white border-secondary">
+					<Modal.Title>Confirm Delete Game</Modal.Title>
+				</Modal.Header>
+				<Modal.Body className="bg-dark text-white">
+					<p>Are you sure you want to delete the game <strong>&ldquo;{gameToDelete?.name}&rdquo;</strong>?</p>
+					<p className="text-warning">
+						<strong>Warning:</strong> This action cannot be undone. All game data including galaxies,
+						star systems, crew members, and progress will be permanently deleted.
+					</p>
+				</Modal.Body>
+				<Modal.Footer className="bg-dark border-secondary">
+					<Button variant="secondary" onClick={cancelDeleteGame} disabled={isDeletingGame}>
+						Cancel
+					</Button>
+					<Button
+						variant="danger"
+						onClick={confirmDeleteGame}
+						disabled={isDeletingGame}
+					>
+						{isDeletingGame ? (
+							<>
+								<span className="spinner-border spinner-border-sm me-2" role="status" />
+								Deleting...
+							</>
+						) : (
+							'Delete Game'
+						)}
+					</Button>
+				</Modal.Footer>
+			</Modal>
 		</div>
 	);
 

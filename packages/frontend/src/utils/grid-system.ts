@@ -128,7 +128,7 @@ export function getConnectionSide(fromRoom: Room, toRoom: Room): 'top' | 'bottom
  */
 export function findAdjacentRooms(room: Room, allRooms: Room[]): Room[] {
 	return allRooms.filter(otherRoom =>
-		otherRoom.id !== room.id && areRoomsAdjacent(room, otherRoom)
+		otherRoom.id !== room.id && areRoomsAdjacent(room, otherRoom),
 	);
 }
 

@@ -23,8 +23,8 @@ export const ShipDoor: React.FC<ShipDoorProps> = ({
 
 	// Calculate door position between the two rooms
 	const getDoorPosition = () => {
-		const midX = (fromRoom.x + toRoom.x) / 2;
-		const midY = (fromRoom.y + toRoom.y) / 2;
+		const midX = (fromRoom.gridX + toRoom.gridX) / 2;
+		const midY = (fromRoom.gridY + toRoom.gridY) / 2;
 		return { x: midX, y: midY };
 	};
 
@@ -88,35 +88,35 @@ export const ShipDoor: React.FC<ShipDoorProps> = ({
 		return '/images/door.png';
 	};
 
-		// Calculate connecting walls between rooms
+	// Calculate connecting walls between rooms
 	const getConnectingWalls = () => {
 		const position = getDoorPosition();
-		const dx = toRoom.x - fromRoom.x;
-		const dy = toRoom.y - fromRoom.y;
+		const dx = toRoom.gridX - fromRoom.gridX;
+		const dy = toRoom.gridY - fromRoom.gridY;
 		const isHorizontal = Math.abs(dx) > Math.abs(dy);
 
 		const wallThickness = 8;
 		const doorWidth = 32;
 		const walls: Array<{ x: number; y: number; width: number; height: number }> = [];
 
-				if (isHorizontal) {
+		if (isHorizontal) {
 			// Horizontal connection between rooms
 			const wallThickness = 8;
 			let corridorStartX: number;
 			let corridorEndX: number;
 
-						if (dx > 0) {
+			if (dx > 0) {
 				// toRoom is to the right of fromRoom
 				// Start corridor exactly where fromRoom's right wall ends
-				corridorStartX = fromRoom.x + fromRoom.width / 2;
+				corridorStartX = fromRoom.gridX + fromRoom.gridWidth / 2;
 				// End corridor exactly where toRoom's left wall begins
-				corridorEndX = toRoom.x - toRoom.width / 2;
+				corridorEndX = toRoom.gridX - toRoom.gridWidth / 2;
 			} else {
 				// toRoom is to the left of fromRoom
 				// Start corridor exactly where toRoom's right wall ends
-				corridorStartX = toRoom.x + toRoom.width / 2;
+				corridorStartX = toRoom.gridX + toRoom.gridWidth / 2;
 				// End corridor exactly where fromRoom's left wall begins
-				corridorEndX = fromRoom.x - fromRoom.width / 2;
+				corridorEndX = fromRoom.gridX - fromRoom.gridWidth / 2;
 			}
 
 			const corridorLength = corridorEndX - corridorStartX;
@@ -148,15 +148,15 @@ export const ShipDoor: React.FC<ShipDoorProps> = ({
 			if (dy > 0) {
 				// toRoom is below fromRoom
 				// Start corridor exactly where fromRoom's bottom wall ends
-				corridorStartY = fromRoom.y + fromRoom.height / 2;
+				corridorStartY = fromRoom.gridY + fromRoom.gridHeight / 2;
 				// End corridor exactly where toRoom's top wall begins
-				corridorEndY = toRoom.y - toRoom.height / 2;
+				corridorEndY = toRoom.gridY - toRoom.gridHeight / 2;
 			} else {
 				// toRoom is above fromRoom
 				// Start corridor exactly where toRoom's bottom wall ends
-				corridorStartY = toRoom.y + toRoom.height / 2;
+				corridorStartY = toRoom.gridY + toRoom.gridHeight / 2;
 				// End corridor exactly where fromRoom's top wall begins
-				corridorEndY = fromRoom.y - fromRoom.height / 2;
+				corridorEndY = fromRoom.gridY - fromRoom.gridHeight / 2;
 			}
 
 			const corridorLength = corridorEndY - corridorStartY;

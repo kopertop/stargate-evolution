@@ -459,7 +459,7 @@ export const GamePage: React.FC = () => {
 						left: 0,
 						right: 0,
 						bottom: '72px', // Space for destiny status bar (approximately 72px height)
-						overflow: 'hidden'
+						overflow: 'hidden',
 					}}>
 						<ShipView
 							destinyStatus={destinyStatus}

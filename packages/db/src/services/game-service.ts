@@ -998,5 +998,48 @@ export class GameService {
 			},
 		});
 	}
+
+	/**
+	 * Delete a game and all its related data
+	 */
+	@writer async deleteGame(gameId: string): Promise<void> {
+		console.log('Deleting game and all related data for gameId:', gameId);
+
+		// List of all tables that have game_id foreign key
+		const tablesToClean = [
+			'chevrons',
+			'stargates',
+			'ships',
+			'technology',
+			'people',
+			'races',
+			'planets',
+			'stars',
+			'star_systems',
+			'galaxies',
+			'rooms',
+			'destiny_status',
+		];
+
+		// Delete all related records first (in reverse dependency order)
+		for (const tableName of tablesToClean) {
+			const records = await this.database
+				.get(tableName)
+				.query(Q.where('game_id', gameId))
+				.fetch();
+
+			console.log(`Deleting ${records.length} records from ${tableName}`);
+
+			for (const record of records) {
+				await record.markAsDeleted();
+			}
+		}
+
+		// Finally delete the game itself
+		const game = await this.database.get<Game>('games').find(gameId);
+		await game.markAsDeleted();
+
+		console.log('Game deletion completed successfully');
+	}
 }
 

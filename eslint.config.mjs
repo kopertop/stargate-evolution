@@ -31,6 +31,7 @@ export default [
 			'**/build/',
 			'**/dist/',
 			'**/.expo/',
+			'**/.wrangler/',
 			'**/*.config.js',
 			'**/*.config.ts',
 			'**/vite.config.ts',
@@ -120,7 +121,7 @@ export default [
 			}],
 
 			'no-console': ['warn', {
-				allow: ['warn', 'error'],
+				allow: ['log', 'warn', 'error'],
 			}],
 
 			quotes: ['error', 'single', {

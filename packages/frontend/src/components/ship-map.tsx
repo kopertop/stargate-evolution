@@ -3,13 +3,13 @@ import React, { useState, useEffect } from 'react';
 import { Button, Modal, Alert, Badge } from 'react-bootstrap';
 import { GiMeeple, GiCog, GiKey, GiPauseButton } from 'react-icons/gi';
 
+import { useGameState } from '../contexts/game-state-context';
 import type { DestinyStatus, Room, DoorInfo, DoorRequirement } from '../types';
 import { roomModelToType } from '../types';
-import { useGameState } from '../contexts/game-state-context';
+import { getRoomScreenPosition as getGridRoomScreenPosition } from '../utils/grid-system';
 
 import { CountdownClock } from './countdown-clock';
 import { ShipRoom } from './ship-room';
-import { getRoomScreenPosition as getGridRoomScreenPosition } from '../utils/grid-system';
 
 interface ExplorationProgress {
 	roomId: string;
@@ -538,13 +538,13 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 			case '=':
 				setCamera(prev => ({
 					...prev,
-					scale: Math.min(prev.scale + zoomSpeed, 3) // Max zoom 3x
+					scale: Math.min(prev.scale + zoomSpeed, 3), // Max zoom 3x
 				}));
 				break;
 			case '-':
 				setCamera(prev => ({
 					...prev,
-					scale: Math.max(prev.scale - zoomSpeed, 0.2) // Min zoom 0.2x
+					scale: Math.max(prev.scale - zoomSpeed, 0.2), // Min zoom 0.2x
 				}));
 				break;
 			}
@@ -640,7 +640,7 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 			</div>
 
 			{/* Ship Layout SVG */}
-						<svg
+			<svg
 				width="100%"
 				height="100%"
 				style={{
@@ -648,7 +648,7 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 					top: 0,
 					left: 0,
 					cursor: gameStatePaused ? 'default' : (isDragging ? 'grabbing' : 'grab'),
-					pointerEvents: gameStatePaused ? 'none' : 'auto'
+					pointerEvents: gameStatePaused ? 'none' : 'auto',
 				}}
 				onMouseDown={gameStatePaused ? undefined : handleMouseDown}
 				onMouseMove={gameStatePaused ? undefined : handleMouseMove}
@@ -731,7 +731,7 @@ export const ShipMap: React.FC<ShipMapProps> = ({
 							style={{
 								fontSize: '120px',
 								marginBottom: '20px',
-								opacity: 0.8,
+								opacity: 0.5,
 							}}
 						>
 							<GiPauseButton size={120} />
