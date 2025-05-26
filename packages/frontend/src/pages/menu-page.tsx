@@ -126,6 +126,7 @@ export const MenuPage: React.FC = () => {
 	};
 
 	const handleDeleteGame = async (game: GameSummary) => {
+		console.log('Delete button clicked for game:', game);
 		setGameToDelete(game);
 		setShowDeleteConfirm(true);
 	};
@@ -216,38 +217,6 @@ export const MenuPage: React.FC = () => {
 				<GiReturnArrow size={20} className="me-1" />Back
 			</button>
 
-			{/* Delete Confirmation Modal */}
-			<Modal show={showDeleteConfirm} onHide={cancelDeleteGame} centered>
-				<Modal.Header closeButton className="bg-dark text-white border-secondary">
-					<Modal.Title>Confirm Delete Game</Modal.Title>
-				</Modal.Header>
-				<Modal.Body className="bg-dark text-white">
-					<p>Are you sure you want to delete the game <strong>&ldquo;{gameToDelete?.name}&rdquo;</strong>?</p>
-					<p className="text-warning">
-						<strong>Warning:</strong> This action cannot be undone. All game data including galaxies,
-						star systems, crew members, and progress will be permanently deleted.
-					</p>
-				</Modal.Body>
-				<Modal.Footer className="bg-dark border-secondary">
-					<Button variant="secondary" onClick={cancelDeleteGame} disabled={isDeletingGame}>
-						Cancel
-					</Button>
-					<Button
-						variant="danger"
-						onClick={confirmDeleteGame}
-						disabled={isDeletingGame}
-					>
-						{isDeletingGame ? (
-							<>
-								<span className="spinner-border spinner-border-sm me-2" role="status" />
-								Deleting...
-							</>
-						) : (
-							'Delete Game'
-						)}
-					</Button>
-				</Modal.Footer>
-			</Modal>
 		</div>
 	);
 
@@ -319,6 +288,39 @@ export const MenuPage: React.FC = () => {
 				zIndex: 3000,
 			}}
 		>
+			{/* Delete Confirmation Modal - Always rendered */}
+			<Modal show={showDeleteConfirm} onHide={cancelDeleteGame} centered style={{ zIndex: 9001 }}>
+				<Modal.Header closeButton className="bg-dark text-white border-secondary">
+					<Modal.Title>Confirm Delete Game</Modal.Title>
+				</Modal.Header>
+				<Modal.Body className="bg-dark text-white">
+					<p>Are you sure you want to delete the game <strong>&ldquo;{gameToDelete?.name}&rdquo;</strong>?</p>
+					<p className="text-warning">
+						<strong>Warning:</strong> This action cannot be undone. All game data including galaxies,
+						star systems, crew members, and progress will be permanently deleted.
+					</p>
+				</Modal.Body>
+				<Modal.Footer className="bg-dark border-secondary">
+					<Button variant="secondary" onClick={cancelDeleteGame} disabled={isDeletingGame}>
+						Cancel
+					</Button>
+					<Button
+						variant="danger"
+						onClick={confirmDeleteGame}
+						disabled={isDeletingGame}
+					>
+						{isDeletingGame ? (
+							<>
+								<span className="spinner-border spinner-border-sm me-2" role="status" />
+								Deleting...
+							</>
+						) : (
+							'Delete Game'
+						)}
+					</Button>
+				</Modal.Footer>
+			</Modal>
+
 			<div
 				className="bg-dark text-white rounded-4 shadow-lg p-5"
 				style={{
@@ -337,6 +339,8 @@ export const MenuPage: React.FC = () => {
 				{currentView === 'main' && renderMainView()}
 				{currentView === 'load-games' && renderLoadGamesView()}
 			</div>
+
+
 		</div>
 	);
 };
