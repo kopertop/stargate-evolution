@@ -4,7 +4,6 @@ import type { IconType } from 'react-icons';
 import {
 	GiShield,
 	GiElectric,
-	GiMeeple,
 	GiBroom,
 	GiCardboardBox,
 	GiTurret,
@@ -18,6 +17,8 @@ import { MdCo2 } from 'react-icons/md';
 import { SiO2 } from 'react-icons/si';
 
 import type { DestinyStatus } from '../types';
+
+import { CrewStatus } from './crew-status';
 
 
 interface DestinyStatusBarProps {
@@ -374,12 +375,11 @@ export const DestinyStatusBar: React.FC<DestinyStatusBarProps> = ({ status }) =>
 			<Navbar.Collapse id="status-navbar-nav">
 				<Nav className="ms-auto d-flex flex-row align-items-center">
 					{/* Crew Status */}
-					<Nav.Item className="d-flex align-items-center me-3">
-						<Icon icon={GiMeeple} />
-						<span title="Crew">
-							{status.crewStatus.onboard}/{status.crewStatus.capacity}
-						</span>
-					</Nav.Item>
+					<CrewStatus
+						gameId={status.gameId}
+						onboard={status.crewStatus.onboard}
+						capacity={status.crewStatus.capacity}
+					/>
 
 					{/* Shuttles Section with Details on Hover */}
 					<Nav.Item className="d-flex align-items-center me-3 position-relative">

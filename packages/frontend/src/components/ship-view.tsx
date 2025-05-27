@@ -119,7 +119,7 @@ export const ShipView: React.FC<ShipViewProps> = ({
 	return (
 		<div className="ship-view" style={{ width: '100%', height: '100%' }}>
 			{/* Interactive Ship Map - Full Screen */}
-			<ShipMap gameId={gameId} />
+			<ShipMap gameId={gameId || ''} />
 		</div>
 	);
 };
