@@ -1,13 +1,13 @@
 import { Q } from '@nozbe/watermelondb';
 import { withObservables } from '@nozbe/watermelondb/react';
 import database, { gameService, Person, Room } from '@stargate/db';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Button, Modal, Alert, Badge, ProgressBar } from 'react-bootstrap';
 import { FaClock } from 'react-icons/fa';
 import { GiMeeple, GiCog } from 'react-icons/gi';
 
 import { useGameState } from '../contexts/game-state-context';
-import { RoomType } from '../types/model-types';
+import { ExplorationProgress, roomModelToType, RoomType } from '../types/model-types';
 
 interface CrewMember {
 	id: string;
@@ -21,32 +21,37 @@ interface CrewMember {
 
 interface RoomExplorationProps {
 	gameId: string;
+	roomId: string;
 	availableCrew: Person[];
 	assignedCrew: Person[];
-	rooms: Room[];
-	selectedRoom: RoomType | null;
+	roomData: Room[] | null;
+	selectedRoomData: Room | null;
 	showModal: boolean;
 	onClose: () => void;
 	onExplorationStart: (roomId: string, crewIds: string[]) => void;
 }
 
-const enhance = withObservables(['gameId'], ({ gameId }) => ({
-	availableCrew: database.get<Person>('people').query(
-		Q.where('game_id', gameId),
-		Q.where('assigned_to', null),
-	).observe(),
-	assignedCrew: database.get<Person>('people').query(
-		Q.where('game_id', gameId),
-		Q.where('assigned_to', Q.notEq(null)),
-	).observe(),
-}));
+const enhance = withObservables(['gameId', 'roomId'], ({ gameId, roomId }) => {
+	console.log('enhance', gameId, roomId);
+	return {
+		availableCrew: database.get<Person>('people').query(
+			Q.where('game_id', gameId),
+			Q.where('assigned_to', null),
+		).observe(),
+		assignedCrew: database.get<Person>('people').query(
+			Q.where('game_id', gameId),
+			Q.where('assigned_to', Q.notEq(null)),
+		).observe(),
+		selectedRoomData: database.get<Room>('rooms').findAndObserve(roomId),
+		roomData: database.get<Room>('rooms').query(Q.where('game_id', gameId)).observe(),
+	};
+});
 
 const RoomExplorationComponent: React.FC<RoomExplorationProps> = ({
-	gameId,
 	availableCrew,
 	assignedCrew,
-	rooms,
-	selectedRoom,
+	roomData,
+	selectedRoomData,
 	showModal,
 	onClose,
 	onExplorationStart,
@@ -54,6 +59,9 @@ const RoomExplorationComponent: React.FC<RoomExplorationProps> = ({
 	const { isPaused: gameStatePaused, gameTime } = useGameState();
 	const [selectedCrew, setSelectedCrew] = useState<string[]>([]);
 	const [isManagingExploration, setIsManagingExploration] = useState(false);
+	const selectedRoom = useMemo(() => selectedRoomData ? roomModelToType(selectedRoomData) : null, [selectedRoomData]);
+	const rooms = useMemo(() => roomData ? roomData.map(roomModelToType) : [], [roomData]);
+	console.log('progress', selectedRoom?.explorationData?.progress);
 
 	// Initialize selected crew when modal opens for ongoing exploration
 	useEffect(() => {
@@ -148,11 +156,12 @@ const RoomExplorationComponent: React.FC<RoomExplorationProps> = ({
 				await gameService.assignCrewToRoom(crewId, room.id);
 			}
 
-			const newExploration = {
+			const newExploration: ExplorationProgress = {
 				roomId: room.id,
 				progress: 0,
 				crewAssigned: assignedCrewIds,
 				timeRemaining: explorationTime,
+				timeToComplete: explorationTime,
 				startTime: gameTime,
 			};
 
@@ -181,7 +190,8 @@ const RoomExplorationComponent: React.FC<RoomExplorationProps> = ({
 	const calculateTimeRemaining = (room: RoomType, crewCount: number): number => {
 		const baseTime = room.baseExplorationTime || 2;
 		const crewMultiplier = Math.max(0.5, 1 / Math.max(1, crewCount));
-		return baseTime * crewMultiplier;
+		const pctTimeRemaining = 100 - (room.explorationData?.progress || 0);
+		return (baseTime * crewMultiplier) * (pctTimeRemaining / 100);
 	};
 
 	// Calculate actual time remaining for ongoing exploration
@@ -234,6 +244,13 @@ const RoomExplorationComponent: React.FC<RoomExplorationProps> = ({
 		selectedRoom?.explorationData?.crewAssigned.includes(crew.id),
 	).map(convertDbCrewToCrewMember);
 
+	function calculateTimeDisplay(timeRemaining: number): React.ReactNode {
+		if (timeRemaining < 1) {
+			return `${Math.round(timeRemaining * 60)} minutes`;
+		}
+		return `${timeRemaining.toFixed(1)} hours`;
+	}
+
 	return (
 		<>
 			{/* Exploration Assignment Modal */}
@@ -270,7 +287,7 @@ const RoomExplorationComponent: React.FC<RoomExplorationProps> = ({
 											className="mb-2"
 										/>
 										<div className="d-flex justify-content-between">
-											<span>Time Remaining: <strong>{getActualTimeRemaining(selectedRoom)}</strong></span>
+											<span>Time Remaining: <strong>{calculateTimeDisplay(selectedRoom.explorationData.timeRemaining)}</strong></span>
 											<span>Progress: <strong>{Math.round(selectedRoom.explorationData.progress)}%</strong></span>
 										</div>
 									</Alert>

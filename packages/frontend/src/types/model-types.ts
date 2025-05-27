@@ -24,6 +24,7 @@ export interface ExplorationProgress {
 	progress: number; // 0-100
 	crewAssigned: string[];
 	timeRemaining: number; // in hours
+	timeToComplete: number; // in hours
 	startTime: number; // timestamp
 }
 

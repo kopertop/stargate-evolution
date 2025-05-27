@@ -9,6 +9,8 @@ import React, {
 	useEffect,
 } from 'react';
 
+import { ExplorationProgress } from '../types/model-types';
+
 interface GameStateContextType {
 	isPaused: boolean;
 	timeSpeed: number;
@@ -95,11 +97,12 @@ export const GameStateProvider: React.FC<GameStateProviderProps> = ({ gameId, ch
 				if (room.explorationData) {
 					exploringRoomsCount++;
 					try {
-						const exploration = JSON.parse(room.explorationData);
+						const exploration = JSON.parse(room.explorationData) as ExplorationProgress;
 
 						// Convert game time (seconds) to hours for calculation
 						const timeElapsed = (currentGameTime - exploration.startTime) / 3600; // currentGameTime is in seconds
-						const newProgress = Math.min(100, (timeElapsed / exploration.timeRemaining) * 100);
+						const newProgress = Math.min(100, (timeElapsed / exploration.timeToComplete) * 100);
+						const newTimeRemaining = exploration.timeToComplete - timeElapsed;
 
 						if (newProgress >= 100) {
 							// Exploration complete - mark room as explored and free crew
@@ -117,7 +120,11 @@ export const GameStateProvider: React.FC<GameStateProviderProps> = ({ gameId, ch
 							await gameService.clearExplorationProgress(room.id);
 						} else if (Math.abs(newProgress - exploration.progress) > 0.1) {
 							// Update progress in database (only if significant change)
-							const updatedExploration = { ...exploration, progress: newProgress };
+							const updatedExploration = {
+								...exploration,
+								progress: newProgress,
+								timeRemaining: newTimeRemaining,
+							};
 
 							// This operation is now within the existing DB.write transaction
 							await gameService.updateRoom(room.id, { explorationData: JSON.stringify(updatedExploration) });

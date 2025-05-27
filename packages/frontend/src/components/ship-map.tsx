@@ -71,10 +71,6 @@ const ShipMapComponent: React.FC<ShipMapProps> = ({
 		return room.found;
 	};
 
-
-
-
-
 	// Handle room click
 	const handleRoomClick = (room: Room) => {
 		if (!isRoomVisible(roomModelToType(room)) || gameStatePaused) return;
@@ -646,19 +642,20 @@ const ShipMapComponent: React.FC<ShipMapProps> = ({
 			)}
 
 			{/* Room Exploration Component */}
-			<RoomExploration
-				gameId={game.id}
-				rooms={rooms}
-				selectedRoom={selectedRoom}
-				showModal={showExplorationModal}
-				onClose={() => {
-					setShowExplorationModal(false);
-					setSelectedRoom(null);
-				}}
-				onExplorationStart={(roomId: string, crewIds: string[]) => {
-					console.log(`🔍 Started exploration of room ${roomId} with ${crewIds.length} crew members`);
-				}}
-			/>
+			{selectedRoom && (
+				<RoomExploration
+					gameId={game.id}
+					roomId={selectedRoom.id}
+					showModal={showExplorationModal}
+					onClose={() => {
+						setShowExplorationModal(false);
+						setSelectedRoom(null);
+					}}
+					onExplorationStart={(roomId: string, crewIds: string[]) => {
+						console.log(`🔍 Started exploration of room ${roomId} with ${crewIds.length} crew members`);
+					}}
+				/>
+			)}
 
 			{/* Door Requirements Modal */}
 			<Modal show={showDoorModal} onHide={() => setShowDoorModal(false)}>
