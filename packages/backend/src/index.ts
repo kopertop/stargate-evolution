@@ -1,6 +1,9 @@
 import { jwtVerify, SignJWT } from 'jose';
 
 import { validateUser, validateSession } from './auth-types';
+import { getAllPersonTemplates, getPersonTemplateById, getPersonTemplatesByRole, getAllRaceTemplates } from './templates/person-templates';
+import { getAllRoomTemplates, getRoomTemplateById, getRoomTemplatesByType } from './templates/room-templates';
+import { getAllShipLayouts, getShipLayoutById, getAllDoorTemplates } from './templates/ship-layouts';
 import { Env } from './types';
 
 const corsHeaders = {
@@ -147,6 +150,117 @@ export default {
 				return withCors(new Response(JSON.stringify({ error: 'Refresh failed' }), { status: 401, headers: { 'content-type': 'application/json' } }));
 			}
 		}
+
+		// Template API endpoints (no auth required - public reference data)
+		if (url.pathname === '/api/templates/rooms' && request.method === 'GET') {
+			try {
+				const rooms = await getAllRoomTemplates(env.DB);
+				return withCors(new Response(JSON.stringify(rooms), {
+					headers: { 'content-type': 'application/json' },
+				}));
+			} catch (err: any) {
+				return withCors(new Response(JSON.stringify({ error: err.message || 'Failed to fetch room templates' }), {
+					status: 500, headers: { 'content-type': 'application/json' },
+				}));
+			}
+		}
+
+		if (url.pathname.startsWith('/api/templates/rooms/') && request.method === 'GET') {
+			try {
+				const roomId = url.pathname.split('/').pop();
+				if (!roomId) throw new Error('Room ID required');
+
+				const room = await getRoomTemplateById(env.DB, roomId);
+				if (!room) {
+					return withCors(new Response(JSON.stringify({ error: 'Room template not found' }), {
+						status: 404, headers: { 'content-type': 'application/json' },
+					}));
+				}
+
+				return withCors(new Response(JSON.stringify(room), {
+					headers: { 'content-type': 'application/json' },
+				}));
+			} catch (err: any) {
+				return withCors(new Response(JSON.stringify({ error: err.message || 'Failed to fetch room template' }), {
+					status: 500, headers: { 'content-type': 'application/json' },
+				}));
+			}
+		}
+
+		if (url.pathname === '/api/templates/people' && request.method === 'GET') {
+			try {
+				const people = await getAllPersonTemplates(env.DB);
+				return withCors(new Response(JSON.stringify(people), {
+					headers: { 'content-type': 'application/json' },
+				}));
+			} catch (err: any) {
+				return withCors(new Response(JSON.stringify({ error: err.message || 'Failed to fetch person templates' }), {
+					status: 500, headers: { 'content-type': 'application/json' },
+				}));
+			}
+		}
+
+		if (url.pathname === '/api/templates/races' && request.method === 'GET') {
+			try {
+				const races = await getAllRaceTemplates(env.DB);
+				return withCors(new Response(JSON.stringify(races), {
+					headers: { 'content-type': 'application/json' },
+				}));
+			} catch (err: any) {
+				return withCors(new Response(JSON.stringify({ error: err.message || 'Failed to fetch race templates' }), {
+					status: 500, headers: { 'content-type': 'application/json' },
+				}));
+			}
+		}
+
+		if (url.pathname === '/api/templates/ship-layouts' && request.method === 'GET') {
+			try {
+				const layouts = await getAllShipLayouts(env.DB);
+				return withCors(new Response(JSON.stringify(layouts), {
+					headers: { 'content-type': 'application/json' },
+				}));
+			} catch (err: any) {
+				return withCors(new Response(JSON.stringify({ error: err.message || 'Failed to fetch ship layouts' }), {
+					status: 500, headers: { 'content-type': 'application/json' },
+				}));
+			}
+		}
+
+		if (url.pathname.startsWith('/api/templates/ship-layouts/') && request.method === 'GET') {
+			try {
+				const layoutId = url.pathname.split('/').pop();
+				if (!layoutId) throw new Error('Layout ID required');
+
+				const layout = await getShipLayoutById(env.DB, layoutId);
+				if (!layout) {
+					return withCors(new Response(JSON.stringify({ error: 'Ship layout not found' }), {
+						status: 404, headers: { 'content-type': 'application/json' },
+					}));
+				}
+
+				return withCors(new Response(JSON.stringify(layout), {
+					headers: { 'content-type': 'application/json' },
+				}));
+			} catch (err: any) {
+				return withCors(new Response(JSON.stringify({ error: err.message || 'Failed to fetch ship layout' }), {
+					status: 500, headers: { 'content-type': 'application/json' },
+				}));
+			}
+		}
+
+		if (url.pathname === '/api/templates/doors' && request.method === 'GET') {
+			try {
+				const doors = await getAllDoorTemplates(env.DB);
+				return withCors(new Response(JSON.stringify(doors), {
+					headers: { 'content-type': 'application/json' },
+				}));
+			} catch (err: any) {
+				return withCors(new Response(JSON.stringify({ error: err.message || 'Failed to fetch door templates' }), {
+					status: 500, headers: { 'content-type': 'application/json' },
+				}));
+			}
+		}
+
 		return withCors(new Response('Not found', { status: 404 }));
 	},
 };
