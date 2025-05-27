@@ -1,7 +1,5 @@
-// TypeScript utility types to infer types from WatermelonDB models
-import type DestinyStatusModel from '@stargate/db/models/destiny-status';
-import type PersonModel from '@stargate/db/models/person';
-import type RoomModel from '@stargate/db/models/room';
+// TODO: Migrate all model types to use Zod types from @stargate/db
+import type { DestinyStatus, Person, Room } from '@stargate/db';
 
 // Door types for Room model
 export interface DoorInfo {
@@ -48,7 +46,7 @@ export type RoomType = {
 	doors: DoorInfo[]; // Parse JSON string to array
 	explorationData?: ExplorationProgress; // Parse JSON string to object
 	createdAt: Date;
-	baseExplorationTime: number;
+	baseExplorationTime?: number;
 };
 
 // DestinyStatus type with parsed JSON fields
@@ -97,82 +95,43 @@ export type PersonType = {
 };
 
 // Utility functions to convert model instances to typed objects
-export function roomModelToType(room: RoomModel): RoomType {
+export function roomModelToType(room: Room): RoomType {
 	let explorationData: ExplorationProgress | undefined;
 	if (room.explorationData) {
 		try {
-			explorationData = JSON.parse(room.explorationData);
-		} catch (error) {
-			console.error('Failed to parse exploration data:', error);
+			explorationData = typeof room.explorationData === 'string' ? JSON.parse(room.explorationData) : room.explorationData;
+		} catch {
+			explorationData = undefined;
 		}
 	}
-
 	return {
-		id: room.id,
-		gameId: room.gameId,
-		type: room.type,
-		gridX: room.gridX,
-		gridY: room.gridY,
-		gridWidth: room.gridWidth,
-		gridHeight: room.gridHeight,
-		floor: room.floor,
-		technology: JSON.parse(room.technology || '[]'),
-		image: room.image,
-		found: room.found,
-		locked: room.locked,
-		explored: room.explored,
-		status: room.status,
-		connectedRooms: JSON.parse(room.connectedRooms || '[]'),
-		doors: JSON.parse(room.doors || '[]'),
+		...room,
+		technology: typeof room.technology === 'string' ? JSON.parse(room.technology) : [],
+		connectedRooms: typeof room.connectedRooms === 'string' ? JSON.parse(room.connectedRooms) : [],
+		doors: typeof room.doors === 'string' ? JSON.parse(room.doors) : [],
 		explorationData,
-		createdAt: room.createdAt,
-		baseExplorationTime: room.baseExplorationTime || 2,
+		baseExplorationTime: room.baseExplorationTime ?? 2,
 	};
 }
 
-export function destinyStatusModelToType(status: DestinyStatusModel): DestinyStatusType {
+export function destinyStatusModelToType(status: DestinyStatus): DestinyStatusType {
 	return {
-		id: status.id,
-		gameId: status.gameId,
-		name: status.name,
-		power: status.power,
-		maxPower: status.maxPower,
-		shields: status.shields,
-		maxShields: status.maxShields,
-		hull: status.hull,
-		maxHull: status.maxHull,
-		raceId: status.raceId,
-		crew: JSON.parse(status.crew || '[]'),
-		location: JSON.parse(status.location || '{}'),
-		stargateId: status.stargateId,
-		shield: JSON.parse(status.shield || '{}'),
-		inventory: JSON.parse(status.inventory || '{}'),
-		crewStatus: JSON.parse(status.crewStatus || '{}'),
-		atmosphere: JSON.parse(status.atmosphere || '{}'),
-		weapons: JSON.parse(status.weapons || '{}'),
-		shuttles: JSON.parse(status.shuttles || '{}'),
-		notes: status.notes ? JSON.parse(status.notes) : undefined,
-		gameDays: status.gameDays,
-		gameHours: status.gameHours,
-		ftlStatus: status.ftlStatus,
-		nextFtlTransition: status.nextFtlTransition,
-		createdAt: status.createdAt,
+		...status,
+		shield: typeof status.shield === 'string' ? JSON.parse(status.shield) : undefined,
+		inventory: typeof status.inventory === 'string' ? JSON.parse(status.inventory) : [],
+		crewStatus: typeof status.crewStatus === 'string' ? JSON.parse(status.crewStatus) : [],
+		atmosphere: typeof status.atmosphere === 'string' ? JSON.parse(status.atmosphere) : undefined,
+		weapons: typeof status.weapons === 'string' ? JSON.parse(status.weapons) : [],
+		shuttles: typeof status.shuttles === 'string' ? JSON.parse(status.shuttles) : [],
+		notes: typeof status.notes === 'string' ? JSON.parse(status.notes) : [],
 	};
 }
 
-export function personModelToType(person: PersonModel): PersonType {
+export function personModelToType(person: Person): PersonType {
 	return {
-		id: person.id,
-		gameId: person.gameId,
-		raceId: person.raceId,
-		name: person.name,
-		role: person.role,
-		location: JSON.parse(person.location || '{}'),
-		assignedTo: person.assignedTo,
-		skills: JSON.parse(person.skills || '[]'),
-		description: person.description,
-		image: person.image,
-		conditions: JSON.parse(person.conditions || '[]'),
-		createdAt: person.createdAt,
+		...person,
+		raceId: person.raceId || '',
+		skills: typeof person.skills === 'string' ? JSON.parse(person.skills) : [],
+		conditions: typeof person.conditions === 'string' ? JSON.parse(person.conditions) : [],
 	};
 }

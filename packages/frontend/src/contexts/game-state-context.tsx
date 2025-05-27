@@ -1,5 +1,5 @@
-import DB, { gameService } from '@stargate/db/index';
-import Game from '@stargate/db/models/game';
+// TODO: Migrate all DB logic to LiveStore (dbPromise from src/db.ts)
+import type { Game, Room } from '@stargate/db';
 import React, {
 	createContext,
 	useContext,
@@ -40,10 +40,11 @@ export const GameStateProvider: React.FC<GameStateProviderProps> = ({ gameId, ch
 			return;
 		}
 
-		DB.get<Game>('games').find(gameId).then((g) => {
-			setGame(g);
-			setGameTime(g.totalTimeProgressed);
-		});
+		// TODO: Replace with LiveStore logic
+		// dbPromise.get<Game>('games').find(gameId).then((g) => {
+		// 	setGame(g);
+		// 	setGameTime(g.totalTimeProgressed);
+		// });
 	}, [gameId]);
 
 
@@ -64,13 +65,14 @@ export const GameStateProvider: React.FC<GameStateProviderProps> = ({ gameId, ch
 
 				// Update game time and exploration progress in a single DB transaction
 				try {
-					await DB.write(async () => {
-						// Update game time
-						await game.update((record) => {
-							record.totalTimeProgressed = newTime;
-							record.lastPlayed = new Date();
-						});
-					});
+					// TODO: Replace with LiveStore logic
+					// await dbPromise.write(async () => {
+					// 	// Update game time
+					// 	await game.update((record) => {
+					// 		record.totalTimeProgressed = newTime;
+					// 		record.lastPlayed = new Date();
+					// 	});
+					// });
 
 					// Update exploration progress for all ongoing explorations
 					await updateExplorationProgressInTransaction(newTime);
@@ -89,56 +91,9 @@ export const GameStateProvider: React.FC<GameStateProviderProps> = ({ gameId, ch
 		}
 
 		try {
-			// Get all rooms with ongoing exploration
-			const rooms = await gameService.getRoomsByGame(gameId);
-			let exploringRoomsCount = 0;
-
-			for (const room of rooms) {
-				if (room.explorationData) {
-					exploringRoomsCount++;
-					try {
-						const exploration = JSON.parse(room.explorationData) as ExplorationProgress;
-
-						// Convert game time (seconds) to hours for calculation
-						const timeElapsed = (currentGameTime - exploration.startTime) / 3600; // currentGameTime is in seconds
-						const newProgress = Math.min(100, (timeElapsed / exploration.timeToComplete) * 100);
-						const newTimeRemaining = exploration.timeToComplete - timeElapsed;
-
-						if (newProgress >= 100) {
-							// Exploration complete - mark room as explored and free crew
-							console.log(`🎉 Exploration of ${room.type} (${room.id}) completed!`);
-
-							// These operations are now within the existing DB.write transaction
-							await gameService.updateRoom(room.id, { explored: true });
-
-							// Free up assigned crew
-							for (const crewId of exploration.crewAssigned) {
-								await gameService.assignCrewToRoom(crewId, null);
-							}
-
-							// Clear exploration progress
-							await gameService.clearExplorationProgress(room.id);
-						} else if (Math.abs(newProgress - exploration.progress) > 0.1) {
-							// Update progress in database (only if significant change)
-							const updatedExploration = {
-								...exploration,
-								progress: newProgress,
-								timeRemaining: newTimeRemaining,
-							};
-
-							// This operation is now within the existing DB.write transaction
-							await gameService.updateRoom(room.id, { explorationData: JSON.stringify(updatedExploration) });
-						}
-					} catch (error) {
-						console.error(`Failed to parse exploration data for room ${room.id}:`, error);
-					}
-				}
-			}
-
-			// Debug log every 10 seconds
-			if (Math.floor(currentGameTime) % 10 === 0) {
-				console.log(`🔍 Game Loop: ${exploringRoomsCount} rooms currently being explored`);
-			}
+			// TODO: Replace with LiveStore logic
+			// let exploringRoomsCount = 0;
+			// ...rest of the logic referencing 'rooms' should be migrated to LiveStore
 		} catch (error) {
 			console.error('Failed to update exploration progress:', error);
 		}

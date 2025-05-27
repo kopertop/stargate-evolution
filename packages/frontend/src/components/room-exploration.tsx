@@ -1,5 +1,6 @@
-import { Q } from '@nozbe/watermelondb';
-import database, { DestinyStatus, Game, gameService, Room, Person } from '@stargate/db';
+import type { Room, Person, DestinyStatus, Game } from '@stargate/db';
+// TODO: Migrate all DB logic to LiveStore (dbPromise from src/db.ts)
+// Comment out all 'database' usages and add TODOs for LiveStore migration
 import React, { useState, useEffect } from 'react';
 import { Button, Modal, Alert, Badge } from 'react-bootstrap';
 import { GiMeeple, GiCog } from 'react-icons/gi';
@@ -47,40 +48,42 @@ export const RoomExploration: React.FC<RoomExplorationProps> = ({
 	// Observable Setup
 	useEffect(() => {
 		if (roomId && gameId) {
-			const gameSubscription = database.get<Game>('games')
-				.findAndObserve(gameId)
-				.subscribe((g) => {
-					setGame(g);
-				});
-			const roomsSubscription = database.get<Room>('rooms')
-				.query(Q.where('game_id', gameId))
-				.observe().subscribe((r) => {
-					setRooms(r.map(roomModelToType));
-				});
-			const destinyStatusSubscription = database.get<DestinyStatus>('destiny_status')
-				.findAndObserve(gameId).subscribe((d) => {
-					setDestinyStatus(destinyStatusModelToType(d));
-				});
-			const selectedRoomSubscription = database.get<Room>('rooms')
-				.findAndObserve(roomId).subscribe((r) => {
-					setSelectedRoom(roomModelToType(r));
-				});
-			const availableCrewSubscription = database.get<Person>('people')
-				.query(Q.where('game_id', gameId)).observe().subscribe((p) => {
-					setAvailableCrew(p.map(personModelToType));
-				});
-			const assignedCrewSubscription = database.get<Person>('people')
-				.query(Q.where('game_id', gameId)).observe().subscribe((p) => {
-					setAssignedCrew(p.map((pc) => personModelToType(pc)));
-				});
-			return () => {
-				gameSubscription.unsubscribe();
-				roomsSubscription.unsubscribe();
-				destinyStatusSubscription.unsubscribe();
-				selectedRoomSubscription.unsubscribe();
-				availableCrewSubscription.unsubscribe();
-				assignedCrewSubscription.unsubscribe();
-			};
+			// TODO: Migrate all DB logic to LiveStore (dbPromise from src/db.ts)
+			// Comment out all 'database' usages and add TODOs for LiveStore migration
+			// const gameSubscription = database.get<Game>('games')
+			// 	.findAndObserve(gameId)
+			// 	.subscribe((g) => {
+			// 		setGame(g);
+			// 	});
+			// const roomsSubscription = database.get<Room>('rooms')
+			// 	.query(Q.where('game_id', gameId))
+			// 	.observe().subscribe((r) => {
+			// 		setRooms(r.map(roomModelToType));
+			// 	});
+			// const destinyStatusSubscription = database.get<DestinyStatus>('destiny_status')
+			// 	.findAndObserve(gameId).subscribe((d) => {
+			// 		setDestinyStatus(destinyStatusModelToType(d));
+			// 	});
+			// const selectedRoomSubscription = database.get<Room>('rooms')
+			// 	.findAndObserve(roomId).subscribe((r) => {
+			// 		setSelectedRoom(roomModelToType(r));
+			// 	});
+			// const availableCrewSubscription = database.get<Person>('people')
+			// 	.query(Q.where('game_id', gameId)).observe().subscribe((p) => {
+			// 		setAvailableCrew(p.map(personModelToType));
+			// 	});
+			// const assignedCrewSubscription = database.get<Person>('people')
+			// 	.query(Q.where('game_id', gameId)).observe().subscribe((p) => {
+			// 		setAssignedCrew(p.map((pc) => personModelToType(pc)));
+			// 	});
+			// return () => {
+			// 	gameSubscription.unsubscribe();
+			// 	roomsSubscription.unsubscribe();
+			// 	destinyStatusSubscription.unsubscribe();
+			// 	selectedRoomSubscription.unsubscribe();
+			// 	availableCrewSubscription.unsubscribe();
+			// 	assignedCrewSubscription.unsubscribe();
+			// };
 		}
 	}, [
 		roomId,
@@ -108,8 +111,11 @@ export const RoomExploration: React.FC<RoomExplorationProps> = ({
 		// Must be adjacent to an unlocked room
 		if (room.connectedRooms.length === 0) return false;
 		const isAdjacentToUnlocked = room.connectedRooms.some((connectedId: string) => {
-			const connectedRoom = rooms.find(r => r.id === connectedId);
-			return !(connectedRoom?.locked || false);
+			// TODO: Migrate all DB logic to LiveStore (dbPromise from src/db.ts)
+			// Comment out all 'database' usages and add TODOs for LiveStore migration
+			// const connectedRoom = rooms.find(r => r.id === connectedId);
+			// TODO: Replace with LiveStore logic
+			return false;
 		});
 
 		return isAdjacentToUnlocked;
@@ -128,7 +134,7 @@ export const RoomExploration: React.FC<RoomExplorationProps> = ({
 	const updateExplorationCrew = async (room: RoomType, newCrewIds: string[]) => {
 		if (!room.explorationData) return;
 
-		const baseTime = room.baseExplorationTime || 2;
+		const baseTime = 2;
 		const crewMultiplier = Math.max(0.5, 1 / Math.max(1, newCrewIds.length));
 		const newTimeRemaining = baseTime * crewMultiplier;
 
@@ -139,14 +145,18 @@ export const RoomExploration: React.FC<RoomExplorationProps> = ({
 			// Unassign removed crew
 			for (const crewId of oldCrewIds) {
 				if (!newCrewIds.includes(crewId)) {
-					await gameService.assignCrewToRoom(crewId, null);
+					// TODO: Migrate all DB logic to LiveStore (dbPromise from src/db.ts)
+					// Comment out all 'database' usages and add TODOs for LiveStore migration
+					// await gameService.assignCrewToRoom(crewId, null);
 				}
 			}
 
 			// Assign new crew
 			for (const crewId of newCrewIds) {
 				if (!oldCrewIds.includes(crewId)) {
-					await gameService.assignCrewToRoom(crewId, room.id);
+					// TODO: Migrate all DB logic to LiveStore (dbPromise from src/db.ts)
+					// Comment out all 'database' usages and add TODOs for LiveStore migration
+					// await gameService.assignCrewToRoom(crewId, room.id);
 				}
 			}
 
@@ -157,7 +167,9 @@ export const RoomExploration: React.FC<RoomExplorationProps> = ({
 				timeRemaining: newTimeRemaining,
 			};
 
-			await gameService.updateRoom(room.id, { explorationData: JSON.stringify(updatedExploration) });
+			// TODO: Migrate all DB logic to LiveStore (dbPromise from src/db.ts)
+			// Comment out all 'database' usages and add TODOs for LiveStore migration
+			// await gameService.updateRoom(room.id, { explorationData: JSON.stringify(updatedExploration) });
 
 			console.log(`🔄 Updated exploration crew for ${room.type}: ${newCrewIds.length} crew members`);
 			onClose();
@@ -170,14 +182,16 @@ export const RoomExploration: React.FC<RoomExplorationProps> = ({
 	const startExploration = async (room: RoomType, assignedCrewIds: string[]) => {
 		if (!canExploreRoom(room) || assignedCrewIds.length === 0) return;
 
-		const baseTime = room.baseExplorationTime || 2; // Default 2 hours
+		const baseTime = 2; // Default 2 hours
 		const crewMultiplier = Math.max(0.5, 1 / assignedCrewIds.length); // More crew = faster
 		const explorationTime = baseTime * crewMultiplier;
 
 		try {
 			// Assign crew to exploration in database
 			for (const crewId of assignedCrewIds) {
-				await gameService.assignCrewToRoom(crewId, room.id);
+				// TODO: Migrate all DB logic to LiveStore (dbPromise from src/db.ts)
+				// Comment out all 'database' usages and add TODOs for LiveStore migration
+				// await gameService.assignCrewToRoom(crewId, room.id);
 			}
 
 			const newExploration: ExplorationProgress = {
@@ -190,7 +204,9 @@ export const RoomExploration: React.FC<RoomExplorationProps> = ({
 			};
 
 			// Save exploration progress directly to room
-			await gameService.updateRoom(room.id, { explorationData: JSON.stringify(newExploration) });
+			// TODO: Migrate all DB logic to LiveStore (dbPromise from src/db.ts)
+			// Comment out all 'database' usages and add TODOs for LiveStore migration
+			// await gameService.updateRoom(room.id, { explorationData: JSON.stringify(newExploration) });
 
 			console.log(`🔍 Started exploration of ${room.type} with ${assignedCrewIds.length} crew members`);
 
@@ -212,7 +228,7 @@ export const RoomExploration: React.FC<RoomExplorationProps> = ({
 
 	// Calculate estimated time remaining for exploration
 	const calculateTimeRemaining = (room: RoomType, crewCount: number): number => {
-		const baseTime = room.baseExplorationTime || 2;
+		const baseTime = 2;
 		const crewMultiplier = Math.max(0.5, 1 / Math.max(1, crewCount));
 		const pctTimeRemaining = 100 - (room.explorationData?.progress || 0);
 		return (baseTime * crewMultiplier) * (pctTimeRemaining / 100);
@@ -225,11 +241,15 @@ export const RoomExploration: React.FC<RoomExplorationProps> = ({
 		try {
 			// Free up assigned crew
 			for (const crewId of room.explorationData.crewAssigned) {
-				await gameService.assignCrewToRoom(crewId, null);
+				// TODO: Migrate all DB logic to LiveStore (dbPromise from src/db.ts)
+				// Comment out all 'database' usages and add TODOs for LiveStore migration
+				// await gameService.assignCrewToRoom(crewId, null);
 			}
 
 			// Clear exploration data
-			await gameService.clearExplorationProgress(room.id);
+			// TODO: Migrate all DB logic to LiveStore (dbPromise from src/db.ts)
+			// Comment out all 'database' usages and add TODOs for LiveStore migration
+			// await gameService.clearExplorationProgress(room.id);
 
 			console.log(`❌ Cancelled exploration of ${room.type}`);
 			onClose();

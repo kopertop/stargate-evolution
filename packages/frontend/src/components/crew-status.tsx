@@ -1,5 +1,5 @@
 import { Q } from '@nozbe/watermelondb';
-import database, { Person, Room } from '@stargate/db';
+import type { Person, Room } from '@stargate/db';
 import React, { useState, useEffect } from 'react';
 import { Nav, ProgressBar } from 'react-bootstrap';
 import type { IconType } from 'react-icons';
@@ -7,6 +7,8 @@ import { GiMeeple, GiCog, GiHammerNails, GiMedicalPack, GiMagnifyingGlass } from
 
 import { useGameState } from '../contexts/game-state-context';
 import { personModelToType, roomModelToType, PersonType, RoomType } from '../types/model-types';
+
+// TODO: Migrate all DB logic to LiveStore (dbPromise from src/db.ts)
 
 interface CrewStatusProps {
 	gameId: string;
@@ -43,24 +45,31 @@ export const CrewStatus: React.FC<CrewStatusProps> = ({ gameId }) => {
 	useEffect(() => {
 		if (!gameId) return;
 
-		const crewSubscription = database.get<Person>('people')
-			.query(Q.where('game_id', gameId))
-			.observe()
-			.subscribe((people) => {
-				const typedCrew = people.map(personModelToType);
-				setCrewMembers(typedCrew.map(enrichCrewMemberWithTask));
-			});
+		// Comment out or add TODOs for all 'database' usages
+		// Example:
+		// const crewSubscription = await dbPromise.then(store => store.query('crew').all());
+		// ... etc ...
 
-		const roomsSubscription = database.get<Room>('rooms')
-			.query(Q.where('game_id', gameId))
-			.observe()
-			.subscribe((roomData) => {
-				setRooms(roomData.map(roomModelToType));
-			});
+		// const crewSubscription = database.get<Person>('people')
+		//   .query(Q.where('game_id', gameId))
+		//   .observe()
+		//   .subscribe((people) => {
+		//     const typedCrew = people.map(personModelToType);
+		//     setCrewMembers(typedCrew.map(enrichCrewMemberWithTask));
+		//   });
+		// TODO: Replace with LiveStore query
+
+		// const roomsSubscription = database.get<Room>('rooms')
+		//   .query(Q.where('game_id', gameId))
+		//   .observe()
+		//   .subscribe((roomData) => {
+		//     setRooms(roomData.map(roomModelToType));
+		//   });
+		// TODO: Replace with LiveStore query
 
 		return () => {
-			crewSubscription.unsubscribe();
-			roomsSubscription.unsubscribe();
+			// crewSubscription.unsubscribe();
+			// roomsSubscription.unsubscribe();
 		};
 	}, [gameId]);
 
@@ -153,12 +162,11 @@ export const CrewStatus: React.FC<CrewStatusProps> = ({ gameId }) => {
 
 	const unassignCrewMember = async (crewMemberId: string) => {
 		try {
-			const person = await database.get<Person>('people').find(crewMemberId);
-			await database.write(async () => {
-				await person.update((record) => {
-					record.assignedTo = undefined;
-				});
-			});
+			// const person = await database.get<Person>('people').find(crewMemberId);
+			// await person.update((record) => {
+			//   record.assignedTo = undefined;
+			// });
+			// TODO: Replace with LiveStore update
 		} catch (error) {
 			console.error('Failed to unassign crew member:', error);
 		}

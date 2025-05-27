@@ -10,5 +10,8 @@
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist"
   },
-  "dependencies": {}
+  "dependencies": {
+    "@livestore/adapter-web": "0.3.0",
+    "@livestore/livestore": "0.3.0"
+  }
 }

@@ -1,12 +1,18 @@
-import { gameService } from '@stargate/db';
-import React, { useState, useEffect } from 'react';
+import { GameService } from '@stargate/db';
+import { useEffect, useState } from 'react';
+import React from 'react';
+
+
+// TODO: Instantiate GameService with LiveStore store when needed
 import { Button, Container, Row, Col, Alert, Modal } from 'react-bootstrap';
 import { FaTrash } from 'react-icons/fa';
 import { GiReturnArrow } from 'react-icons/gi';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 
 import { renderGoogleSignInButton } from '../auth/google-auth';
 import { getSession, setSession } from '../auth/session';
+import { dbPromise } from '../db';
 import { Toast } from '../toast';
 
 type GameSummary = {
@@ -51,13 +57,24 @@ export const MenuPage: React.FC = () => {
 			setCurrentView('loading');
 
 			// Debug database status
-			await gameService.debugDatabaseStatus();
+			// await gameService.debugDatabaseStatus();
 
 			// Load games from local database
-			const gamesFromDb = await gameService.listGames();
-			console.log('Raw games from database:', gamesFromDb);
+			// const gamesFromDb = await gameService.listGames();
+			// console.log('Raw games from database:', gamesFromDb);
 
 			// Convert local Game objects to GameSummary format
+			// const gameSummaries: GameSummary[] = gamesFromDb.map(game => ({
+			// 	id: game.id,
+			// 	name: game.name,
+			// 	created_at: game.createdAt?.getTime() || null,
+			// 	updated_at: game.updatedAt?.getTime() || null,
+			// 	last_played: null, // TODO: Track last played time locally
+			// 	current: false, // TODO: Track current game locally
+			// }));
+
+			// console.log('Converted games:', gameSummaries);
+			// setGames(gameSummaries);
 			const gameSummaries: GameSummary[] = gamesFromDb.map(game => ({
 				id: game.id,
 				name: game.name,

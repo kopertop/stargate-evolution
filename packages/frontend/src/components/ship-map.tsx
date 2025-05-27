@@ -1,5 +1,4 @@
-import { Q } from '@nozbe/watermelondb';
-import database, { DestinyStatus, Game, gameService, Room } from '@stargate/db';
+import type { DestinyStatus, Game, Room } from '@stargate/db';
 import React, { useState, useEffect } from 'react';
 import { Button, Modal, Alert } from 'react-bootstrap';
 import { GiKey, GiPauseButton } from 'react-icons/gi';
@@ -48,28 +47,29 @@ export const ShipMap: React.FC<ShipMapProps> = ({ gameId }) => {
 	 */
 	useEffect(() => {
 		if (gameId) {
-			const gameSubscription = database
-				.get<Game>('games')
-				.findAndObserve(gameId).subscribe((g) => {
-					setGame(g);
-				});
-			const roomsSubscription = database
-				.get<Room>('rooms')
-				.query(Q.where('game_id', gameId))
-				.observe().subscribe((r) => {
-					setRooms(r.map(roomModelToType));
-				});
-			const destinyStatusSubscription = database
-				.get<DestinyStatus>('destiny_status')
-				.findAndObserve(gameId)
-				.subscribe((d) => {
-					setDestinyStatus(destinyStatusModelToType(d));
-				});
-			return () => {
-				gameSubscription.unsubscribe();
-				roomsSubscription.unsubscribe();
-				destinyStatusSubscription.unsubscribe();
-			};
+			// TODO: Migrate all DB logic to LiveStore (dbPromise from src/db.ts)
+			// const gameSubscription = database
+			// 	.get<Game>('games')
+			// 	.findAndObserve(gameId).subscribe((g) => {
+			// 		setGame(g);
+			// 	});
+			// const roomsSubscription = database
+			// 	.get<Room>('rooms')
+			// 	.query(Q.where('game_id', gameId))
+			// 	.observe().subscribe((r) => {
+			// 		setRooms(r.map(roomModelToType));
+			// 	});
+			// const destinyStatusSubscription = database
+			// 	.get<DestinyStatus>('destiny_status')
+			// 	.findAndObserve(gameId)
+			// 	.subscribe((d) => {
+			// 		setDestinyStatus(destinyStatusModelToType(d));
+			// 	});
+			// return () => {
+			// 	gameSubscription.unsubscribe();
+			// 	roomsSubscription.unsubscribe();
+			// 	destinyStatusSubscription.unsubscribe();
+			// };
 		}
 	}, [gameId]);
 
@@ -252,14 +252,15 @@ export const ShipMap: React.FC<ShipMapProps> = ({ gameId }) => {
 	// Mark a room as found (discovered)
 	const markRoomAsFound = async (roomId: string) => {
 		console.log('markRoomAsFound', roomId);
+		// TODO: Replace with LiveStore logic
 		// Update database - set found
-		if (game?.id) {
-			try {
-				await gameService.updateRoom(roomId, { found: true });
-			} catch (error) {
-				console.error('Failed to update room found status in database:', error);
-			}
-		}
+		// if (game?.id) {
+		// 	try {
+		// 		await gameService.updateRoom(roomId, { found: true });
+		// 	} catch (error) {
+		// 		console.error('Failed to update room found status in database:', error);
+		// 	}
+		// }
 	};
 
 	// Handle consequences of opening a door (atmospheric effects, etc.)
@@ -309,16 +310,17 @@ export const ShipMap: React.FC<ShipMapProps> = ({ gameId }) => {
 
 	// Update door state in database and local state
 	const updateDoorState = async (fromRoomId: string, toRoomId: string, newState: 'closed' | 'opened' | 'locked') => {
+		// TODO: Replace with LiveStore logic
 		// Update database first
-		if (game?.id) {
-			try {
-				await gameService.updateDoorState(fromRoomId, toRoomId, newState);
-				console.log(`Door ${fromRoomId} -> ${toRoomId} set to ${newState}`);
-			} catch (error) {
-				console.error('Failed to update door state in database:', error);
-				return; // Don't update local state if database update fails
-			}
-		}
+		// if (game?.id) {
+		// 	try {
+		// 		await gameService.updateDoorState(fromRoomId, toRoomId, newState);
+		// 		console.log(`Door ${fromRoomId} -> ${toRoomId} set to ${newState}`);
+		// 	} catch (error) {
+		// 		console.error('Failed to update door state in database:', error);
+		// 		return; // Don't update local state if database update fails
+		// 	}
+		// }
 
 		// Update local state (bidirectional)
 		/*
@@ -345,8 +347,6 @@ export const ShipMap: React.FC<ShipMapProps> = ({ gameId }) => {
 		}));
 		*/
 	};
-
-
 
 	// Monitor open dangerous doors for continuous atmospheric drain
 	useEffect(() => {
@@ -493,8 +493,6 @@ export const ShipMap: React.FC<ShipMapProps> = ({ gameId }) => {
 			scale: Math.max(0.2, Math.min(3, prev.scale + delta)),
 		}));
 	};
-
-
 
 	// Reset camera to default position and zoom
 	const resetCamera = () => {

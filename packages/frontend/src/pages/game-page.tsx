@@ -1,4 +1,4 @@
-import database, { DestinyStatus, gameService } from '@stargate/db';
+import type { DestinyStatus, Game } from '@stargate/db';
 import * as PIXI from 'pixi.js';
 import React, { useEffect, useRef, useState } from 'react';
 import { GiReturnArrow } from 'react-icons/gi';
@@ -11,9 +11,6 @@ import { NavButton } from '../components/nav-button';
 import { ShipView } from '../components/ship-view';
 import { DestinyStatusProvider } from '../contexts/destiny-status-context';
 import { GameStateProvider } from '../contexts/game-state-context';
-import { Game } from '../game';
-import { MapPopover } from '../map-popover';
-import { Toast } from '../toast';
 import { destinyStatusModelToType, type DestinyStatusType } from '../types/model-types';
 
 type ViewMode = 'ship-view' | 'galaxy-map' | 'game-view';
@@ -136,15 +133,15 @@ export const GamePage: React.FC = () => {
 			setViewMode('ship-view');
 			setGalaxies([]); // Clear previous data
 
-			// Use local database instead of backend API
-			const loadedGameData = await gameService.getGameData(gameId);
-			console.log('Loaded game data:', loadedGameData);
-			console.log('Galaxies from DB:', loadedGameData.galaxies);
-			console.log('Star systems from DB:', loadedGameData.star_systems);
-			setGameData(loadedGameData);
+			// TODO: Replace with LiveStore logic
+			// const loadedGameData = await gameService.getGameData(gameId);
+			console.log('Loaded game data:', gameData);
+			console.log('Galaxies from DB:', galaxies);
+			console.log('Star systems from DB:', gameData?.star_systems);
+			setGameData(gameData);
 
 			// Process galaxies data
-			const galaxyData = loadedGameData.galaxies || [];
+			const galaxyData = galaxies || [];
 			console.log('Galaxy data to process:', galaxyData);
 
 			const processedGalaxies = galaxyData.map((galaxy: any) => {
@@ -153,7 +150,7 @@ export const GamePage: React.FC = () => {
 					id: galaxy.id,
 					name: galaxy.name,
 					position: { x: galaxy.x || 0, y: galaxy.y || 0 },
-					starSystems: loadedGameData.star_systems?.filter((sys: any) => sys.galaxyId === galaxy.id) || [],
+					starSystems: gameData?.star_systems?.filter((sys: any) => sys.galaxyId === galaxy.id) || [],
 				};
 			});
 
@@ -161,7 +158,7 @@ export const GamePage: React.FC = () => {
 			setGalaxies(processedGalaxies);
 
 			// Parse destiny status
-			const rawDestinyStatus = loadedGameData.destiny_status?.[0];
+			const rawDestinyStatus = gameData?.destiny_status?.[0];
 			console.log('Raw destiny status from DB:', rawDestinyStatus);
 			if (rawDestinyStatus) {
 				const rawTyped = rawDestinyStatus as any;
@@ -186,7 +183,7 @@ export const GamePage: React.FC = () => {
 				// Find current galaxy based on ship location
 				if (parsedDestinyStatus.location?.systemId) {
 					const systemId = parsedDestinyStatus.location.systemId;
-					const currentSystem = loadedGameData.star_systems?.find((sys: any) => sys.id === systemId) as any;
+					const currentSystem = gameData?.star_systems?.find((sys: any) => sys.id === systemId) as any;
 					if (currentSystem && currentSystem.galaxyId) {
 						setCurrentGalaxyId(currentSystem.galaxyId);
 						console.log('Ship is currently in galaxy:', currentSystem.galaxyId);
@@ -325,15 +322,16 @@ export const GamePage: React.FC = () => {
 	useEffect(() => {
 		if (params.gameId) {
 			handleStartGame(params.gameId);
-			const subscription = database
-				.get<DestinyStatus>('destiny_status')
-				.findAndObserve(params.gameId)
-				.subscribe((status) => {
-					setDestinyStatus(destinyStatusModelToType(status));
-				});
-			return () => {
-				subscription.unsubscribe();
-			};
+			// TODO: Replace with LiveStore logic
+			// const subscription = database
+			// 	.get<DestinyStatus>('destiny_status')
+			// 	.findAndObserve(params.gameId)
+			// 	.subscribe((status) => {
+			// 		setDestinyStatus(destinyStatusModelToType(status));
+			// 	});
+			// return () => {
+			// 	subscription.unsubscribe();
+			// };
 		}
 	}, [params.gameId]);
 

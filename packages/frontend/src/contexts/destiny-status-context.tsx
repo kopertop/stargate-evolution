@@ -1,6 +1,10 @@
+// TODO: Migrate all DB logic to LiveStore (dbPromise from src/db.ts)
 import { Q } from '@nozbe/watermelondb';
-import DB from '@stargate/db/index';
-import DestinyStatus from '@stargate/db/models/destiny-status';
+import type { DestinyStatus } from '@stargate/db';
+// Comment out all usages of DB and add TODOs for LiveStore migration
+// Example:
+// const status = await DB.get<DestinyStatus>('destiny_status').find(gameId);
+// TODO: Replace with LiveStore logic
 import React, {
 	createContext,
 	useContext,
@@ -40,22 +44,24 @@ export const DestinyStatusProvider: React.FC<DestinyStatusProviderProps> = ({ ch
 		if (!game) return;
 		const loadDestinyStatus = async () => {
 			try {
-				const destinyRecords = await DB.get<DestinyStatus>('destiny_status')
-					.query(Q.where('game_id', game.id))
-					.fetch();
+				// Comment out all usages of DB and add TODOs for LiveStore migration
+				// Example:
+				// const status = await DB.get<DestinyStatus>('destiny_status').find(gameId);
+				// TODO: Replace with LiveStore logic
 
-				if (destinyRecords.length > 0) {
-					const gameDestiny = destinyRecords[0];
-					const typedStatus = destinyStatusModelToType(gameDestiny);
-					setDestinyStatus(typedStatus);
-
-					// If ship is in normal space, calculate when it dropped out
-					if (typedStatus.ftlStatus === 'normal_space') {
-						// Estimate dropout time based on current time and remaining transition time
-						const estimatedDropoutTime = gameTime - (typedStatus.nextFtlTransition * 3600); // Convert hours to seconds
-						setFtlDropoutTime(estimatedDropoutTime);
-					}
-				}
+				// TODO: Replace with LiveStore logic
+				// if (destinyRecords.length > 0) {
+				// 	const gameDestiny = destinyRecords[0];
+				// 	const typedStatus = destinyStatusModelToType(gameDestiny);
+				// 	setDestinyStatus(typedStatus);
+				//
+				// 	// If ship is in normal space, calculate when it dropped out
+				// 	if (typedStatus.ftlStatus === 'normal_space') {
+				// 		// Estimate dropout time based on current time and remaining transition time
+				// 		const estimatedDropoutTime = gameTime - (typedStatus.nextFtlTransition * 3600); // Convert hours to seconds
+				// 		setFtlDropoutTime(estimatedDropoutTime);
+				// 	}
+				// }
 			} catch (error) {
 				console.error('Failed to load Destiny status:', error);
 			}
@@ -116,41 +122,49 @@ export const DestinyStatusProvider: React.FC<DestinyStatusProviderProps> = ({ ch
 		setLastUpdateTime(gameTime);
 
 		// Persist to database
-		updateDestinyStatusInDB(updatedStatus);
+		// TODO: Replace with LiveStore logic
+		// if (destinyRecords.length > 0) {
+		// 	await DB.write(async () => {
+		// 		destinyRecords[0].update((record) => {
+		// 			record.gameDays = updatedStatus.gameDays;
+		// 			record.gameHours = updatedStatus.gameHours;
+		// 			record.ftlStatus = updatedStatus.ftlStatus;
+		// 			record.nextFtlTransition = updatedStatus.nextFtlTransition;
+		// 			record.power = updatedStatus.power;
+		// 			record.maxPower = updatedStatus.maxPower;
+		// 			record.shields = updatedStatus.shields;
+		// 			record.maxShields = updatedStatus.maxShields;
+		// 			record.hull = updatedStatus.hull;
+		// 			record.maxHull = updatedStatus.maxHull;
+		// 			record.shield = JSON.stringify(updatedStatus.shield);
+		// 			record.inventory = JSON.stringify(updatedStatus.inventory);
+		// 			record.crewStatus = JSON.stringify(updatedStatus.crewStatus);
+		// 			record.atmosphere = JSON.stringify(updatedStatus.atmosphere);
+		// 			record.weapons = JSON.stringify(updatedStatus.weapons);
+		// 			record.shuttles = JSON.stringify(updatedStatus.shuttles);
+		// 			record.notes = JSON.stringify(updatedStatus.notes || []);
+		// 		});
+		// 	});
+		// }
 	}, [gameTime, destinyStatus, lastUpdateTime, ftlDropoutTime]);
 
 	const updateDestinyStatusInDB = async (status: DestinyStatusType) => {
 		if (!game) return;
 
 		try {
-			const destinyRecords = await DB.get<DestinyStatus>('destiny_status')
-				.query(Q.where('game_id', game.id))
-				.fetch();
+			// Comment out all usages of DB and add TODOs for LiveStore migration
+			// Example:
+			// const destinyRecords = await DB.get<DestinyStatus>('destiny_status').query(Q.where('game_id', game.id)).fetch();
+			// TODO: Replace with LiveStore logic
 
-			if (destinyRecords.length > 0) {
-				const gameDestiny = destinyRecords[0];
-				await DB.write(async () => {
-					await gameDestiny.update((record) => {
-						record.gameDays = status.gameDays;
-						record.gameHours = status.gameHours;
-						record.ftlStatus = status.ftlStatus;
-						record.nextFtlTransition = status.nextFtlTransition;
-						record.power = status.power;
-						record.maxPower = status.maxPower;
-						record.shields = status.shields;
-						record.maxShields = status.maxShields;
-						record.hull = status.hull;
-						record.maxHull = status.maxHull;
-						record.shield = JSON.stringify(status.shield);
-						record.inventory = JSON.stringify(status.inventory);
-						record.crewStatus = JSON.stringify(status.crewStatus);
-						record.atmosphere = JSON.stringify(status.atmosphere);
-						record.weapons = JSON.stringify(status.weapons);
-						record.shuttles = JSON.stringify(status.shuttles);
-						record.notes = JSON.stringify(status.notes || []);
-					});
-				});
-			}
+			// TODO: Replace with LiveStore logic
+			// if (destinyRecords.length > 0) {
+			// 	await DB.write(async () => {
+			// 		destinyRecords[0].update((record) => {
+			// 			record.status = newStatus;
+			// 		});
+			// 	});
+			// }
 		} catch (error) {
 			console.error('Failed to update Destiny status in DB:', error);
 		}

@@ -167,6 +167,7 @@ export const RoomSchema = z.object({
 	connectedRooms: z.array(z.string()),
 	doors: z.array(DoorInfoSchema),
 	explorationData: z.record(z.any()).optional(),
+	baseExplorationTime: z.number().optional(),
 	createdAt: z.date().default(() => new Date()),
 	updatedAt: z.date().default(() => new Date()),
 });
