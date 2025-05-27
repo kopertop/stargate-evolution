@@ -13,7 +13,8 @@
 	"dependencies": {
 		"@nozbe/watermelondb": "^0.28.0",
 		"@stargate/common": "workspace:*",
-		"ulid": "^2.3.0"
+		"ulid": "^2.3.0",
+		"zod": "^3.24.4"
 	},
 	"devDependencies": {
 		"@types/node": "^20.11.24",

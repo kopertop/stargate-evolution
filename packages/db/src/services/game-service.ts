@@ -8,8 +8,9 @@ import Game from '../models/game';
 import Race from '../models/race';
 import Room from '../models/room';
 import StarSystem from '../models/star-system';
+import type { RoomTemplate } from '../schemas';
 
-import templateService, { type RoomTemplate, type PersonTemplate, type ParsedShipLayout } from './template-service';
+import templateService, { type ParsedShipLayout } from './template-service';
 
 export class GameService {
 	constructor(private database: Database) {}
@@ -96,8 +97,8 @@ export class GameService {
 				const race = await this.database.get<Race>('races').create((race) => {
 					race.gameId = gameId;
 					race.name = raceTemplate.name;
-					race.technology = raceTemplate.default_technology;
-					race.ships = raceTemplate.default_ships;
+					race.technology = JSON.stringify(raceTemplate.default_technology);
+					race.ships = JSON.stringify(raceTemplate.default_ships);
 				});
 				raceMap.set(raceTemplate.id, race.id);
 				console.log(`Created race: ${raceTemplate.name} (${race.id})`);
@@ -227,7 +228,7 @@ export class GameService {
 				room.gridWidth = template.grid_width;
 				room.gridHeight = template.grid_height;
 				room.floor = layoutRoom.position.floor;
-				room.technology = template.technology;
+				room.technology = JSON.stringify(template.technology);
 				room.image = template.image || '';
 				room.status = template.default_status as 'ok' | 'damaged' | 'destroyed';
 

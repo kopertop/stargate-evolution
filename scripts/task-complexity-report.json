@@ -1,0 +1,93 @@
+{
+  "meta": {
+    "generatedAt": "2025-05-27T21:54:41.009Z",
+    "tasksAnalyzed": 10,
+    "totalTasks": 11,
+    "analysisCount": 10,
+    "thresholdScore": 5,
+    "projectName": "Taskmaster",
+    "usedResearch": false
+  },
+  "complexityAnalysis": [
+    {
+      "taskId": 2,
+      "taskTitle": "Implement Ship Layout System",
+      "complexityScore": 7,
+      "recommendedSubtasks": 10,
+      "expansionPrompt": "Break down the Ship Layout System implementation into detailed subtasks covering data modeling, room templates, corridor connections, door systems, danger marking, visualization, and integration with game systems. Include specific implementation details for each component.",
+      "reasoning": "This task involves creating a complex spatial system with interconnected components (rooms, corridors, doors) that have various states and properties. It requires careful data modeling, state management, and integration with other game systems. The existing 10 subtasks appropriately cover the scope."
+    },
+    {
+      "taskId": 3,
+      "taskTitle": "Develop Room Exploration Mechanics",
+      "complexityScore": 6,
+      "recommendedSubtasks": 5,
+      "expansionPrompt": "Break down the Room Exploration Mechanics implementation into detailed subtasks covering room discovery, object interaction, resource collection, room-specific events, and state changes. Include specific implementation details for each component.",
+      "reasoning": "This task builds on the ship layout system and adds interaction mechanics. The complexity is moderate as it involves discovery systems, interaction mechanics, and room-specific logic. The current 5 subtasks adequately cover the main components needed."
+    },
+    {
+      "taskId": 4,
+      "taskTitle": "Implement Resource Management System",
+      "complexityScore": 6,
+      "recommendedSubtasks": 5,
+      "expansionPrompt": "Break down the Resource Management System implementation into detailed subtasks covering resource types definition, collection mechanics, storage system, consumption mechanics, and the resource allocation interface. Include specific implementation details for each component.",
+      "reasoning": "This task involves creating a system to track, collect, and utilize various resources. It requires data modeling, consumption calculations, and UI components. The 5 subtasks cover the core functionality needed for a comprehensive resource system."
+    },
+    {
+      "taskId": 5,
+      "taskTitle": "Create Stargate Dialing System",
+      "complexityScore": 7,
+      "recommendedSubtasks": 5,
+      "expansionPrompt": "Break down the Stargate Dialing System implementation into detailed subtasks covering planet generation, dialing interface, FTL mechanics, planet discovery, and gate activation effects. Include specific implementation details for each component.",
+      "reasoning": "This task involves creating a complex system with procedural generation, timing mechanics, and visual effects. It's a core gameplay feature with multiple interconnected parts. The 5 subtasks effectively cover the main components needed."
+    },
+    {
+      "taskId": 6,
+      "taskTitle": "Develop Planetary Exploration System",
+      "complexityScore": 7,
+      "recommendedSubtasks": 5,
+      "expansionPrompt": "Break down the Planetary Exploration System implementation into detailed subtasks covering exploration interface, shuttle system, resource collection, inhabitant interactions, and planetary hazards. Include specific implementation details for each component.",
+      "reasoning": "This task builds on the Stargate system and adds complex exploration mechanics. It involves multiple systems including shuttles, resource collection, NPC interactions, and environmental challenges. The 5 subtasks cover the main components needed."
+    },
+    {
+      "taskId": 7,
+      "taskTitle": "Implement Technology Research System",
+      "complexityScore": 6,
+      "recommendedSubtasks": 5,
+      "expansionPrompt": "Break down the Technology Research System implementation into detailed subtasks covering data structures, technology tree design, research point accumulation, unlocking mechanics, and the research UI. Include specific implementation details for each component.",
+      "reasoning": "This task involves creating a progression system with interconnected technologies, research mechanics, and gameplay effects. The complexity is moderate as it requires careful balancing and integration with other systems. The 5 subtasks cover the core functionality needed."
+    },
+    {
+      "taskId": 8,
+      "taskTitle": "Develop Ship Systems and Repair Mechanics",
+      "complexityScore": 8,
+      "recommendedSubtasks": 5,
+      "expansionPrompt": "Break down the Ship Systems and Repair Mechanics implementation into detailed subtasks covering system architecture, damage/repair mechanics, repair bot functionality, power allocation, and system failure events. Include specific implementation details for each component.",
+      "reasoning": "This task involves creating a complex system of interconnected ship components with various states, damage models, and repair mechanics. It's highly technical and requires careful integration with other game systems. The 5 subtasks effectively cover the main components."
+    },
+    {
+      "taskId": 9,
+      "taskTitle": "Implement Combat System",
+      "complexityScore": 8,
+      "recommendedSubtasks": 5,
+      "expansionPrompt": "Break down the Combat System implementation into detailed subtasks covering combat entity classes, weapon mechanics, turn management, enemy ship templates/AI, and tactical options/rewards. Include specific implementation details for each component.",
+      "reasoning": "This task involves creating a turn-based combat system with complex mechanics for weapons, shields, damage calculation, and AI. It requires careful balancing and integration with ship systems. The 5 subtasks cover the core functionality needed."
+    },
+    {
+      "taskId": 10,
+      "taskTitle": "Create Game Progression and Milestone System",
+      "complexityScore": 7,
+      "recommendedSubtasks": 5,
+      "expansionPrompt": "Break down the Game Progression and Milestone System implementation into detailed subtasks covering milestone data structures, story elements, key milestone implementation, challenge scaling, and endgame content. Include specific implementation details for each component.",
+      "reasoning": "This task involves creating a system that ties together all other game systems into a coherent progression path. It requires careful design of milestones, requirements, rewards, and narrative elements. The 5 subtasks effectively cover the main components needed."
+    },
+    {
+      "taskId": 11,
+      "taskTitle": "Migrate Frontend Database from WatermelonDB to LiveStore",
+      "complexityScore": 9,
+      "recommendedSubtasks": 8,
+      "expansionPrompt": "Break down the database migration task into detailed subtasks covering LiveStore research, setup/configuration, schema design, data migration utilities, data access layer refactoring, sync implementation, React integration, and documentation. Include specific implementation details for each component.",
+      "reasoning": "This task involves migrating an entire database system which affects all parts of the application. It requires deep technical knowledge of both database systems, careful data migration, and extensive testing. The complexity is high due to the critical nature of the database layer and potential for data loss or corruption."
+    }
+  ]
+}

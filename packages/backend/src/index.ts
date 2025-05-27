@@ -1,6 +1,15 @@
+import {
+	RoomTemplateSchema,
+	PersonTemplateSchema,
+	RaceTemplateSchema,
+	ShipLayoutTemplateSchema,
+	DoorTemplateSchema,
+} from '@stargate/db/schemas';
 import { jwtVerify, SignJWT } from 'jose';
+import { z } from 'zod';
 
 import { validateUser, validateSession } from './auth-types';
+import { withValidation, createValidatedResponse } from './middleware/validation';
 import { getAllPersonTemplates, getPersonTemplateById, getPersonTemplatesByRole, getAllRaceTemplates } from './templates/person-templates';
 import { getAllRoomTemplates, getRoomTemplateById, getRoomTemplatesByType } from './templates/room-templates';
 import { getAllShipLayouts, getShipLayoutById, getAllDoorTemplates } from './templates/ship-layouts';
@@ -153,51 +162,61 @@ export default {
 
 		// Template API endpoints (no auth required - public reference data)
 		if (url.pathname === '/api/templates/rooms' && request.method === 'GET') {
-			try {
+			return withValidation(async () => {
 				const rooms = await getAllRoomTemplates(env.DB);
-				return withCors(new Response(JSON.stringify(rooms), {
-					headers: { 'content-type': 'application/json' },
+
+				// Parse JSON fields for validation
+				const parsedRooms = rooms.map(room => ({
+					...room,
+					technology: JSON.parse(room.technology || '[]'),
 				}));
-			} catch (err: any) {
-				return withCors(new Response(JSON.stringify({ error: err.message || 'Failed to fetch room templates' }), {
-					status: 500, headers: { 'content-type': 'application/json' },
-				}));
-			}
+
+				return createValidatedResponse(parsedRooms, z.array(RoomTemplateSchema));
+			})();
 		}
 
 		if (url.pathname.startsWith('/api/templates/rooms/') && request.method === 'GET') {
-			try {
+			return withValidation(async () => {
 				const roomId = url.pathname.split('/').pop();
 				if (!roomId) throw new Error('Room ID required');
 
 				const room = await getRoomTemplateById(env.DB, roomId);
 				if (!room) {
-					return withCors(new Response(JSON.stringify({ error: 'Room template not found' }), {
-						status: 404, headers: { 'content-type': 'application/json' },
-					}));
+					return createValidatedResponse(
+						{ error: 'Room template not found' },
+						z.object({ error: z.string() }),
+						false,
+					);
 				}
 
-				return withCors(new Response(JSON.stringify(room), {
-					headers: { 'content-type': 'application/json' },
-				}));
-			} catch (err: any) {
-				return withCors(new Response(JSON.stringify({ error: err.message || 'Failed to fetch room template' }), {
-					status: 500, headers: { 'content-type': 'application/json' },
-				}));
-			}
+				// Parse JSON fields for validation
+				const parsedRoom = {
+					...room,
+					technology: JSON.parse(room.technology || '[]'),
+				};
+
+				return createValidatedResponse(parsedRoom, RoomTemplateSchema);
+			})();
 		}
 
 		if (url.pathname === '/api/templates/people' && request.method === 'GET') {
-			try {
+			return withValidation(async () => {
 				const people = await getAllPersonTemplates(env.DB);
-				return withCors(new Response(JSON.stringify(people), {
-					headers: { 'content-type': 'application/json' },
-				}));
-			} catch (err: any) {
-				return withCors(new Response(JSON.stringify({ error: err.message || 'Failed to fetch person templates' }), {
-					status: 500, headers: { 'content-type': 'application/json' },
-				}));
-			}
+
+				// Parse JSON fields for validation
+				const parsedPeople = people.map(person => {
+					const parsed: any = {
+						...person,
+						skills: JSON.parse(person.skills || '[]'),
+					};
+					if (person.default_location) {
+						parsed.default_location = JSON.parse(person.default_location);
+					}
+					return parsed;
+				});
+
+				return createValidatedResponse(parsedPeople, z.array(PersonTemplateSchema));
+			})();
 		}
 
 		if (url.pathname === '/api/templates/races' && request.method === 'GET') {

@@ -1,62 +1,18 @@
 // Template service for fetching game templates from backend API
 // This service handles caching and provides a clean interface for template data
 
-export interface RoomTemplate {
-	id: string;
-	type: string;
-	name: string;
-	description?: string;
-	grid_width: number;
-	grid_height: number;
-	technology: string; // JSON array
-	image?: string;
-	base_exploration_time: number;
-	default_status: string;
-	created_at: number;
-	updated_at: number;
-}
-
-export interface PersonTemplate {
-	id: string;
-	name: string;
-	role: string;
-	race_template_id?: string;
-	skills: string; // JSON array
-	description?: string;
-	image?: string;
-	default_location?: string; // JSON
-	created_at: number;
-	updated_at: number;
-}
-
-export interface RaceTemplate {
-	id: string;
-	name: string;
-	description?: string;
-	default_technology: string; // JSON array
-	default_ships: string; // JSON array
-	created_at: number;
-	updated_at: number;
-}
-
-export interface ShipLayout {
-	id: string;
-	name: string;
-	description?: string;
-	layout_data: string; // JSON with complete room layout and connections
-	created_at: number;
-	updated_at: number;
-}
-
-export interface DoorTemplate {
-	id: string;
-	name: string;
-	requirements: string; // JSON array
-	default_state: string;
-	description?: string;
-	created_at: number;
-	updated_at: number;
-}
+import {
+	type RoomTemplate,
+	type PersonTemplate,
+	type RaceTemplate,
+	type ShipLayoutTemplate,
+	type DoorTemplate,
+	RoomTemplatesResponseSchema,
+	PersonTemplatesResponseSchema,
+	RaceTemplatesResponseSchema,
+	ShipLayoutsResponseSchema,
+	DoorTemplatesResponseSchema,
+} from '../schemas';
 
 export interface ParsedShipLayout {
 	id: string;
@@ -124,7 +80,15 @@ class TemplateService {
 				throw new Error(`HTTP ${response.status}: ${response.statusText}`);
 			}
 
-			const data = await response.json();
+			const apiResponse = await response.json();
+			console.log('[TemplateService] API Response:', apiResponse);
+
+			// Handle the new API response format with success/data structure
+			if (apiResponse.success === false) {
+				throw new Error(apiResponse.error || 'API request failed');
+			}
+
+			const data = apiResponse.data || apiResponse; // Fallback for old format
 			console.log(`[TemplateService] Successfully fetched ${endpoint}, data length:`, Array.isArray(data) ? data.length : 'not array');
 
 			// Cache the data
@@ -168,16 +132,16 @@ class TemplateService {
 		return this.fetchWithCache<RaceTemplate[]>('/api/templates/races');
 	}
 
-	async getAllShipLayouts(): Promise<ShipLayout[]> {
-		return this.fetchWithCache<ShipLayout[]>('/api/templates/ship-layouts');
+	async getAllShipLayouts(): Promise<ShipLayoutTemplate[]> {
+		return this.fetchWithCache<ShipLayoutTemplate[]>('/api/templates/ship-layouts');
 	}
 
 	async getShipLayoutById(id: string): Promise<ParsedShipLayout | null> {
 		try {
-			const layout = await this.fetchWithCache<ShipLayout>(`/api/templates/ship-layouts/${id}`);
+			const layout = await this.fetchWithCache<ShipLayoutTemplate>(`/api/templates/ship-layouts/${id}`);
 
-			// Parse the JSON layout_data
-			const layoutData = JSON.parse(layout.layout_data);
+			// The layout_data is already parsed by the backend Zod validation
+			const layoutData = layout.layout_data;
 
 			return {
 				id: layout.id,

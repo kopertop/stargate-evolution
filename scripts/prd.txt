@@ -1,0 +1,243 @@
+# Overview
+Stargate Evolution is a web-based, turn-based strategy game set in the Stargate Universe expanded
+universe.
+
+Players home base is the Ancient Starship Destiny.
+The Destiny is a massive ship that has been abandoned for millenia. It is filled with unknown
+ancient technology and secrets. The lead scientist Dr Nicholas Rush has been tasked with exploring
+the ship and discovering its secrets. Users start out the game just dialing into the stargate, and
+have to explore the ship, find resources, and stay alive while trying to find out the secrets of
+the destiny. They are cut off from earth except for the use of special communication stones that
+allow them to send and receive messages from Earth, but they are not able to send or receive
+resources. The ship is falling apart, and the players must repair it to stay alive.
+
+The Starship is guided by an AI system which controls how long it stays out of FTL. When in FTL, the
+stargate is non-functional. When out of FTL, the players usually have access to a handful of planets
+via the stargate, but only for a fixed period of time. The countdown timer is always more than 4
+hours, but random between 4 and 48 hours, depending on the needs of the crew (i.e. if they are out
+of food, fuel, and materials the AI for the destiny will give them longer).
+
+When in FTL, the ship leaves the systems and heads for a new system, players may only access the
+stargates of planets within the current system. The ship will attempt to fly to systems along a
+pre-charted course through a galaxy, when reaching the end of the galaxy it will fill up with fuel
+by charging it's power inside of a star (only yellow-dwarf stars, no blue supergiants), before
+making the long jump to the next galaxy.
+
+# Core Features
+
+## Ship Exploration & Management
+- Players explore and manage an Ancient ship (Destiny) with multiple rooms and corridors
+- Each room has unique properties, technologies, and exploration requirements
+- Rooms can be locked, requiring specific access codes or technologies to unlock
+- Corridors connect rooms and may be damaged, requiring repairs
+- Doors leading to damaged sections will be marked as "danger" so the user doesn't open
+them without risk. Opening a door to a room that's damaged may vent o2 or other useful materials if
+not repaired quickly
+
+## Planetary Exploration
+- Discover new planets through the Stargate network
+- Each planet has unique resources, challenges, and opportunities
+- Players have use of a shuttle, the destiny can hold up to 2 shuttles
+- Initially the destiny has one shuttle working, and another that's damaged
+- Planets with useful traits have gates added to them by "seed ships" that left a trail for Destiny
+to follow
+- Some planets may be inhabited by aliens, some hostile, some friendly
+
+## Resource Management
+- Collect and manage various resources found on planets and in space
+- Resources are used for base building, ship repairs, and technology research
+- Players must balance resource allocation between different needs
+
+## Technology & Research
+- Discover and research new technologies
+- Technologies unlock new capabilities and room access
+- Research tree includes ship systems, weapons, and exploration tools
+- A repair bot may help with fixing remote sections of the ship that are exposed to space
+- Additional repair bots and materials may be discovered on various planets and enemy ships
+- The first major milestone is to unlock the Bridge and gain full control of Destiny
+- Additional milestones will be added as the user progresses via an AI system
+
+## Combat System
+- Turn-based combat against enemy factions (e.g., alien ships)
+- The shield system of the destiny is very strong, but the ship also has weapons
+- Firing weapons uses energy
+- Being hit drains a small amount of energy
+- Energy may be regained by flying into a star, and energy capacity may be increased by finding new
+technologies
+- Different weapons and technologies affect combat effectiveness
+- Users may balanace power allocation between systems when they gain access to the bridge, until
+then the AI will maintain all systems
+- Users must wait a minimum of 4 hours between FTL jumps even when they gain full control
+- The ship must fly for at least 4 hours in FTL before dropping out
+
+# User Experience
+
+## User Personas
+1. Stargate Fan
+   - Familiar with Stargate lore
+   - Interested in exploring the universe
+   - Enjoys story-driven content
+
+2. Strategy Game Player
+   - Enjoys resource management
+   - Likes tactical combat
+   - Values progression systems
+
+3. Casual Explorer
+   - Prefers relaxed gameplay
+   - Enjoys discovery
+   - Less focused on combat
+
+## Key User Flows
+1. Game Start
+   - Create new game
+   - Select initial ship layout
+   - Begin exploration
+
+2. Room Exploration
+   - Discover new rooms
+   - Unlock doors
+   - Manage resources
+
+3. Planet Exploration
+   - Dial new planets
+   - Establish bases
+   - Create trade routes
+
+# Technical Architecture
+
+## System Components
+1. Frontend (React + Three.js)
+   - Game rendering
+   - User interface
+   - State management
+
+2. Backend (Cloudflare Workers)
+   - Game logic
+   - Database management
+   - API endpoints
+
+3. Database (Cloudflare D1)
+   - Game state
+   - User data
+   - Templates and configurations
+
+## Data Models
+1. Game
+   - ID, name, progress
+   - Time tracking
+   - Creation/update timestamps
+
+2. Ship Layout
+   - Room templates
+   - Connection maps
+   - Door requirements
+
+3. Room Templates
+   - Type, name, description
+   - Grid dimensions
+   - Technology requirements
+
+4. Door Templates
+   - Access requirements
+   - Default states
+   - Unlock conditions
+
+# Development Roadmap
+
+## Phase 1: Core Ship Exploration
+- Basic ship layout implementation
+- Room discovery mechanics
+- Door unlocking system
+- Resource management basics
+
+## Phase 2: Planet Exploration
+- Stargate dialing system
+- Planet generation
+- Base building mechanics
+- Resource collection
+
+## Phase 3: Combat & Progression
+- Combat system implementation
+- Technology research tree
+- Enemy AI
+- Progression systems
+
+## Phase 4: Polish & Expansion
+- UI/UX improvements
+- Additional ship layouts
+- New planet types
+- Enhanced combat mechanics
+
+# Logical Dependency Chain
+
+1. Foundation
+   - Database setup
+   - Basic game state management
+   - Core UI framework
+
+2. Ship Systems
+   - Room templates
+   - Door mechanics
+   - Exploration system
+
+3. Planet Systems
+   - Stargate mechanics
+   - Planet generation
+   - Base building
+
+4. Combat & Progression
+   - Combat mechanics
+   - Research system
+   - Enemy AI
+
+# Risks and Mitigations
+
+## Technical Challenges
+1. Complex State Management
+   - Use robust state management solution
+   - Implement proper data validation
+   - Regular state backups
+
+2. Performance Optimization
+   - Implement efficient rendering
+   - Optimize database queries
+   - Use proper caching strategies
+
+3. Cross-Platform Compatibility
+   - Test on multiple devices
+   - Implement responsive design
+   - Support various input methods
+
+## Resource Constraints
+1. Development Time
+   - Focus on MVP features first
+   - Use existing libraries where possible
+   - Implement modular architecture
+
+2. Technical Debt
+   - Regular code reviews
+   - Comprehensive testing
+   - Documentation maintenance
+
+# Appendix
+
+## Technical Specifications
+
+### Database Schema
+- Users table for authentication
+- Game state management
+- Room and door templates
+- Ship layouts
+
+### API Endpoints
+- Game management
+- Room exploration
+- Resource management
+- Combat system
+
+### Frontend Components
+- Game rendering
+- UI elements
+- State management
+- Input handling
