@@ -377,8 +377,6 @@ export const DestinyStatusBar: React.FC<DestinyStatusBarProps> = ({ status }) =>
 					{/* Crew Status */}
 					<CrewStatus
 						gameId={status.gameId}
-						onboard={status.crewStatus.onboard}
-						capacity={status.crewStatus.capacity}
 					/>
 
 					{/* Shuttles Section with Details on Hover */}

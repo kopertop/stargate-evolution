@@ -10,8 +10,6 @@ import { personModelToType, roomModelToType, PersonType, RoomType } from '../typ
 
 interface CrewStatusProps {
 	gameId: string;
-	onboard: number;
-	capacity: number;
 }
 
 interface CrewMemberWithTask extends PersonType {
@@ -34,7 +32,7 @@ const Icon: React.FC<{ icon: IconType; size?: number; className?: string }> = ({
 	return <IconComponent size={size} className={className} />;
 };
 
-export const CrewStatus: React.FC<CrewStatusProps> = ({ gameId, onboard, capacity }) => {
+export const CrewStatus: React.FC<CrewStatusProps> = ({ gameId }) => {
 	const { gameTime } = useGameState();
 	const [showCrewDetails, setShowCrewDetails] = useState(false);
 	const [crewHoverTimeout, setCrewHoverTimeout] = useState<NodeJS.Timeout | null>(null);
@@ -204,10 +202,14 @@ export const CrewStatus: React.FC<CrewStatusProps> = ({ gameId, onboard, capacit
 		return `${hours.toFixed(1)}h`;
 	};
 
+	// Calculate unassigned vs total crew
+	const unassignedCrew = crewMembers.filter(c => c.currentTask?.type === 'idle').length;
+	const totalCrew = crewMembers.length;
+
 	return (
 		<Nav.Item className="d-flex align-items-center me-3 position-relative">
 			<span
-				title="Crew (click for details)"
+				title="Crew: Unassigned/Total (click for details)"
 				className="d-flex align-items-center"
 				style={{ cursor: 'pointer' }}
 				onClick={toggleCrewDetails}
@@ -215,8 +217,8 @@ export const CrewStatus: React.FC<CrewStatusProps> = ({ gameId, onboard, capacit
 				onMouseLeave={handleCrewMouseLeave}
 			>
 				<Icon icon={GiMeeple} />
-				<span title="Crew">
-					{onboard}/{capacity}
+				<span title="Unassigned/Total Crew">
+					{unassignedCrew}/{totalCrew}
 				</span>
 			</span>
 
