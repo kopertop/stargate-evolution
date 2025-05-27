@@ -1,18 +1,18 @@
-import type { Room } from '@stargate/db';
 import React from 'react';
 
 import { DoorInfo } from '../types';
+import { RoomType } from '../types/model-types';
 import { getDoorPosition, WALL_THICKNESS, DOOR_SIZE } from '../utils/grid-system';
 
 interface ShipDoorsProps {
-	rooms: Room[];
+	rooms: RoomType[];
 	onDoorClick: (fromRoomId: string, toRoomId: string) => void;
 }
 
 interface DoorConnection {
-	fromRoom: Room;
-	toRoom: Room;
-	doorInfo: any; // Door info from fromRoom
+	fromRoom: RoomType;
+	toRoom: RoomType;
+	doorInfo: DoorInfo;
 }
 
 export const ShipDoors: React.FC<ShipDoorsProps> = ({
@@ -27,8 +27,7 @@ export const ShipDoors: React.FC<ShipDoorsProps> = ({
 		for (const room of rooms) {
 			if (!room.found) continue; // Only render doors for discovered rooms
 
-			const doors = JSON.parse(room.doors) as DoorInfo[];
-			for (const doorInfo of doors) {
+			for (const doorInfo of room.doors) {
 				const toRoom = rooms.find((r) => r.id === doorInfo.toRoomId);
 				if (!toRoom) continue;
 
@@ -85,7 +84,7 @@ export const ShipDoors: React.FC<ShipDoorsProps> = ({
 	};
 
 	// Calculate door position between two rooms using the grid system
-	const calculateDoorPosition = (fromRoom: Room, toRoom: Room) => {
+	const calculateDoorPosition = (fromRoom: RoomType, toRoom: RoomType) => {
 		const doorPos = getDoorPosition(fromRoom, toRoom);
 
 		if (!doorPos) {

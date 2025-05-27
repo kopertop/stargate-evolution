@@ -1,16 +1,15 @@
-import { Room } from '@stargate/db';
 import React, { useState } from 'react';
 
-import { roomModelToType, DoorInfo } from '../types/model-types';
+import { RoomType } from '../types/model-types';
 import { getConnectionSide, GRID_UNIT, WALL_THICKNESS, DOOR_SIZE } from '../utils/grid-system';
 
 interface ShipRoomProps {
-	room: Room;
+	room: RoomType;
 	position: { x: number; y: number };
 	isVisible: boolean;
 	canExplore?: boolean;
-	onRoomClick: (room: Room) => void;
-	allRooms: Room[];
+	onRoomClick: (room: RoomType) => void;
+	allRooms: RoomType[];
 }
 
 export const ShipRoom: React.FC<ShipRoomProps> = ({
@@ -23,9 +22,6 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 }) => {
 	// State for hover - must be declared before any conditional returns
 	const [isHovered, setIsHovered] = useState(false);
-
-	// Convert room model to typed room for easier access to exploration data
-	const roomType = roomModelToType(room);
 
 	// Don't render if not visible (fog of war)
 	if (!isVisible) return null;
@@ -44,7 +40,7 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 
 	// Get room color - simplified to just show basic room background
 	const getRoomColor = (): string => {
-		if (roomType.explorationData) return '#2d1b1b'; // Dark during exploration
+		if (room.explorationData) return '#2d1b1b'; // Dark during exploration
 		return '#1a1a1a'; // Dark room background
 	};
 
@@ -94,8 +90,7 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 
 		// Check each door in room.doors to determine where door openings should be
 		// This includes doors to undiscovered rooms
-		const doors = JSON.parse(room.doors || '[]') as DoorInfo[];
-		for (const door of doors) {
+		for (const door of room.doors) {
 			// Find the connected room from allRooms (includes undiscovered rooms)
 			const connectedRoom = allRooms.find(r => r.id === door.toRoomId);
 			if (!connectedRoom) return;
@@ -382,12 +377,12 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 
 	// Render exploration progress
 	const renderExplorationProgress = () => {
-		if (!roomType.explorationData) return null;
+		if (!room.explorationData) return null;
 
 		const maxDimension = Math.max(halfWidth, halfHeight);
 		const progressRadius = maxDimension + 8; // Use larger dimension for progress ring
 		const circumference = 2 * Math.PI * progressRadius;
-		const strokeDasharray = `${(roomType.explorationData.progress / 100) * circumference} ${circumference}`;
+		const strokeDasharray = `${(room.explorationData.progress / 100) * circumference} ${circumference}`;
 
 		return (
 			<g>
@@ -413,7 +408,7 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 					fontWeight="bold"
 					style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.8)' }}
 				>
-					{Math.round(roomType.explorationData.progress)}%
+					{Math.round(room.explorationData.progress)}%
 				</text>
 			</g>
 		);
@@ -421,7 +416,7 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 
 	// Render locked indicator
 	const renderLockedIndicator = () => {
-		if (!room.found || !room.locked || roomType.explorationData) return null;
+		if (!room.found || !room.locked || room.explorationData) return null;
 
 		return (
 			<g>

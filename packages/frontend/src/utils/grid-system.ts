@@ -1,5 +1,7 @@
 import type { Room } from '@stargate/db';
 
+import { RoomType } from '../types/model-types';
+
 // Grid system constants
 export const GRID_UNIT = 64;           // Base grid unit (64px)
 export const WALL_THICKNESS = 8;      // Wall thickness
@@ -23,7 +25,7 @@ export function gridToScreenPosition(gridX: number, gridY: number): { x: number;
 /**
  * Get the center position of a room in grid coordinates
  */
-export function getRoomGridCenter(room: Room): { gridX: number; gridY: number } {
+export function getRoomGridCenter(room: Room | RoomType): { gridX: number; gridY: number } {
 	return {
 		gridX: room.gridX + (room.gridWidth / 2),
 		gridY: room.gridY + (room.gridHeight / 2),
@@ -33,7 +35,7 @@ export function getRoomGridCenter(room: Room): { gridX: number; gridY: number } 
 /**
  * Get the screen position for a room's center
  */
-export function getRoomScreenPosition(room: Room): { x: number; y: number } {
+export function getRoomScreenPosition(room: Room | RoomType): { x: number; y: number } {
 	const center = getRoomGridCenter(room);
 	return gridToScreenPosition(center.gridX, center.gridY);
 }
@@ -41,7 +43,7 @@ export function getRoomScreenPosition(room: Room): { x: number; y: number } {
 /**
  * Get room boundaries in grid coordinates
  */
-export function getRoomGridBounds(room: Room): {
+export function getRoomGridBounds(room: Room | RoomType): {
 	left: number;
 	right: number;
 	top: number;
@@ -83,7 +85,7 @@ export function getRoomScreenBounds(room: Room): {
 /**
  * Check if two rooms are adjacent (share a border)
  */
-export function areRoomsAdjacent(room1: Room, room2: Room): boolean {
+export function areRoomsAdjacent(room1: Room | RoomType, room2: Room | RoomType): boolean {
 	// Must be on the same floor
 	if (room1.floor !== room2.floor) return false;
 
@@ -108,7 +110,7 @@ export function areRoomsAdjacent(room1: Room, room2: Room): boolean {
 /**
  * Get the side where two adjacent rooms connect
  */
-export function getConnectionSide(fromRoom: Room, toRoom: Room): 'top' | 'bottom' | 'left' | 'right' | null {
+export function getConnectionSide(fromRoom: Room | RoomType, toRoom: Room | RoomType): 'top' | 'bottom' | 'left' | 'right' | null {
 	if (!areRoomsAdjacent(fromRoom, toRoom)) return null;
 
 	const bounds1 = getRoomGridBounds(fromRoom);
@@ -135,7 +137,7 @@ export function findAdjacentRooms(room: Room, allRooms: Room[]): Room[] {
 /**
  * Get the door position on a room's wall for a connection to another room
  */
-export function getDoorPosition(fromRoom: Room, toRoom: Room): {
+export function getDoorPosition(fromRoom: Room | RoomType, toRoom: Room | RoomType): {
 	side: 'top' | 'bottom' | 'left' | 'right';
 	gridX: number;
 	gridY: number;

@@ -1,13 +1,13 @@
 import { Q } from '@nozbe/watermelondb';
-import { withObservables } from '@nozbe/watermelondb/react';
-import database, { gameService, Person, Room } from '@stargate/db';
-import React, { useState, useEffect, useMemo } from 'react';
-import { Button, Modal, Alert, Badge, ProgressBar } from 'react-bootstrap';
-import { FaClock } from 'react-icons/fa';
+import database, { DestinyStatus, Game, gameService, Room, Person } from '@stargate/db';
+import React, { useState, useEffect } from 'react';
+import { Button, Modal, Alert, Badge } from 'react-bootstrap';
 import { GiMeeple, GiCog } from 'react-icons/gi';
 
 import { useGameState } from '../contexts/game-state-context';
-import { ExplorationProgress, roomModelToType, RoomType } from '../types/model-types';
+import { destinyStatusModelToType, DestinyStatusType, ExplorationProgress, personModelToType, PersonType, roomModelToType, RoomType } from '../types/model-types';
+
+import { RoomExplorationProgress } from './room-exploration-progress';
 
 interface CrewMember {
 	id: string;
@@ -22,36 +22,14 @@ interface CrewMember {
 interface RoomExplorationProps {
 	gameId: string;
 	roomId: string;
-	availableCrew: Person[];
-	assignedCrew: Person[];
-	roomData: Room[] | null;
-	selectedRoomData: Room | null;
 	showModal: boolean;
 	onClose: () => void;
 	onExplorationStart: (roomId: string, crewIds: string[]) => void;
 }
 
-const enhance = withObservables(['gameId', 'roomId'], ({ gameId, roomId }) => {
-	console.log('enhance', gameId, roomId);
-	return {
-		availableCrew: database.get<Person>('people').query(
-			Q.where('game_id', gameId),
-			Q.where('assigned_to', null),
-		).observe(),
-		assignedCrew: database.get<Person>('people').query(
-			Q.where('game_id', gameId),
-			Q.where('assigned_to', Q.notEq(null)),
-		).observe(),
-		selectedRoomData: database.get<Room>('rooms').findAndObserve(roomId),
-		roomData: database.get<Room>('rooms').query(Q.where('game_id', gameId)).observe(),
-	};
-});
-
-const RoomExplorationComponent: React.FC<RoomExplorationProps> = ({
-	availableCrew,
-	assignedCrew,
-	roomData,
-	selectedRoomData,
+export const RoomExploration: React.FC<RoomExplorationProps> = ({
+	gameId,
+	roomId,
 	showModal,
 	onClose,
 	onExplorationStart,
@@ -59,9 +37,55 @@ const RoomExplorationComponent: React.FC<RoomExplorationProps> = ({
 	const { isPaused: gameStatePaused, gameTime } = useGameState();
 	const [selectedCrew, setSelectedCrew] = useState<string[]>([]);
 	const [isManagingExploration, setIsManagingExploration] = useState(false);
-	const selectedRoom = useMemo(() => selectedRoomData ? roomModelToType(selectedRoomData) : null, [selectedRoomData]);
-	const rooms = useMemo(() => roomData ? roomData.map(roomModelToType) : [], [roomData]);
-	console.log('progress', selectedRoom?.explorationData?.progress);
+	const [selectedRoom, setSelectedRoom] = useState<RoomType | null>(null);
+	const [game, setGame] = useState<Game | null>(null);
+	const [rooms, setRooms] = useState<RoomType[]>([]);
+	const [destinyStatus, setDestinyStatus] = useState<DestinyStatusType | null>(null);
+	const [availableCrew, setAvailableCrew] = useState<PersonType[]>([]);
+	const [assignedCrew, setAssignedCrew] = useState<PersonType[]>([]);
+
+	// Observable Setup
+	useEffect(() => {
+		if (roomId && gameId) {
+			const gameSubscription = database.get<Game>('games')
+				.findAndObserve(gameId)
+				.subscribe((g) => {
+					setGame(g);
+				});
+			const roomsSubscription = database.get<Room>('rooms')
+				.query(Q.where('game_id', gameId))
+				.observe().subscribe((r) => {
+					setRooms(r.map(roomModelToType));
+				});
+			const destinyStatusSubscription = database.get<DestinyStatus>('destiny_status')
+				.findAndObserve(gameId).subscribe((d) => {
+					setDestinyStatus(destinyStatusModelToType(d));
+				});
+			const selectedRoomSubscription = database.get<Room>('rooms')
+				.findAndObserve(roomId).subscribe((r) => {
+					setSelectedRoom(roomModelToType(r));
+				});
+			const availableCrewSubscription = database.get<Person>('people')
+				.query(Q.where('game_id', gameId)).observe().subscribe((p) => {
+					setAvailableCrew(p.map(personModelToType));
+				});
+			const assignedCrewSubscription = database.get<Person>('people')
+				.query(Q.where('game_id', gameId)).observe().subscribe((p) => {
+					setAssignedCrew(p.map((pc) => personModelToType(pc)));
+				});
+			return () => {
+				gameSubscription.unsubscribe();
+				roomsSubscription.unsubscribe();
+				destinyStatusSubscription.unsubscribe();
+				selectedRoomSubscription.unsubscribe();
+				availableCrewSubscription.unsubscribe();
+				assignedCrewSubscription.unsubscribe();
+			};
+		}
+	}, [
+		roomId,
+		gameId,
+	]);
 
 	// Initialize selected crew when modal opens for ongoing exploration
 	useEffect(() => {
@@ -194,20 +218,6 @@ const RoomExplorationComponent: React.FC<RoomExplorationProps> = ({
 		return (baseTime * crewMultiplier) * (pctTimeRemaining / 100);
 	};
 
-	// Calculate actual time remaining for ongoing exploration
-	const getActualTimeRemaining = (room: RoomType): string => {
-		if (!room.explorationData) return 'Unknown';
-
-		const timeElapsed = (gameTime - room.explorationData.startTime) / 1000 / 3600; // Convert to hours
-		const totalTime = room.explorationData.timeRemaining;
-		const remaining = Math.max(0, totalTime - timeElapsed);
-
-		if (remaining < 1) {
-			return `${Math.round(remaining * 60)} minutes`;
-		}
-		return `${remaining.toFixed(1)} hours`;
-	};
-
 	// Cancel ongoing exploration
 	const cancelExploration = async (room: RoomType) => {
 		if (!room.explorationData) return;
@@ -228,28 +238,10 @@ const RoomExplorationComponent: React.FC<RoomExplorationProps> = ({
 		}
 	};
 
-	// Convert database crew to CrewMember interface
-	const convertDbCrewToCrewMember = (dbCrew: any): CrewMember => ({
-		id: dbCrew.id,
-		name: dbCrew.name,
-		role: dbCrew.role,
-		skills: JSON.parse(dbCrew.skills || '[]'),
-		assignedTo: dbCrew.assignedTo,
-		description: dbCrew.description,
-		image: dbCrew.image,
-	});
-
-	const availableCrewMembers = availableCrew.map(convertDbCrewToCrewMember);
-	const assignedCrewMembers = assignedCrew.filter(crew =>
+	const availableCrewMembers = availableCrew;
+	const assignedCrewMembers = assignedCrew.filter((crew) =>
 		selectedRoom?.explorationData?.crewAssigned.includes(crew.id),
-	).map(convertDbCrewToCrewMember);
-
-	function calculateTimeDisplay(timeRemaining: number): React.ReactNode {
-		if (timeRemaining < 1) {
-			return `${Math.round(timeRemaining * 60)} minutes`;
-		}
-		return `${timeRemaining.toFixed(1)} hours`;
-	}
+	);
 
 	return (
 		<>
@@ -276,21 +268,7 @@ const RoomExplorationComponent: React.FC<RoomExplorationProps> = ({
 							{isManagingExploration && selectedRoom.explorationData ? (
 								// Ongoing exploration management
 								<div>
-									<Alert variant="info" className="mb-3">
-										<div className="d-flex align-items-center mb-2">
-											<FaClock className="me-2" />
-											<strong>Exploration in Progress</strong>
-										</div>
-										<ProgressBar
-											now={selectedRoom.explorationData.progress}
-											label={`${Math.round(selectedRoom.explorationData.progress)}%`}
-											className="mb-2"
-										/>
-										<div className="d-flex justify-content-between">
-											<span>Time Remaining: <strong>{calculateTimeDisplay(selectedRoom.explorationData.timeRemaining)}</strong></span>
-											<span>Progress: <strong>{Math.round(selectedRoom.explorationData.progress)}%</strong></span>
-										</div>
-									</Alert>
+									<RoomExplorationProgress roomId={selectedRoom.id} />
 
 									<p><strong>Technology:</strong> {selectedRoom.technology.join(', ') || 'None detected'}</p>
 									<p>Manage crew assignments below. Changing crew will recalculate completion time.</p>
@@ -454,8 +432,6 @@ const RoomExplorationComponent: React.FC<RoomExplorationProps> = ({
 		</>
 	);
 };
-
-export const RoomExploration = enhance(RoomExplorationComponent);
 
 // Export types for use in other components
 export type { CrewMember };

@@ -1,5 +1,4 @@
 import { Q } from '@nozbe/watermelondb';
-import { withObservables } from '@nozbe/watermelondb/react';
 import database, { DestinyStatus, Game, gameService, Room } from '@stargate/db';
 import React, { useState, useEffect } from 'react';
 import { Button, Modal, Alert } from 'react-bootstrap';
@@ -15,10 +14,6 @@ import { RoomExploration } from './room-exploration';
 import { ShipDoors } from './ship-doors';
 import { ShipRoom } from './ship-room';
 
-interface DoorState {
-	[doorId: string]: boolean; // true = opened, false = closed
-}
-
 interface CameraTransform {
 	x: number;
 	y: number;
@@ -27,28 +22,14 @@ interface CameraTransform {
 
 interface ShipMapProps {
 	gameId: string;
-	destinyStatus: DestinyStatus;
-	game: Game;
-	rooms: Room[];
 }
 
-const enhance = withObservables(['gameId'], ({ gameId }) => ({
-	game: database.get<Game>('games').findAndObserve(gameId),
-	rooms: database.get<Room>('rooms').query(Q.where('game_id', gameId)).observe(),
-	destinyStatus: database.get<DestinyStatus>('destiny_status').findAndObserve(gameId),
-}));
-
-const ShipMapComponent: React.FC<ShipMapProps> = ({
-	gameId,
-	destinyStatus,
-	game,
-	rooms,
-}) => {
-	const { isPaused: gameStatePaused, resumeGame, gameTime } = useGameState();
+export const ShipMap: React.FC<ShipMapProps> = ({ gameId }) => {
+	const { isPaused: gameStatePaused, resumeGame } = useGameState();
 	const [selectedRoom, setSelectedRoom] = useState<RoomType | null>(null);
 	const [showExplorationModal, setShowExplorationModal] = useState(false);
 	const [showDoorModal, setShowDoorModal] = useState(false);
-	const [selectedDoor, setSelectedDoor] = useState<{ fromRoom: Room; door: DoorInfo } | null>(null);
+	const [selectedDoor, setSelectedDoor] = useState<{ fromRoom: RoomType; door: DoorInfo } | null>(null);
 	const [showDangerWarning, setShowDangerWarning] = useState(false);
 	const [dangerousDoor, setDangerousDoor] = useState<{ fromRoomId: string; toRoomId: string; reason: string } | null>(null);
 
@@ -56,6 +37,41 @@ const ShipMapComponent: React.FC<ShipMapProps> = ({
 	const [camera, setCamera] = useState<CameraTransform>({ x: 0, y: 0, scale: 1 });
 	const [isDragging, setIsDragging] = useState(false);
 	const [lastMousePos, setLastMousePos] = useState({ x: 0, y: 0 });
+
+	// Observed data
+	const [game, setGame] = useState<Game| null>(null);
+	const [rooms, setRooms] = useState<RoomType[]>([]);
+	const [destinyStatus, setDestinyStatus] = useState<DestinyStatusType | null>(null);
+
+	/**
+	 * Observables
+	 */
+	useEffect(() => {
+		if (gameId) {
+			const gameSubscription = database
+				.get<Game>('games')
+				.findAndObserve(gameId).subscribe((g) => {
+					setGame(g);
+				});
+			const roomsSubscription = database
+				.get<Room>('rooms')
+				.query(Q.where('game_id', gameId))
+				.observe().subscribe((r) => {
+					setRooms(r.map(roomModelToType));
+				});
+			const destinyStatusSubscription = database
+				.get<DestinyStatus>('destiny_status')
+				.findAndObserve(gameId)
+				.subscribe((d) => {
+					setDestinyStatus(destinyStatusModelToType(d));
+				});
+			return () => {
+				gameSubscription.unsubscribe();
+				roomsSubscription.unsubscribe();
+				destinyStatusSubscription.unsubscribe();
+			};
+		}
+	}, [gameId]);
 
 	// Auto-focus the SVG for keyboard controls
 	useEffect(() => {
@@ -72,21 +88,19 @@ const ShipMapComponent: React.FC<ShipMapProps> = ({
 	};
 
 	// Handle room click
-	const handleRoomClick = (room: Room) => {
-		if (!isRoomVisible(roomModelToType(room)) || gameStatePaused) return;
-
-		const roomType = roomModelToType(room);
+	const handleRoomClick = (room: RoomType) => {
+		if (!isRoomVisible(room) || gameStatePaused) return;
 
 		// Check if room is currently being explored
-		if (roomType.explorationData) {
-			setSelectedRoom(roomType);
+		if (room.explorationData) {
+			setSelectedRoom(room);
 			setShowExplorationModal(true);
 			return;
 		}
 
 		// Check if room can be explored (found but not explored)
-		if (roomType.found && !roomType.explored && !gameStatePaused) {
-			setSelectedRoom(roomType);
+		if (room.found && !room.explored && !gameStatePaused) {
+			setSelectedRoom(room);
 			setShowExplorationModal(true);
 		} else if (!room.locked) {
 			// Show room details or allow crew assignment
@@ -95,7 +109,7 @@ const ShipMapComponent: React.FC<ShipMapProps> = ({
 	};
 
 	// Convert room coordinates to screen position using grid system
-	const getRoomScreenPosition = (room: Room) => {
+	const getRoomScreenPosition = (room: RoomType) => {
 		return getGridRoomScreenPosition(room);
 	};
 
@@ -136,6 +150,10 @@ const ShipMapComponent: React.FC<ShipMapProps> = ({
 
 	// Check if door requirements are met
 	const checkDoorRequirements = (door: DoorInfo): { canOpen: boolean; unmetRequirements: DoorRequirement[] } => {
+		if (!destinyStatus) {
+			return { canOpen: false, unmetRequirements: [] };
+		}
+
 		const unmetRequirements: DoorRequirement[] = [];
 
 		for (const requirement of door.requirements) {
@@ -188,8 +206,7 @@ const ShipMapComponent: React.FC<ShipMapProps> = ({
 		const fromRoom = rooms.find(r => r.id === fromRoomId);
 		if (!fromRoom) return;
 
-		const doors = JSON.parse(fromRoom.doors || '[]') as DoorInfo[];
-		const door = doors.find(d => d.toRoomId === toRoomId);
+		const door = fromRoom.doors.find(d => d.toRoomId === toRoomId);
 		if (!door) return;
 
 		if (door.state === 'locked') {
@@ -236,7 +253,7 @@ const ShipMapComponent: React.FC<ShipMapProps> = ({
 	const markRoomAsFound = async (roomId: string) => {
 		console.log('markRoomAsFound', roomId);
 		// Update database - set found
-		if (game.id) {
+		if (game?.id) {
 			try {
 				await gameService.updateRoom(roomId, { found: true });
 			} catch (error) {
@@ -247,6 +264,8 @@ const ShipMapComponent: React.FC<ShipMapProps> = ({
 
 	// Handle consequences of opening a door (atmospheric effects, etc.)
 	const handleDoorOpenConsequences = async (fromRoomId: string, toRoomId: string) => {
+		if (!destinyStatus) return;
+
 		const { isDangerous } = checkDoorDanger(fromRoomId, toRoomId);
 
 		if (isDangerous) {
@@ -254,7 +273,9 @@ const ShipMapComponent: React.FC<ShipMapProps> = ({
 
 			if (toRoom?.status === 'damaged') {
 				// Moderate atmospheric loss
-				const newAtmosphere = JSON.parse(destinyStatus.atmosphere || '{}') as DestinyStatusType['atmosphere'];
+				const newAtmosphere = {
+					...destinyStatus.atmosphere,
+				} as DestinyStatusType['atmosphere'];
 				newAtmosphere.o2 = Math.max(0, newAtmosphere.o2 - 2); // Lose 2% O2
 				newAtmosphere.co2 = Math.min(10, newAtmosphere.co2 + 1); // Gain 1% CO2
 
@@ -268,7 +289,9 @@ const ShipMapComponent: React.FC<ShipMapProps> = ({
 				console.log('⚠️ Atmospheric breach detected! O2 levels dropping due to damaged room connection.');
 			} else if (toRoom?.status === 'destroyed') {
 				// Severe atmospheric loss
-				const newAtmosphere = JSON.parse(destinyStatus.atmosphere || '{}') as DestinyStatusType['atmosphere'];
+				const newAtmosphere = {
+					...destinyStatus.atmosphere,
+				} as DestinyStatusType['atmosphere'];
 				newAtmosphere.o2 = Math.max(0, newAtmosphere.o2 - 5); // Lose 5% O2
 				newAtmosphere.co2 = Math.min(10, newAtmosphere.co2 + 2); // Gain 2% CO2
 
@@ -335,8 +358,7 @@ const ShipMapComponent: React.FC<ShipMapProps> = ({
 			let severityMultiplier = 0;
 
 			for (const room of rooms) {
-				const doors = JSON.parse(room.doors || '[]') as DoorInfo[];
-				for (const door of doors) {
+				for (const door of room.doors) {
 					if (door.state === 'opened') {
 						const { isDangerous } = checkDoorDanger(room.id, door.toRoomId);
 						if (isDangerous) {
@@ -355,10 +377,12 @@ const ShipMapComponent: React.FC<ShipMapProps> = ({
 			}
 
 			// Apply continuous atmospheric drain if dangerous doors are open
-			if (hasOpenDangerousDoor && severityMultiplier > 0) {
+			if (hasOpenDangerousDoor && severityMultiplier > 0 && destinyStatus) {
 				const drainRate = 0.1 * severityMultiplier; // Base drain per second
 
-				const newAtmosphere = JSON.parse(destinyStatus.atmosphere || '{}') as DestinyStatusType['atmosphere'];
+				const newAtmosphere = {
+					...destinyStatus.atmosphere,
+				};
 				newAtmosphere.o2 = Math.max(0, newAtmosphere.o2 - drainRate);
 				newAtmosphere.co2 = Math.min(10, newAtmosphere.co2 + (drainRate * 0.5));
 
@@ -380,7 +404,7 @@ const ShipMapComponent: React.FC<ShipMapProps> = ({
 	}, [
 		gameStatePaused,
 		rooms,
-		destinyStatus.atmosphere,
+		destinyStatus?.atmosphere,
 	]);
 
 	// Keyboard controls for camera movement and zoom
@@ -563,17 +587,16 @@ const ShipMapComponent: React.FC<ShipMapProps> = ({
 				<g transform={`translate(${camera.x}, ${camera.y}) scale(${camera.scale})`}>
 					{/* Render all visible rooms */}
 					{rooms
-						.filter(room => isRoomVisible(roomModelToType(room)))
+						.filter(room => isRoomVisible(room))
 						.map(room => {
-							const roomType = roomModelToType(room);
 							// console.log('🏠 Rendering room:', room.type, 'at position:', getRoomScreenPosition(room));
 							return (
 								<ShipRoom
 									key={room.id}
 									room={room}
 									position={getRoomScreenPosition(room)}
-									isVisible={isRoomVisible(roomType)}
-									canExplore={roomType.found && !roomType.explored && !roomType.explorationData && !gameStatePaused}
+									isVisible={isRoomVisible(room)}
+									canExplore={room.found && !room.explored && !room.explorationData && !gameStatePaused}
 									onRoomClick={handleRoomClick}
 									allRooms={rooms}
 								/>
@@ -644,7 +667,7 @@ const ShipMapComponent: React.FC<ShipMapProps> = ({
 			{/* Room Exploration Component */}
 			{selectedRoom && (
 				<RoomExploration
-					gameId={game.id}
+					gameId={gameId}
 					roomId={selectedRoom.id}
 					showModal={showExplorationModal}
 					onClose={() => {
@@ -681,15 +704,15 @@ const ShipMapComponent: React.FC<ShipMapProps> = ({
 								return (
 									<div key={index} className={`alert ${isReqMet ? 'alert-success' : 'alert-danger'} mb-2`}>
 										<strong>{req.type.replace('_', ' ').toUpperCase()}:</strong> {req.description}
-										{req.type === 'power_level' && (
+										{req.type === 'power_level' && destinyStatus && (
 											<div className="mt-1">
 												<small>Required: {req.value} | Current: {destinyStatus.power}</small>
 											</div>
 										)}
-										{(req.type === 'item' || req.type === 'technology') && (
+										{(req.type === 'item' || req.type === 'technology') && destinyStatus && (
 											<div className="mt-1">
 												<small>
-													In inventory: {destinyStatusModelToType(destinyStatus).inventory?.[req.value] || 0}
+													In inventory: {destinyStatus.inventory?.[req.value] || 0}
 												</small>
 											</div>
 										)}
@@ -754,5 +777,3 @@ const ShipMapComponent: React.FC<ShipMapProps> = ({
 		</div>
 	);
 };
-
-export const ShipMap = enhance(ShipMapComponent);

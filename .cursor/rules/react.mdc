@@ -6,7 +6,8 @@ alwaysApply: false
 # React/Frontend Rules
 - Always use WatermelonDB for state and persistence
 - Use the DB models directly when possible
-- Use the `withObservables` function to wrap components
+- NEVER Use the `withObservables` function to wrap components -- it is broken
+	- Use `findAndObserve` or query with observables instead
 - Use components for "display" separately from services or providers for logic
 - Run `pnpm run check` from the base directory to verify typechecks and lint rules
 
@@ -18,7 +19,9 @@ See [https://watermelondb.dev/docs/Components]
 - Use proper JSON parsing with type assertions: `JSON.parse(model.jsonField) as ExpectedType[]`
 - Use `for...of` loops instead of `.forEach` when iterating over arrays
 - Use `continue` in loops instead of `return` when skipping iterations
-- When creating components that need WatermelonDB observables, use `withObservables` HOC and query the database directly
+- When creating components that need WatermelonDB observables, add subscribers in a useEffect and
+  make sure to unsubscribe in return functions.
+- DO NOT USE `withObservables`, that pattern does not work in modern React components
 - Separate business logic into dedicated components rather than cramming everything into large components
 - When splitting components, ensure proper prop interfaces and type safety between parent and child components
 
