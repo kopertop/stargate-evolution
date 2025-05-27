@@ -100,10 +100,12 @@ export const MenuPage: React.FC = () => {
 	const handleCreateGame = async () => {
 		try {
 			setIsCreatingGame(true);
-			const gameId = await gameService.createNewGame();
-			Toast.show('New game created!', 2000);
+			// Use the new template-based game creation method
+			const gameId = await gameService.createNewGameFromTemplates();
+			Toast.show('New game created from templates!', 2000);
 			onStartGame(gameId);
 		} catch (err: any) {
+			console.error('Failed to create game from templates:', err);
 			Toast.show(`Failed to create game: ${err.message || err}`, 4000);
 		} finally {
 			setIsCreatingGame(false);

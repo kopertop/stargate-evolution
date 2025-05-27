@@ -126,7 +126,7 @@ CREATE TABLE door_templates (
   - Race templates included in person templates migration
 
 #### Phase 3: Backend API Development
-- [ ] **Task 3.1**: Create template API endpoints
+- [x] **Task 3.1**: Create template API endpoints
   - `GET /api/templates/rooms` - Get all room templates
   - `GET /api/templates/people` - Get all person templates
   - `GET /api/templates/ship-layouts` - Get ship layout templates
