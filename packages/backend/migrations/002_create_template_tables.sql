@@ -25,20 +25,28 @@ CREATE TABLE IF NOT EXISTS technology_templates (
   updated_at INTEGER DEFAULT (strftime('%s','now'))
 );
 
--- Room templates
+-- Room templates (now includes layout and connection info)
 CREATE TABLE IF NOT EXISTS room_templates (
-  id TEXT PRIMARY KEY,
-  type TEXT NOT NULL, -- 'corridor', 'bridge', 'quarters', etc.
-  name TEXT NOT NULL,
-  description TEXT,
-  grid_width INTEGER NOT NULL,
-  grid_height INTEGER NOT NULL,
-  technology TEXT, -- JSON array of technology template IDs
-  image TEXT,
-  base_exploration_time INTEGER DEFAULT 2,
-  default_status TEXT DEFAULT 'ok', -- 'ok', 'damaged', 'destroyed'
-  created_at INTEGER DEFAULT (strftime('%s','now')),
-  updated_at INTEGER DEFAULT (strftime('%s','now'))
+	id TEXT PRIMARY KEY,
+	layout_id TEXT NOT NULL, -- e.g. 'destiny', 'atlantis'
+	type TEXT NOT NULL, -- 'corridor', 'bridge', 'quarters', etc.
+	name TEXT NOT NULL,
+	description TEXT,
+	position_x INTEGER NOT NULL,
+	position_y INTEGER NOT NULL,
+	floor INTEGER NOT NULL,
+	initial_state TEXT, -- JSON: { found, locked, explored }
+	size_factor INTEGER DEFAULT 1, -- relative size for rendering
+	technology TEXT, -- JSON array of technology template IDs
+	image TEXT,
+	base_exploration_time INTEGER DEFAULT 2,
+	default_status TEXT DEFAULT 'ok', -- 'ok', 'damaged', 'destroyed'
+	connection_north TEXT,
+	connection_south TEXT,
+	connection_east TEXT,
+	connection_west TEXT,
+	created_at INTEGER DEFAULT (strftime('%s','now')),
+	updated_at INTEGER DEFAULT (strftime('%s','now'))
 );
 
 -- Person templates (crew member archetypes)
@@ -56,59 +64,39 @@ CREATE TABLE IF NOT EXISTS person_templates (
   FOREIGN KEY (race_template_id) REFERENCES race_templates(id)
 );
 
--- Door templates (door types and requirements)
+-- Door templates (now includes layout and room connection info)
 CREATE TABLE IF NOT EXISTS door_templates (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  requirements TEXT, -- JSON array of requirement objects
-  default_state TEXT DEFAULT 'closed', -- 'closed', 'opened', 'locked'
-  description TEXT,
-  created_at INTEGER DEFAULT (strftime('%s','now')),
-  updated_at INTEGER DEFAULT (strftime('%s','now'))
-);
-
--- Ship layout templates (complete ship configurations)
-CREATE TABLE IF NOT EXISTS ship_layouts (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL, -- 'destiny_layout', 'atlantis_layout'
-  description TEXT,
-  layout_data TEXT, -- JSON with complete room layout and connections
-  created_at INTEGER DEFAULT (strftime('%s','now')),
-  updated_at INTEGER DEFAULT (strftime('%s','now'))
+	id TEXT PRIMARY KEY,
+	layout_id TEXT NOT NULL, -- e.g. 'destiny', 'atlantis'
+	from_room_id TEXT NOT NULL,
+	to_room_id TEXT NOT NULL,
+	requirements TEXT, -- JSON array of requirement objects
+	initial_state TEXT DEFAULT 'closed', -- 'closed', 'opened', 'locked'
+	description TEXT,
+	created_at INTEGER DEFAULT (strftime('%s','now')),
+	updated_at INTEGER DEFAULT (strftime('%s','now'))
 );
 
 -- Galaxy templates
 CREATE TABLE IF NOT EXISTS galaxy_templates (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  description TEXT,
-  coordinates TEXT, -- JSON with x, y coordinates
-  created_at INTEGER DEFAULT (strftime('%s','now')),
-  updated_at INTEGER DEFAULT (strftime('%s','now'))
+	id TEXT PRIMARY KEY,
+	name TEXT NOT NULL,
+	description TEXT,
+	coordinates TEXT, -- JSON with x, y coordinates
+	created_at INTEGER DEFAULT (strftime('%s','now')),
+	updated_at INTEGER DEFAULT (strftime('%s','now'))
 );
 
 -- Star system templates
 CREATE TABLE IF NOT EXISTS star_system_templates (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  galaxy_template_id TEXT,
-  description TEXT,
-  coordinates TEXT, -- JSON with x, y coordinates relative to galaxy
-  created_at INTEGER DEFAULT (strftime('%s','now')),
-  updated_at INTEGER DEFAULT (strftime('%s','now')),
-  FOREIGN KEY (galaxy_template_id) REFERENCES galaxy_templates(id)
-);
-
--- Planet templates
-CREATE TABLE IF NOT EXISTS planet_templates (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  type TEXT NOT NULL, -- 'habitable', 'desert', 'ice', etc.
-  star_system_template_id TEXT,
-  description TEXT,
-  created_at INTEGER DEFAULT (strftime('%s','now')),
-  updated_at INTEGER DEFAULT (strftime('%s','now')),
-  FOREIGN KEY (star_system_template_id) REFERENCES star_system_templates(id)
+	id TEXT PRIMARY KEY,
+	name TEXT NOT NULL,
+	galaxy_template_id TEXT,
+	description TEXT,
+	coordinates TEXT, -- JSON with x, y coordinates relative to galaxy
+	created_at INTEGER DEFAULT (strftime('%s','now')),
+	updated_at INTEGER DEFAULT (strftime('%s','now')),
+	FOREIGN KEY (galaxy_template_id) REFERENCES galaxy_templates(id)
 );
 
 -- Stargate templates
@@ -119,6 +107,21 @@ CREATE TABLE IF NOT EXISTS stargate_templates (
   location_template_id TEXT, -- Reference to planet or ship template
   created_at INTEGER DEFAULT (strftime('%s','now')),
   updated_at INTEGER DEFAULT (strftime('%s','now'))
+);
+
+-- Planet templates
+CREATE TABLE IF NOT EXISTS planet_templates (
+	id TEXT PRIMARY KEY,
+	name TEXT NOT NULL,
+	type TEXT NOT NULL, -- 'habitable', 'desert', 'ice', etc.
+	star_system_template_id TEXT,
+	description TEXT,
+	stargate_address TEXT, -- JSON array or string
+	technology TEXT,       -- JSON array of technology template IDs
+	resources TEXT,        -- JSON object/array
+	created_at INTEGER DEFAULT (strftime('%s','now')),
+	updated_at INTEGER DEFAULT (strftime('%s','now')),
+	FOREIGN KEY (star_system_template_id) REFERENCES star_system_templates(id)
 );
 
 -- Create indexes for foreign key relationships
