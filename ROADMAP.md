@@ -15,17 +15,17 @@ This project is a browser-based game inspired by *Stargate Universe (SGU)*, blen
 
 To bootstrap the project, we will use a modern TypeScript-centric stack with tools for both front-end game development and back-end serverless functions:
 
-* **Node.js (LTS)** and **Package Manager** – Install Node.js 18+ for modern ES module support. Use **Yarn** (or `pnpm`) workspaces to manage the mono-repo and shared dependencies, ensuring front-end and back-end stay in sync in one repository.
+* **Node.js (LTS)** and **Package Manager** – Install Node.js 18+ for modern ES module support. Use **pnpm** workspaces to manage the mono-repo and shared dependencies, ensuring front-end and back-end stay in sync in one repository.
 * **TypeScript** – Common language for both client and server. Configure a strict TypeScript setup for reliability. This allows sharing of types (e.g. game state interfaces) between front-end and back-end packages.
-* **PixiJS** – 2D rendering engine for the browser. Chosen for its **fast WebGL rendering** and focus on 2D games (PixiJS is “the fastest there is” for 2D rendering). Include via npm (`pixi.js` package).
-* **Bundler/Dev Server** – Use **Vite** (or a similar bundler) for the front-end. Vite provides quick startup and HMR for development. Initialize the front-end with a template (e.g. `npm create vite@latest` with a vanilla TS setup) and integrate PixiJS.
-* **Cloudflare Workers & Wrangler** – Use Cloudflare Workers for the server-side. Install Cloudflare’s CLI **Wrangler** (`npm install -g wrangler`) to scaffold and deploy Workers. Workers will run our TypeScript code at the edge. We’ll use Cloudflare **KV storage** or **Durable Objects** for persistent game state on the backend (Workers are by nature stateless, requiring external storage for persistence). Durable Objects can manage stateful coordination (e.g. one per game session), while KV is useful for simple key-value persistence of save games, world data, or AI memory logs.
+* **PixiJS** – 2D rendering engine for the browser. Chosen for its **fast WebGL rendering** and focus on 2D games (PixiJS is “the fastest there is” for 2D rendering). Include via pnpm (`pixi.js` package).
+* **Bundler/Dev Server** – Use **Vite** (or a similar bundler) for the front-end. Vite provides quick startup and HMR for development. Initialize the front-end with a template (e.g. `pnpm create vite@latest` with a vanilla TS setup) and integrate PixiJS.
+* **Cloudflare Workers & Wrangler** – Use Cloudflare Workers for the server-side. Install Cloudflare’s CLI **Wrangler** (`pnpm install -g wrangler`) to scaffold and deploy Workers. Workers will run our TypeScript code at the edge. We’ll use Cloudflare **KV storage** or **Durable Objects** for persistent game state on the backend (Workers are by nature stateless, requiring external storage for persistence). Durable Objects can manage stateful coordination (e.g. one per game session), while KV is useful for simple key-value persistence of save games, world data, or AI memory logs.
 * **OpenAI API** – The backend will call OpenAI’s APIs (e.g. ChatGPT models) to power the Destiny AI’s dialogue and content generation. Store the API key as a secure secret in Worker environment. The heavy lifting of AI computations and any large language model calls are done server-side for security and performance.
 * **Development Utilities** – Set up linters (ESLint) and formatters (Prettier) across the mono-repo for code quality. Use Git hooks or CI to enforce standards. Include a testing framework (Jest or Vitest) for critical game logic (procedural generation, AI decision functions, etc.).
 
 **Bootstrapping Commands:**
 
-1. **Initialize Monorepo:** Create the project directory and run `npm init -y` (or `pnpm init -y`). In the root `package.json`, add a workspaces field:
+1. **Initialize Monorepo:** Create the project directory and run `pnpm init -y`. In the root `package.json`, add a workspaces field:
 
    ```js
    {
@@ -35,7 +35,7 @@ To bootstrap the project, we will use a modern TypeScript-centric stack with too
    }
    ```
 
-   This enables Yarn to manage packages for front-end and back-end in one repo.
+   This enables pnpm to manage packages for front-end and back-end in one repo.
 2. **Scaffold Front-end:** Use Vite to create a TypeScript + vanilla project for PixiJS:
 
    ```bash
@@ -121,7 +121,7 @@ The mono-repo approach makes it easy to share code and types between front-end a
 Below is a breakdown of implementation tasks as “tickets” an AI developer agent (or team) could tackle. These tasks are grouped by functionality and roughly in a logical development sequence. Each ticket is described with the work involved and acceptance criteria.
 
 1. **Setup Monorepo & Development Environment**
-   *Task:* Initialize the repository structure and tools as described above. Set up Yarn workspaces, front-end Vite app, and Cloudflare Worker template. Configure TypeScript project references if needed (so that e.g. `frontend` can import types from `common`). Ensure dev and build scripts work for both sub-projects.
+   *Task:* Initialize the repository structure and tools as described above. Set up pnpm workspaces, front-end Vite app, and Cloudflare Worker template. Configure TypeScript project references if needed (so that e.g. `frontend` can import types from `common`). Ensure dev and build scripts work for both sub-projects.
    *Details:*
 
    * Initialize git repository, add basic README documenting how to run the game.

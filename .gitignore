@@ -3,6 +3,8 @@
 # dependencies
 node_modules/
 packages/*/node_modules/
+package-lock.json
+**/package-lock.json
 
 # Build
 .expo/

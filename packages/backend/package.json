@@ -11,7 +11,7 @@
 		"db:init": "npx tsx bin/init-db.ts",
 		"db:reset": "npx tsx bin/reset-db.ts",
 		"db:generate": "npx tsx bin/generate-d1-from-models.ts",
-		"db:create-schema": "npm run db:generate && npm run db:init",
+                "db:create-schema": "pnpm run db:generate && pnpm run db:init",
 		"test": "echo 'No tests'"
 	},
 	"devDependencies": {

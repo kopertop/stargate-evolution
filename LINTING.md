@@ -108,10 +108,10 @@ import { generateId } from '../utils/id-generator';
 
 ```bash
 # Check for linting issues
-npm run lint
+pnpm run lint
 
 # Fix automatically fixable issues
-npm run lint:fix
+pnpm run lint:fix
 ```
 
 ## ESLint Configuration
