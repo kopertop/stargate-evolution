@@ -216,8 +216,10 @@ export class GameService {
 		const transformedRooms = shipLayout.rooms.map(layoutRoomRaw => ({
 			template_id: layoutRoomRaw.id,
 			position: {
-				x: layoutRoomRaw.position_x,
-				y: layoutRoomRaw.position_y,
+				startX: layoutRoomRaw.start_x,
+				startY: layoutRoomRaw.start_y,
+				endX: layoutRoomRaw.end_x,
+				endY: layoutRoomRaw.end_y,
 				floor: layoutRoomRaw.floor,
 			},
 			initial_state: JSON.parse(layoutRoomRaw.initial_state),
@@ -242,10 +244,11 @@ export class GameService {
 			const room = await this.database.get<Room>('rooms').create((room) => {
 				room.gameId = gameId;
 				room.type = template.type;
-				room.gridX = layoutRoom.position.x;
-				room.gridY = layoutRoom.position.y;
-				room.gridWidth = template.size_factor;
-				room.gridHeight = template.size_factor;
+				// Use new rectangle positioning
+				room.startX = layoutRoom.position.startX;
+				room.startY = layoutRoom.position.startY;
+				room.endX = layoutRoom.position.endX;
+				room.endY = layoutRoom.position.endY;
 				room.floor = layoutRoom.position.floor;
 				room.technology = template.technology || '';
 				room.image = template.image || '';
@@ -265,7 +268,7 @@ export class GameService {
 			const layoutRoomId = layoutRoom.id || layoutRoom.template_id;
 			roomIdMap.set(layoutRoomId, room.id);
 
-			console.log(`Created room: ${template.name} at (${layoutRoom.position.x}, ${layoutRoom.position.y}, floor ${layoutRoom.position.floor})`);
+			console.log(`Created room: ${template.name} at (${layoutRoom.position.startX},${layoutRoom.position.startY}) to (${layoutRoom.position.endX},${layoutRoom.position.endY}), floor ${layoutRoom.position.floor}`);
 		}
 
 		// Second pass: Update connections and doors
@@ -278,11 +281,6 @@ export class GameService {
 
 			const room = await this.database.get<Room>('rooms').find(actualRoomId as string);
 
-			// Map connection IDs to actual room IDs
-			const connectedRoomIds = layoutRoom.connections
-				.map(connId => roomIdMap.get(connId || '') || '')
-				.filter(id => id);
-
 			// Find doors for this room from the layout
 			const roomDoors = shipLayout.doors
 				.filter(door => door.from_room_id === layoutRoomId)
@@ -294,10 +292,13 @@ export class GameService {
 						toRoomId,
 						door.initial_state as 'closed' | 'opened' | 'locked',
 						door.requirements ? JSON.parse(door.requirements) : [],
-						door.description,
+						door.description || undefined,
 					);
 				})
 				.filter(door => door !== null);
+
+			// Build connected room IDs from doors (not from room template connections)
+			const connectedRoomIds = roomDoors.map(door => door.toRoomId);
 
 			// Update the room with connections and doors
 			await room.update((roomRecord) => {

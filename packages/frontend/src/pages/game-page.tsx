@@ -418,9 +418,11 @@ export const GamePage: React.FC = () => {
 			viewMode,
 		};
 
+		/*
 		console.log('🔧 Debug functions available:');
 		console.log('  debugShipStats() - Display detailed ship information');
 		console.log('  debugGameState - Access to raw game state object');
+		*/
 
 		// Cleanup function
 		return () => {

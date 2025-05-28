@@ -32,11 +32,12 @@ CREATE TABLE IF NOT EXISTS room_templates (
 	type TEXT NOT NULL, -- 'corridor', 'bridge', 'quarters', etc.
 	name TEXT NOT NULL,
 	description TEXT,
-	position_x INTEGER NOT NULL,
-	position_y INTEGER NOT NULL,
+	start_x INTEGER NOT NULL, -- Left edge of room rectangle
+	start_y INTEGER NOT NULL, -- Top edge of room rectangle
+	end_x INTEGER NOT NULL,   -- Right edge of room rectangle
+	end_y INTEGER NOT NULL,   -- Bottom edge of room rectangle
 	floor INTEGER NOT NULL,
 	initial_state TEXT, -- JSON: { found, locked, explored }
-	size_factor INTEGER DEFAULT 1, -- relative size for rendering
 	technology TEXT, -- JSON array of technology template IDs
 	image TEXT,
 	base_exploration_time INTEGER DEFAULT 2,

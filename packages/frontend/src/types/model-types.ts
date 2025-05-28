@@ -33,10 +33,16 @@ export type RoomType = {
 	id: string;
 	gameId: string;
 	type: string;
-	gridX: number;
-	gridY: number;
-	gridWidth: number;
-	gridHeight: number;
+	// New rectangle positioning (preferred)
+	startX?: number;
+	startY?: number;
+	endX?: number;
+	endY?: number;
+	// Legacy grid positioning (fallback)
+	gridX?: number;
+	gridY?: number;
+	gridWidth?: number;
+	gridHeight?: number;
 	floor: number;
 	technology: string[]; // Parse JSON string to array
 	image?: string;
@@ -111,6 +117,12 @@ export function roomModelToType(room: RoomModel): RoomType {
 		id: room.id,
 		gameId: room.gameId,
 		type: room.type,
+		// New rectangle positioning (if available)
+		startX: (room as any).startX,
+		startY: (room as any).startY,
+		endX: (room as any).endX,
+		endY: (room as any).endY,
+		// Legacy grid positioning (fallback)
 		gridX: room.gridX,
 		gridY: room.gridY,
 		gridWidth: room.gridWidth,

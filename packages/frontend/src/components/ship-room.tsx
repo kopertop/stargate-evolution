@@ -28,9 +28,26 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 
 	// Calculate room dimensions using grid system
 	const getRoomDimensions = () => {
+		// Use new rectangle positioning if available
+		if (room.startX !== undefined && room.startY !== undefined && room.endX !== undefined && room.endY !== undefined) {
+			return {
+				width: (room.endX - room.startX) * GRID_UNIT,
+				height: (room.endY - room.startY) * GRID_UNIT,
+			};
+		}
+
+		// Fallback to legacy grid positioning
+		if (room.gridWidth !== undefined && room.gridHeight !== undefined) {
+			return {
+				width: room.gridWidth * GRID_UNIT,
+				height: room.gridHeight * GRID_UNIT,
+			};
+		}
+
+		// Final fallback
 		return {
-			width: room.gridWidth * GRID_UNIT,
-			height: room.gridHeight * GRID_UNIT,
+			width: GRID_UNIT,
+			height: GRID_UNIT,
 		};
 	};
 
@@ -93,11 +110,12 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 		for (const door of room.doors) {
 			// Find the connected room from allRooms (includes undiscovered rooms)
 			const connectedRoom = allRooms.find(r => r.id === door.toRoomId);
-			if (!connectedRoom) return;
+			if (!connectedRoom) continue;
 
 			// Use grid system to determine connection side
 			const side = getConnectionSide(room, connectedRoom);
 			if (side) {
+
 				openings.push({ side, position: 0.5, toRoomId: door.toRoomId });
 			}
 		}

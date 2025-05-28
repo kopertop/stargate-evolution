@@ -251,14 +251,31 @@ export const ShipMap: React.FC<ShipMapProps> = ({ gameId }) => {
 
 	// Mark a room as found (discovered)
 	const markRoomAsFound = async (roomId: string) => {
-		console.log('markRoomAsFound', roomId);
+		console.log(`[ShipMap] markRoomAsFound called for roomId: ${roomId}`);
+
+		// Check if room is already found
+		const room = rooms.find(r => r.id === roomId);
+		if (room) {
+			console.log(`[ShipMap] Room ${roomId} current found status: ${room.found}`);
+			if (room.found) {
+				console.log(`[ShipMap] Room ${roomId} is already found, skipping update`);
+				return;
+			}
+		} else {
+			console.log(`[ShipMap] Room ${roomId} not found in rooms array`);
+		}
+
 		// Update database - set found
 		if (game?.id) {
 			try {
+				console.log(`[ShipMap] Updating room ${roomId} found status in database...`);
 				await gameService.updateRoom(roomId, { found: true });
+				console.log(`[ShipMap] Successfully marked room ${roomId} as found`);
 			} catch (error) {
-				console.error('Failed to update room found status in database:', error);
+				console.error(`[ShipMap] Failed to update room ${roomId} found status in database:`, error);
 			}
+		} else {
+			console.warn(`[ShipMap] No game ID available for marking room ${roomId} as found`);
 		}
 	};
 
@@ -313,15 +330,16 @@ export const ShipMap: React.FC<ShipMapProps> = ({ gameId }) => {
 		if (game?.id) {
 			try {
 				await gameService.updateDoorState(fromRoomId, toRoomId, newState);
-				console.log(`Door ${fromRoomId} -> ${toRoomId} set to ${newState}`);
 			} catch (error) {
-				console.error('Failed to update door state in database:', error);
+				console.error('[ShipMap] Failed to update door state in database:', error);
 				return; // Don't update local state if database update fails
 			}
+		} else {
+			console.warn('[ShipMap] No game ID available for door state update');
+			return;
 		}
 
 		// Update local state (bidirectional)
-		/*
 		setRooms(prev => prev.map(room => {
 			// Update door in fromRoom
 			if (room.id === fromRoomId) {
@@ -343,10 +361,7 @@ export const ShipMap: React.FC<ShipMapProps> = ({ gameId }) => {
 			}
 			return room;
 		}));
-		*/
 	};
-
-
 
 	// Monitor open dangerous doors for continuous atmospheric drain
 	useEffect(() => {
@@ -494,8 +509,6 @@ export const ShipMap: React.FC<ShipMapProps> = ({ gameId }) => {
 		}));
 	};
 
-
-
 	// Reset camera to default position and zoom
 	const resetCamera = () => {
 		setCamera({ x: 0, y: 0, scale: 1 });
@@ -589,12 +602,12 @@ export const ShipMap: React.FC<ShipMapProps> = ({ gameId }) => {
 					{rooms
 						.filter(room => isRoomVisible(room))
 						.map(room => {
-							// console.log('🏠 Rendering room:', room.type, 'at position:', getRoomScreenPosition(room));
+							const position = getRoomScreenPosition(room);
 							return (
 								<ShipRoom
 									key={room.id}
 									room={room}
-									position={getRoomScreenPosition(room)}
+									position={position}
 									isVisible={isRoomVisible(room)}
 									canExplore={room.found && !room.explored && !room.explorationData && !gameStatePaused}
 									onRoomClick={handleRoomClick}

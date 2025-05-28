@@ -11,10 +11,16 @@ export default class Room extends Model {
 
 	@text('game_id') gameId!: string;
 	@text('type') type!: string;
-	@field('grid_x') gridX!: number; // Grid position (top-left corner)
-	@field('grid_y') gridY!: number; // Grid position (top-left corner)
-	@field('grid_width') gridWidth!: number; // Width in grid units
-	@field('grid_height') gridHeight!: number; // Height in grid units
+	// New rectangle positioning (preferred)
+	@field('start_x') startX?: number; // Left edge of room rectangle
+	@field('start_y') startY?: number; // Top edge of room rectangle
+	@field('end_x') endX?: number; // Right edge of room rectangle
+	@field('end_y') endY?: number; // Bottom edge of room rectangle
+	// Legacy grid positioning (fallback)
+	@field('grid_x') gridX?: number; // Grid position (top-left corner)
+	@field('grid_y') gridY?: number; // Grid position (top-left corner)
+	@field('grid_width') gridWidth?: number; // Width in grid units
+	@field('grid_height') gridHeight?: number; // Height in grid units
 	@field('floor') floor!: number; // Floor level (0 = main deck, negative = lower, positive = upper)
 	@text('technology') technology!: string; // JSON array
 	@text('image') image?: string; // Optional room-specific image
