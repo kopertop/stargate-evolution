@@ -3,7 +3,7 @@ import { jwtVerify, SignJWT } from 'jose';
 import { validateUser, validateSession } from './auth-types';
 import { getAllPersonTemplates, getPersonTemplateById, getPersonTemplatesByRole, getAllRaceTemplates } from './templates/person-templates';
 import { getAllRoomTemplates, getRoomTemplateById, getRoomTemplatesByType } from './templates/room-templates';
-import { getAllShipLayouts, getShipLayoutById, getAllDoorTemplates } from './templates/ship-layouts';
+import { getAllLayoutIds, getShipLayoutById, getRoomsByLayoutId, getDoorsByLayoutId, getRoomById, getDoorById } from './templates/ship-layouts';
 import { Env } from './types';
 
 const corsHeaders = {
@@ -215,7 +215,7 @@ export default {
 
 		if (url.pathname === '/api/templates/ship-layouts' && request.method === 'GET') {
 			try {
-				const layouts = await getAllShipLayouts(env.DB);
+				const layouts = await getAllLayoutIds(env.DB);
 				return withCors(new Response(JSON.stringify(layouts), {
 					headers: { 'content-type': 'application/json' },
 				}));
@@ -250,7 +250,13 @@ export default {
 
 		if (url.pathname === '/api/templates/doors' && request.method === 'GET') {
 			try {
-				const doors = await getAllDoorTemplates(env.DB);
+				const layoutId = url.searchParams.get('layout_id');
+				if (!layoutId) {
+					return withCors(new Response(JSON.stringify({ error: 'Missing layout_id parameter' }), {
+						status: 400, headers: { 'content-type': 'application/json' },
+					}));
+				}
+				const doors = await getDoorsByLayoutId(env.DB, layoutId);
 				return withCors(new Response(JSON.stringify(doors), {
 					headers: { 'content-type': 'application/json' },
 				}));

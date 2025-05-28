@@ -1,88 +1,22 @@
 // Template service for fetching game templates from backend API
 // This service handles caching and provides a clean interface for template data
 
-export interface RoomTemplate {
-	id: string;
-	type: string;
-	name: string;
-	description?: string;
-	grid_width: number;
-	grid_height: number;
-	technology: string; // JSON array
-	image?: string;
-	base_exploration_time: number;
-	default_status: string;
-	created_at: number;
-	updated_at: number;
-}
+import {
+	RoomTemplateSchema,
+	PersonTemplateSchema,
+	RaceTemplateSchema,
+	ShipLayoutSchema,
+	DoorTemplateSchema,
+} from '@stargate/common/src/zod-templates';
+import { z } from 'zod';
 
-export interface PersonTemplate {
-	id: string;
-	name: string;
-	role: string;
-	race_template_id?: string;
-	skills: string; // JSON array
-	description?: string;
-	image?: string;
-	default_location?: string; // JSON
-	created_at: number;
-	updated_at: number;
-}
+type RoomTemplate = z.infer<typeof RoomTemplateSchema>;
+type PersonTemplate = z.infer<typeof PersonTemplateSchema>;
+type RaceTemplate = z.infer<typeof RaceTemplateSchema>;
+type ShipLayout = z.infer<typeof ShipLayoutSchema>;
+type DoorTemplate = z.infer<typeof DoorTemplateSchema>;
 
-export interface RaceTemplate {
-	id: string;
-	name: string;
-	description?: string;
-	default_technology: string; // JSON array
-	default_ships: string; // JSON array
-	created_at: number;
-	updated_at: number;
-}
-
-export interface ShipLayout {
-	id: string;
-	name: string;
-	description?: string;
-	layout_data: string; // JSON with complete room layout and connections
-	created_at: number;
-	updated_at: number;
-}
-
-export interface DoorTemplate {
-	id: string;
-	name: string;
-	requirements: string; // JSON array
-	default_state: string;
-	description?: string;
-	created_at: number;
-	updated_at: number;
-}
-
-export interface ParsedShipLayout {
-	id: string;
-	name: string;
-	description?: string;
-	rooms: Array<{
-		template_id: string;
-		id?: string;
-		position: { x: number; y: number; floor: number };
-		initial_state: { found: boolean; locked: boolean; explored: boolean };
-		connections: string[];
-	}>;
-	doors: Array<{
-		from: string;
-		to: string;
-		template_id: string;
-		initial_state: string;
-		description?: string;
-		requirements?: Array<{
-			type: string;
-			value: string;
-			description: string;
-			met: boolean;
-		}>;
-	}>;
-}
+type ParsedShipLayout = ShipLayout;
 
 class TemplateService {
 	private baseUrl: string;
@@ -97,7 +31,7 @@ class TemplateService {
 			'http://localhost:8787';
 	}
 
-	private async fetchWithCache<T>(endpoint: string): Promise<T> {
+	private async fetchWithCache<T>(endpoint: string, schema?: z.ZodSchema<T>): Promise<T> {
 		const cacheKey = endpoint;
 		const now = Date.now();
 
@@ -127,11 +61,14 @@ class TemplateService {
 			const data = await response.json();
 			console.log(`[TemplateService] Successfully fetched ${endpoint}, data length:`, Array.isArray(data) ? data.length : 'not array');
 
+			// Validate with Zod if schema provided
+			const parsed = schema ? schema.parse(data) : data;
+
 			// Cache the data
-			this.cache.set(cacheKey, data);
+			this.cache.set(cacheKey, parsed);
 			this.cacheExpiry.set(cacheKey, now + this.CACHE_DURATION);
 
-			return data as T;
+			return parsed as T;
 		} catch (error) {
 			console.error(`[TemplateService] Failed to fetch ${endpoint}:`, error);
 
@@ -174,17 +111,12 @@ class TemplateService {
 
 	async getShipLayoutById(id: string): Promise<ParsedShipLayout | null> {
 		try {
-			const layout = await this.fetchWithCache<ShipLayout>(`/api/templates/ship-layouts/${id}`);
-
-			// Parse the JSON layout_data
-			const layoutData = JSON.parse(layout.layout_data);
-
+			const layout = await this.fetchWithCache<z.infer<typeof ShipLayoutSchema>>(`/api/templates/ship-layouts/${id}`, ShipLayoutSchema);
+			if (!layout) return null;
 			return {
-				id: layout.id,
-				name: layout.name,
-				description: layout.description,
-				rooms: layoutData.rooms,
-				doors: layoutData.doors,
+				layout_id: layout.layout_id,
+				rooms: layout.rooms,
+				doors: layout.doors,
 			};
 		} catch (error) {
 			if (error instanceof Error && error.message.includes('404')) {

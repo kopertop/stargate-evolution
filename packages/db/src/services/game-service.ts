@@ -1,6 +1,7 @@
 import { Database, Q } from '@nozbe/watermelondb';
 import { writer } from '@nozbe/watermelondb/decorators';
 import { synchronize } from '@nozbe/watermelondb/sync';
+import { RoomTemplate, ShipLayout } from '@stargate/common/src/zod-templates';
 
 import DestinyStatus from '../models/destiny-status';
 import Galaxy from '../models/galaxy';
@@ -9,7 +10,8 @@ import Race from '../models/race';
 import Room from '../models/room';
 import StarSystem from '../models/star-system';
 
-import templateService, { type RoomTemplate, type PersonTemplate, type ParsedShipLayout } from './template-service';
+import templateService from './template-service';
+
 
 export class GameService {
 	constructor(private database: Database) {}
@@ -17,7 +19,7 @@ export class GameService {
 	/**
 	 * Create a new game using templates from the backend API
 	 */
-	@writer async createNewGameFromTemplates(shipLayoutId: string = 'destiny_layout'): Promise<string> {
+	@writer async createNewGameFromTemplates(shipLayoutId: string = 'destiny'): Promise<string> {
 		console.log('[GameService] Creating new game from templates...');
 
 		try {
@@ -186,7 +188,7 @@ export class GameService {
 	/**
 	 * Helper method to create rooms from ship layout and room templates
 	 */
-	private async createRoomsFromLayout(gameId: string, shipLayout: ParsedShipLayout, roomTemplates: RoomTemplate[]): Promise<void> {
+	private async createRoomsFromLayout(gameId: string, shipLayout: ShipLayout, roomTemplates: RoomTemplate[]): Promise<void> {
 		// Create a map of template_id -> RoomTemplate for quick lookup
 		const templateMap = new Map<string, RoomTemplate>();
 		for (const template of roomTemplates) {
@@ -210,9 +212,27 @@ export class GameService {
 			room.explored = false;
 		};
 
+		// Transform backend rooms to expected structure
+		const transformedRooms = shipLayout.rooms.map(layoutRoomRaw => ({
+			template_id: layoutRoomRaw.id,
+			position: {
+				x: layoutRoomRaw.position_x,
+				y: layoutRoomRaw.position_y,
+				floor: layoutRoomRaw.floor,
+			},
+			initial_state: JSON.parse(layoutRoomRaw.initial_state),
+			connections: [
+				layoutRoomRaw.connection_north,
+				layoutRoomRaw.connection_south,
+				layoutRoomRaw.connection_east,
+				layoutRoomRaw.connection_west,
+			].filter(Boolean),
+			id: layoutRoomRaw.id, // for mapping
+		}));
+
 		// First pass: Create all rooms
-		console.log(`Creating ${shipLayout.rooms.length} rooms from layout...`);
-		for (const layoutRoom of shipLayout.rooms) {
+		console.log(`Creating ${transformedRooms.length} rooms from layout...`);
+		for (const layoutRoom of transformedRooms) {
 			const template = templateMap.get(layoutRoom.template_id);
 			if (!template) {
 				console.warn(`Room template '${layoutRoom.template_id}' not found, skipping room`);
@@ -224,12 +244,12 @@ export class GameService {
 				room.type = template.type;
 				room.gridX = layoutRoom.position.x;
 				room.gridY = layoutRoom.position.y;
-				room.gridWidth = template.grid_width;
-				room.gridHeight = template.grid_height;
+				room.gridWidth = template.size_factor;
+				room.gridHeight = template.size_factor;
 				room.floor = layoutRoom.position.floor;
-				room.technology = template.technology;
+				room.technology = template.technology || '';
 				room.image = template.image || '';
-				room.status = template.default_status as 'ok' | 'damaged' | 'destroyed';
+				room.status = template.default_status as 'ok' | 'damaged' | 'destroyed' || 'ok';
 
 				// Set initial state from layout
 				setDefaultRoomState(room, layoutRoom.initial_state.found);
@@ -250,30 +270,30 @@ export class GameService {
 
 		// Second pass: Update connections and doors
 		console.log('Updating room connections and doors...');
-		for (const layoutRoom of shipLayout.rooms) {
+		for (const layoutRoom of transformedRooms) {
 			const layoutRoomId = layoutRoom.id || layoutRoom.template_id;
-			const actualRoomId = roomIdMap.get(layoutRoomId);
+			const actualRoomId = roomIdMap.get(layoutRoomId) || '';
 
 			if (!actualRoomId) continue;
 
-			const room = await this.database.get<Room>('rooms').find(actualRoomId);
+			const room = await this.database.get<Room>('rooms').find(actualRoomId as string);
 
 			// Map connection IDs to actual room IDs
 			const connectedRoomIds = layoutRoom.connections
-				.map(connId => roomIdMap.get(connId))
-				.filter(id => id !== undefined);
+				.map(connId => roomIdMap.get(connId || '') || '')
+				.filter(id => id);
 
 			// Find doors for this room from the layout
 			const roomDoors = shipLayout.doors
-				.filter(door => door.from === layoutRoomId)
+				.filter(door => door.from_room_id === layoutRoomId)
 				.map(door => {
-					const toRoomId = roomIdMap.get(door.to);
+					const toRoomId = roomIdMap.get(door.to_room_id) || '';
 					if (!toRoomId) return null;
 
 					return createDoorInfo(
 						toRoomId,
 						door.initial_state as 'closed' | 'opened' | 'locked',
-						door.requirements || [],
+						door.requirements ? JSON.parse(door.requirements) : [],
 						door.description,
 					);
 				})
