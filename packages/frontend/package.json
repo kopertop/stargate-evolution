@@ -5,7 +5,8 @@
 	"scripts": {
 		"dev": "vite",
 		"build": "vite build",
-		"typecheck": "tsc --noEmit"
+		"typecheck": "tsc --noEmit",
+		"deploy": "wrangler pages deploy ./dist --project-name stargate-frontend"
 	},
 	"dependencies": {
 		"@nozbe/watermelondb": "^0.28.0",

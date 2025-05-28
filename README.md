@@ -36,3 +36,14 @@ A web-based, top-down, turn-based game based on the Stargate universe, focusing 
    ```sh
    pnpm start
    ```
+
+## \ud83d\ude80 Deploying the Frontend to Cloudflare Pages
+
+1. Build the frontend:
+   ```sh
+   pnpm --filter frontend run build
+   ```
+2. Deploy with Wrangler:
+   ```sh
+   pnpm --filter frontend run deploy
+   ```
