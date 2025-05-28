@@ -1,0 +1,14 @@
+import { z } from 'zod';
+
+export const RoomTechnologySchema = z.object({
+	id: z.string(),
+	room_id: z.string(),
+	technology_template_id: z.string(),
+	count: z.number(),
+	description: z.string().nullable().optional(),
+	discovered: z.boolean(),
+	created_at: z.number(),
+	updated_at: z.number(),
+});
+
+export type RoomTechnology = z.infer<typeof RoomTechnologySchema>;

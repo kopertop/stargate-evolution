@@ -270,6 +270,7 @@ export const ShipMap: React.FC<ShipMapProps> = ({ gameId }) => {
 			try {
 				console.log(`[ShipMap] Updating room ${roomId} found status in database...`);
 				await gameService.updateRoom(roomId, { found: true });
+				setRooms((prev) => prev.map(room => room.id === roomId ? { ...room, found: true } : room));
 				console.log(`[ShipMap] Successfully marked room ${roomId} as found`);
 			} catch (error) {
 				console.error(`[ShipMap] Failed to update room ${roomId} found status in database:`, error);
@@ -600,7 +601,6 @@ export const ShipMap: React.FC<ShipMapProps> = ({ gameId }) => {
 				<g transform={`translate(${camera.x}, ${camera.y}) scale(${camera.scale})`}>
 					{/* Render all visible rooms */}
 					{rooms
-						.filter(room => isRoomVisible(room))
 						.map(room => {
 							const position = getRoomScreenPosition(room);
 							return (
@@ -608,7 +608,7 @@ export const ShipMap: React.FC<ShipMapProps> = ({ gameId }) => {
 									key={room.id}
 									room={room}
 									position={position}
-									isVisible={isRoomVisible(room)}
+									isVisible={room.found}
 									canExplore={room.found && !room.explored && !room.explorationData && !gameStatePaused}
 									onRoomClick={handleRoomClick}
 									allRooms={rooms}
@@ -711,7 +711,6 @@ export const ShipMap: React.FC<ShipMapProps> = ({ gameId }) => {
 							</Alert>
 
 							{selectedDoor.door.requirements.map((req, index) => {
-								const { canOpen } = checkDoorRequirements(selectedDoor.door);
 								const isReqMet = checkDoorRequirements({ ...selectedDoor.door, requirements: [req] }).canOpen;
 
 								return (

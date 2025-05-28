@@ -3,7 +3,8 @@ import { jwtVerify, SignJWT } from 'jose';
 import { validateUser, validateSession } from './auth-types';
 import { getAllPersonTemplates, getPersonTemplateById, getPersonTemplatesByRole, getAllRaceTemplates } from './templates/person-templates';
 import { getAllRoomTemplates, getRoomTemplateById, getRoomTemplatesByType } from './templates/room-templates';
-import { getAllLayoutIds, getShipLayoutById, getRoomsByLayoutId, getDoorsByLayoutId, getRoomById, getDoorById } from './templates/ship-layouts';
+import { getAllLayoutIds, getShipLayoutById, getRoomsByLayoutId, getDoorsByLayoutId, getRoomById, getDoorById, getShipLayoutWithTechnology } from './templates/ship-layouts';
+import { getAllTechnologyTemplates, getTechnologyTemplateById, getTechnologyTemplatesByCategory, getRoomTechnologyByRoomId, getAllRoomTechnology, getDiscoveredRoomTechnology, updateRoomTechnologyDiscovered } from './templates/technology-templates';
 import { Env } from './types';
 
 const corsHeaders = {
@@ -231,7 +232,13 @@ export default {
 				const layoutId = url.pathname.split('/').pop();
 				if (!layoutId) throw new Error('Layout ID required');
 
-				const layout = await getShipLayoutById(env.DB, layoutId);
+				// Check if enhanced data with technology is requested
+				const includeTechnology = url.searchParams.get('include_technology') === 'true';
+
+				const layout = includeTechnology
+					? await getShipLayoutWithTechnology(env.DB, layoutId)
+					: await getShipLayoutById(env.DB, layoutId);
+
 				if (!layout) {
 					return withCors(new Response(JSON.stringify({ error: 'Ship layout not found' }), {
 						status: 404, headers: { 'content-type': 'application/json' },
@@ -262,6 +269,77 @@ export default {
 				}));
 			} catch (err: any) {
 				return withCors(new Response(JSON.stringify({ error: err.message || 'Failed to fetch door templates' }), {
+					status: 500, headers: { 'content-type': 'application/json' },
+				}));
+			}
+		}
+
+		// Technology template endpoints
+		if (url.pathname === '/api/templates/technology' && request.method === 'GET') {
+			try {
+				const technologies = await getAllTechnologyTemplates(env.DB);
+				return withCors(new Response(JSON.stringify(technologies), {
+					headers: { 'content-type': 'application/json' },
+				}));
+			} catch (err: any) {
+				return withCors(new Response(JSON.stringify({ error: err.message || 'Failed to fetch technology templates' }), {
+					status: 500, headers: { 'content-type': 'application/json' },
+				}));
+			}
+		}
+
+		if (url.pathname.startsWith('/api/templates/technology/') && request.method === 'GET') {
+			try {
+				const techId = url.pathname.split('/').pop();
+				if (!techId) throw new Error('Technology ID required');
+
+				const technology = await getTechnologyTemplateById(env.DB, techId);
+				if (!technology) {
+					return withCors(new Response(JSON.stringify({ error: 'Technology template not found' }), {
+						status: 404, headers: { 'content-type': 'application/json' },
+					}));
+				}
+
+				return withCors(new Response(JSON.stringify(technology), {
+					headers: { 'content-type': 'application/json' },
+				}));
+			} catch (err: any) {
+				return withCors(new Response(JSON.stringify({ error: err.message || 'Failed to fetch technology template' }), {
+					status: 500, headers: { 'content-type': 'application/json' },
+				}));
+			}
+		}
+
+		// Room technology endpoints
+		if (url.pathname === '/api/templates/room-technology' && request.method === 'GET') {
+			try {
+				const roomId = url.searchParams.get('room_id');
+				if (roomId) {
+					const roomTech = await getRoomTechnologyByRoomId(env.DB, roomId);
+					return withCors(new Response(JSON.stringify(roomTech), {
+						headers: { 'content-type': 'application/json' },
+					}));
+				} else {
+					const allRoomTech = await getAllRoomTechnology(env.DB);
+					return withCors(new Response(JSON.stringify(allRoomTech), {
+						headers: { 'content-type': 'application/json' },
+					}));
+				}
+			} catch (err: any) {
+				return withCors(new Response(JSON.stringify({ error: err.message || 'Failed to fetch room technology' }), {
+					status: 500, headers: { 'content-type': 'application/json' },
+				}));
+			}
+		}
+
+		if (url.pathname === '/api/templates/room-technology/discovered' && request.method === 'GET') {
+			try {
+				const discoveredTech = await getDiscoveredRoomTechnology(env.DB);
+				return withCors(new Response(JSON.stringify(discoveredTech), {
+					headers: { 'content-type': 'application/json' },
+				}));
+			} catch (err: any) {
+				return withCors(new Response(JSON.stringify({ error: err.message || 'Failed to fetch discovered technology' }), {
 					status: 500, headers: { 'content-type': 'application/json' },
 				}));
 			}

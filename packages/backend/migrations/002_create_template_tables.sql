@@ -38,7 +38,6 @@ CREATE TABLE IF NOT EXISTS room_templates (
 	end_y INTEGER NOT NULL,   -- Bottom edge of room rectangle
 	floor INTEGER NOT NULL,
 	initial_state TEXT, -- JSON: { found, locked, explored }
-	technology TEXT, -- JSON array of technology template IDs
 	image TEXT,
 	base_exploration_time INTEGER DEFAULT 2,
 	default_status TEXT DEFAULT 'ok', -- 'ok', 'damaged', 'destroyed'
@@ -124,6 +123,25 @@ CREATE TABLE IF NOT EXISTS planet_templates (
 	updated_at INTEGER DEFAULT (strftime('%s','now')),
 	FOREIGN KEY (star_system_template_id) REFERENCES star_system_templates(id)
 );
+
+-- Create room_technology table for technology found in rooms during exploration
+CREATE TABLE IF NOT EXISTS room_technology (
+	id TEXT PRIMARY KEY,
+	room_id TEXT NOT NULL,
+	technology_template_id TEXT NOT NULL,
+	count INTEGER NOT NULL DEFAULT 1,
+	description TEXT,
+	discovered BOOLEAN DEFAULT FALSE, -- Whether this tech has been found through exploration
+	created_at INTEGER DEFAULT (strftime('%s','now')),
+	updated_at INTEGER DEFAULT (strftime('%s','now')),
+	FOREIGN KEY (room_id) REFERENCES room_templates(id),
+	FOREIGN KEY (technology_template_id) REFERENCES technology_templates(id)
+);
+
+-- Create index for efficient lookups
+CREATE INDEX IF NOT EXISTS idx_room_technology_room ON room_technology(room_id);
+CREATE INDEX IF NOT EXISTS idx_room_technology_tech ON room_technology(technology_template_id);
+
 
 -- Create indexes for foreign key relationships
 CREATE INDEX IF NOT EXISTS idx_person_templates_race ON person_templates(race_template_id);

@@ -12,7 +12,6 @@ export const RoomTemplateSchema = z.object({
 	end_y: z.number(),
 	floor: z.number(),
 	initial_state: z.string(),
-	technology: z.string().nullable().optional(),
 	image: z.string().nullable().optional(),
 	base_exploration_time: z.number().nullable().optional(),
 	default_status: z.string().nullable().optional(),
