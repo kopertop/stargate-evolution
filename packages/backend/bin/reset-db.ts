@@ -35,6 +35,7 @@ async function resetDatabase() {
 			throw new Error('Failed to parse table names from wrangler output.');
 		}
 
+		const retryTables: Set<string> = new Set();
 		const tableNames = tablesResult[0].results.map((row: { name: string }) => row.name);
 
 		if (tableNames.length === 0) {
@@ -54,6 +55,23 @@ async function resetDatabase() {
 				} catch (error) {
 					console.error(`Error dropping table ${tableName}:`, error);
 					// Continue with other tables even if one fails
+					retryTables.add(tableName);
+				}
+			}
+			while (retryTables.size > 0) {
+				console.log(`Retrying to drop tables: ${Array.from(retryTables).join(', ')}...`);
+				for (const tableName of Array.from(retryTables)) {
+					console.log(`Dropping table: ${tableName}...`);
+					try {
+						execSync(
+							`${wranglerBaseCommand} --command "DROP TABLE IF EXISTS ${tableName};"`,
+							{ encoding: 'utf-8' },
+						);
+						console.log(` -> Table ${tableName} dropped successfully.`);
+						retryTables.delete(tableName);
+					} catch (error) {
+						console.error(`Error dropping table ${tableName}:`, error);
+					}
 				}
 			}
 		}
