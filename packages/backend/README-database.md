@@ -28,10 +28,10 @@ pnpm db:init
 
 #### Backend Package Scripts (from packages/backend)
 
-- `npm run db:init [database-name]` - Apply migrations (default: stargate-game)
-- `npm run db:reset [database-name]` - Reset database with confirmation
-- `npm run db:generate-migration <name>` - Generate Sequelize migration
-- `npm run db:convert-migrations` - Convert to D1 SQL format
+- `pnpm run db:init [database-name]` - Apply migrations (default: stargate-game)
+- `pnpm run db:reset [database-name]` - Reset database with confirmation
+- `pnpm run db:generate-migration <name>` - Generate Sequelize migration
+- `pnpm run db:convert-migrations` - Convert to D1 SQL format
 
 ## Workflow
 

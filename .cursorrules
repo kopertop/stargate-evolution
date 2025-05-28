@@ -4,7 +4,7 @@ Follow the guide in the `ROADMAP.md` file.
 
 ## 1. Repository and Code Structure
 
-* **Mono-repo:** Use Yarn (or pnpm) workspaces. Organize code into `/packages/frontend`, `/packages/backend`, and optionally `/packages/common`.
+* **Mono-repo:** Use pnpm workspaces. Organize code into `/packages/frontend`, `/packages/backend`, and optionally `/packages/common`.
 * **TypeScript Everywhere:** All source code must be in `.ts` (or `.tsx` for React UIs, if ever used). Enable `strict` mode in `tsconfig.json`.
 * **Shared Types:** All data types shared between front-end and back-end (e.g., `GameState`, `CrewMember`) should be defined in `/packages/common/types.d.ts` and imported where needed.
 * **Modules:** Organize logic by feature, not by type. Example: ship systems code stays in `systems/` in front-end, AI code in `ai.ts` or `ai/` in back-end.
