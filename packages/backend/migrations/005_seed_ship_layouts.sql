@@ -3,7 +3,7 @@
 -- Rooms (using rectangle positioning based on Destiny blueprint)
 INSERT INTO room_templates (id, layout_id, type, name, description, start_x, start_y, end_x, end_y, floor, initial_state, connection_north, connection_south, connection_east, connection_west) VALUES
 	-- Gate Room/Storage Room (large central room with stargate)
-	('gate_room', 'destiny', 'gate_room_large', 'Gate Room', 'Main Stargate room with storage', -2, -2, 2, 2, 0, '{"found":true,"locked":false,"explored":false}', 'south_corridor', NULL, 'control_interface', 'north_corridor'),
+	('gate_room', 'destiny', 'gate_room', 'Gate Room', 'Main Stargate room with storage', -2, -2, 2, 2, 0, '{"found":true,"locked":false,"explored":false}', 'south_corridor', NULL, 'control_interface', 'north_corridor'),
 
 	-- Corridors around the gate room
 	('north_corridor', 'destiny', 'corridor_basic', 'North Corridor', 'Corridor west of gate room', -4, -1, -2, 1, 0, '{"found":false,"locked":false,"explored":false}', NULL, NULL, 'gate_room', NULL),

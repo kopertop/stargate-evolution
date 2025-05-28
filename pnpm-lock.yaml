@@ -136,6 +136,9 @@ importers:
       bootstrap:
         specifier: ^5.3.6
         version: 5.3.6(@popperjs/core@2.11.8)
+      case:
+        specifier: ^1.6.3
+        version: 1.6.3
       pixi.js:
         specifier: ^8.9.2
         version: 8.9.2
@@ -1307,6 +1310,10 @@ packages:
 
   caniuse-lite@1.0.30001718:
     resolution: {integrity: sha512-AflseV1ahcSunK53NfEs9gFWgOEmzr0f+kaMFA4xiLZlr9Hzt7HxcSpIFcnNCUkz6R6dWKa54rUz3HUmI3nVcw==}
+
+  case@1.6.3:
+    resolution: {integrity: sha512-mzDSXIPaFwVDvZAHqZ9VlbyF4yyXRuX6IvB06WvPYkqJVO24kX1PPhv9bfpKNFZyxYFmmgo03HUiD8iklmJYRQ==}
+    engines: {node: '>= 0.8.0'}
 
   chai@5.2.0:
     resolution: {integrity: sha512-mCuXncKXk5iCLhfhwTc0izo0gtEmpz5CtG2y8GiOINBlMVS6v8TMRc5TaLWKS6692m9+dVVfzgeVxR5UxWHTYw==}
@@ -3822,6 +3829,8 @@ snapshots:
   callsites@3.1.0: {}
 
   caniuse-lite@1.0.30001718: {}
+
+  case@1.6.3: {}
 
   chai@5.2.0:
     dependencies:

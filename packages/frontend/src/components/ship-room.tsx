@@ -1,3 +1,4 @@
+import { title as titleCase } from 'case';
 import React, { useState } from 'react';
 
 import { RoomType } from '../types/model-types';
@@ -355,7 +356,7 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 
 	// Render stargate if this is the gate room
 	const renderStargate = () => {
-		if (room.type !== 'gate_room') return null;
+		if (!room.type.includes('gate_room')) return null;
 
 		const isActive = room.technology.includes('stargate') && room.status === 'ok';
 		const stargateImage = isActive ? '/images/stargate-active.png' : '/images/stargate.png';
@@ -398,7 +399,8 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 		if (!room.explorationData) return null;
 
 		const maxDimension = Math.max(halfWidth, halfHeight);
-		const progressRadius = maxDimension + 8; // Use larger dimension for progress ring
+		// Size of the progress ring is half the size of the room
+		const progressRadius = maxDimension / 2;
 		const circumference = 2 * Math.PI * progressRadius;
 		const strokeDasharray = `${(room.explorationData.progress / 100) * circumference} ${circumference}`;
 
@@ -467,7 +469,7 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 		// No hover for Corridors
 		if (room.type === 'corridor') return null;
 
-		const roomName = room.type.replace('_', ' ').toUpperCase();
+		const roomName = room.name || titleCase(room.type);
 
 		return (
 			<g>

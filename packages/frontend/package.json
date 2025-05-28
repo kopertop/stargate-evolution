@@ -13,6 +13,7 @@
 		"@stargate/common": "workspace:*",
 		"@stargate/db": "workspace:*",
 		"bootstrap": "^5.3.6",
+		"case": "^1.6.3",
 		"pixi.js": "^8.9.2",
 		"react": "^18.2.0",
 		"react-bootstrap": "^2.10.10",

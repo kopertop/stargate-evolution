@@ -31,6 +31,7 @@ export interface ExplorationProgress {
 // Room type with parsed JSON fields
 export type RoomType = {
 	id: string;
+	name?: string;
 	gameId: string;
 	type: string;
 	// New rectangle positioning (preferred)
