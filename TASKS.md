@@ -16,6 +16,7 @@
 - [x] Google Chrome-aware "Continue with Google" login (detects logged-in Google account and offers one-click login with visible email, session persistence, backend validation/refresh)
 - [x] Auto-Generated D1 Migration System: Complete migration from Sequelize to CloudFlare D1 with auto-generated schema from TypeScript models, full test coverage, and working create/get game endpoints
 - [x] **Frontend-First Database Architecture**: Created `packages/db` with WatermelonDB schema, models, and GameService for offline-first game creation
+- [x] Frontend deployment configured with Wrangler for Cloudflare Pages
 
 ## 🚧 In Progress / Next Up
 - [ ] **Convert Frontend to React + PixiJS**: Migrate from vanilla JS to React components with PixiJS integration
