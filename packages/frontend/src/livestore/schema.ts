@@ -543,8 +543,18 @@ const materializers = State.SQLite.materializers(events, {
 			updated_at: new Date(),
 		}).where({ id: fields.id }),
 
-	'v1.GameDeleted': ({ id }) =>
-		tables.games.delete().where({ id }),
+	'v1.GameDeleted': ({ id }) => Object.entries(tables)
+		.map(([tableName, tableInstance]) => {
+			if (
+				tableName === 'games'
+				|| tableName === 'destinyStatus'
+				|| tableName === 'uiState'
+			) {
+				return (tableInstance as any).delete().where({ id });
+			} else {
+				return (tableInstance as any).delete().where({ game_id: id });
+			}
+		}),
 
 	'v1.RoomExplorationStarted': (fields) =>
 		tables.rooms.update({
