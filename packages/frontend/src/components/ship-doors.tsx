@@ -2,7 +2,8 @@ import React from 'react';
 
 import { DoorInfo } from '../types';
 import { RoomType } from '../types/model-types';
-import { getDoorPosition, WALL_THICKNESS, DOOR_SIZE } from '../utils/grid-system';
+import { DoorSvg, DoorLight, DoorOrientation } from './door-svg';
+import { getDoorPosition } from '../utils/grid-system';
 
 interface ShipDoorsProps {
 	rooms: RoomType[];
@@ -48,44 +49,24 @@ export const ShipDoors: React.FC<ShipDoorsProps> = ({
 		return connections;
 	};
 
-	// Get door image based on state and safety
-	const getDoorImage = (connection: DoorConnection): string => {
-		const { fromRoom, toRoom, doorInfo } = connection;
+       // Get door light state based on conditions
+       const getDoorLight = (connection: DoorConnection): DoorLight => {
+               const { fromRoom, toRoom, doorInfo } = connection;
 
-		switch (doorInfo.state) {
-		case 'opened':
-			return '/images/doors/door-opened.png';
-		case 'closed':
-			// Check if door should be restricted (unsafe conditions)
-			if ((fromRoom.status === 'damaged' || toRoom.status === 'damaged' ||
-				fromRoom.status === 'destroyed' || toRoom.status === 'destroyed')) {
-				return '/images/doors/door-restricted.png';
-			}
-			return '/images/doors/door-closed.png';
-		case 'locked': {
-			// Check if this is a dangerous door (red) or code-locked door (gold)
-			if (toRoom.status === 'damaged' || toRoom.status === 'destroyed') {
-				// Red door for dangerous rooms
-				return '/images/doors/door-locked.png';
-			}
+               if (doorInfo.state === 'locked') {
+                       return 'locked';
+               }
 
-			// Check if door has code requirements (gold door)
-			const hasCodeRequirement = doorInfo.requirements?.some((req: any) => req.type === 'code');
-			if (hasCodeRequirement) {
-				return '/images/doors/door-restricted.png'; // Gold door for code access
-			}
+               if (fromRoom.status !== 'ok' || toRoom.status !== 'ok') {
+                       return 'inaccessible';
+               }
 
-			// Default locked door (red)
-			return '/images/doors/door-locked.png';
-		}
-		default:
-			return '/images/doors/door-closed.png';
-		}
-	};
+               return 'normal';
+       };
 
 	// Calculate door position between two rooms using the grid system
-	const calculateDoorPosition = (fromRoom: RoomType, toRoom: RoomType) => {
-		const doorPos = getDoorPosition(fromRoom, toRoom);
+       const calculateDoorPosition = (fromRoom: RoomType, toRoom: RoomType) => {
+               const doorPos = getDoorPosition(fromRoom, toRoom);
 
 		if (!doorPos) {
 			// No valid connection - shouldn't happen but fallback gracefully
@@ -94,18 +75,19 @@ export const ShipDoors: React.FC<ShipDoorsProps> = ({
 		}
 
 		// Determine rotation based on the connection side
-		let rotation = 0;
-		if (doorPos.side === 'left' || doorPos.side === 'right') {
-			rotation = 90;
-		}
+               const orientationMap: Record<string, DoorOrientation> = {
+                       top: 'north',
+                       bottom: 'south',
+                       left: 'west',
+                       right: 'east',
+               };
 
-		return {
-			x: doorPos.screenX,
-			y: doorPos.screenY,
-			rotation,
-			side: doorPos.side,
-		};
-	};
+               return {
+                       x: doorPos.screenX,
+                       y: doorPos.screenY,
+                       orientation: orientationMap[doorPos.side],
+               };
+       };
 
 	// Handle door click
 	const handleDoorClick = (connection: DoorConnection) => {
@@ -117,9 +99,9 @@ export const ShipDoors: React.FC<ShipDoorsProps> = ({
 	return (
 		<g>
 			{doorConnections.map((connection, index) => {
-				const { fromRoom, toRoom } = connection;
-				const doorImage = getDoorImage(connection);
-				const position = calculateDoorPosition(fromRoom, toRoom);
+                               const { fromRoom, toRoom } = connection;
+                               const light = getDoorLight(connection);
+                               const position = calculateDoorPosition(fromRoom, toRoom);
 
 				// Skip if no valid position found
 				if (!position) {
@@ -127,21 +109,15 @@ export const ShipDoors: React.FC<ShipDoorsProps> = ({
 				}
 
 				return (
-					<g key={`door-${fromRoom.id}-${toRoom.id}`}>
-						<image
-							href={doorImage}
-							x={position.x - DOOR_SIZE / 2}
-							y={position.y - WALL_THICKNESS / 2}
-							width={DOOR_SIZE}
-							height={WALL_THICKNESS}
-							style={{ cursor: 'pointer' }}
-							onClick={() => handleDoorClick(connection)}
-							transform={position.rotation !== 0 ?
-								`rotate(${position.rotation} ${position.x} ${position.y})` :
-								undefined
-							}
-						/>
-					</g>
+                                       <DoorSvg
+                                               key={`door-${fromRoom.id}-${toRoom.id}`}
+                                               x={position.x}
+                                               y={position.y}
+                                               orientation={position.orientation}
+                                               open={connection.doorInfo.state === 'opened'}
+                                               light={light}
+                                               onClick={() => handleDoorClick(connection)}
+                                       />
 				);
 			})}
 		</g>
