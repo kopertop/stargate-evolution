@@ -1,13 +1,13 @@
 import { gameService } from '@stargate/db';
 import React, { useState, useEffect } from 'react';
-import { Button, Container, Row, Col, Alert, Modal } from 'react-bootstrap';
+import { Button, Modal } from 'react-bootstrap';
 import { FaTrash } from 'react-icons/fa';
 import { GiReturnArrow } from 'react-icons/gi';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
+import { toast } from 'react-toastify';
 
 import { renderGoogleSignInButton } from '../auth/google-auth';
 import { getSession, setSession } from '../auth/session';
-import { Toast } from '../toast';
 
 type GameSummary = {
 	id: string;
@@ -72,7 +72,15 @@ export const MenuPage: React.FC = () => {
 			setCurrentView('main');
 		} catch (err: any) {
 			console.error('Error loading games:', err);
-			Toast.show(`Error loading games: ${err.message || err}`, 4000);
+			toast.error(`Error loading games: ${err.message || err}`, {
+				position: 'top-right',
+				autoClose: 4000,
+				hideProgressBar: false,
+				closeOnClick: true,
+				pauseOnHover: true,
+				draggable: true,
+				progress: undefined,
+			});
 			setCurrentView('main');
 		}
 	};
@@ -88,12 +96,28 @@ export const MenuPage: React.FC = () => {
 			const data = await res.json();
 			if (!res.ok) throw new Error(data.error || 'Auth failed');
 
-			Toast.show(`Welcome, ${data.user.name || data.user.email}!`, 3500);
+			toast.success(`Welcome, ${data.user.name || data.user.email}!`, {
+				position: 'top-right',
+				autoClose: 3500,
+				hideProgressBar: false,
+				closeOnClick: true,
+				pauseOnHover: true,
+				draggable: true,
+				progress: undefined,
+			});
 			setSession(data);
 			setIsAuthenticated(true);
 			await loadGames();
 		} catch (err: any) {
-			Toast.show(`Google login failed: ${err.message || err}`, 4000);
+			toast.error(`Google login failed: ${err.message || err}`, {
+				position: 'top-right',
+				autoClose: 4000,
+				hideProgressBar: false,
+				closeOnClick: true,
+				pauseOnHover: true,
+				draggable: true,
+				progress: undefined,
+			});
 		}
 	};
 
@@ -102,11 +126,27 @@ export const MenuPage: React.FC = () => {
 			setIsCreatingGame(true);
 			// Use the new template-based game creation method
 			const gameId = await gameService.createNewGameFromTemplates();
-			Toast.show('New game created from templates!', 2000);
+			toast.success('New game created from templates!', {
+				position: 'top-right',
+				autoClose: 2000,
+				hideProgressBar: false,
+				closeOnClick: true,
+				pauseOnHover: true,
+				draggable: true,
+				progress: undefined,
+			});
 			onStartGame(gameId);
 		} catch (err: any) {
 			console.error('Failed to create game from templates:', err);
-			Toast.show(`Failed to create game: ${err.message || err}`, 4000);
+			toast.error(`Failed to create game: ${err.message || err}`, {
+				position: 'top-right',
+				autoClose: 4000,
+				hideProgressBar: false,
+				closeOnClick: true,
+				pauseOnHover: true,
+				draggable: true,
+				progress: undefined,
+			});
 		} finally {
 			setIsCreatingGame(false);
 		}
@@ -139,7 +179,15 @@ export const MenuPage: React.FC = () => {
 		try {
 			setIsDeletingGame(true);
 			await gameService.deleteGame(gameToDelete.id);
-			Toast.show(`Game "${gameToDelete.name}" deleted successfully!`, 3000);
+			toast.success(`Game "${gameToDelete.name}" deleted successfully!`, {
+				position: 'top-right',
+				autoClose: 3000,
+				hideProgressBar: false,
+				closeOnClick: true,
+				pauseOnHover: true,
+				draggable: true,
+				progress: undefined,
+			});
 
 			// Refresh the games list
 			await loadGames();
@@ -147,7 +195,15 @@ export const MenuPage: React.FC = () => {
 			setShowDeleteConfirm(false);
 			setGameToDelete(null);
 		} catch (err: any) {
-			Toast.show(`Failed to delete game: ${err.message || err}`, 4000);
+			toast.error(`Failed to delete game: ${err.message || err}`, {
+				position: 'top-right',
+				autoClose: 4000,
+				hideProgressBar: false,
+				closeOnClick: true,
+				pauseOnHover: true,
+				draggable: true,
+				progress: undefined,
+			});
 		} finally {
 			setIsDeletingGame(false);
 		}

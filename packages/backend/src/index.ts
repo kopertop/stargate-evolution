@@ -4,7 +4,7 @@ import { validateUser, validateSession } from './auth-types';
 import { getAllPersonTemplates, getPersonTemplateById, getPersonTemplatesByRole, getAllRaceTemplates } from './templates/person-templates';
 import { getAllRoomTemplates, getRoomTemplateById, getRoomTemplatesByType } from './templates/room-templates';
 import { getAllLayoutIds, getShipLayoutById, getRoomsByLayoutId, getDoorsByLayoutId, getRoomById, getDoorById, getShipLayoutWithTechnology } from './templates/ship-layouts';
-import { getAllTechnologyTemplates, getTechnologyTemplateById, getTechnologyTemplatesByCategory, getRoomTechnologyByRoomId, getAllRoomTechnology, getDiscoveredRoomTechnology, updateRoomTechnologyDiscovered } from './templates/technology-templates';
+import { getAllTechnologyTemplates, getTechnologyTemplateById, getTechnologyTemplatesByCategory, getRoomTechnologyByRoomId, getAllRoomTechnology } from './templates/technology-templates';
 import { Env } from './types';
 
 const corsHeaders = {
@@ -327,19 +327,6 @@ export default {
 				}
 			} catch (err: any) {
 				return withCors(new Response(JSON.stringify({ error: err.message || 'Failed to fetch room technology' }), {
-					status: 500, headers: { 'content-type': 'application/json' },
-				}));
-			}
-		}
-
-		if (url.pathname === '/api/templates/room-technology/discovered' && request.method === 'GET') {
-			try {
-				const discoveredTech = await getDiscoveredRoomTechnology(env.DB);
-				return withCors(new Response(JSON.stringify(discoveredTech), {
-					headers: { 'content-type': 'application/json' },
-				}));
-			} catch (err: any) {
-				return withCors(new Response(JSON.stringify({ error: err.message || 'Failed to fetch discovered technology' }), {
 					status: 500, headers: { 'content-type': 'application/json' },
 				}));
 			}

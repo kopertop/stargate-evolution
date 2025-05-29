@@ -1,7 +1,7 @@
 import { appSchema, tableSchema } from '@nozbe/watermelondb';
 
 export default appSchema({
-	version: 6,
+	version: 7,
 	tables: [
 		tableSchema({
 			name: 'games',
@@ -145,6 +145,7 @@ export default appSchema({
 			name: 'rooms',
 			columns: [
 				{ name: 'game_id', type: 'string', isIndexed: true },
+				{ name: 'template_id', type: 'string', isOptional: true }, // Reference to room template ID
 				{ name: 'type', type: 'string' },
 				// New rectangle positioning (preferred)
 				{ name: 'start_x', type: 'number', isOptional: true },

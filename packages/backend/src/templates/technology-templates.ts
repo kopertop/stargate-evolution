@@ -31,14 +31,3 @@ export async function getAllRoomTechnology(db: D1Database): Promise<RoomTechnolo
 	const result = await db.prepare('SELECT * FROM room_technology ORDER BY room_id, id').all();
 	return RoomTechnologySchema.array().parse(result.results);
 }
-
-export async function getDiscoveredRoomTechnology(db: D1Database): Promise<RoomTechnology[]> {
-	const result = await db.prepare('SELECT * FROM room_technology WHERE discovered = true ORDER BY room_id, id').bind(true).all();
-	return RoomTechnologySchema.array().parse(result.results);
-}
-
-export async function updateRoomTechnologyDiscovered(db: D1Database, id: string, discovered: boolean): Promise<void> {
-	await db.prepare('UPDATE room_technology SET discovered = ?, updated_at = ? WHERE id = ?')
-		.bind(discovered, Date.now(), id)
-		.run();
-}

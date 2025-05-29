@@ -270,7 +270,6 @@ export const RoomExploration: React.FC<RoomExplorationProps> = ({
 								<div>
 									<RoomExplorationProgress roomId={selectedRoom.id} />
 
-									<p><strong>Technology:</strong> {selectedRoom.technology.join(', ') || 'None detected'}</p>
 									<p>Manage crew assignments below. Changing crew will recalculate completion time.</p>
 
 									{selectedCrew.length > 0 && (
@@ -293,7 +292,6 @@ export const RoomExploration: React.FC<RoomExplorationProps> = ({
 								// New exploration setup
 								<div>
 									<p>Select crew members to explore this room. More crew members will speed up exploration.</p>
-									<p><strong>Technology:</strong> {selectedRoom.technology.join(', ') || 'None detected'}</p>
 									{selectedCrew.length > 0 && (
 										<p>
 											<strong>Estimated time:</strong> {calculateTimeRemaining(selectedRoom, selectedCrew.length).toFixed(1)} hours

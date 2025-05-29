@@ -6,7 +6,6 @@ export const RoomTechnologySchema = z.object({
 	technology_template_id: z.string(),
 	count: z.number(),
 	description: z.string().nullable().optional(),
-	discovered: z.boolean(),
 	created_at: z.number(),
 	updated_at: z.number(),
 });

@@ -33,6 +33,7 @@ export type RoomType = {
 	id: string;
 	name?: string;
 	gameId: string;
+	templateId: string; // Reference to the room template ID
 	type: string;
 	// New rectangle positioning (preferred)
 	startX?: number;
@@ -117,6 +118,7 @@ export function roomModelToType(room: RoomModel): RoomType {
 	return {
 		id: room.id,
 		gameId: room.gameId,
+		templateId: room.templateId,
 		type: room.type,
 		// New rectangle positioning (if available)
 		startX: (room as any).startX,

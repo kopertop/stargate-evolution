@@ -243,6 +243,7 @@ export class GameService {
 
 			const room = await this.database.get<Room>('rooms').create((room) => {
 				room.gameId = gameId;
+				room.templateId = layoutRoom.template_id; // Store template ID for technology lookup
 				room.type = template.type;
 				// Use new rectangle positioning
 				room.startX = layoutRoom.position.startX;
@@ -250,7 +251,6 @@ export class GameService {
 				room.endX = layoutRoom.position.endX;
 				room.endY = layoutRoom.position.endY;
 				room.floor = layoutRoom.position.floor;
-				room.technology = template.technology || '';
 				room.image = template.image || '';
 				room.status = template.default_status as 'ok' | 'damaged' | 'destroyed' || 'ok';
 
@@ -821,6 +821,72 @@ export class GameService {
 			record.totalTimeProgressed = totalTimeProgressed;
 			record.lastPlayed = new Date();
 		});
+	}
+
+	/**
+	 * Get all discovered technology for a game
+	 */
+	async getDiscoveredTechnology(gameId: string): Promise<any[]> {
+		const technologies = await this.database
+			.get('technology')
+			.query(Q.where('game_id', gameId))
+			.fetch();
+		return technologies;
+	}
+
+	/**
+	 * Discover technology and add it to the game's inventory
+	 */
+	@writer async discoverTechnology(gameId: string, technologyTemplateId: string, count: number, description?: string): Promise<void> {
+		// Check if this technology is already discovered
+		const existingTech = await this.database
+			.get('technology')
+			.query(
+				Q.where('game_id', gameId),
+				Q.where('name', technologyTemplateId), // Using name field to store template ID for now
+			)
+			.fetch();
+
+		if (existingTech.length > 0) {
+			// Update existing technology count
+			const tech = existingTech[0] as any;
+			await tech.update((record: any) => {
+				record.numberOnDestiny = (record.numberOnDestiny || 0) + count;
+			});
+		} else {
+			// Create new technology record
+			await this.database.get('technology').create((tech: any) => {
+				tech.gameId = gameId;
+				tech.name = technologyTemplateId; // Store template ID in name field for lookup
+				tech.description = description || `Discovered technology: ${technologyTemplateId}`;
+				tech.unlocked = true;
+				tech.cost = 0;
+				tech.numberOnDestiny = count;
+			});
+		}
+	}
+
+	/**
+	 * Update resource inventory (like Destiny inventory) when technology is discovered
+	 */
+	@writer async updateInventoryResources(gameId: string, resourceUpdates: Record<string, number>): Promise<void> {
+		const destinyStatus = await this.database.get<DestinyStatus>('destiny_status')
+			.query(Q.where('game_id', gameId))
+			.fetch();
+
+		if (destinyStatus.length > 0) {
+			const status = destinyStatus[0];
+			await status.update((record) => {
+				const currentInventory = JSON.parse(record.inventory || '{}');
+
+				// Add the discovered resources
+				for (const [resource, amount] of Object.entries(resourceUpdates)) {
+					currentInventory[resource] = (currentInventory[resource] || 0) + amount;
+				}
+
+				record.inventory = JSON.stringify(currentInventory);
+			});
+		}
 	}
 }
 

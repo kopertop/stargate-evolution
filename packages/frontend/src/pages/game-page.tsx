@@ -3,6 +3,7 @@ import * as PIXI from 'pixi.js';
 import React, { useEffect, useRef, useState } from 'react';
 import { GiReturnArrow } from 'react-icons/gi';
 import { useNavigate, useParams } from 'react-router-dom';
+import { toast } from 'react-toastify';
 
 import { DestinyStatusBar } from '../components/destiny-status-bar';
 import { GalaxyMap } from '../components/galaxy-map';
@@ -13,7 +14,6 @@ import { DestinyStatusProvider } from '../contexts/destiny-status-context';
 import { GameStateProvider } from '../contexts/game-state-context';
 import { Game } from '../game';
 import { MapPopover } from '../map-popover';
-import { Toast } from '../toast';
 import { destinyStatusModelToType, type DestinyStatusType } from '../types/model-types';
 
 type ViewMode = 'ship-view' | 'galaxy-map' | 'game-view';
@@ -100,23 +100,34 @@ export const GamePage: React.FC = () => {
 				return;
 			}
 
-			const app = new PIXI.Application();
-			await app.init({
-				width: 800,
-				height: 600,
-				background: 0x10101a,
-			});
+			try {
+				const app = new PIXI.Application();
+				await app.init({
+					width: 800,
+					height: 600,
+					background: 0x10101a,
+				});
 
-			canvasRef.current.appendChild(app.canvas);
-			appRef.current = app;
+				// Check if canvasRef is still valid after async operation
+				if (!canvasRef.current) {
+					app.destroy(true);
+					return;
+				}
 
-			// Hide the canvas initially
-			if (app.canvas) {
-				app.canvas.style.display = 'none';
+				canvasRef.current.appendChild(app.canvas);
+				appRef.current = app;
+
+				// Hide the canvas initially
+				if (app.canvas) {
+					app.canvas.style.display = 'none';
+				}
+
+				// Set loading to false so the menu can show
+				setIsLoading(false);
+			} catch (error) {
+				console.error('Failed to initialize PIXI:', error);
+				setIsLoading(false);
 			}
-
-			// Set loading to false so the menu can show
-			setIsLoading(false);
 		};
 
 		initPIXI();
@@ -124,10 +135,18 @@ export const GamePage: React.FC = () => {
 		// Cleanup function
 		return () => {
 			if (appRef.current) {
-				appRef.current.destroy(true);
+				try {
+					// Safer destroy call - check if destroy method exists and handle errors
+					if (typeof appRef.current.destroy === 'function') {
+						appRef.current.destroy(true);
+					}
+				} catch (error) {
+					console.warn('Error during PIXI cleanup:', error);
+				}
+				appRef.current = null;
 			}
 		};
-	}, [canvasRef.current]);
+	}, []);
 
 	const handleStartGame = async (gameId: string) => {
 		console.log('Start game with ID:', gameId);
@@ -196,7 +215,7 @@ export const GamePage: React.FC = () => {
 
 		} catch (err: any) {
 			console.error('Failed to load game:', err);
-			Toast.show('Failed to load game: ' + (err.message || err), 4000);
+			toast('Failed to load game: ' + (err.message || err), { autoClose: 4000 });
 			navigate('/');
 		}
 	};
@@ -206,7 +225,7 @@ export const GamePage: React.FC = () => {
 
 		// If it's the current galaxy, go directly to game view
 		if (galaxy.id === currentGalaxyId) {
-			Toast.show(`Exploring ${galaxy.name}...`, 2000);
+			toast(`Exploring ${galaxy.name}...`, { autoClose: 2000 });
 			switchToGameView(galaxy);
 			return;
 		}
@@ -233,7 +252,7 @@ export const GamePage: React.FC = () => {
 		setDestinyStatus(updatedStatus);
 		setCurrentGalaxyId(selectedGalaxy.id);
 
-		Toast.show(`Traveled to ${selectedGalaxy.name}! Used ${travelCost} power.`, 3000);
+		toast(`Traveled to ${selectedGalaxy.name}! Used ${travelCost} power.`, { autoClose: 3000 });
 		setShowTravelModal(false);
 		setSelectedGalaxy(null);
 

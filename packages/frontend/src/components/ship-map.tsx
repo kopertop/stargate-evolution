@@ -10,6 +10,7 @@ import { destinyStatusModelToType, DestinyStatusType, roomModelToType, RoomType 
 import { getRoomScreenPosition as getGridRoomScreenPosition } from '../utils/grid-system';
 
 import { CountdownClock } from './countdown-clock';
+import { RoomDetailsModal } from './room-details-modal';
 import { RoomExploration } from './room-exploration';
 import { ShipDoors } from './ship-doors';
 import { ShipRoom } from './ship-room';
@@ -28,6 +29,7 @@ export const ShipMap: React.FC<ShipMapProps> = ({ gameId }) => {
 	const { isPaused: gameStatePaused, resumeGame } = useGameState();
 	const [selectedRoom, setSelectedRoom] = useState<RoomType | null>(null);
 	const [showExplorationModal, setShowExplorationModal] = useState(false);
+	const [showRoomDetailsModal, setShowRoomDetailsModal] = useState(false);
 	const [showDoorModal, setShowDoorModal] = useState(false);
 	const [selectedDoor, setSelectedDoor] = useState<{ fromRoom: RoomType; door: DoorInfo } | null>(null);
 	const [showDangerWarning, setShowDangerWarning] = useState(false);
@@ -102,9 +104,10 @@ export const ShipMap: React.FC<ShipMapProps> = ({ gameId }) => {
 		if (room.found && !room.explored && !gameStatePaused) {
 			setSelectedRoom(room);
 			setShowExplorationModal(true);
-		} else if (!room.locked) {
-			// Show room details or allow crew assignment
-			console.log(`Accessing ${room.type}`);
+		} else if (room.found && room.explored && !room.locked) {
+			// Show room details modal for explored rooms
+			setSelectedRoom(room);
+			setShowRoomDetailsModal(true);
 		}
 	};
 
@@ -692,6 +695,17 @@ export const ShipMap: React.FC<ShipMapProps> = ({ gameId }) => {
 					}}
 				/>
 			)}
+
+			{/* Room Details Modal */}
+			<RoomDetailsModal
+				show={showRoomDetailsModal}
+				onHide={() => {
+					setShowRoomDetailsModal(false);
+					setSelectedRoom(null);
+				}}
+				room={selectedRoom}
+				gameId={gameId}
+			/>
 
 			{/* Door Requirements Modal */}
 			<Modal show={showDoorModal} onHide={() => setShowDoorModal(false)}>

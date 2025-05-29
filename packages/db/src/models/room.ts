@@ -10,6 +10,7 @@ export default class Room extends Model {
 	};
 
 	@text('game_id') gameId!: string;
+	@text('template_id') templateId!: string; // Reference to the room template ID
 	@text('type') type!: string;
 	// New rectangle positioning (preferred)
 	@field('start_x') startX?: number; // Left edge of room rectangle

@@ -8,8 +8,10 @@ import React, {
 	ReactNode,
 	useEffect,
 } from 'react';
+import { toast } from 'react-toastify';
 
 import { ExplorationProgress } from '../types/model-types';
+import { ApiService } from '../utils/api-service';
 
 interface GameStateContextType {
 	isPaused: boolean;
@@ -46,6 +48,83 @@ export const GameStateProvider: React.FC<GameStateProviderProps> = ({ gameId, ch
 		});
 	}, [gameId]);
 
+	/**
+	 * Handle technology discovery when a room is fully explored
+	 */
+	const handleTechnologyDiscovery = async (roomId: string, gameId: string) => {
+		try {
+			console.log(`🔬 Checking for technology in room ${roomId}...`);
+
+			// Fetch room technology from backend templates
+			const roomTechnology = await ApiService.getRoomTechnology(roomId);
+
+			if (roomTechnology.length === 0) {
+				console.log('No technology found in this room');
+				return;
+			}
+
+			// Process each piece of technology found
+			for (const roomTech of roomTechnology) {
+				try {
+					// Get the technology template details
+					const techTemplate = await ApiService.getTechnologyTemplate(roomTech.technology_template_id);
+
+					// Discover the technology in the local database
+					await gameService.discoverTechnology(
+						gameId,
+						roomTech.technology_template_id,
+						roomTech.count,
+						roomTech.description || techTemplate.description,
+					);
+
+					// Update inventory resources based on technology type
+					const resourceUpdates: Record<string, number> = {};
+
+					// Map technology to inventory resources
+					switch (roomTech.technology_template_id) {
+					case 'kino':
+						resourceUpdates['kino'] = roomTech.count;
+						break;
+					case 'kino_remote':
+						resourceUpdates['kino_remote'] = roomTech.count;
+						break;
+					case 'stargate_device':
+						// Stargate doesn't go in inventory, it's a ship feature
+						break;
+					case 'kino_systems':
+						resourceUpdates['kino_systems'] = roomTech.count;
+						break;
+					default:
+						// Generic ancient tech
+						resourceUpdates['ancient_tech'] = roomTech.count;
+						break;
+					}
+
+					// Update the Destiny inventory if we have resources to add
+					if (Object.keys(resourceUpdates).length > 0) {
+						await gameService.updateInventoryResources(gameId, resourceUpdates);
+					}
+
+					// Show discovery notification
+					const countText = roomTech.count > 1 ? ` (×${roomTech.count})` : '';
+					toast.success(`🔬 Technology Discovered: ${techTemplate.name}${countText}`, {
+						position: 'top-center',
+						autoClose: 4000,
+						hideProgressBar: false,
+						closeOnClick: true,
+						pauseOnHover: true,
+						draggable: true,
+					});
+
+					console.log(`✅ Discovered: ${techTemplate.name} (×${roomTech.count})`);
+				} catch (error) {
+					console.error(`Failed to process technology ${roomTech.technology_template_id}:`, error);
+				}
+			}
+		} catch (error) {
+			console.error('Failed to handle technology discovery:', error);
+		}
+	};
 
 	/**
 	 * Main Game Loop
@@ -118,6 +197,9 @@ export const GameStateProvider: React.FC<GameStateProviderProps> = ({ gameId, ch
 
 							// Clear exploration progress
 							await gameService.clearExplorationProgress(room.id);
+
+							// Handle technology discovery
+							await handleTechnologyDiscovery(room.id, gameId);
 						} else if (Math.abs(newProgress - exploration.progress) > 0.1) {
 							// Update progress in database (only if significant change)
 							const updatedExploration = {

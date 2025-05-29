@@ -1,6 +1,7 @@
 import { Database } from '@nozbe/watermelondb';
 import LokiJSAdapter from '@nozbe/watermelondb/adapters/lokijs';
 
+import migrations from './migrations';
 import Chevron from './models/chevron';
 import DestinyStatus from './models/destiny-status';
 import Galaxy from './models/galaxy';
@@ -19,6 +20,7 @@ import { GameService } from './services/game-service';
 
 const adapter = new LokiJSAdapter({
 	schema,
+	migrations,
 	dbName: 'stargate_evolution',
 	useWebWorker: false,
 	useIncrementalIndexedDB: true,
