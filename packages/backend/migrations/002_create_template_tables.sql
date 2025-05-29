@@ -92,13 +92,13 @@ CREATE TABLE IF NOT EXISTS galaxy_templates (
 CREATE TABLE IF NOT EXISTS star_system_templates (
 	id TEXT PRIMARY KEY,
 	name TEXT NOT NULL,
-	galaxy_template_id TEXT,
+	galaxy_id TEXT,
 	description TEXT,
 	x INTEGER NOT NULL, -- X coordinate relative to galaxy
 	y INTEGER NOT NULL, -- Y coordinate relative to galaxy
 	created_at INTEGER DEFAULT (strftime('%s','now')),
 	updated_at INTEGER DEFAULT (strftime('%s','now')),
-	FOREIGN KEY (galaxy_template_id) REFERENCES galaxy_templates(id)
+	FOREIGN KEY (galaxy_id) REFERENCES galaxy_templates(id)
 );
 
 -- Stargate templates
@@ -147,7 +147,7 @@ CREATE INDEX IF NOT EXISTS idx_room_technology_tech ON room_technology(technolog
 
 -- Create indexes for foreign key relationships
 CREATE INDEX IF NOT EXISTS idx_person_templates_race ON person_templates(race_template_id);
-CREATE INDEX IF NOT EXISTS idx_star_system_templates_galaxy ON star_system_templates(galaxy_template_id);
+CREATE INDEX IF NOT EXISTS idx_star_system_templates_galaxy ON star_system_templates(galaxy_id);
 CREATE INDEX IF NOT EXISTS idx_planet_templates_star_system ON planet_templates(star_system_template_id);
 
 -- Create indexes for common queries

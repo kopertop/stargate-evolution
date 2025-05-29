@@ -11,7 +11,7 @@ export async function getStarSystemTemplateById(db: D1Database, id: string): Pro
 	return result ? StarSystemSchema.parse(result) : null;
 }
 
-export async function getStarSystemsByGalaxyId(db: D1Database, galaxy_template_id: string): Promise<StarSystem[]> {
-	const result = await db.prepare('SELECT * FROM star_system_templates WHERE galaxy_template_id = ? ORDER BY name').bind(galaxy_template_id).all();
+export async function getStarSystemsByGalaxyId(db: D1Database, galaxy_id: string): Promise<StarSystem[]> {
+	const result = await db.prepare('SELECT * FROM star_system_templates WHERE galaxy_id = ? ORDER BY name').bind(galaxy_id).all();
 	return StarSystemSchema.array().parse(result.results);
 }

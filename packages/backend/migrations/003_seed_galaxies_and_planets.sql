@@ -4,7 +4,7 @@ INSERT INTO galaxy_templates (id, name, description, x, y) VALUES
 	('galaxy-jades', 'JADES-GS-z14-0', 'A distant galaxy.', 1000, 1000);
 
 -- Seed star system templates
-INSERT INTO star_system_templates (id, name, galaxy_template_id, description, x, y) VALUES
+INSERT INTO star_system_templates (id, name, galaxy_id, description, x, y) VALUES
 	('system-sol', 'Sol System', 'galaxy-milky-way', 'The home system of Earth.', 0, 0),
 	('system-icarus', 'Icarus System', 'galaxy-milky-way', 'Remote system with Icarus planet.', 100, 200),
 	('system-destiny', 'Destiny System', 'galaxy-jades', 'System where Destiny is found.', 500, 500);

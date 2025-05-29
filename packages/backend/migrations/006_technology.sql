@@ -1,9 +1,42 @@
 -- Add technology templates that can be found in rooms
 INSERT INTO technology_templates (id, name, description, category, unlock_requirements, cost, image) VALUES
-	('stargate_device', 'Stargate', 'Ancient ring device capable of instantaneous travel across vast distances', 'stargate', '[]', 0, NULL),
-	('kino', 'Kino', 'Small reconnaissance probe with camera and communication capabilities', 'reconnaissance', '[]', 0, NULL),
-	('kino_remote', 'Kino Remote Control', 'Handheld device for controlling and viewing Kino feeds', 'reconnaissance', '[]', 0, NULL),
-	('kino_systems', 'Kino Control Systems', 'Ship-based systems for managing multiple Kinos', 'ship_systems', '[{"type":"technology","value":"kino_remote","description":"Requires basic kino remote functionality","met":false}]', 0, NULL);
+	(
+		'stargate_device',
+		'Stargate',
+		'Ancient ring device capable of instantaneous travel across vast distances',
+		'stargate',
+		'[]',
+		0,
+		'stargate.png'
+	),
+	(
+		'kino',
+		'Kino',
+		'Small reconnaissance probe with camera and communication capabilities',
+		'reconnaissance',
+		'[]',
+		0,
+		'kino.png'
+	),
+	(
+		'kino_systems',
+		'Kino Control Systems',
+		'Ship-based systems for managing multiple Kinos',
+		'ship_systems',
+		'[{"type":"technology","value":"kino_remote","description":"Requires basic kino remote functionality","met":false}]',
+		0,
+		'kino-systems.png'
+	),
+	(
+		'kino_remote',
+		'Kino Remote',
+		'Handheld device for controlling and viewing Kino feeds',
+		'ship_systems',
+		'[]',
+		0,
+		'kino-remote.png'
+	)
+	;
 
 -- Populate room_technology with items found in specific rooms
 INSERT INTO room_technology (id, room_id, technology_template_id, count, description) VALUES
