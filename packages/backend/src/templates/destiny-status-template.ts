@@ -38,6 +38,7 @@ export function getDefaultDestinyStatusTemplate(): DestinyStatus {
  * Default starting inventory for a new game.
  */
 export function getStartingInventoryTemplate(): Inventory[] {
+	const now = Date.now();
 	return [
 		{
 			id: 'food',
@@ -81,5 +82,11 @@ export function getStartingInventoryTemplate(): Inventory[] {
 			location: 'ship',
 			description: 'Communication stones, capable of sending messages back to Earth.',
 		},
-	].map((item) => InventorySchema.parse(item));
+	].map((item) => {
+		return InventorySchema.parse({
+			...item,
+			created_at: now,
+			updated_at: now,
+		});
+	});
 }

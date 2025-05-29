@@ -228,11 +228,9 @@ export const tables = {
 			hull: State.SQLite.real(), // JSON stored as text
 			max_hull: State.SQLite.real(),
 			race_id: State.SQLite.text(),
-			crew: State.SQLite.text(), // JSON stored as text
 			location: State.SQLite.text(), // JSON stored as text
 			stargate_id: State.SQLite.text({ nullable: true }),
 			shield: State.SQLite.text(), // JSON stored as text
-			crew_status: State.SQLite.text(), // JSON stored as text
 			atmosphere: State.SQLite.text(), // JSON stored as text
 			weapons: State.SQLite.text(), // JSON stored as text
 			shuttles: State.SQLite.text(), // JSON stored as text
@@ -343,11 +341,9 @@ export const events = {
 			hull: Schema.Number,
 			max_hull: Schema.Number,
 			race_id: Schema.String,
-			crew: Schema.String,
 			location: Schema.String,
 			stargate_id: Schema.optional(Schema.String),
 			shield: Schema.String,
-			crew_status: Schema.String,
 			atmosphere: Schema.String,
 			weapons: Schema.String,
 			shuttles: Schema.String,

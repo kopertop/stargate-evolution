@@ -1,5 +1,6 @@
 // Template service for fetching game templates from backend API
 
+import { trimNullStrings } from '@stargate/common';
 import { ShipLayout, RoomTemplate, PersonTemplate, RaceTemplate, Galaxy, StarSystem, DestinyStatus, Inventory, RoomTechnology } from '@stargate/common/zod-templates';
 
 class APIService {
@@ -24,7 +25,7 @@ class APIService {
 			const expiry = this.cacheExpiry.get(cacheKey)!;
 			if (now < expiry) {
 				console.log(`[apiService] Using cached data for ${endpoint}`);
-				return this.cache.get(cacheKey) as T;
+				return trimNullStrings(this.cache.get(cacheKey)) as T;
 			}
 		}
 
@@ -47,14 +48,14 @@ class APIService {
 			this.cache.set(cacheKey, data);
 			this.cacheExpiry.set(cacheKey, now + this.CACHE_DURATION);
 
-			return data as T;
+			return trimNullStrings(data) as T;
 		} catch (error) {
 			console.error(`[apiService] Failed to fetch ${endpoint}:`, error);
 
 			// Return cached data if available, even if expired
 			if (this.cache.has(cacheKey)) {
 				console.warn(`[apiService] Using expired cache for ${endpoint}`);
-				return this.cache.get(cacheKey) as T;
+				return trimNullStrings(this.cache.get(cacheKey)) as T;
 			}
 
 			throw error;
@@ -67,7 +68,7 @@ class APIService {
 
 	async getRoomTemplateById(id: string): Promise<RoomTemplate | null> {
 		try {
-			return await this.fetchWithCache<RoomTemplate>(`/api/templates/rooms/${id}`);
+			return this.fetchWithCache<RoomTemplate>(`/api/templates/rooms/${id}`);
 		} catch (error) {
 			if (error instanceof Error && error.message.includes('404')) {
 				return null;
@@ -90,7 +91,7 @@ class APIService {
 
 	async getShipLayoutById(id: string): Promise<ShipLayout | null> {
 		try {
-			return await this.fetchWithCache<ShipLayout>(`/api/templates/ship-layouts/${id}`);
+			return this.fetchWithCache<ShipLayout>(`/api/templates/ship-layouts/${id}`);
 		} catch (error) {
 			if (error instanceof Error && error.message.includes('404')) {
 				return null;

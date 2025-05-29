@@ -10,12 +10,9 @@ export const DestinyStatusSchema = z.object({
 	hull: z.number(),
 	max_hull: z.number(),
 	race_id: z.string(),
-	crew: z.string(), // JSON array
 	location: z.string(), // JSON
 	stargate_id: z.string().optional(),
 	shield: z.string(), // JSON
-	inventory: z.string(), // JSON
-	crew_status: z.string(), // JSON
 	atmosphere: z.string(), // JSON
 	weapons: z.string(), // JSON
 	shuttles: z.string(), // JSON
