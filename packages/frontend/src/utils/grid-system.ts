@@ -1,5 +1,3 @@
-import type { Room } from '@stargate/db';
-
 import { RoomType } from '../types/model-types';
 
 // Grid system constants
@@ -19,7 +17,7 @@ export const SCREEN_CENTER_Y = 300;   // Screen center Y coordinate
  * Get room position using rectangle-based positioning
  * Rooms now have start_x, start_y, end_x, end_y instead of gridX, gridY, width, height
  */
-export function getRoomScreenPosition(room: Room | RoomType): { x: number; y: number } {
+export function getRoomScreenPosition(room: RoomType): { x: number; y: number } {
 	// Check if room has new rectangle positioning
 	if (room.startX !== undefined && room.startY !== undefined && room.endX !== undefined && room.endY !== undefined) {
 		// Calculate center of rectangle
@@ -55,7 +53,7 @@ export function gridToScreenPosition(gridX: number, gridY: number): { x: number;
 /**
  * Get the center position of a room in grid coordinates
  */
-export function getRoomGridCenter(room: Room | RoomType): { gridX: number; gridY: number } {
+export function getRoomGridCenter(room: RoomType): { gridX: number; gridY: number } {
 	// Use new rectangle positioning if available
 	if (room.startX !== undefined && room.startY !== undefined && room.endX !== undefined && room.endY !== undefined) {
 		return {
@@ -80,7 +78,7 @@ export function getRoomGridCenter(room: Room | RoomType): { gridX: number; gridY
 /**
  * Get room boundaries in grid coordinates
  */
-export function getRoomGridBounds(room: Room | RoomType): {
+export function getRoomGridBounds(room: RoomType): {
 	left: number;
 	right: number;
 	top: number;
@@ -114,7 +112,7 @@ export function getRoomGridBounds(room: Room | RoomType): {
 /**
  * Get room boundaries in screen coordinates (pixels)
  */
-export function getRoomScreenBounds(room: Room): {
+export function getRoomScreenBounds(room: RoomType): {
 	left: number;
 	right: number;
 	top: number;
@@ -139,14 +137,12 @@ export function getRoomScreenBounds(room: Room): {
 /**
  * Check if two rooms are adjacent (share a border)
  */
-export function areRoomsAdjacent(room1: Room | RoomType, room2: Room | RoomType): boolean {
+export function areRoomsAdjacent(room1: RoomType, room2: RoomType): boolean {
 	// Must be on the same floor
 	if (room1.floor !== room2.floor) return false;
 
 	const bounds1 = getRoomGridBounds(room1);
 	const bounds2 = getRoomGridBounds(room2);
-
-
 
 	// Check for horizontal adjacency (sharing vertical border)
 	const horizontallyAdjacent = (
@@ -166,7 +162,7 @@ export function areRoomsAdjacent(room1: Room | RoomType, room2: Room | RoomType)
 /**
  * Get the side where two rooms connect (handles both adjacent and non-adjacent rooms)
  */
-export function getConnectionSide(fromRoom: Room | RoomType, toRoom: Room | RoomType): 'top' | 'bottom' | 'left' | 'right' | null {
+export function getConnectionSide(fromRoom: RoomType, toRoom: RoomType): 'top' | 'bottom' | 'left' | 'right' | null {
 	const bounds1 = getRoomGridBounds(fromRoom);
 	const bounds2 = getRoomGridBounds(toRoom);
 
@@ -198,60 +194,54 @@ export function getConnectionSide(fromRoom: Room | RoomType, toRoom: Room | Room
 /**
  * Find all rooms that are adjacent to the given room
  */
-export function findAdjacentRooms(room: Room, allRooms: Room[]): Room[] {
+export function findAdjacentRooms(room: RoomType, allRooms: RoomType[]): RoomType[] {
 	return allRooms.filter(otherRoom =>
 		otherRoom.id !== room.id && areRoomsAdjacent(room, otherRoom),
 	);
 }
 
 /**
- * SIMPLIFIED DOOR POSITIONING
- * Calculate door positions based on room boundaries and wall thickness
+ * Calculate door position between two rooms
  */
-export function getDoorPosition(fromRoom: Room | RoomType, toRoom: Room | RoomType): {
+export function getDoorPosition(fromRoom: RoomType, toRoom: RoomType): {
 	side: 'top' | 'bottom' | 'left' | 'right';
 	gridX: number;
 	gridY: number;
 	screenX: number;
 	screenY: number;
 } | null {
-	// Get room bounds in grid coordinates
-	const fromBounds = getRoomGridBounds(fromRoom);
-	const toBounds = getRoomGridBounds(toRoom);
-
-	// Determine which side of fromRoom the door should be on
 	const side = getConnectionSide(fromRoom, toRoom);
 	if (!side) return null;
 
-	let gridX: number, gridY: number;
+	const fromBounds = getRoomGridBounds(fromRoom);
+	const toBounds = getRoomGridBounds(toRoom);
 
-	// Position door in the center of the wall thickness
+	let gridX: number;
+	let gridY: number;
+
 	switch (side) {
 	case 'right':
-		// Door on right wall - position at right edge + half wall thickness
-		gridX = fromBounds.right + (WALL_THICKNESS / 2) / GRID_UNIT;
-		gridY = fromBounds.bottom + (fromBounds.top - fromBounds.bottom) / 2; // Center of room vertically
+		gridX = fromBounds.right;
+		gridY = Math.max(fromBounds.bottom, toBounds.bottom) +
+				Math.min(fromBounds.top - fromBounds.bottom, toBounds.top - toBounds.bottom) / 2;
 		break;
 	case 'left':
-		// Door on left wall - position at left edge - half wall thickness
-		gridX = fromBounds.left - (WALL_THICKNESS / 2) / GRID_UNIT;
-		gridY = fromBounds.bottom + (fromBounds.top - fromBounds.bottom) / 2; // Center of room vertically
+		gridX = fromBounds.left;
+		gridY = Math.max(fromBounds.bottom, toBounds.bottom) +
+				Math.min(fromBounds.top - fromBounds.bottom, toBounds.top - toBounds.bottom) / 2;
 		break;
 	case 'top':
-		// Door on top wall - position at top edge + half wall thickness
-		gridX = fromBounds.left + (fromBounds.right - fromBounds.left) / 2; // Center of room horizontally
-		gridY = fromBounds.top + (WALL_THICKNESS / 2) / GRID_UNIT;
+		gridX = Math.max(fromBounds.left, toBounds.left) +
+				Math.min(fromBounds.right - fromBounds.left, toBounds.right - toBounds.left) / 2;
+		gridY = fromBounds.top;
 		break;
 	case 'bottom':
-		// Door on bottom wall - position at bottom edge - half wall thickness
-		gridX = fromBounds.left + (fromBounds.right - fromBounds.left) / 2; // Center of room horizontally
-		gridY = fromBounds.bottom - (WALL_THICKNESS / 2) / GRID_UNIT;
+		gridX = Math.max(fromBounds.left, toBounds.left) +
+				Math.min(fromBounds.right - fromBounds.left, toBounds.right - toBounds.left) / 2;
+		gridY = fromBounds.bottom;
 		break;
-	default:
-		return null;
 	}
 
-	// Convert grid coordinates to screen coordinates
 	const screenPos = gridToScreenPosition(gridX, gridY);
 
 	return {

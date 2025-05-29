@@ -1,4 +1,4 @@
-import { gameService } from '@stargate/db';
+import { useQuery } from '@livestore/react';
 import React, { useState, useEffect } from 'react';
 import { Button, Modal } from 'react-bootstrap';
 import { FaTrash } from 'react-icons/fa';
@@ -8,6 +8,8 @@ import { toast } from 'react-toastify';
 
 import { renderGoogleSignInButton } from '../auth/google-auth';
 import { getSession, setSession } from '../auth/session';
+import { templateService } from '../services/template-service';
+import { useGameService } from '../services/use-game-service';
 
 type GameSummary = {
 	id: string;
@@ -21,7 +23,6 @@ type GameSummary = {
 type MenuView = 'main' | 'load-games' | 'loading';
 
 export const MenuPage: React.FC = () => {
-	const [games, setGames] = useState<GameSummary[]>([]);
 	const [currentView, setCurrentView] = useState<MenuView>('loading');
 	const [isAuthenticated, setIsAuthenticated] = useState(false);
 	const [isCreatingGame, setIsCreatingGame] = useState(false);
@@ -29,6 +30,23 @@ export const MenuPage: React.FC = () => {
 	const [gameToDelete, setGameToDelete] = useState<GameSummary | null>(null);
 	const [isDeletingGame, setIsDeletingGame] = useState(false);
 	const navigate = useNavigate();
+
+	// Use the new LiveStore-based game service
+	const gameService = useGameService();
+
+	// Query all games using LiveStore
+	const gamesQuery = useQuery(gameService.queries.allGames());
+	const games = gamesQuery || [];
+
+	// Convert LiveStore game records to GameSummary format
+	const gameSummaries: GameSummary[] = games.map((game: any) => ({
+		id: game.id,
+		name: game.name,
+		created_at: game.createdAt?.getTime() || null,
+		updated_at: game.updatedAt?.getTime() || null,
+		last_played: game.lastPlayed?.getTime() || null,
+		current: false, // TODO: Track current game
+	}));
 
 	useEffect(() => {
 		checkAuthAndLoadGames();
@@ -43,46 +61,7 @@ export const MenuPage: React.FC = () => {
 		}
 
 		setIsAuthenticated(true);
-		await loadGames();
-	};
-
-	const loadGames = async () => {
-		try {
-			setCurrentView('loading');
-
-			// Debug database status
-			await gameService.debugDatabaseStatus();
-
-			// Load games from local database
-			const gamesFromDb = await gameService.listGames();
-			console.log('Raw games from database:', gamesFromDb);
-
-			// Convert local Game objects to GameSummary format
-			const gameSummaries: GameSummary[] = gamesFromDb.map(game => ({
-				id: game.id,
-				name: game.name,
-				created_at: game.createdAt?.getTime() || null,
-				updated_at: game.updatedAt?.getTime() || null,
-				last_played: null, // TODO: Track last played time locally
-				current: false, // TODO: Track current game locally
-			}));
-
-			console.log('Converted games:', gameSummaries);
-			setGames(gameSummaries);
-			setCurrentView('main');
-		} catch (err: any) {
-			console.error('Error loading games:', err);
-			toast.error(`Error loading games: ${err.message || err}`, {
-				position: 'top-right',
-				autoClose: 4000,
-				hideProgressBar: false,
-				closeOnClick: true,
-				pauseOnHover: true,
-				draggable: true,
-				progress: undefined,
-			});
-			setCurrentView('main');
-		}
+		setCurrentView('main'); // No need to load games explicitly - LiveStore handles it
 	};
 
 	const handleGoogleSignIn = async (idToken: string) => {
@@ -107,7 +86,7 @@ export const MenuPage: React.FC = () => {
 			});
 			setSession(data);
 			setIsAuthenticated(true);
-			await loadGames();
+			setCurrentView('main');
 		} catch (err: any) {
 			toast.error(`Google login failed: ${err.message || err}`, {
 				position: 'top-right',
@@ -124,9 +103,11 @@ export const MenuPage: React.FC = () => {
 	const handleCreateGame = async () => {
 		try {
 			setIsCreatingGame(true);
-			// Use the new template-based game creation method
-			const gameId = await gameService.createNewGameFromTemplates();
-			toast.success('New game created from templates!', {
+
+			// For now, create a simple game - we can enhance this later with templates
+			const gameId = await gameService.createNewGame('New Stargate Game');
+
+			toast.success('New game created!', {
 				position: 'top-right',
 				autoClose: 2000,
 				hideProgressBar: false,
@@ -137,7 +118,7 @@ export const MenuPage: React.FC = () => {
 			});
 			onStartGame(gameId);
 		} catch (err: any) {
-			console.error('Failed to create game from templates:', err);
+			console.error('Failed to create game:', err);
 			toast.error(`Failed to create game: ${err.message || err}`, {
 				position: 'top-right',
 				autoClose: 4000,
@@ -161,7 +142,7 @@ export const MenuPage: React.FC = () => {
 	};
 
 	const handleContinueGame = () => {
-		const currentGame = games.find(g => g.current);
+		const currentGame = gameSummaries.find(g => g.current);
 		if (currentGame) {
 			onStartGame(currentGame.id);
 		}
@@ -178,7 +159,8 @@ export const MenuPage: React.FC = () => {
 
 		try {
 			setIsDeletingGame(true);
-			await gameService.deleteGame(gameToDelete.id);
+			gameService.deleteGame(gameToDelete.id);
+
 			toast.success(`Game "${gameToDelete.name}" deleted successfully!`, {
 				position: 'top-right',
 				autoClose: 3000,
@@ -188,9 +170,6 @@ export const MenuPage: React.FC = () => {
 				draggable: true,
 				progress: undefined,
 			});
-
-			// Refresh the games list
-			await loadGames();
 
 			setShowDeleteConfirm(false);
 			setGameToDelete(null);
@@ -214,116 +193,119 @@ export const MenuPage: React.FC = () => {
 		setGameToDelete(null);
 	};
 
-	// Google Sign-in button component
 	const GoogleSignInButton: React.FC = () => {
-		const buttonRef = React.useRef<HTMLDivElement>(null);
-
-		React.useEffect(() => {
-			if (buttonRef.current) {
-				renderGoogleSignInButton(buttonRef.current.id, handleGoogleSignIn);
-			}
+		useEffect(() => {
+			renderGoogleSignInButton('google-signin-button', handleGoogleSignIn);
 		}, []);
 
-		return <div id="google-signin-container" ref={buttonRef} className="d-flex justify-content-center" />;
+		return <div id="google-signin-button" />;
 	};
 
 	const renderLoadGamesView = () => (
-		<div className="text-center">
-			<h2 className="mb-4">Load Game</h2>
-			<div className="list-group mb-4">
-				{games.map((game) => (
-					<div
-						key={game.id}
-						className="list-group-item list-group-item-action bg-dark text-white border-secondary d-flex justify-content-between align-items-center"
-					>
-						<button
-							className="btn btn-link text-white text-decoration-none flex-grow-1 text-start p-0"
-							onClick={() => handleLoadGame(game.id)}
-						>
-							<div className="d-flex flex-column align-items-start">
-								<div className="d-flex w-100 justify-content-start align-items-center mb-1">
-									<h5 className="mb-0 me-2">{game.name}</h5>
-									{game.current && <span className="badge bg-primary">Current</span>}
-								</div>
-								{(game.last_played || game.updated_at) && (
-									<small className="text-muted">
-										{game.last_played
-											? `${new Date(game.last_played).toLocaleDateString()} at ${new Date(game.last_played).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
-											: `${new Date(game.updated_at!).toLocaleDateString()} at ${new Date(game.updated_at!).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
-										}
-									</small>
-								)}
-							</div>
-						</button>
-						<button
-							className="btn btn-outline-danger btn-sm ms-2"
-							onClick={(e) => {
-								e.stopPropagation();
-								handleDeleteGame(game);
-							}}
-							title="Delete Game"
-						>
-							<FaTrash size={14} />
-						</button>
-					</div>
-				))}
+		<div className="card mx-auto" style={{ maxWidth: '600px' }}>
+			<div className="card-header bg-warning text-dark">
+				<h4 className="mb-0">Load Game</h4>
 			</div>
-			<button
-				className="btn btn-secondary"
-				onClick={() => setCurrentView('main')}
-			>
-				<GiReturnArrow size={20} className="me-1" />Back
-			</button>
-
+			<div className="card-body">
+				{gameSummaries.length === 0 ? (
+					<div className="text-center">
+						<p>No saved games found.</p>
+						<Button variant="secondary" onClick={() => setCurrentView('main')}>
+							<GiReturnArrow /> Back to Main Menu
+						</Button>
+					</div>
+				) : (
+					<>
+						<div className="row g-3">
+							{gameSummaries.map(game => (
+								<div key={game.id} className="col-12">
+									<div className="card">
+										<div className="card-body d-flex justify-content-between align-items-center">
+											<div>
+												<h6 className="card-title mb-1">{game.name}</h6>
+												<small className="text-muted">
+													{game.last_played
+														? `Last played: ${new Date(game.last_played).toLocaleDateString()}`
+														: 'Never played'}
+												</small>
+											</div>
+											<div className="d-flex gap-2">
+												<Button
+													size="sm"
+													variant="success"
+													onClick={() => handleLoadGame(game.id)}
+												>
+													Load
+												</Button>
+												<Button
+													size="sm"
+													variant="danger"
+													onClick={() => handleDeleteGame(game)}
+													disabled={isDeletingGame}
+												>
+													<FaTrash />
+												</Button>
+											</div>
+										</div>
+									</div>
+								</div>
+							))}
+						</div>
+						<div className="text-center mt-3">
+							<Button variant="secondary" onClick={() => setCurrentView('main')}>
+								<GiReturnArrow /> Back to Main Menu
+							</Button>
+						</div>
+					</>
+				)}
+			</div>
 		</div>
 	);
 
 	const renderMainView = () => {
-		if (!isAuthenticated) {
-			return (
-				<div className="text-center">
-					<p className="mb-4">Please sign in to access your games:</p>
-					<GoogleSignInButton />
-				</div>
-			);
-		}
-
-		const hasCurrent = games.some(g => g.current);
-		const hasAny = games.length > 0;
+		const hasCurrentGame = gameSummaries.some(g => g.current);
 
 		return (
-			<div className="text-center">
-				<div className="d-grid gap-3">
-					{hasCurrent && (
-						<button
-							className="btn btn-primary btn-lg"
-							onClick={handleContinueGame}
-						>
-							Continue Game
-						</button>
-					)}
-					<button
-						className="btn btn-success btn-lg"
-						onClick={handleCreateGame}
-						disabled={isCreatingGame}
-					>
-						{isCreatingGame ? (
-							<>
-								<span className="spinner-border spinner-border-sm me-2" role="status" />
-								Creating Game...
-							</>
-						) : (
-							'Create New Game'
+			<div className="card mx-auto" style={{ maxWidth: '400px' }}>
+				<div className="card-header bg-primary text-white">
+					<h2 className="text-center mb-0">Stargate Evolution</h2>
+				</div>
+				<div className="card-body">
+					<div className="d-grid gap-3">
+						{/* Continue Game - only show if there's a current game */}
+						{hasCurrentGame && (
+							<Button size="lg" variant="success" onClick={handleContinueGame}>
+								Continue Game
+							</Button>
 						)}
-					</button>
-					{hasAny && (
-						<button
-							className="btn btn-info btn-lg"
+
+						{/* New Game */}
+						<Button
+							size="lg"
+							variant="primary"
+							onClick={handleCreateGame}
+							disabled={isCreatingGame}
+						>
+							{isCreatingGame ? 'Creating...' : 'New Game'}
+						</Button>
+
+						{/* Load Game */}
+						<Button
+							size="lg"
+							variant="warning"
 							onClick={() => setCurrentView('load-games')}
 						>
 							Load Game
-						</button>
-					)}
+						</Button>
+
+						{/* Sign in section */}
+						{!isAuthenticated && (
+							<div className="mt-4 text-center">
+								<p className="mb-2">Sign in for cloud saves:</p>
+								<GoogleSignInButton />
+							</div>
+						)}
+					</div>
 				</div>
 			</div>
 		);
@@ -331,74 +313,42 @@ export const MenuPage: React.FC = () => {
 
 	const renderLoadingView = () => (
 		<div className="text-center">
-			<div className="spinner-border text-primary mb-3" role="status">
+			<div className="spinner-border text-primary" role="status">
 				<span className="visually-hidden">Loading...</span>
 			</div>
-			<p>Loading games...</p>
+			<p className="mt-2">Loading LiveStore...</p>
 		</div>
 	);
 
 	return (
-		<div
-			className="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center"
-			style={{
-				backgroundColor: 'rgba(10,12,24,0.92)',
-				zIndex: 3000,
-			}}
-		>
-			{/* Delete Confirmation Modal - Always rendered */}
-			<Modal show={showDeleteConfirm} onHide={cancelDeleteGame} centered style={{ zIndex: 9001 }}>
-				<Modal.Header closeButton className="bg-dark text-white border-secondary">
-					<Modal.Title>Confirm Delete Game</Modal.Title>
-				</Modal.Header>
-				<Modal.Body className="bg-dark text-white">
-					<p>Are you sure you want to delete the game <strong>&ldquo;{gameToDelete?.name}&rdquo;</strong>?</p>
-					<p className="text-warning">
-						<strong>Warning:</strong> This action cannot be undone. All game data including galaxies,
-						star systems, crew members, and progress will be permanently deleted.
-					</p>
-				</Modal.Body>
-				<Modal.Footer className="bg-dark border-secondary">
-					<Button variant="secondary" onClick={cancelDeleteGame} disabled={isDeletingGame}>
-						Cancel
-					</Button>
-					<Button
-						variant="danger"
-						onClick={confirmDeleteGame}
-						disabled={isDeletingGame}
-					>
-						{isDeletingGame ? (
-							<>
-								<span className="spinner-border spinner-border-sm me-2" role="status" />
-								Deleting...
-							</>
-						) : (
-							'Delete Game'
-						)}
-					</Button>
-				</Modal.Footer>
-			</Modal>
-
-			<div
-				className="bg-dark text-white rounded-4 shadow-lg p-5"
-				style={{
-					minWidth: '340px',
-					maxWidth: '90vw',
-					backgroundColor: '#181a2a !important',
-				}}
-			>
-				<div className="text-center mb-4">
-					<h1 className="display-4 mb-3" style={{ letterSpacing: '0.04em' }}>
-						Stargate Evolution
-					</h1>
-				</div>
-
+		<div className="container-fluid vh-100 d-flex align-items-center justify-content-center bg-dark text-light">
+			<div className="w-100" style={{ maxWidth: '800px' }}>
 				{currentView === 'loading' && renderLoadingView()}
 				{currentView === 'main' && renderMainView()}
 				{currentView === 'load-games' && renderLoadGamesView()}
+
+				{/* Delete Confirmation Modal */}
+				<Modal show={showDeleteConfirm} onHide={cancelDeleteGame}>
+					<Modal.Header closeButton>
+						<Modal.Title>Confirm Delete</Modal.Title>
+					</Modal.Header>
+					<Modal.Body>
+						Are you sure you want to delete the game &ldquo;{gameToDelete?.name}&rdquo;? This action cannot be undone.
+					</Modal.Body>
+					<Modal.Footer>
+						<Button variant="secondary" onClick={cancelDeleteGame}>
+							Cancel
+						</Button>
+						<Button
+							variant="danger"
+							onClick={confirmDeleteGame}
+							disabled={isDeletingGame}
+						>
+							{isDeletingGame ? 'Deleting...' : 'Delete'}
+						</Button>
+					</Modal.Footer>
+				</Modal>
 			</div>
-
-
 		</div>
 	);
 };

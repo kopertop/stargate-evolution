@@ -1,3 +1,4 @@
+import { useQuery } from '@livestore/react';
 import React, { useState } from 'react';
 import { Navbar, Nav } from 'react-bootstrap';
 import type { IconType } from 'react-icons';
@@ -16,10 +17,10 @@ import {
 import { MdCo2 } from 'react-icons/md';
 import { SiO2 } from 'react-icons/si';
 
+import { useGameService } from '../services/use-game-service';
 import type { DestinyStatus } from '../types';
 
 import { CrewStatus } from './crew-status';
-
 
 interface DestinyStatusBarProps {
 	status: DestinyStatus;
@@ -46,6 +47,10 @@ export const DestinyStatusBar: React.FC<DestinyStatusBarProps> = ({ status }) =>
 	const [weaponsHoverTimeout, setWeaponsHoverTimeout] = useState<NodeJS.Timeout | null>(null);
 	const [atmosphereHoverTimeout, setAtmosphereHoverTimeout] = useState<NodeJS.Timeout | null>(null);
 	const [resourcesHoverTimeout, setResourcesHoverTimeout] = useState<NodeJS.Timeout | null>(null);
+
+	const gameService = useGameService();
+	const inventoryArr = useQuery(status.gameId ? gameService.queries.inventoryByGame(status.gameId) : gameService.queries.inventoryByGame('')) || [];
+	const inventoryMap = Object.fromEntries(inventoryArr.map((i: any) => [i.resourceType, i.amount]));
 
 	const handleInventoryMouseEnter = () => {
 		if (inventoryHoverTimeout) {
@@ -304,50 +309,50 @@ export const DestinyStatusBar: React.FC<DestinyStatusBarProps> = ({ status }) =>
 										<div className="col-6">
 											<div className="d-flex justify-content-between align-items-center">
 												<span>Food:</span>
-												<span className={(status.inventory.food || 0) < 10 ? 'text-danger' : (status.inventory.food || 0) < 25 ? 'text-warning' : 'text-success'}>
-													{status.inventory.food || 0}
+												<span className={(inventoryMap.food || 0) < 10 ? 'text-danger' : (inventoryMap.food || 0) < 25 ? 'text-warning' : 'text-success'}>
+													{inventoryMap.food || 0}
 												</span>
 											</div>
 											<div className="d-flex justify-content-between align-items-center">
 												<span>Water:</span>
-												<span className={(status.inventory.water || 0) < 20 ? 'text-danger' : (status.inventory.water || 0) < 50 ? 'text-warning' : 'text-success'}>
-													{status.inventory.water || 0}
+												<span className={(inventoryMap.water || 0) < 20 ? 'text-danger' : (inventoryMap.water || 0) < 50 ? 'text-warning' : 'text-success'}>
+													{inventoryMap.water || 0}
 												</span>
 											</div>
 											<div className="d-flex justify-content-between align-items-center">
 												<span>Parts:</span>
-												<span className={(status.inventory.parts || 0) < 5 ? 'text-danger' : (status.inventory.parts || 0) < 15 ? 'text-warning' : 'text-success'}>
-													{status.inventory.parts || 0}
+												<span className={(inventoryMap.parts || 0) < 5 ? 'text-danger' : (inventoryMap.parts || 0) < 15 ? 'text-warning' : 'text-success'}>
+													{inventoryMap.parts || 0}
 												</span>
 											</div>
 										</div>
 										<div className="col-6">
 											<div className="d-flex justify-content-between align-items-center">
 												<span>Medicine:</span>
-												<span className={(status.inventory.medicine || 0) < 2 ? 'text-danger' : (status.inventory.medicine || 0) < 5 ? 'text-warning' : 'text-success'}>
-													{status.inventory.medicine || 0}
+												<span className={(inventoryMap.medicine || 0) < 2 ? 'text-danger' : (inventoryMap.medicine || 0) < 5 ? 'text-warning' : 'text-success'}>
+													{inventoryMap.medicine || 0}
 												</span>
 											</div>
 											<div className="d-flex justify-content-between align-items-center">
 												<span>Ancient Tech:</span>
 												<span className="text-info">
-													{status.inventory.ancient_tech || 0}
+													{inventoryMap.ancient_tech || 0}
 												</span>
 											</div>
 											<div className="d-flex justify-content-between align-items-center">
 												<span>O₂ Canisters:</span>
-												<span className={(status.inventory.oxygen_canister || 0) < 2 ? 'text-danger' : (status.inventory.oxygen_canister || 0) < 5 ? 'text-warning' : 'text-success'}>
-													{status.inventory.oxygen_canister || 0}
+												<span className={(inventoryMap.oxygen_canister || 0) < 2 ? 'text-danger' : (inventoryMap.oxygen_canister || 0) < 5 ? 'text-warning' : 'text-success'}>
+													{inventoryMap.oxygen_canister || 0}
 												</span>
 											</div>
 										</div>
 									</div>
-									{status.inventory.lime && (
+									{inventoryMap.lime && (
 										<div className="mt-2 pt-2" style={{ borderTop: '1px solid #444' }}>
 											<div className="d-flex justify-content-between align-items-center">
 												<span>Lime (CO₂ Scrubber):</span>
-												<span className={(status.inventory.lime || 0) < 5 ? 'text-danger' : (status.inventory.lime || 0) < 15 ? 'text-warning' : 'text-success'}>
-													{status.inventory.lime || 0}
+												<span className={(inventoryMap.lime || 0) < 5 ? 'text-danger' : (inventoryMap.lime || 0) < 15 ? 'text-warning' : 'text-success'}>
+													{inventoryMap.lime || 0}
 												</span>
 											</div>
 										</div>
@@ -563,8 +568,8 @@ export const DestinyStatusBar: React.FC<DestinyStatusBarProps> = ({ status }) =>
 										Inventory
 									</strong>
 									<div className="ms-3">
-										{Object.entries(status.inventory).length > 0 ? (
-											Object.entries(status.inventory).map(([resource, amount]) => {
+										{Object.entries(inventoryMap).length > 0 ? (
+											Object.entries(inventoryMap).map(([resource, amount]) => {
 												const numAmount = Number(amount);
 												return (
 													<div key={resource} className="d-flex justify-content-between">

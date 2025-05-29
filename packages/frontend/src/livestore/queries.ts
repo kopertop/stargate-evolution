@@ -62,3 +62,35 @@ export const uiState$ = queryDb(
 	() => tables.uiState,
 	{ label: 'uiState' },
 );
+
+// Inventory queries
+export const inventoryByGameId$ = (gameId: string) => queryDb(
+	() => tables.inventory.where({ gameId }),
+	{ label: `inventoryByGameId:${gameId}` },
+);
+
+export const inventoryByLocation$ = (gameId: string, location: string) => queryDb(
+	() => tables.inventory.where({ gameId, location }),
+	{ label: `inventoryByLocation:${gameId}:${location}` },
+);
+
+export const inventoryByResourceType$ = (gameId: string, resourceType: string) => queryDb(
+	() => tables.inventory.where({ gameId, resourceType }),
+	{ label: `inventoryByResourceType:${gameId}:${resourceType}` },
+);
+
+// Galaxy and star system queries
+export const galaxiesByGameId$ = (gameId: string) => queryDb(
+	() => tables.galaxies.where({ gameId }),
+	{ label: `galaxiesByGameId:${gameId}` },
+);
+
+export const starSystemsByGameId$ = (gameId: string) => queryDb(
+	() => tables.starSystems.where({ gameId }),
+	{ label: `starSystemsByGameId:${gameId}` },
+);
+
+export const starSystemsByGalaxyId$ = (galaxyId: string) => queryDb(
+	() => tables.starSystems.where({ galaxyId }),
+	{ label: `starSystemsByGalaxyId:${galaxyId}` },
+);

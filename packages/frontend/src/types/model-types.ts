@@ -1,7 +1,4 @@
-// TypeScript utility types to infer types from WatermelonDB models
-import type DestinyStatusModel from '@stargate/db/models/destiny-status';
-import type PersonModel from '@stargate/db/models/person';
-import type RoomModel from '@stargate/db/models/room';
+// TypeScript utility types for LiveStore data models
 
 // Door types for Room model
 export interface DoorInfo {
@@ -75,7 +72,6 @@ export type DestinyStatusType = {
 	location: { [key: string]: any }; // Parse JSON string to object
 	stargateId?: string;
 	shield: { [key: string]: any }; // Parse JSON string to object
-	inventory: { [key: string]: number }; // Parse JSON string to object
 	crewStatus: { [key: string]: any }; // Parse JSON string to object
 	atmosphere: { [key: string]: any }; // Parse JSON string to object
 	weapons: { [key: string]: any }; // Parse JSON string to object
@@ -104,8 +100,8 @@ export type PersonType = {
 	createdAt: Date;
 };
 
-// Utility functions to convert model instances to typed objects
-export function roomModelToType(room: RoomModel): RoomType {
+// Utility functions to convert LiveStore data to typed objects
+export function roomDataToType(room: any): RoomType {
 	let explorationData: ExplorationProgress | undefined;
 	if (room.explorationData) {
 		try {
@@ -121,31 +117,31 @@ export function roomModelToType(room: RoomModel): RoomType {
 		templateId: room.templateId,
 		type: room.type,
 		// New rectangle positioning (if available)
-		startX: (room as any).startX,
-		startY: (room as any).startY,
-		endX: (room as any).endX,
-		endY: (room as any).endY,
+		startX: room.startX,
+		startY: room.startY,
+		endX: room.endX,
+		endY: room.endY,
 		// Legacy grid positioning (fallback)
 		gridX: room.gridX,
 		gridY: room.gridY,
 		gridWidth: room.gridWidth,
 		gridHeight: room.gridHeight,
 		floor: room.floor,
-		technology: JSON.parse(room.technology || '[]'),
+		technology: room.technology ? JSON.parse(room.technology) : [],
 		image: room.image,
-		found: room.found,
+		found: room.found || false,
 		locked: room.locked,
-		explored: room.explored,
-		status: room.status,
-		connectedRooms: JSON.parse(room.connectedRooms || '[]'),
-		doors: JSON.parse(room.doors || '[]'),
+		explored: room.explored || false,
+		status: room.status || 'ok',
+		connectedRooms: room.connectedRooms ? JSON.parse(room.connectedRooms) : [],
+		doors: room.doors ? JSON.parse(room.doors) : [],
 		explorationData,
 		createdAt: room.createdAt,
 		baseExplorationTime: room.baseExplorationTime || 2,
 	};
 }
 
-export function destinyStatusModelToType(status: DestinyStatusModel): DestinyStatusType {
+export function destinyStatusDataToType(status: any): DestinyStatusType {
 	return {
 		id: status.id,
 		gameId: status.gameId,
@@ -157,15 +153,14 @@ export function destinyStatusModelToType(status: DestinyStatusModel): DestinySta
 		hull: status.hull,
 		maxHull: status.maxHull,
 		raceId: status.raceId,
-		crew: JSON.parse(status.crew || '[]'),
-		location: JSON.parse(status.location || '{}'),
+		crew: status.crew ? JSON.parse(status.crew) : [],
+		location: status.location ? JSON.parse(status.location) : {},
 		stargateId: status.stargateId,
-		shield: JSON.parse(status.shield || '{}'),
-		inventory: JSON.parse(status.inventory || '{}'),
-		crewStatus: JSON.parse(status.crewStatus || '{}'),
-		atmosphere: JSON.parse(status.atmosphere || '{}'),
-		weapons: JSON.parse(status.weapons || '{}'),
-		shuttles: JSON.parse(status.shuttles || '{}'),
+		shield: status.shield ? JSON.parse(status.shield) : {},
+		crewStatus: status.crewStatus ? JSON.parse(status.crewStatus) : {},
+		atmosphere: status.atmosphere ? JSON.parse(status.atmosphere) : {},
+		weapons: status.weapons ? JSON.parse(status.weapons) : {},
+		shuttles: status.shuttles ? JSON.parse(status.shuttles) : {},
 		notes: status.notes ? JSON.parse(status.notes) : undefined,
 		gameDays: status.gameDays,
 		gameHours: status.gameHours,
@@ -175,19 +170,29 @@ export function destinyStatusModelToType(status: DestinyStatusModel): DestinySta
 	};
 }
 
-export function personModelToType(person: PersonModel): PersonType {
+export function personDataToType(person: any): PersonType {
 	return {
 		id: person.id,
 		gameId: person.gameId,
 		raceId: person.raceId,
 		name: person.name,
 		role: person.role,
-		location: JSON.parse(person.location || '{}'),
+		location: person.location ? JSON.parse(person.location) : {},
 		assignedTo: person.assignedTo,
-		skills: JSON.parse(person.skills || '[]'),
+		skills: person.skills ? JSON.parse(person.skills) : [],
 		description: person.description,
 		image: person.image,
-		conditions: JSON.parse(person.conditions || '[]'),
+		conditions: person.conditions ? JSON.parse(person.conditions) : [],
 		createdAt: person.createdAt,
 	};
 }
+
+// Keep the old function names for backward compatibility (deprecated)
+/** @deprecated Use destinyStatusDataToType instead */
+export const destinyStatusModelToType = destinyStatusDataToType;
+
+/** @deprecated Use roomDataToType instead */
+export const roomModelToType = roomDataToType;
+
+/** @deprecated Use personDataToType instead */
+export const personModelToType = personDataToType;

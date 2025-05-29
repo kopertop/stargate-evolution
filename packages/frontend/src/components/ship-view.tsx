@@ -1,5 +1,7 @@
+import { useQuery } from '@livestore/react';
 import React, { useState } from 'react';
 
+import { useGameService } from '../services/use-game-service';
 import type { DestinyStatus } from '../types';
 
 import { ShipMap } from './ship-map';
@@ -28,6 +30,10 @@ export const ShipView: React.FC<ShipViewProps> = ({
 	const [gameIsPaused, setGameIsPaused] = useState(true);
 	const [lastTimeRemaining, setLastTimeRemaining] = useState(destinyStatus.nextFtlTransition);
 
+	const gameService = useGameService();
+	const inventoryArr = useQuery(gameId ? gameService.queries.inventoryByGame(gameId) : gameService.queries.inventoryByGame('')) || [];
+	const inventoryMap = Object.fromEntries(inventoryArr.map((i: any) => [i.resourceType, i.amount]));
+
 	// Calculate daily resource consumption
 	const crewCount = destinyStatus.crewStatus.onboard;
 	const dailyFoodConsumption = crewCount * RESOURCE_CONSUMPTION.food;
@@ -52,68 +58,9 @@ export const ShipView: React.FC<ShipViewProps> = ({
 
 		// Calculate how much time has passed
 		if (timeDelta > 0) {
-			advanceTime(timeDelta);
+			// TODO: Resource consumption should be handled via LiveStore events, not local mutation
+			// advanceTime(timeDelta);
 		}
-	};
-
-	// Advance game time and handle resource consumption
-	const advanceTime = (hours: number) => {
-		let newGameDays = destinyStatus.gameDays;
-		let newGameHours = destinyStatus.gameHours + hours;
-		let newFtlStatus = destinyStatus.ftlStatus;
-		let newNextFtlTransition = destinyStatus.nextFtlTransition - hours;
-
-		// Handle day rollover
-		while (newGameHours >= 24) {
-			newGameHours -= 24;
-			newGameDays += 1;
-		}
-
-		// Handle FTL transitions
-		if (newNextFtlTransition <= 0) {
-			if (newFtlStatus === 'ftl') {
-				newFtlStatus = 'normal_space';
-				newNextFtlTransition = 6 + Math.random() * 12; // 6-18 hours in normal space
-			} else {
-				newFtlStatus = 'ftl';
-				newNextFtlTransition = 24 + Math.random() * 48; // 1-3 days in FTL
-			}
-		}
-
-		// Daily resource consumption (during day rollover)
-		const newInventory = { ...destinyStatus.inventory };
-		const daysAdvanced = newGameDays - destinyStatus.gameDays;
-		if (daysAdvanced > 0) {
-			newInventory.food = Math.max(0, (newInventory.food || 0) - (dailyFoodConsumption * daysAdvanced));
-			newInventory.water = Math.max(0, (newInventory.water || 0) - (dailyWaterConsumption * daysAdvanced));
-		}
-
-		// Handle atmospheric systems
-		const newAtmosphere = { ...destinyStatus.atmosphere };
-		newAtmosphere.o2 -= (hourlyO2Consumption * hours) / 1000; // Convert to percentage
-		newAtmosphere.co2 += (hourlyCO2Generation * hours) / 1000;
-
-		// CO2 scrubbers work if operational
-		if (newAtmosphere.co2Scrubbers > 0) {
-			const scrubberEfficiency = newAtmosphere.co2Scrubbers * 25 * hours / 1000;
-			newAtmosphere.co2 = Math.max(0, newAtmosphere.co2 - scrubberEfficiency);
-			newAtmosphere.o2 = Math.min(21, newAtmosphere.o2 + scrubberEfficiency * 0.8);
-		}
-
-		// Clamp values
-		newAtmosphere.o2 = Math.max(0, Math.min(21, newAtmosphere.o2));
-		newAtmosphere.co2 = Math.max(0, Math.min(10, newAtmosphere.co2));
-
-		// Update destiny status with new time and resources
-		onStatusUpdate({
-			...destinyStatus,
-			gameDays: newGameDays,
-			gameHours: newGameHours,
-			ftlStatus: newFtlStatus as 'ftl' | 'normal_space',
-			nextFtlTransition: Math.max(0, newNextFtlTransition),
-			inventory: newInventory,
-			atmosphere: newAtmosphere,
-		});
 	};
 
 	return (

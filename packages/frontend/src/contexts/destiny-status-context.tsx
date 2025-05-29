@@ -1,6 +1,4 @@
-import { Q } from '@nozbe/watermelondb';
-import DB from '@stargate/db/index';
-import DestinyStatus from '@stargate/db/models/destiny-status';
+import { useQuery } from '@livestore/react';
 import React, {
 	createContext,
 	useContext,
@@ -10,7 +8,8 @@ import React, {
 	useEffect,
 } from 'react';
 
-import { destinyStatusModelToType, DestinyStatusType } from '../types/model-types';
+import { useGameService } from '../services/use-game-service';
+import { destinyStatusDataToType, DestinyStatusType } from '../types/model-types';
 
 import { useGameState } from './game-state-context';
 
@@ -35,34 +34,32 @@ export const DestinyStatusProvider: React.FC<DestinyStatusProviderProps> = ({ ch
 	const [ftlDropoutTime, setFtlDropoutTime] = useState<number | null>(null);
 	const [lastUpdateTime, setLastUpdateTime] = useState<number>(0);
 
+	const gameService = useGameService();
+
+	// Query destiny status using LiveStore
+	const destinyQuery = useQuery(game?.id ? gameService.queries.destinyStatus(game.id) : gameService.queries.destinyStatus(''));
+	const destinyRecord = destinyQuery?.[0];
+
 	// Load initial Destiny status
 	useEffect(() => {
-		if (!game) return;
-		const loadDestinyStatus = async () => {
-			try {
-				const destinyRecords = await DB.get<DestinyStatus>('destiny_status')
-					.query(Q.where('game_id', game.id))
-					.fetch();
+		if (!destinyRecord) return;
 
-				if (destinyRecords.length > 0) {
-					const gameDestiny = destinyRecords[0];
-					const typedStatus = destinyStatusModelToType(gameDestiny);
-					setDestinyStatus(typedStatus);
+		try {
+			// Convert LiveStore data to DestinyStatusType format
+			const typedStatus = destinyStatusDataToType(destinyRecord);
 
-					// If ship is in normal space, calculate when it dropped out
-					if (typedStatus.ftlStatus === 'normal_space') {
-						// Estimate dropout time based on current time and remaining transition time
-						const estimatedDropoutTime = gameTime - (typedStatus.nextFtlTransition * 3600); // Convert hours to seconds
-						setFtlDropoutTime(estimatedDropoutTime);
-					}
-				}
-			} catch (error) {
-				console.error('Failed to load Destiny status:', error);
+			setDestinyStatus(typedStatus);
+
+			// If ship is in normal space, calculate when it dropped out
+			if (typedStatus.ftlStatus === 'normal_space') {
+				// Estimate dropout time based on current time and remaining transition time
+				const estimatedDropoutTime = gameTime - (typedStatus.nextFtlTransition * 3600); // Convert hours to seconds
+				setFtlDropoutTime(estimatedDropoutTime);
 			}
-		};
-
-		loadDestinyStatus();
-	}, [game]);
+		} catch (error) {
+			console.error('Failed to load Destiny status:', error);
+		}
+	}, [destinyRecord, gameTime]);
 
 	// Track time progression and update FTL countdown
 	useEffect(() => {
@@ -115,44 +112,24 @@ export const DestinyStatusProvider: React.FC<DestinyStatusProviderProps> = ({ ch
 		setDestinyStatus(updatedStatus);
 		setLastUpdateTime(gameTime);
 
-		// Persist to database
-		updateDestinyStatusInDB(updatedStatus);
+		// Persist using LiveStore
+		updateDestinyStatusInStore(updatedStatus);
 	}, [gameTime, destinyStatus, lastUpdateTime, ftlDropoutTime]);
 
-	const updateDestinyStatusInDB = async (status: DestinyStatusType) => {
-		if (!game) return;
+	const updateDestinyStatusInStore = async (status: DestinyStatusType) => {
+		if (!game?.id) return;
 
 		try {
-			const destinyRecords = await DB.get<DestinyStatus>('destiny_status')
-				.query(Q.where('game_id', game.id))
-				.fetch();
-
-			if (destinyRecords.length > 0) {
-				const gameDestiny = destinyRecords[0];
-				await DB.write(async () => {
-					await gameDestiny.update((record) => {
-						record.gameDays = status.gameDays;
-						record.gameHours = status.gameHours;
-						record.ftlStatus = status.ftlStatus;
-						record.nextFtlTransition = status.nextFtlTransition;
-						record.power = status.power;
-						record.maxPower = status.maxPower;
-						record.shields = status.shields;
-						record.maxShields = status.maxShields;
-						record.hull = status.hull;
-						record.maxHull = status.maxHull;
-						record.shield = JSON.stringify(status.shield);
-						record.inventory = JSON.stringify(status.inventory);
-						record.crewStatus = JSON.stringify(status.crewStatus);
-						record.atmosphere = JSON.stringify(status.atmosphere);
-						record.weapons = JSON.stringify(status.weapons);
-						record.shuttles = JSON.stringify(status.shuttles);
-						record.notes = JSON.stringify(status.notes || []);
-					});
-				});
-			}
+			gameService.updateDestinyStatus(game.id, {
+				power: status.power,
+				shields: status.shields,
+				hull: status.hull,
+				gameDays: status.gameDays,
+				gameHours: status.gameHours,
+				ftlStatus: status.ftlStatus,
+			});
 		} catch (error) {
-			console.error('Failed to update Destiny status in DB:', error);
+			console.error('Failed to update Destiny status in store:', error);
 		}
 	};
 
@@ -161,7 +138,7 @@ export const DestinyStatusProvider: React.FC<DestinyStatusProviderProps> = ({ ch
 
 		const updatedStatus = { ...destinyStatus, ...updates };
 		setDestinyStatus(updatedStatus);
-		await updateDestinyStatusInDB(updatedStatus);
+		await updateDestinyStatusInStore(updatedStatus);
 	}, [destinyStatus, game]);
 
 	const triggerFTLTransition = useCallback(async () => {

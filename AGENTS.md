@@ -35,3 +35,15 @@ This project is a TypeScript monorepo managed with `pnpm`.
 - Keep `README.md` and other docs current when workflows change.
 
 Always keep mono-repo dependencies in sync and use the scripts defined in each package.
+
+## React/Frontend Rules
+- Use components for "display" separately from services or providers for logic
+- Run `pnpm run check` from the base directory to verify typechecks and lint rules
+- Use `@livestore/react` for state management and persistence
+- Use `@livestore/react-query` for data fetching
+
+### Prefer React Bootstrap components
+- Use `<Button>` over `<button>` or `className="btn"` when possible
+- Style using React Bootstrap before applying custom styles
+- Try to avoid custom styles if possible
+- If absolutely necessary, use flexbox custom styles instead of absolute positioning

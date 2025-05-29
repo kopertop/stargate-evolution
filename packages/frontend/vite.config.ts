@@ -4,7 +4,6 @@ import { livestoreDevtoolsPlugin } from '@livestore/devtools-vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 import path from 'path';
-import babel from 'vite-plugin-babel';
 
 export default defineConfig({
 	server: {
@@ -12,23 +11,6 @@ export default defineConfig({
 	},
 	worker: { format: 'es' },
 	plugins: [
-		babel({
-			babelConfig: {
-				babelrc: false,
-				configFile: false,
-				presets: [
-					['@babel/preset-typescript', { allowNamespaces: true }],
-				],
-				plugins: [
-					['@babel/plugin-proposal-decorators', { legacy: true }],
-					['@babel/plugin-proposal-class-properties', { loose: true }],
-				],
-			},
-			filter: (id: string) => {
-				// Only apply babel to WatermelonDB model files and service files
-				return id.includes('packages/db/src') && /\.(ts|tsx)$/.test(id);
-			},
-		}),
 		react(),
 		livestoreDevtoolsPlugin({ schemaPath: './src/livestore/schema.ts' }),
 		// Running `wrangler dev` as part of `vite dev` needed for `@livestore/sync-cf`
@@ -58,7 +40,6 @@ export default defineConfig({
 	publicDir: 'public',
 	resolve: {
 		alias: {
-			'@stargate/db': path.resolve(__dirname, '../db/src'),
 			'@stargate/common': path.resolve(__dirname, '../common'),
 		},
 	},

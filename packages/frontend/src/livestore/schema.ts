@@ -218,7 +218,6 @@ export const tables = {
 			location: State.SQLite.text(), // JSON stored as text
 			stargateId: State.SQLite.text({ nullable: true }),
 			shield: State.SQLite.text(), // JSON stored as text
-			inventory: State.SQLite.text(), // JSON stored as text
 			crewStatus: State.SQLite.text(), // JSON stored as text
 			atmosphere: State.SQLite.text(), // JSON stored as text
 			weapons: State.SQLite.text(), // JSON stored as text
@@ -229,6 +228,21 @@ export const tables = {
 			ftlStatus: State.SQLite.text({ default: 'normal_space' }), // 'ftl' or 'normal_space'
 			nextFtlTransition: State.SQLite.real(),
 			createdAt: State.SQLite.integer({ schema: Schema.DateFromNumber }),
+		},
+	}),
+
+	// Inventory management
+	inventory: State.SQLite.table({
+		name: 'inventory',
+		columns: {
+			id: State.SQLite.text({ primaryKey: true }),
+			gameId: State.SQLite.text(),
+			resourceType: State.SQLite.text(),
+			amount: State.SQLite.real(),
+			location: State.SQLite.text({ nullable: true }), // e.g., 'ship', 'room_id', etc.
+			description: State.SQLite.text({ nullable: true }),
+			createdAt: State.SQLite.integer({ schema: Schema.DateFromNumber }),
+			updatedAt: State.SQLite.integer({ schema: Schema.DateFromNumber }),
 		},
 	}),
 
@@ -304,6 +318,36 @@ export const events = {
 	}),
 
 	// Destiny status updates
+	destinyStatusCreated: Events.synced({
+		name: 'v1.DestinyStatusCreated',
+		schema: Schema.Struct({
+			id: Schema.String,
+			gameId: Schema.String,
+			name: Schema.String,
+			power: Schema.Number,
+			maxPower: Schema.Number,
+			shields: Schema.Number,
+			maxShields: Schema.Number,
+			hull: Schema.Number,
+			maxHull: Schema.Number,
+			raceId: Schema.String,
+			crew: Schema.String,
+			location: Schema.String,
+			stargateId: Schema.optional(Schema.String),
+			shield: Schema.String,
+			crewStatus: Schema.String,
+			atmosphere: Schema.String,
+			weapons: Schema.String,
+			shuttles: Schema.String,
+			notes: Schema.optional(Schema.String),
+			gameDays: Schema.Number,
+			gameHours: Schema.Number,
+			ftlStatus: Schema.String,
+			nextFtlTransition: Schema.Number,
+			createdAt: Schema.Date,
+		}),
+	}),
+
 	destinyStatusUpdated: Events.synced({
 		name: 'v1.DestinyStatusUpdated',
 		schema: Schema.Struct({
@@ -314,7 +358,127 @@ export const events = {
 			gameDays: Schema.optional(Schema.Number),
 			gameHours: Schema.optional(Schema.Number),
 			ftlStatus: Schema.optional(Schema.String),
-			inventory: Schema.optional(Schema.String), // JSON string instead of object
+		}),
+	}),
+
+	// Universe structure events
+	galaxyCreated: Events.synced({
+		name: 'v1.GalaxyCreated',
+		schema: Schema.Struct({
+			id: Schema.String,
+			gameId: Schema.String,
+			name: Schema.String,
+			x: Schema.Number,
+			y: Schema.Number,
+			createdAt: Schema.Date,
+		}),
+	}),
+
+	starSystemCreated: Events.synced({
+		name: 'v1.StarSystemCreated',
+		schema: Schema.Struct({
+			id: Schema.String,
+			gameId: Schema.String,
+			galaxyId: Schema.String,
+			name: Schema.String,
+			x: Schema.Number,
+			y: Schema.Number,
+			description: Schema.optional(Schema.String),
+			image: Schema.optional(Schema.String),
+			createdAt: Schema.Date,
+		}),
+	}),
+
+	// Civilization events
+	raceCreated: Events.synced({
+		name: 'v1.RaceCreated',
+		schema: Schema.Struct({
+			id: Schema.String,
+			gameId: Schema.String,
+			name: Schema.String,
+			technology: Schema.String,
+			ships: Schema.String,
+			createdAt: Schema.Date,
+		}),
+	}),
+
+	personCreated: Events.synced({
+		name: 'v1.PersonCreated',
+		schema: Schema.Struct({
+			id: Schema.String,
+			gameId: Schema.String,
+			raceId: Schema.String,
+			name: Schema.String,
+			role: Schema.String,
+			location: Schema.String,
+			assignedTo: Schema.optional(Schema.String),
+			skills: Schema.String,
+			description: Schema.optional(Schema.String),
+			image: Schema.optional(Schema.String),
+			conditions: Schema.String,
+			createdAt: Schema.Date,
+		}),
+	}),
+
+	// Ship structure events
+	roomCreated: Events.synced({
+		name: 'v1.RoomCreated',
+		schema: Schema.Struct({
+			id: Schema.String,
+			gameId: Schema.String,
+			templateId: Schema.optional(Schema.String),
+			type: Schema.String,
+			startX: Schema.optional(Schema.Number),
+			startY: Schema.optional(Schema.Number),
+			endX: Schema.optional(Schema.Number),
+			endY: Schema.optional(Schema.Number),
+			gridX: Schema.optional(Schema.Number),
+			gridY: Schema.optional(Schema.Number),
+			gridWidth: Schema.optional(Schema.Number),
+			gridHeight: Schema.optional(Schema.Number),
+			floor: Schema.Number,
+			technology: Schema.String,
+			image: Schema.optional(Schema.String),
+			found: Schema.optional(Schema.Boolean),
+			locked: Schema.optional(Schema.Boolean),
+			explored: Schema.optional(Schema.Boolean),
+			status: Schema.String,
+			connectedRooms: Schema.String,
+			doors: Schema.String,
+			explorationData: Schema.optional(Schema.String),
+			baseExplorationTime: Schema.optional(Schema.Number),
+			createdAt: Schema.Date,
+		}),
+	}),
+
+	// Inventory events
+	inventoryAdded: Events.synced({
+		name: 'v1.InventoryAdded',
+		schema: Schema.Struct({
+			id: Schema.String,
+			gameId: Schema.String,
+			resourceType: Schema.String,
+			amount: Schema.Number,
+			location: Schema.optional(Schema.String),
+			description: Schema.optional(Schema.String),
+			createdAt: Schema.Date,
+		}),
+	}),
+
+	inventoryUpdated: Events.synced({
+		name: 'v1.InventoryUpdated',
+		schema: Schema.Struct({
+			id: Schema.String,
+			amount: Schema.optional(Schema.Number),
+			location: Schema.optional(Schema.String),
+			description: Schema.optional(Schema.String),
+		}),
+	}),
+
+	inventoryRemoved: Events.synced({
+		name: 'v1.InventoryRemoved',
+		schema: Schema.Struct({
+			id: Schema.String,
 		}),
 	}),
 
@@ -330,6 +494,21 @@ export const events = {
 
 	// UI state events (local only)
 	uiStateSet: tables.uiState.set,
+
+	roomUpdated: Events.synced({
+		name: 'v1.RoomUpdated',
+		schema: Schema.Struct({
+			id: Schema.String,
+			found: Schema.optional(Schema.Boolean),
+			locked: Schema.optional(Schema.Boolean),
+			explored: Schema.optional(Schema.Boolean),
+			status: Schema.optional(Schema.String),
+			connectedRooms: Schema.optional(Schema.String),
+			doors: Schema.optional(Schema.String),
+			explorationData: Schema.optional(Schema.String),
+			updatedAt: Schema.Date,
+		}),
+	}),
 };
 
 // Materializers map events to state changes
@@ -373,6 +552,111 @@ const materializers = State.SQLite.materializers(events, {
 			}),
 		}).where({ id: roomId }),
 
+	'v1.DestinyStatusCreated': ({ id, gameId, name, power, maxPower, shields, maxShields, hull, maxHull, raceId, crew, location, stargateId, shield, crewStatus, atmosphere, weapons, shuttles, notes, gameDays, gameHours, ftlStatus, nextFtlTransition, createdAt }) =>
+		tables.destinyStatus.insert({
+			id,
+			gameId,
+			name,
+			power,
+			maxPower,
+			shields,
+			maxShields,
+			hull,
+			maxHull,
+			raceId,
+			crew,
+			location,
+			stargateId,
+			shield,
+			crewStatus,
+			atmosphere,
+			weapons,
+			shuttles,
+			notes,
+			gameDays,
+			gameHours,
+			ftlStatus,
+			nextFtlTransition,
+			createdAt,
+		}),
+
+	'v1.GalaxyCreated': ({ id, gameId, name, x, y, createdAt }) =>
+		tables.galaxies.insert({
+			id,
+			gameId,
+			name,
+			x,
+			y,
+			createdAt,
+		}),
+
+	'v1.StarSystemCreated': ({ id, gameId, galaxyId, name, x, y, description, image, createdAt }) =>
+		tables.starSystems.insert({
+			id,
+			gameId,
+			galaxyId,
+			name,
+			x,
+			y,
+			description,
+			image,
+			createdAt,
+		}),
+
+	'v1.RaceCreated': ({ id, gameId, name, technology, ships, createdAt }) =>
+		tables.races.insert({
+			id,
+			gameId,
+			name,
+			technology,
+			ships,
+			createdAt,
+		}),
+
+	'v1.PersonCreated': ({ id, gameId, raceId, name, role, location, assignedTo, skills, description, image, conditions, createdAt }) =>
+		tables.people.insert({
+			id,
+			gameId,
+			raceId,
+			name,
+			role,
+			location,
+			assignedTo,
+			skills,
+			description,
+			image,
+			conditions,
+			createdAt,
+		}),
+
+	'v1.RoomCreated': ({ id, gameId, templateId, type, startX, startY, endX, endY, gridX, gridY, gridWidth, gridHeight, floor, technology, image, found, locked, explored, status, connectedRooms, doors, explorationData, baseExplorationTime, createdAt }) =>
+		tables.rooms.insert({
+			id,
+			gameId,
+			templateId,
+			type,
+			startX,
+			startY,
+			endX,
+			endY,
+			gridX,
+			gridY,
+			gridWidth,
+			gridHeight,
+			floor,
+			technology,
+			image,
+			found,
+			locked,
+			explored,
+			status,
+			connectedRooms,
+			doors,
+			explorationData,
+			baseExplorationTime,
+			createdAt,
+		}),
+
 	'v1.DestinyStatusUpdated': ({ gameId, ...updates }) =>
 		tables.destinyStatus.update({
 			...updates,
@@ -380,6 +664,33 @@ const materializers = State.SQLite.materializers(events, {
 
 	'v1.TechnologyUnlocked': ({ id }) =>
 		tables.technology.update({ unlocked: true }).where({ id }),
+
+	'v1.InventoryAdded': ({ id, gameId, resourceType, amount, location, description, createdAt }) =>
+		tables.inventory.insert({
+			id,
+			gameId,
+			resourceType,
+			amount,
+			location,
+			description,
+			createdAt,
+			updatedAt: createdAt,
+		}),
+
+	'v1.InventoryUpdated': ({ id, ...updates }) =>
+		tables.inventory.update({
+			...updates,
+			updatedAt: new Date(),
+		}).where({ id }),
+
+	'v1.InventoryRemoved': ({ id }) =>
+		tables.inventory.delete().where({ id }),
+
+	'v1.RoomUpdated': ({ id, ...updates }) =>
+		tables.rooms.update({
+			...updates,
+			updatedAt: new Date(),
+		}).where({ id }),
 });
 
 const state = State.SQLite.makeState({ tables, materializers });

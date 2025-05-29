@@ -1,3 +1,5 @@
+import { useQuery } from '@livestore/react';
+import { useStore } from '@livestore/react';
 import { Q } from '@nozbe/watermelondb';
 import database, { DestinyStatus, Game, gameService, Room } from '@stargate/db';
 import React, { useState, useEffect } from 'react';
@@ -5,6 +7,8 @@ import { Button, Modal, Alert } from 'react-bootstrap';
 import { GiKey, GiPauseButton } from 'react-icons/gi';
 
 import { useGameState } from '../contexts/game-state-context';
+import { events, schema } from '../livestore/schema';
+import { useGameService } from '../services/use-game-service';
 import type { DoorInfo, DoorRequirement } from '../types';
 import { destinyStatusModelToType, DestinyStatusType, roomModelToType, RoomType } from '../types/model-types';
 import { getRoomScreenPosition as getGridRoomScreenPosition } from '../utils/grid-system';
@@ -44,6 +48,12 @@ export const ShipMap: React.FC<ShipMapProps> = ({ gameId }) => {
 	const [game, setGame] = useState<Game| null>(null);
 	const [rooms, setRooms] = useState<RoomType[]>([]);
 	const [destinyStatus, setDestinyStatus] = useState<DestinyStatusType | null>(null);
+
+	const gameService = useGameService();
+	const inventoryArr = useQuery(gameId ? gameService.queries.inventoryByGame(gameId) : gameService.queries.inventoryByGame('')) || [];
+	const inventoryMap = Object.fromEntries(inventoryArr.map((i: any) => [i.resourceType, i.amount]));
+
+	const store = useStore().store;
 
 	/**
 	 * Observables
@@ -170,23 +180,18 @@ export const ShipMap: React.FC<ShipMapProps> = ({ gameId }) => {
 				break;
 			}
 			case 'item':
-				// met = destinyStatus.inventory && destinyStatus.inventory[requirement.value] > 0;
-				met = false;
+				met = (inventoryMap[requirement.value] || 0) > 0;
 				break;
 			case 'technology':
-				// met = destinyStatus.inventory && destinyStatus.inventory[requirement.value] > 0;
-				met = false;
+				met = (inventoryMap[requirement.value] || 0) > 0;
 				break;
 			case 'crew_skill':
-				// For now, assume we have qualified crew
 				met = true; // Simplified for now
 				break;
 			case 'story_progress':
-				// This would be checked against game progress flags
 				met = false; // Default to false for now
 				break;
 			case 'code':
-				// Codes need to be discovered through gameplay
 				met = false; // Default to false for now
 				break;
 			}
@@ -272,7 +277,7 @@ export const ShipMap: React.FC<ShipMapProps> = ({ gameId }) => {
 		if (game?.id) {
 			try {
 				console.log(`[ShipMap] Updating room ${roomId} found status in database...`);
-				await gameService.updateRoom(roomId, { found: true });
+				gameService.updateRoom(roomId, { found: true });
 				setRooms((prev) => prev.map(room => room.id === roomId ? { ...room, found: true } : room));
 				console.log(`[ShipMap] Successfully marked room ${roomId} as found`);
 			} catch (error) {
@@ -333,7 +338,7 @@ export const ShipMap: React.FC<ShipMapProps> = ({ gameId }) => {
 		// Update database first
 		if (game?.id) {
 			try {
-				await gameService.updateDoorState(fromRoomId, toRoomId, newState);
+				gameService.updateDoorState(fromRoomId, toRoomId, newState);
 			} catch (error) {
 				console.error('[ShipMap] Failed to update door state in database:', error);
 				return; // Don't update local state if database update fails
@@ -735,10 +740,10 @@ export const ShipMap: React.FC<ShipMapProps> = ({ gameId }) => {
 												<small>Required: {req.value} | Current: {destinyStatus.power}</small>
 											</div>
 										)}
-										{(req.type === 'item' || req.type === 'technology') && destinyStatus && (
+										{(req.type === 'item' || req.type === 'technology') && (
 											<div className="mt-1">
 												<small>
-													In inventory: {destinyStatus.inventory?.[req.value] || 0}
+													In inventory: {inventoryMap[req.value] || 0}
 												</small>
 											</div>
 										)}
