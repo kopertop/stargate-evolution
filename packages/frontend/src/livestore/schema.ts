@@ -430,6 +430,15 @@ export const events = {
 		}),
 	}),
 
+	personUpdated: Events.synced({
+		name: 'v1.PersonUpdated',
+		schema: Schema.Struct({
+			id: Schema.String,
+			assigned_to: Schema.optional(Schema.String),
+			updated_at: Schema.Date,
+		}),
+	}),
+
 	// Ship structure events
 	roomCreated: Events.synced({
 		name: 'v1.RoomCreated',
@@ -625,6 +634,11 @@ const materializers = State.SQLite.materializers(events, {
 			...updates,
 			updated_at: new Date(),
 		}).where({ id }),
+
+	'v1.PersonUpdated': (fields) =>
+		tables.people.update({
+			...fields,
+		}).where({ id: fields.id }),
 });
 
 const state = State.SQLite.makeState({ tables, materializers });

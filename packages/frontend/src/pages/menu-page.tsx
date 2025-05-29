@@ -290,13 +290,15 @@ export const MenuPage: React.FC = () => {
 						</Button>
 
 						{/* Load Game */}
-						<Button
-							size="lg"
-							variant="warning"
-							onClick={() => setCurrentView('load-games')}
-						>
+						{games.length > 0 && (
+							<Button
+								size="lg"
+								variant="warning"
+								onClick={() => setCurrentView('load-games')}
+							>
 							Load Game
-						</Button>
+							</Button>
+						)}
 
 						{/* Sign in section */}
 						{!isAuthenticated && (
@@ -312,11 +314,26 @@ export const MenuPage: React.FC = () => {
 	};
 
 	const renderLoadingView = () => (
-		<div className="text-center">
+		<div className="text-center d-flex flex-column align-items-center">
 			<div className="spinner-border text-primary" role="status">
 				<span className="visually-hidden">Loading...</span>
 			</div>
 			<p className="mt-2">Loading LiveStore...</p>
+			<Button onClick={async () => {
+				const storeId = 'stargate-game-store-v2';
+				if ('storage' in navigator && navigator.storage && navigator.storage.getDirectory) {
+					try {
+						const root = await navigator.storage.getDirectory();
+						await root.removeEntry(storeId, { recursive: true });
+						toast.success(`OPFS store '${storeId}' cleared! Reloading...`);
+						setTimeout(() => window.location.reload(), 1000);
+					} catch (e: any) {
+						toast.error('Failed to clear OPFS store: ' + (e?.message || e));
+					}
+				} else {
+					toast.warn('OPFS not supported in this browser');
+				}
+			}}>Clear LiveStore</Button>
 		</div>
 	);
 

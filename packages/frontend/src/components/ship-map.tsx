@@ -1,16 +1,12 @@
 import { useQuery } from '@livestore/react';
-import { useStore } from '@livestore/react';
-import { Q } from '@nozbe/watermelondb';
-import database, { DestinyStatus, Game, gameService, Room } from '@stargate/db';
 import React, { useState, useEffect } from 'react';
 import { Button, Modal, Alert } from 'react-bootstrap';
 import { GiKey, GiPauseButton } from 'react-icons/gi';
 
 import { useGameState } from '../contexts/game-state-context';
-import { events, schema } from '../livestore/schema';
 import { useGameService } from '../services/use-game-service';
 import type { DoorInfo, DoorRequirement } from '../types';
-import { destinyStatusModelToType, DestinyStatusType, roomModelToType, RoomType } from '../types/model-types';
+import { DestinyStatusType, RoomType, roomDataToType, destinyStatusDataToType } from '../types/model-types';
 import { getRoomScreenPosition as getGridRoomScreenPosition } from '../utils/grid-system';
 
 import { CountdownClock } from './countdown-clock';
@@ -44,46 +40,13 @@ export const ShipMap: React.FC<ShipMapProps> = ({ game_id }) => {
 	const [isDragging, setIsDragging] = useState(false);
 	const [lastMousePos, setLastMousePos] = useState({ x: 0, y: 0 });
 
-	// Observed data
-	const [game, setGame] = useState<Game| null>(null);
-	const [rooms, setRooms] = useState<RoomType[]>([]);
-	const [destinyStatus, setDestinyStatus] = useState<DestinyStatusType | null>(null);
-
 	const gameService = useGameService();
+	const roomsArr = useQuery(game_id ? gameService.queries.roomsByGame(game_id) : gameService.queries.roomsByGame('')) || [];
+	const rooms: RoomType[] = roomsArr.map(roomDataToType);
+	const destinyStatusArr = useQuery(game_id ? gameService.queries.destinyStatus(game_id) : gameService.queries.destinyStatus('')) || [];
+	const destinyStatus: DestinyStatusType | undefined = destinyStatusArr[0] ? destinyStatusDataToType(destinyStatusArr[0]) : undefined;
 	const inventoryArr = useQuery(game_id ? gameService.queries.inventoryByGame(game_id) : gameService.queries.inventoryByGame('')) || [];
 	const inventoryMap = Object.fromEntries(inventoryArr.map((i: any) => [i.resourceType, i.amount]));
-
-	const store = useStore().store;
-
-	/**
-	 * Observables
-	 */
-	useEffect(() => {
-		if (game_id) {
-			const gameSubscription = database
-				.get<Game>('games')
-				.findAndObserve(game_id).subscribe((g) => {
-					setGame(g);
-				});
-			const roomsSubscription = database
-				.get<Room>('rooms')
-				.query(Q.where('game_id', game_id))
-				.observe().subscribe((r) => {
-					setRooms(r.map(roomModelToType));
-				});
-			const destinyStatusSubscription = database
-				.get<DestinyStatus>('destiny_status')
-				.findAndObserve(game_id)
-				.subscribe((d) => {
-					setDestinyStatus(destinyStatusModelToType(d));
-				});
-			return () => {
-				gameSubscription.unsubscribe();
-				roomsSubscription.unsubscribe();
-				destinyStatusSubscription.unsubscribe();
-			};
-		}
-	}, [game_id]);
 
 	// Auto-focus the SVG for keyboard controls
 	useEffect(() => {
@@ -95,27 +58,21 @@ export const ShipMap: React.FC<ShipMapProps> = ({ game_id }) => {
 
 	// Check if room is visible (only found rooms are visible)
 	const isRoomVisible = (room: RoomType): boolean => {
-		// Only show rooms that have been found
 		return room.found;
 	};
 
 	// Handle room click
 	const handleRoomClick = (room: RoomType) => {
 		if (!isRoomVisible(room) || gameStatePaused) return;
-
-		// Check if room is currently being explored
 		if (room.explorationData) {
 			setSelectedRoom(room);
 			setShowExplorationModal(true);
 			return;
 		}
-
-		// Check if room can be explored (found but not explored)
 		if (room.found && !room.explored && !gameStatePaused) {
 			setSelectedRoom(room);
 			setShowExplorationModal(true);
 		} else if (room.found && room.explored && !room.locked) {
-			// Show room details modal for explored rooms
 			setSelectedRoom(room);
 			setShowRoomDetailsModal(true);
 		}
@@ -130,34 +87,27 @@ export const ShipMap: React.FC<ShipMapProps> = ({ game_id }) => {
 	const checkDoorDanger = (fromRoomId: string, toRoomId: string): { isDangerous: boolean; reason: string } => {
 		const fromRoom = rooms.find(r => r.id === fromRoomId);
 		const toRoom = rooms.find(r => r.id === toRoomId);
-
 		if (!fromRoom || !toRoom) {
 			return { isDangerous: false, reason: '' };
 		}
-
-		// Check for atmospheric hazards
 		if (toRoom.status === 'damaged') {
 			return {
 				isDangerous: true,
 				reason: 'The adjacent room shows signs of structural damage. Opening this door may cause rapid atmospheric decompression.',
 			};
 		}
-
 		if (toRoom.status === 'destroyed') {
 			return {
 				isDangerous: true,
 				reason: 'The adjacent room has been destroyed and is venting to space. Opening this door will cause catastrophic decompression.',
 			};
 		}
-
-		// Check for other hazards (can be expanded)
 		if (toRoom.type === 'airlock' && toRoom.status !== 'ok') {
 			return {
 				isDangerous: true,
 				reason: 'The airlock systems are malfunctioning. Opening this door may result in atmospheric loss.',
 			};
 		}
-
 		return { isDangerous: false, reason: '' };
 	};
 
@@ -166,13 +116,9 @@ export const ShipMap: React.FC<ShipMapProps> = ({ game_id }) => {
 		if (!destinyStatus) {
 			return { canOpen: false, unmetRequirements: [] };
 		}
-
 		const unmetRequirements: DoorRequirement[] = [];
-
 		for (const requirement of door.requirements) {
 			let met = requirement.met;
-
-			// Check requirement based on type
 			switch (requirement.type) {
 			case 'power_level': {
 				const requiredPower = parseInt(requirement.value);
@@ -195,12 +141,10 @@ export const ShipMap: React.FC<ShipMapProps> = ({ game_id }) => {
 				met = false; // Default to false for now
 				break;
 			}
-
 			if (!met) {
 				unmetRequirements.push({ ...requirement, met });
 			}
 		}
-
 		return {
 			canOpen: unmetRequirements.length === 0,
 			unmetRequirements,
@@ -209,167 +153,69 @@ export const ShipMap: React.FC<ShipMapProps> = ({ game_id }) => {
 
 	// Handle door click to open/close/unlock doors
 	const handleDoorClick = async (fromRoomId: string, toRoomId: string) => {
-		if (gameStatePaused) return; // Prevent door interaction when paused
-
+		if (gameStatePaused) return;
 		const fromRoom = rooms.find(r => r.id === fromRoomId);
 		if (!fromRoom) return;
-
 		const door = fromRoom.doors.find(d => d.toRoomId === toRoomId);
 		if (!door) return;
-
 		if (door.state === 'locked') {
-			// Check if requirements are met
 			const { canOpen } = checkDoorRequirements(door);
-
 			if (canOpen) {
-				// Requirements met, unlock the door
-				await updateDoorState(fromRoomId, toRoomId, 'opened');
-				// Mark the connected room as found when door is unlocked and opened
-				await markRoomAsFound(toRoomId);
+				await gameService.updateDoorState(fromRoomId, toRoomId, 'opened');
+				await gameService.updateRoom(toRoomId, { found: true });
 			} else {
-				// Show requirements modal
 				setSelectedDoor({ fromRoom, door });
 				setShowDoorModal(true);
 			}
 		} else {
-			// Toggle between closed and opened
 			const newState = door.state === 'opened' ? 'closed' : 'opened';
-
-			// If opening a door, check for dangers first
 			if (newState === 'opened') {
 				const { isDangerous, reason } = checkDoorDanger(fromRoomId, toRoomId);
-
 				if (isDangerous) {
-					// Show warning modal instead of opening immediately
 					setDangerousDoor({ fromRoomId, toRoomId, reason });
 					setShowDangerWarning(true);
 					return;
 				}
 			}
-
 			await updateDoorState(fromRoomId, toRoomId, newState);
-
-			// If opening a door, mark the connected room as found and handle consequences
 			if (newState === 'opened') {
-				await markRoomAsFound(toRoomId);
+				await gameService.updateRoom(toRoomId, { found: true });
 				await handleDoorOpenConsequences(fromRoomId, toRoomId);
 			}
 		}
 	};
 
-	// Mark a room as found (discovered)
-	const markRoomAsFound = async (roomId: string) => {
-		console.log(`[ShipMap] markRoomAsFound called for roomId: ${roomId}`);
-
-		// Check if room is already found
-		const room = rooms.find(r => r.id === roomId);
-		if (room) {
-			console.log(`[ShipMap] Room ${roomId} current found status: ${room.found}`);
-			if (room.found) {
-				console.log(`[ShipMap] Room ${roomId} is already found, skipping update`);
-				return;
-			}
-		} else {
-			console.log(`[ShipMap] Room ${roomId} not found in rooms array`);
-		}
-
-		// Update database - set found
-		if (game?.id) {
-			try {
-				console.log(`[ShipMap] Updating room ${roomId} found status in database...`);
-				gameService.updateRoom(roomId, { found: true });
-				setRooms((prev) => prev.map(room => room.id === roomId ? { ...room, found: true } : room));
-				console.log(`[ShipMap] Successfully marked room ${roomId} as found`);
-			} catch (error) {
-				console.error(`[ShipMap] Failed to update room ${roomId} found status in database:`, error);
-			}
-		} else {
-			console.warn(`[ShipMap] No game ID available for marking room ${roomId} as found`);
+	// Update door state in database
+	const updateDoorState = async (fromRoomId: string, toRoomId: string, newState: 'closed' | 'opened' | 'locked') => {
+		try {
+			gameService.updateDoorState(fromRoomId, toRoomId, newState);
+		} catch (error) {
+			console.error('[ShipMap] Failed to update door state in database:', error);
 		}
 	};
 
 	// Handle consequences of opening a door (atmospheric effects, etc.)
 	const handleDoorOpenConsequences = async (fromRoomId: string, toRoomId: string) => {
 		if (!destinyStatus) return;
-
 		const { isDangerous } = checkDoorDanger(fromRoomId, toRoomId);
-
 		if (isDangerous) {
 			const toRoom = rooms.find(r => r.id === toRoomId);
-
 			if (toRoom?.status === 'damaged') {
-				// Moderate atmospheric loss
 				const newAtmosphere = {
 					...destinyStatus.atmosphere,
 				} as DestinyStatusType['atmosphere'];
-				newAtmosphere.o2 = Math.max(0, newAtmosphere.o2 - 2); // Lose 2% O2
-				newAtmosphere.co2 = Math.min(10, newAtmosphere.co2 + 1); // Gain 1% CO2
-
-				/*
-				onStatusUpdate({
-					...destinyStatus,
-					atmosphere: newAtmosphere,
-				});
-				*/
-
+				newAtmosphere.o2 = Math.max(0, newAtmosphere.o2 - 2);
+				newAtmosphere.co2 = Math.min(10, newAtmosphere.co2 + 1);
 				console.log('⚠️ Atmospheric breach detected! O2 levels dropping due to damaged room connection.');
 			} else if (toRoom?.status === 'destroyed') {
-				// Severe atmospheric loss
 				const newAtmosphere = {
 					...destinyStatus.atmosphere,
 				} as DestinyStatusType['atmosphere'];
-				newAtmosphere.o2 = Math.max(0, newAtmosphere.o2 - 5); // Lose 5% O2
-				newAtmosphere.co2 = Math.min(10, newAtmosphere.co2 + 2); // Gain 2% CO2
-
-				/*
-				onStatusUpdate({
-					...destinyStatus,
-					atmosphere: newAtmosphere,
-				});
-				*/
-
+				newAtmosphere.o2 = Math.max(0, newAtmosphere.o2 - 5);
+				newAtmosphere.co2 = Math.min(10, newAtmosphere.co2 + 2);
 				console.log('🚨 CRITICAL BREACH! Massive atmospheric loss due to destroyed room exposure!');
 			}
 		}
-	};
-
-	// Update door state in database and local state
-	const updateDoorState = async (fromRoomId: string, toRoomId: string, newState: 'closed' | 'opened' | 'locked') => {
-		// Update database first
-		if (game?.id) {
-			try {
-				gameService.updateDoorState(fromRoomId, toRoomId, newState);
-			} catch (error) {
-				console.error('[ShipMap] Failed to update door state in database:', error);
-				return; // Don't update local state if database update fails
-			}
-		} else {
-			console.warn('[ShipMap] No game ID available for door state update');
-			return;
-		}
-
-		// Update local state (bidirectional)
-		setRooms(prev => prev.map(room => {
-			// Update door in fromRoom
-			if (room.id === fromRoomId) {
-				const updatedDoors = room.doors.map(door =>
-					door.toRoomId === toRoomId
-						? { ...door, state: newState }
-						: door,
-				);
-				return { ...room, doors: updatedDoors };
-			}
-			// Update corresponding door in toRoom
-			if (room.id === toRoomId) {
-				const updatedDoors = room.doors.map(door =>
-					door.toRoomId === fromRoomId
-						? { ...door, state: newState }
-						: door,
-				);
-				return { ...room, doors: updatedDoors };
-			}
-			return room;
-		}));
 	};
 
 	// Monitor open dangerous doors for continuous atmospheric drain
@@ -409,13 +255,6 @@ export const ShipMap: React.FC<ShipMapProps> = ({ game_id }) => {
 				};
 				newAtmosphere.o2 = Math.max(0, newAtmosphere.o2 - drainRate);
 				newAtmosphere.co2 = Math.min(10, newAtmosphere.co2 + (drainRate * 0.5));
-
-				/*
-				onStatusUpdate({
-					...destinyStatus,
-					atmosphere: newAtmosphere,
-				});
-				*/
 
 				// Log warning every 10 seconds
 				if (Date.now() % 10000 < 1000) {
@@ -535,7 +374,6 @@ export const ShipMap: React.FC<ShipMapProps> = ({ game_id }) => {
 
 		// Open the door despite the danger
 		await updateDoorState(fromRoomId, toRoomId, 'opened');
-		await markRoomAsFound(toRoomId);
 		await handleDoorOpenConsequences(fromRoomId, toRoomId);
 	};
 
@@ -590,12 +428,22 @@ export const ShipMap: React.FC<ShipMapProps> = ({ game_id }) => {
 					cursor: gameStatePaused ? 'default' : (isDragging ? 'grabbing' : 'grab'),
 					pointerEvents: gameStatePaused ? 'none' : 'auto',
 				}}
-				onMouseDown={gameStatePaused ? undefined : handleMouseDown}
-				onMouseMove={gameStatePaused ? undefined : handleMouseMove}
-				onMouseUp={gameStatePaused ? undefined : handleMouseUp}
-				onMouseLeave={gameStatePaused ? undefined : handleMouseUp}
-				onWheel={gameStatePaused ? undefined : handleWheel}
-				tabIndex={gameStatePaused ? -1 : 0} // Make SVG focusable for keyboard events only when not paused
+				onMouseDown={gameStatePaused ? undefined : (e) => { setIsDragging(true); setLastMousePos({ x: e.clientX, y: e.clientY }); }}
+				onMouseMove={gameStatePaused ? undefined : (e) => {
+					if (!isDragging) return;
+					const deltaX = (e.clientX - lastMousePos.x);
+					const deltaY = (e.clientY - lastMousePos.y);
+					setCamera(prev => ({ ...prev, x: prev.x + deltaX, y: prev.y + deltaY }));
+					setLastMousePos({ x: e.clientX, y: e.clientY });
+				}}
+				onMouseUp={gameStatePaused ? undefined : () => setIsDragging(false)}
+				onMouseLeave={gameStatePaused ? undefined : () => setIsDragging(false)}
+				onWheel={gameStatePaused ? undefined : (e) => {
+					const zoomSpeed = 0.005;
+					const delta = -e.deltaY * zoomSpeed;
+					setCamera(prev => ({ ...prev, scale: Math.max(0.2, Math.min(3, prev.scale + delta)) }));
+				}}
+				tabIndex={gameStatePaused ? -1 : 0}
 			>
 				{/* Background space pattern */}
 				<defs>

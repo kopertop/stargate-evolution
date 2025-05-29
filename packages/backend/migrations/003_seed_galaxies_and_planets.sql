@@ -1,13 +1,13 @@
 -- Seed galaxy templates
-INSERT INTO galaxy_templates (id, name, description, coordinates) VALUES
-	('galaxy-milky-way', 'Milky Way', 'The home galaxy of Earth.', '{"x":0,"y":0}'),
-	('galaxy-jades', 'JADES-GS-z14-0', 'A distant galaxy.', '{"x":1000,"y":0}');
+INSERT INTO galaxy_templates (id, name, description, x, y) VALUES
+	('galaxy-milky-way', 'Milky Way', 'The home galaxy of Earth.', 0, 0),
+	('galaxy-jades', 'JADES-GS-z14-0', 'A distant galaxy.', 1000, 1000);
 
 -- Seed star system templates
-INSERT INTO star_system_templates (id, name, galaxy_template_id, description, coordinates) VALUES
-	('system-sol', 'Sol System', 'galaxy-milky-way', 'The home system of Earth.', '{"x":0,"y":0}'),
-	('system-icarus', 'Icarus System', 'galaxy-milky-way', 'Remote system with Icarus planet.', '{"x":100,"y":200}'),
-	('system-destiny', 'Destiny System', 'galaxy-jades', 'System where Destiny is found.', '{"x":500,"y":500}');
+INSERT INTO star_system_templates (id, name, galaxy_template_id, description, x, y) VALUES
+	('system-sol', 'Sol System', 'galaxy-milky-way', 'The home system of Earth.', 0, 0),
+	('system-icarus', 'Icarus System', 'galaxy-milky-way', 'Remote system with Icarus planet.', 100, 200),
+	('system-destiny', 'Destiny System', 'galaxy-jades', 'System where Destiny is found.', 500, 500);
 
 -- Seed planet templates with stargate address, technology, and resources
 INSERT INTO planet_templates (id, name, type, star_system_template_id, description, stargate_address, technology, resources) VALUES

@@ -1,12 +1,11 @@
+import { useQuery } from '@livestore/react';
 import { displayTimeRemaining } from '@stargate/common';
-import database, { Room } from '@stargate/db';
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { Alert, ProgressBar } from 'react-bootstrap';
 import { FaClock } from 'react-icons/fa';
 
-
-import { ExplorationProgress } from '../types/model-types';
-
+import { useGameService } from '../services/use-game-service';
+import { ExplorationProgress, roomDataToType } from '../types/model-types';
 
 interface RoomExplorationProgressProps {
 	roomId: string;
@@ -15,26 +14,22 @@ interface RoomExplorationProgressProps {
 export const RoomExplorationProgress: React.FC<RoomExplorationProgressProps> = ({
 	roomId,
 }) => {
-	console.log('roomId', roomId);
-	const [progress, setProgress] = useState<number>(0);
-	const [timeRemaining, setTimeRemaining] = useState<number>(0);
+	const gameService = useGameService();
+	const roomArr = useQuery(roomId ? gameService.queries.roomById(roomId) : gameService.queries.roomById('')) || [];
+	const room = roomArr[0] ? roomDataToType(roomArr[0]) : undefined;
 
-	useEffect(() => {
-		if (roomId) {
-			console.log('** roomId', roomId);
-			const subscription = database.get<Room>('rooms').findAndObserve(roomId).subscribe((room) => {
-				console.log('** room', room);
-				if (room?.explorationData) {
-					const explorationData = JSON.parse(room.explorationData) as ExplorationProgress;
-					console.log('** explorationData', explorationData);
-					setProgress(explorationData.progress);
-					setTimeRemaining(explorationData.timeRemaining);
-				}
-			});
-			return () => subscription.unsubscribe();
+	let progress = 0;
+	let timeRemaining = 0;
+	if (room && room.explorationData) {
+		try {
+			const explorationData = typeof room.explorationData === 'string' ? JSON.parse(room.explorationData) as ExplorationProgress : room.explorationData;
+			progress = explorationData.progress;
+			timeRemaining = explorationData.timeRemaining;
+		} catch {
+			progress = 0;
+			timeRemaining = 0;
 		}
-	}, [roomId]);
-
+	}
 
 	return (
 		<Alert variant="info" className="mb-3">

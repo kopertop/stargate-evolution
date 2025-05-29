@@ -1,11 +1,11 @@
-import { Q } from '@nozbe/watermelondb';
-import database, { DestinyStatus, Game, gameService, Room, Person } from '@stargate/db';
+import { useQuery } from '@livestore/react';
 import React, { useState, useEffect } from 'react';
 import { Button, Modal, Alert, Badge } from 'react-bootstrap';
 import { GiMeeple, GiCog } from 'react-icons/gi';
 
 import { useGameState } from '../contexts/game-state-context';
-import { destinyStatusModelToType, DestinyStatusType, ExplorationProgress, personModelToType, PersonType, roomModelToType, RoomType } from '../types/model-types';
+import { useGameService } from '../services/use-game-service';
+import { destinyStatusDataToType, DestinyStatusType, ExplorationProgress, personDataToType, PersonType, roomDataToType, RoomType } from '../types/model-types';
 
 import { RoomExplorationProgress } from './room-exploration-progress';
 
@@ -37,55 +37,18 @@ export const RoomExploration: React.FC<RoomExplorationProps> = ({
 	const { isPaused: gameStatePaused, gameTime } = useGameState();
 	const [selectedCrew, setSelectedCrew] = useState<string[]>([]);
 	const [isManagingExploration, setIsManagingExploration] = useState(false);
-	const [selectedRoom, setSelectedRoom] = useState<RoomType | null>(null);
-	const [game, setGame] = useState<Game | null>(null);
-	const [rooms, setRooms] = useState<RoomType[]>([]);
-	const [destinyStatus, setDestinyStatus] = useState<DestinyStatusType | null>(null);
-	const [availableCrew, setAvailableCrew] = useState<PersonType[]>([]);
-	const [assignedCrew, setAssignedCrew] = useState<PersonType[]>([]);
 
-	// Observable Setup
-	useEffect(() => {
-		if (roomId && game_id) {
-			const gameSubscription = database.get<Game>('games')
-				.findAndObserve(game_id)
-				.subscribe((g) => {
-					setGame(g);
-				});
-			const roomsSubscription = database.get<Room>('rooms')
-				.query(Q.where('game_id', game_id))
-				.observe().subscribe((r) => {
-					setRooms(r.map(roomModelToType));
-				});
-			const destinyStatusSubscription = database.get<DestinyStatus>('destiny_status')
-				.findAndObserve(game_id).subscribe((d) => {
-					setDestinyStatus(destinyStatusModelToType(d));
-				});
-			const selectedRoomSubscription = database.get<Room>('rooms')
-				.findAndObserve(roomId).subscribe((r) => {
-					setSelectedRoom(roomModelToType(r));
-				});
-			const availableCrewSubscription = database.get<Person>('people')
-				.query(Q.where('game_id', game_id)).observe().subscribe((p) => {
-					setAvailableCrew(p.map(personModelToType));
-				});
-			const assignedCrewSubscription = database.get<Person>('people')
-				.query(Q.where('game_id', game_id)).observe().subscribe((p) => {
-					setAssignedCrew(p.map((pc) => personModelToType(pc)));
-				});
-			return () => {
-				gameSubscription.unsubscribe();
-				roomsSubscription.unsubscribe();
-				destinyStatusSubscription.unsubscribe();
-				selectedRoomSubscription.unsubscribe();
-				availableCrewSubscription.unsubscribe();
-				assignedCrewSubscription.unsubscribe();
-			};
-		}
-	}, [
-		roomId,
-		game_id,
-	]);
+	const gameService = useGameService();
+	const roomsArr = useQuery(game_id ? gameService.queries.roomsByGame(game_id) : gameService.queries.roomsByGame('')) || [];
+	const rooms: RoomType[] = roomsArr.map(roomDataToType);
+	const peopleArr = useQuery(game_id ? gameService.queries.peopleByGame(game_id) : gameService.queries.peopleByGame('')) || [];
+	const people: PersonType[] = peopleArr.map(personDataToType);
+	const destinyStatusArr = useQuery(game_id ? gameService.queries.destinyStatus(game_id) : gameService.queries.destinyStatus('')) || [];
+	const destinyStatus: DestinyStatusType | undefined = destinyStatusArr[0] ? destinyStatusDataToType(destinyStatusArr[0]) : undefined;
+
+	const selectedRoom = rooms.find(r => r.id === roomId) || null;
+	const availableCrew = people.filter(p => !p.assignedTo);
+	const assignedCrew = people.filter(p => p.assignedTo === roomId);
 
 	// Initialize selected crew when modal opens for ongoing exploration
 	useEffect(() => {
@@ -100,18 +63,15 @@ export const RoomExploration: React.FC<RoomExplorationProps> = ({
 
 	// Check if room can be explored
 	const canExploreRoom = (room: RoomType): boolean => {
-		if (!room.found) return false; // Must be found first
-		if (room.explored) return false; // Already explored
-		if (gameStatePaused) return false; // Game must be running
-		if (room.explorationData) return false; // Already being explored
-
-		// Must be adjacent to an unlocked room
+		if (!room.found) return false;
+		if (room.explored) return false;
+		if (gameStatePaused) return false;
+		if (room.explorationData) return false;
 		if (room.connectedRooms.length === 0) return false;
 		const isAdjacentToUnlocked = room.connectedRooms.some((connectedId: string) => {
 			const connectedRoom = rooms.find(r => r.id === connectedId);
 			return !(connectedRoom?.locked || false);
 		});
-
 		return isAdjacentToUnlocked;
 	};
 
@@ -127,39 +87,27 @@ export const RoomExploration: React.FC<RoomExplorationProps> = ({
 	// Update crew assignments for ongoing exploration
 	const updateExplorationCrew = async (room: RoomType, newCrewIds: string[]) => {
 		if (!room.explorationData) return;
-
 		const baseTime = room.baseExplorationTime || 2;
 		const crewMultiplier = Math.max(0.5, 1 / Math.max(1, newCrewIds.length));
 		const newTimeRemaining = baseTime * crewMultiplier;
-
 		try {
-			// Update crew assignments in database
 			const oldCrewIds = room.explorationData.crewAssigned;
-
-			// Unassign removed crew
 			for (const crewId of oldCrewIds) {
 				if (!newCrewIds.includes(crewId)) {
 					await gameService.assignCrewToRoom(crewId, null);
 				}
 			}
-
-			// Assign new crew
 			for (const crewId of newCrewIds) {
 				if (!oldCrewIds.includes(crewId)) {
 					await gameService.assignCrewToRoom(crewId, room.id);
 				}
 			}
-
-			// Update exploration data with new crew and recalculated time
 			const updatedExploration = {
 				...room.explorationData,
 				crewAssigned: newCrewIds,
 				timeRemaining: newTimeRemaining,
 			};
-
 			await gameService.updateRoom(room.id, { explorationData: JSON.stringify(updatedExploration) });
-
-			console.log(`🔄 Updated exploration crew for ${room.type}: ${newCrewIds.length} crew members`);
 			onClose();
 		} catch (error) {
 			console.error('Failed to update exploration crew:', error);
@@ -169,17 +117,13 @@ export const RoomExploration: React.FC<RoomExplorationProps> = ({
 	// Start room exploration
 	const startExploration = async (room: RoomType, assignedCrewIds: string[]) => {
 		if (!canExploreRoom(room) || assignedCrewIds.length === 0) return;
-
-		const baseTime = room.baseExplorationTime || 2; // Default 2 hours
-		const crewMultiplier = Math.max(0.5, 1 / assignedCrewIds.length); // More crew = faster
+		const baseTime = room.baseExplorationTime || 2;
+		const crewMultiplier = Math.max(0.5, 1 / assignedCrewIds.length);
 		const explorationTime = baseTime * crewMultiplier;
-
 		try {
-			// Assign crew to exploration in database
 			for (const crewId of assignedCrewIds) {
 				await gameService.assignCrewToRoom(crewId, room.id);
 			}
-
 			const newExploration: ExplorationProgress = {
 				roomId: room.id,
 				progress: 0,
@@ -188,16 +132,8 @@ export const RoomExploration: React.FC<RoomExplorationProps> = ({
 				timeToComplete: explorationTime,
 				startTime: gameTime,
 			};
-
-			// Save exploration progress directly to room
 			await gameService.updateRoom(room.id, { explorationData: JSON.stringify(newExploration) });
-
-			console.log(`🔍 Started exploration of ${room.type} with ${assignedCrewIds.length} crew members`);
-
-			// Notify parent component
 			onExplorationStart(room.id, assignedCrewIds);
-
-			// Reset selection and close modal
 			setSelectedCrew([]);
 			onClose();
 		} catch (error) {
@@ -205,12 +141,10 @@ export const RoomExploration: React.FC<RoomExplorationProps> = ({
 		}
 	};
 
-	// Get crew display name
 	const getCrewDisplayName = (crew: CrewMember): string => {
 		return crew.name || crew.id.replace('_', ' ');
 	};
 
-	// Calculate estimated time remaining for exploration
 	const calculateTimeRemaining = (room: RoomType, crewCount: number): number => {
 		const baseTime = room.baseExplorationTime || 2;
 		const crewMultiplier = Math.max(0.5, 1 / Math.max(1, crewCount));
@@ -218,20 +152,13 @@ export const RoomExploration: React.FC<RoomExplorationProps> = ({
 		return (baseTime * crewMultiplier) * (pctTimeRemaining / 100);
 	};
 
-	// Cancel ongoing exploration
 	const cancelExploration = async (room: RoomType) => {
 		if (!room.explorationData) return;
-
 		try {
-			// Free up assigned crew
 			for (const crewId of room.explorationData.crewAssigned) {
 				await gameService.assignCrewToRoom(crewId, null);
 			}
-
-			// Clear exploration data
 			await gameService.clearExplorationProgress(room.id);
-
-			console.log(`❌ Cancelled exploration of ${room.type}`);
 			onClose();
 		} catch (error) {
 			console.error('Failed to cancel exploration:', error);

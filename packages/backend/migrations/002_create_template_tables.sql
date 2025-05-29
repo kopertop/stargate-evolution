@@ -82,7 +82,8 @@ CREATE TABLE IF NOT EXISTS galaxy_templates (
 	id TEXT PRIMARY KEY,
 	name TEXT NOT NULL,
 	description TEXT,
-	coordinates TEXT, -- JSON with x, y coordinates
+	x INTEGER NOT NULL, -- X coordinate
+	y INTEGER NOT NULL, -- Y coordinate
 	created_at INTEGER DEFAULT (strftime('%s','now')),
 	updated_at INTEGER DEFAULT (strftime('%s','now'))
 );
@@ -93,7 +94,8 @@ CREATE TABLE IF NOT EXISTS star_system_templates (
 	name TEXT NOT NULL,
 	galaxy_template_id TEXT,
 	description TEXT,
-	coordinates TEXT, -- JSON with x, y coordinates relative to galaxy
+	x INTEGER NOT NULL, -- X coordinate relative to galaxy
+	y INTEGER NOT NULL, -- Y coordinate relative to galaxy
 	created_at INTEGER DEFAULT (strftime('%s','now')),
 	updated_at INTEGER DEFAULT (strftime('%s','now')),
 	FOREIGN KEY (galaxy_template_id) REFERENCES galaxy_templates(id)

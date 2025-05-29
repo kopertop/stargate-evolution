@@ -1,5 +1,4 @@
 // Template service for fetching game templates from backend API
-// Simplified version without WatermelonDB dependencies
 
 import { ShipLayout, RoomTemplate, PersonTemplate, RaceTemplate, Galaxy, StarSystem, DestinyStatus, Inventory, RoomTechnology } from '@stargate/common/zod-templates';
 

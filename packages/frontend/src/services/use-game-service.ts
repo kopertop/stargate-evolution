@@ -290,6 +290,25 @@ export const useGameService = () => {
 		updateRoomDoors(toRoomId, fromRoomId);
 	};
 
+	const assignCrewToRoom = (personId: string, roomId: string | null) => {
+		store.commit(
+			events.personUpdated({
+				id: personId,
+				assigned_to: roomId,
+				updated_at: new Date(),
+			}),
+		);
+	};
+
+	const clearExplorationProgress = (roomId: string) => {
+		store.commit(
+			events.roomUpdated({
+				id: roomId,
+				exploration_data: '',
+			}),
+		);
+	};
+
 	// Query functions - these return the query objects for use with useQuery
 	const queries = {
 		allGames: () => allGames$,
@@ -318,7 +337,11 @@ export const useGameService = () => {
 		updateRoom,
 		updateDoorState,
 		getTechnologyForRoom,
+		assignCrewToRoom,
+		clearExplorationProgress,
 		// Queries
 		queries,
+		// Raw store
+		store,
 	};
 };

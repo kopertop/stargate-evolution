@@ -1,7 +1,5 @@
 import { useQuery } from '@livestore/react';
-import { Q } from '@nozbe/watermelondb';
-import database, { Person, Room } from '@stargate/db';
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Nav, ProgressBar } from 'react-bootstrap';
 import type { IconType } from 'react-icons';
 import { GiMeeple, GiCog, GiHammerNails, GiMedicalPack, GiMagnifyingGlass } from 'react-icons/gi';
@@ -9,7 +7,6 @@ import { GiMeeple, GiCog, GiHammerNails, GiMedicalPack, GiMagnifyingGlass } from
 import { useGameState } from '../contexts/game-state-context';
 import { useGameService } from '../services/use-game-service';
 import { personDataToType, roomDataToType, PersonType, RoomType } from '../types/model-types';
-import { personModelToType, roomModelToType } from '../types/model-types';
 
 interface CrewStatusProps {
 	game_id: string;
@@ -36,13 +33,13 @@ const Icon: React.FC<{ icon: IconType; size?: number; className?: string }> = ({
 };
 
 export const CrewStatus: React.FC<CrewStatusProps> = ({ game_id }) => {
-	const { gameTime } = useGameState();
 	const [showCrewDetails, setShowCrewDetails] = useState(false);
 	const [crewHoverTimeout, setCrewHoverTimeout] = useState<NodeJS.Timeout | null>(null);
 
 	const gameService = useGameService();
 	const peopleArr = useQuery(game_id ? gameService.queries.peopleByGame(game_id) : gameService.queries.peopleByGame('')) || [];
 	const roomsArr = useQuery(game_id ? gameService.queries.roomsByGame(game_id) : gameService.queries.roomsByGame('')) || [];
+	const rooms: RoomType[] = roomsArr.map(roomDataToType);
 	const crewMembers: CrewMemberWithTask[] = peopleArr.map((person) => {
 		const typed = personDataToType(person);
 		return {
@@ -50,81 +47,6 @@ export const CrewStatus: React.FC<CrewStatusProps> = ({ game_id }) => {
 			skills: Array.isArray(typed.skills) ? typed.skills : (typeof typed.skills === 'string' ? (() => { try { return JSON.parse(typed.skills); } catch { return []; } })() : []),
 		};
 	}).map(enrichCrewMemberWithTask);
-	const rooms: RoomType[] = roomsArr.map(roomDataToType);
-
-	const handleCrewMouseEnter = () => {
-		if (crewHoverTimeout) {
-			clearTimeout(crewHoverTimeout);
-			setCrewHoverTimeout(null);
-		}
-		setShowCrewDetails(true);
-	};
-
-	const handleCrewMouseLeave = () => {
-		const timeout = setTimeout(() => {
-			setShowCrewDetails(false);
-		}, 150);
-		setCrewHoverTimeout(timeout);
-	};
-
-	const toggleCrewDetails = () => {
-		setShowCrewDetails(!showCrewDetails);
-	};
-
-	const unassignCrewMember = async (crewMemberId: string) => {
-		try {
-			const person = await database.get<Person>('people').find(crewMemberId);
-			await database.write(async () => {
-				await person.update((record) => {
-					record.assignedTo = undefined;
-				});
-			});
-		} catch (error) {
-			console.error('Failed to unassign crew member:', error);
-		}
-	};
-
-	const getTaskIcon = (taskType: string): IconType => {
-		switch (taskType) {
-		case 'exploration':
-			return GiMagnifyingGlass;
-		case 'repair':
-			return GiHammerNails;
-		case 'medical':
-			return GiMedicalPack;
-		case 'research':
-			return GiCog;
-		default:
-			return GiMeeple;
-		}
-	};
-
-	const getTaskColor = (taskType: string): string => {
-		switch (taskType) {
-		case 'exploration':
-			return 'text-info';
-		case 'repair':
-			return 'text-warning';
-		case 'medical':
-			return 'text-success';
-		case 'research':
-			return 'text-primary';
-		default:
-			return 'text-muted';
-		}
-	};
-
-	const formatTimeRemaining = (hours: number): string => {
-		if (hours < 1) {
-			const minutes = Math.round(hours * 60);
-			return `${minutes}m`;
-		}
-		return `${hours.toFixed(1)}h`;
-	};
-
-	// Calculate unassigned vs total crew
-	const unassignedCrew = crewMembers.filter(c => c.currentTask?.type === 'idle').length;
-	const totalCrew = crewMembers.length;
 
 	function enrichCrewMemberWithTask(crewMember: PersonType): CrewMemberWithTask {
 		if (!crewMember.assignedTo) {
@@ -178,6 +100,67 @@ export const CrewStatus: React.FC<CrewStatusProps> = ({ game_id }) => {
 			},
 		};
 	}
+
+	const handleCrewMouseEnter = () => {
+		if (crewHoverTimeout) {
+			clearTimeout(crewHoverTimeout);
+			setCrewHoverTimeout(null);
+		}
+		setShowCrewDetails(true);
+	};
+
+	const handleCrewMouseLeave = () => {
+		const timeout = setTimeout(() => {
+			setShowCrewDetails(false);
+		}, 150);
+		setCrewHoverTimeout(timeout);
+	};
+
+	const toggleCrewDetails = () => {
+		setShowCrewDetails(!showCrewDetails);
+	};
+
+	const getTaskIcon = (taskType: string): IconType => {
+		switch (taskType) {
+		case 'exploration':
+			return GiMagnifyingGlass;
+		case 'repair':
+			return GiHammerNails;
+		case 'medical':
+			return GiMedicalPack;
+		case 'research':
+			return GiCog;
+		default:
+			return GiMeeple;
+		}
+	};
+
+	const getTaskColor = (taskType: string): string => {
+		switch (taskType) {
+		case 'exploration':
+			return 'text-info';
+		case 'repair':
+			return 'text-warning';
+		case 'medical':
+			return 'text-success';
+		case 'research':
+			return 'text-primary';
+		default:
+			return 'text-muted';
+		}
+	};
+
+	const formatTimeRemaining = (hours: number): string => {
+		if (hours < 1) {
+			const minutes = Math.round(hours * 60);
+			return `${minutes}m`;
+		}
+		return `${hours.toFixed(1)}h`;
+	};
+
+	// Calculate unassigned vs total crew
+	const unassignedCrew = crewMembers.filter(c => c.currentTask?.type === 'idle').length;
+	const totalCrew = crewMembers.length;
 
 	return (
 		<Nav.Item className="d-flex align-items-center me-3 position-relative">
@@ -274,20 +257,6 @@ export const CrewStatus: React.FC<CrewStatusProps> = ({ game_id }) => {
 												</small>
 											</div>
 										</div>
-
-										{/* Unassign button for assigned crew */}
-										{crewMember.assignedTo && crewMember.currentTask?.type !== 'idle' && (
-											<button
-												className="btn btn-sm btn-outline-warning ms-2"
-												onClick={(e) => {
-													e.stopPropagation();
-													unassignCrewMember(crewMember.id);
-												}}
-												title="Unassign from current task"
-											>
-												Unassign
-											</button>
-										)}
 									</div>
 								</div>
 							))
