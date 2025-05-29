@@ -1,16 +1,18 @@
 import { env } from 'cloudflare:test';
 import { describe, it, expect } from 'vitest';
 
-import type { Env } from '../src/types';
 import { getAllGalaxyTemplates, getGalaxyTemplateById } from '../src/templates/galaxy-templates';
+import type { Env } from '../src/types';
 
 describe('galaxy-templates', () => {
 	it('returns all galaxy templates', async () => {
 		const galaxies = await getAllGalaxyTemplates((env as Env).DB);
 		expect(galaxies.length).toBeGreaterThan(0);
-		expect(galaxies[0]).toHaveProperty('id');
-		expect(galaxies[0]).toHaveProperty('x');
-		expect(galaxies[0]).toHaveProperty('y');
+		for (const galaxy of galaxies) {
+			expect(galaxy).toHaveProperty('id');
+			expect(galaxy).toHaveProperty('x');
+			expect(galaxy).toHaveProperty('y');
+		}
 	});
 
 	it('returns a galaxy by id', async () => {

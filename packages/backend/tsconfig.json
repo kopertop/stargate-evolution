@@ -1,6 +1,6 @@
 {
 	"extends": "../../tsconfig.json",
-	"include": ["src", "vitest.config.ts", "test/galaxy-templates.spec.ts"],
+	"include": ["src", "vitest.config.ts", "test/*.ts"],
 	"compilerOptions": {
 		"moduleResolution": "bundler",
 		"types": [
