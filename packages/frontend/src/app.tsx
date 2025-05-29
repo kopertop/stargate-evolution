@@ -29,7 +29,7 @@ export const App: React.FC = () => {
 		>
 			<Router>
 				<Routes>
-					<Route path="/game/:gameId" element={<GamePage />} />
+					<Route path="/game/:game_id" element={<GamePage />} />
 					<Route path="/" element={<MenuPage />} />
 				</Routes>
 				<ToastContainer

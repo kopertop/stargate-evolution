@@ -53,11 +53,11 @@ const GamePageInner: React.FC = () => {
 	const { game } = useGameState();
 	const { destinyStatus, updateDestinyStatus } = useDestinyStatus();
 	const gameService = useGameService();
-	const gameId = params.gameId;
+	const game_id = params.game_id;
 
 	// Query galaxy and star system data
-	const galaxiesQuery = useQuery(gameId ? gameService.queries.galaxiesByGame(gameId) : gameService.queries.galaxiesByGame(''));
-	const starSystemsQuery = useQuery(gameId ? gameService.queries.starSystemsByGame(gameId) : gameService.queries.starSystemsByGame(''));
+	const galaxiesQuery = useQuery(game_id ? gameService.queries.galaxiesByGame(game_id) : gameService.queries.galaxiesByGame(''));
+	const starSystemsQuery = useQuery(game_id ? gameService.queries.starSystemsByGame(game_id) : gameService.queries.starSystemsByGame(''));
 
 	const rawGalaxies = galaxiesQuery || [];
 	const rawStarSystems = starSystemsQuery || [];
@@ -134,12 +134,12 @@ const GamePageInner: React.FC = () => {
 
 	// Initialize starting inventory if needed
 	useEffect(() => {
-		if (gameId && game && destinyStatus) {
+		if (game_id && game && destinyStatus) {
 			// Check if we need to add starting inventory
 			// This is handled by the game-page logic for now, but could be moved to a service
 			console.log('Game and destiny status loaded:', { game, destinyStatus });
 		}
-	}, [gameId, game, destinyStatus]);
+	}, [game_id, game, destinyStatus]);
 
 	// Process galaxy and star system data
 	useEffect(() => {
@@ -168,7 +168,7 @@ const GamePageInner: React.FC = () => {
 	};
 
 	const handleConfirmTravel = async () => {
-		if (!selectedGalaxy || !destinyStatus || !gameId) return;
+		if (!selectedGalaxy || !destinyStatus || !game_id) return;
 
 		const currentGalaxy = galaxies.find(g => g.id === currentGalaxyId);
 		const distance = currentGalaxy ?
@@ -306,7 +306,7 @@ const GamePageInner: React.FC = () => {
 							destinyStatus={destinyStatus}
 							onStatusUpdate={handleDestinyStatusUpdate}
 							onNavigateToGalaxy={handleNavigateToGalaxyMap}
-							gameId={params.gameId}
+							game_id={params.game_id}
 						/>
 					</div>
 				</div>
@@ -381,7 +381,7 @@ export const GamePage: React.FC = () => {
 	const params = useParams();
 
 	return (
-		<GameStateProvider gameId={params.gameId}>
+		<GameStateProvider game_id={params.game_id}>
 			<DestinyStatusProvider>
 				<GamePageInner />
 			</DestinyStatusProvider>

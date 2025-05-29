@@ -49,7 +49,7 @@ export const DestinyStatusBar: React.FC<DestinyStatusBarProps> = ({ status }) =>
 	const [resourcesHoverTimeout, setResourcesHoverTimeout] = useState<NodeJS.Timeout | null>(null);
 
 	const gameService = useGameService();
-	const inventoryArr = useQuery(status.gameId ? gameService.queries.inventoryByGame(status.gameId) : gameService.queries.inventoryByGame('')) || [];
+	const inventoryArr = useQuery(status.game_id ? gameService.queries.inventoryByGame(status.game_id) : gameService.queries.inventoryByGame('')) || [];
 	const inventoryMap = Object.fromEntries(inventoryArr.map((i: any) => [i.resourceType, i.amount]));
 
 	const handleInventoryMouseEnter = () => {
@@ -381,7 +381,7 @@ export const DestinyStatusBar: React.FC<DestinyStatusBarProps> = ({ status }) =>
 				<Nav className="ms-auto d-flex flex-row align-items-center">
 					{/* Crew Status */}
 					<CrewStatus
-						gameId={status.gameId}
+						game_id={status.game_id}
 					/>
 
 					{/* Shuttles Section with Details on Hover */}

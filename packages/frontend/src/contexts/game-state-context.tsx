@@ -27,11 +27,11 @@ interface GameStateContextType {
 const GameStateContext = createContext<GameStateContextType | undefined>(undefined);
 
 interface GameStateProviderProps {
-	gameId?: string;
+	game_id?: string;
 	children: ReactNode;
 }
 
-export const GameStateProvider: React.FC<GameStateProviderProps> = ({ gameId, children }) => {
+export const GameStateProvider: React.FC<GameStateProviderProps> = ({ game_id, children }) => {
 	// Start at normal speed
 	const [timeSpeed, setTimeSpeed] = useState(1);
 	const [gameTime, setGameTime] = useState(0);
@@ -39,23 +39,23 @@ export const GameStateProvider: React.FC<GameStateProviderProps> = ({ gameId, ch
 	const gameService = useGameService();
 
 	// Query the game and rooms using LiveStore
-	const gameQuery = useQuery(gameId ? gameService.queries.gameById(gameId) : gameService.queries.allGames());
-	const roomsQuery = useQuery(gameId ? gameService.queries.roomsByGame(gameId) : gameService.queries.roomsByGame(''));
+	const gameQuery = useQuery(game_id ? gameService.queries.gameById(game_id) : gameService.queries.allGames());
+	const roomsQuery = useQuery(game_id ? gameService.queries.roomsByGame(game_id) : gameService.queries.roomsByGame(''));
 
-	const game = gameId && gameQuery ? gameQuery.find((g: any) => g.id === gameId) : null;
-	const rooms = gameId ? (roomsQuery || []) : [];
+	const game = game_id && gameQuery ? gameQuery.find((g) => g.id === game_id) : null;
+	const rooms = game_id ? (roomsQuery || []) : [];
 
 	// Initialize game time from the game data
 	useEffect(() => {
 		if (game) {
-			setGameTime(game.totalTimeProgressed || 0);
+			setGameTime(game.total_time_progressed || 0);
 		}
 	}, [game]);
 
 	/**
 	 * Handle technology discovery when a room is fully explored
 	 */
-	const handleTechnologyDiscovery = async (roomId: string, gameId: string) => {
+	const handleTechnologyDiscovery = async (roomId: string, game_id: string) => {
 		try {
 			console.log(`🔬 Checking for technology in room ${roomId}...`);
 
@@ -74,29 +74,15 @@ export const GameStateProvider: React.FC<GameStateProviderProps> = ({ gameId, ch
 					const techTemplate = await ApiService.getTechnologyTemplate(roomTech.technology_template_id);
 
 					// Discover the technology using LiveStore
-					gameService.unlockTechnology(roomTech.technology_template_id, gameId);
+					gameService.unlockTechnology(roomTech.technology_template_id, game_id);
 
-					// Map technology to inventory resources and add them
-					switch (roomTech.technology_template_id) {
-					case 'kino':
-						gameService.addInventoryItem(gameId, 'kino', roomTech.count, 'ship', 'Kino devices for exploration');
-						break;
-					case 'kino_remote':
-						gameService.addInventoryItem(gameId, 'kino_remote', roomTech.count, 'ship', 'Remote controls for Kino devices');
-						break;
-					case 'stargate_device':
-						// Stargate doesn't go in inventory, it's a ship feature
-						break;
-					case 'kino_systems':
-						gameService.addInventoryItem(gameId, 'kino_systems', roomTech.count, 'ship', 'Kino control systems');
-						break;
-					default:
-						// Generic ancient tech
-						gameService.addInventoryItem(gameId, 'ancient_tech', roomTech.count, 'ship', 'Ancient technology artifacts');
-						break;
-					}
-
-					// Show discovery notification
+					gameService.addInventoryItem({
+						game_id,
+						resource_type: roomTech.technology_template_id,
+						amount: roomTech.count,
+						location: roomTech.room_id,
+						description: roomTech.description,
+					});
 					const countText = roomTech.count > 1 ? ` (×${roomTech.count})` : '';
 					toast.success(`🔬 Technology Discovered: ${techTemplate.name}${countText}`, {
 						position: 'top-center',
@@ -133,8 +119,8 @@ export const GameStateProvider: React.FC<GameStateProviderProps> = ({ gameId, ch
 				});
 
 				// Update game time using LiveStore
-				if (gameId) {
-					gameService.updateGame(gameId, { totalTimeProgressed: newTime });
+				if (game_id) {
+					gameService.updateGame(game_id, { totalTimeProgressed: newTime });
 				}
 
 				// Update exploration progress for all ongoing explorations
@@ -142,11 +128,11 @@ export const GameStateProvider: React.FC<GameStateProviderProps> = ({ gameId, ch
 			}, 1000);
 			return () => clearInterval(interval);
 		}
-	}, [game, timeSpeed, gameId, rooms]);
+	}, [game, timeSpeed, game_id, rooms]);
 
 	// Handle exploration progress updates
 	const updateExplorationProgress = async (currentGameTime: number) => {
-		if (!gameId) {
+		if (!game_id) {
 			return;
 		}
 
@@ -155,10 +141,10 @@ export const GameStateProvider: React.FC<GameStateProviderProps> = ({ gameId, ch
 			let exploringRoomsCount = 0;
 
 			for (const room of rooms) {
-				if (room.explorationData) {
+				if (room.exploration_data) {
 					exploringRoomsCount++;
 					try {
-						const exploration = JSON.parse(room.explorationData) as ExplorationProgress;
+						const exploration = JSON.parse(room.exploration_data) as ExplorationProgress;
 
 						// Convert game time (seconds) to hours for calculation
 						const timeElapsed = (currentGameTime - exploration.startTime) / 3600;
@@ -170,10 +156,25 @@ export const GameStateProvider: React.FC<GameStateProviderProps> = ({ gameId, ch
 							console.log(`🎉 Exploration of ${room.type} (${room.id}) completed!`);
 
 							// Complete the exploration using LiveStore events
-							gameService.completeRoomExploration(room.id, []); // TODO: Add discovered items
+							gameService.completeRoomExploration(room.id, []);
+							// Add discovered items
+							if (room.layout_id) {
+								const inventoryItems = await gameService.getTechnologyForRoom(room.template_id);
+								if (inventoryItems) {
+									for (const item of inventoryItems) {
+										gameService.addInventoryItem({
+											game_id,
+											resource_type: item.technology_template_id,
+											amount: item.count,
+											location: room.id,
+											description: item.description,
+										});
+									}
+								}
+							}
 
 							// Handle technology discovery
-							await handleTechnologyDiscovery(room.id, gameId);
+							await handleTechnologyDiscovery(room.id, game_id);
 						} else if (Math.abs(newProgress - exploration.progress) > 0.1) {
 							// Update progress - for now we'll skip frequent updates to avoid too many events
 							// In a real implementation, you might want to batch these or use a different approach

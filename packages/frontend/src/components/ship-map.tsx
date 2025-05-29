@@ -26,10 +26,10 @@ interface CameraTransform {
 }
 
 interface ShipMapProps {
-	gameId: string;
+	game_id: string;
 }
 
-export const ShipMap: React.FC<ShipMapProps> = ({ gameId }) => {
+export const ShipMap: React.FC<ShipMapProps> = ({ game_id }) => {
 	const { isPaused: gameStatePaused, resumeGame } = useGameState();
 	const [selectedRoom, setSelectedRoom] = useState<RoomType | null>(null);
 	const [showExplorationModal, setShowExplorationModal] = useState(false);
@@ -50,7 +50,7 @@ export const ShipMap: React.FC<ShipMapProps> = ({ gameId }) => {
 	const [destinyStatus, setDestinyStatus] = useState<DestinyStatusType | null>(null);
 
 	const gameService = useGameService();
-	const inventoryArr = useQuery(gameId ? gameService.queries.inventoryByGame(gameId) : gameService.queries.inventoryByGame('')) || [];
+	const inventoryArr = useQuery(game_id ? gameService.queries.inventoryByGame(game_id) : gameService.queries.inventoryByGame('')) || [];
 	const inventoryMap = Object.fromEntries(inventoryArr.map((i: any) => [i.resourceType, i.amount]));
 
 	const store = useStore().store;
@@ -59,21 +59,21 @@ export const ShipMap: React.FC<ShipMapProps> = ({ gameId }) => {
 	 * Observables
 	 */
 	useEffect(() => {
-		if (gameId) {
+		if (game_id) {
 			const gameSubscription = database
 				.get<Game>('games')
-				.findAndObserve(gameId).subscribe((g) => {
+				.findAndObserve(game_id).subscribe((g) => {
 					setGame(g);
 				});
 			const roomsSubscription = database
 				.get<Room>('rooms')
-				.query(Q.where('game_id', gameId))
+				.query(Q.where('game_id', game_id))
 				.observe().subscribe((r) => {
 					setRooms(r.map(roomModelToType));
 				});
 			const destinyStatusSubscription = database
 				.get<DestinyStatus>('destiny_status')
-				.findAndObserve(gameId)
+				.findAndObserve(game_id)
 				.subscribe((d) => {
 					setDestinyStatus(destinyStatusModelToType(d));
 				});
@@ -83,7 +83,7 @@ export const ShipMap: React.FC<ShipMapProps> = ({ gameId }) => {
 				destinyStatusSubscription.unsubscribe();
 			};
 		}
-	}, [gameId]);
+	}, [game_id]);
 
 	// Auto-focus the SVG for keyboard controls
 	useEffect(() => {
@@ -688,7 +688,7 @@ export const ShipMap: React.FC<ShipMapProps> = ({ gameId }) => {
 			{/* Room Exploration Component */}
 			{selectedRoom && (
 				<RoomExploration
-					gameId={gameId}
+					game_id={game_id}
 					roomId={selectedRoom.id}
 					showModal={showExplorationModal}
 					onClose={() => {
@@ -709,7 +709,7 @@ export const ShipMap: React.FC<ShipMapProps> = ({ gameId }) => {
 					setSelectedRoom(null);
 				}}
 				room={selectedRoom}
-				gameId={gameId}
+				game_id={game_id}
 			/>
 
 			{/* Door Requirements Modal */}

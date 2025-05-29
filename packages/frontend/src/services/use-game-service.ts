@@ -1,245 +1,142 @@
 import { useStore } from '@livestore/react';
+import { RoomTechnology } from '@stargate/common/zod-templates';
 
 import {
 	gameById$,
 	allGames$,
-	roomsByGameId$,
-	destinyStatusByGameId$,
-	peopleByGameId$,
-	inventoryByGameId$,
-	galaxiesByGameId$,
-	starSystemsByGameId$,
+	roomsBygame_id$,
+	destinyStatusBygame_id$,
+	peopleBygame_id$,
+	inventoryBygame_id$,
+	galaxiesBygame_id$,
+	starSystemsBygame_id$,
+	roomById$,
 } from '../livestore/queries';
 import { events } from '../livestore/schema';
+
+import apiService from './api-service';
 
 export const useGameService = () => {
 	const { store } = useStore();
 
 	const createNewGame = async (name: string = 'New Stargate Game'): Promise<string> => {
-		const gameId = crypto.randomUUID();
+		const game_id = crypto.randomUUID();
 		const now = new Date();
+
+		// Fetch templates from backend
+		const [
+			roomTemplates,
+			personTemplates,
+			raceTemplates,
+			shipLayout,
+			galaxyTemplates,
+			starSystemTemplates,
+			destinyStatusTemplate,
+			startingInventory,
+		] = await Promise.all([
+			apiService.getAllRoomTemplates(),
+			apiService.getAllPersonTemplates(),
+			apiService.getAllRaceTemplates(),
+			apiService.getShipLayoutById('destiny'),
+			apiService.getAllGalaxyTemplates(),
+			apiService.getAllStarSystemTemplates(),
+			apiService.getDestinyStatusTemplate(),
+			apiService.getStartingInventory(),
+		]);
 
 		// Create the game record
 		store.commit(
 			events.gameCreated({
-				id: gameId,
+				id: game_id,
 				name,
-				createdAt: now,
 			}),
 		);
 
-		// Create basic galaxy structure
-		const milkyWayId = crypto.randomUUID();
-		const jadesGalaxyId = crypto.randomUUID();
+		// Create races from templates
+		for (const race of raceTemplates) {
+			store.commit(
+				events.raceCreated({
+					...race,
+					id: crypto.randomUUID(),
+					game_id: game_id,
+				}),
+			);
+		}
 
-		store.commit(
-			events.galaxyCreated({
-				id: milkyWayId,
-				gameId: gameId,
-				name: 'Milky Way',
-				x: 0,
-				y: 0,
-				createdAt: now,
-			}),
-		);
-
-		store.commit(
-			events.galaxyCreated({
-				id: jadesGalaxyId,
-				gameId: gameId,
-				name: 'JADES-GS-z14-0',
-				x: 1000,
-				y: 0,
-				createdAt: now,
-			}),
-		);
-
-		// Create star systems
-		const solSystemId = crypto.randomUUID();
-		const icarusSystemId = crypto.randomUUID();
-		const destinySystemId = crypto.randomUUID();
-
-		store.commit(
-			events.starSystemCreated({
-				id: solSystemId,
-				gameId: gameId,
-				galaxyId: milkyWayId,
-				name: 'Sol System',
-				x: 0,
-				y: 0,
-				description: 'The home system of Earth.',
-				createdAt: now,
-			}),
-		);
-
-		store.commit(
-			events.starSystemCreated({
-				id: icarusSystemId,
-				gameId: gameId,
-				galaxyId: milkyWayId,
-				name: 'Icarus System',
-				x: 100,
-				y: 200,
-				description: 'Remote system with Icarus planet.',
-				createdAt: now,
-			}),
-		);
-
-		store.commit(
-			events.starSystemCreated({
-				id: destinySystemId,
-				gameId: gameId,
-				galaxyId: jadesGalaxyId,
-				name: 'Destiny System',
-				x: 500,
-				y: 500,
-				description: 'System where Destiny is found.',
-				createdAt: now,
-			}),
-		);
-
-		// Create basic races
-		const ancientsRaceId = crypto.randomUUID();
-		const humansRaceId = crypto.randomUUID();
-
-		store.commit(
-			events.raceCreated({
-				id: ancientsRaceId,
-				gameId: gameId,
-				name: 'Ancients',
-				technology: '{"advanced_energy": true, "stargate_network": true, "ancient_database": true}',
-				ships: '{"destiny": true, "puddle_jumpers": true}',
-				createdAt: now,
-			}),
-		);
-
-		store.commit(
-			events.raceCreated({
-				id: humansRaceId,
-				gameId: gameId,
-				name: 'Humans',
-				technology: '{"earth_tech": true, "basic_weapons": true}',
-				ships: '{"earth_ships": true}',
-				createdAt: now,
-			}),
-		);
-
-		// Create some basic crew members
-		const crewMembers = [
-			{ name: 'Colonel Everett Young', role: 'Commander' },
-			{ name: 'Dr. Nicholas Rush', role: 'Scientist' },
-			{ name: 'Chloe Armstrong', role: 'Civilian' },
-			{ name: 'Eli Wallace', role: 'Technician' },
-			{ name: 'MSgt. Ronald Greer', role: 'Military' },
-		];
-
-		for (const member of crewMembers) {
+		// Create crew from person templates
+		for (const person of personTemplates) {
 			store.commit(
 				events.personCreated({
+					...person,
 					id: crypto.randomUUID(),
-					gameId: gameId,
-					raceId: humansRaceId,
-					name: member.name,
-					role: member.role,
-					location: '{"shipId": "destiny"}',
-					skills: '{"leadership": 5, "science": 3}',
-					conditions: '[]',
-					createdAt: now,
+					game_id: game_id,
 				}),
 			);
 		}
 
-		// Create basic ship rooms
-		const basicRooms = [
-			{ type: 'bridge', floor: 1, gridX: 5, gridY: 5 },
-			{ type: 'control_room', floor: 1, gridX: 6, gridY: 5 },
-			{ type: 'crew_quarters', floor: 2, gridX: 4, gridY: 3 },
-			{ type: 'mess_hall', floor: 2, gridX: 5, gridY: 3 },
-			{ type: 'hydroponics', floor: 3, gridX: 3, gridY: 4 },
-		];
-
-		for (const room of basicRooms) {
+		// Import galaxy structure
+		for (const galaxy of galaxyTemplates) {
 			store.commit(
-				events.roomCreated({
+				events.galaxyCreated({
+					...galaxy,
 					id: crypto.randomUUID(),
-					gameId: gameId,
-					type: room.type,
-					floor: room.floor,
-					gridX: room.gridX,
-					gridY: room.gridY,
-					gridWidth: 1,
-					gridHeight: 1,
-					technology: '[]',
-					found: true,
-					locked: false,
-					explored: room.type === 'bridge', // Bridge starts explored
-					status: 'ok',
-					connectedRooms: '[]',
-					doors: '[]',
-					createdAt: now,
+					game_id: game_id,
 				}),
 			);
 		}
 
-		// Create initial destiny status
+		// Create star systems
+		for (const starSystem of starSystemTemplates) {
+			store.commit(
+				events.starSystemCreated({
+					...starSystem,
+					id: crypto.randomUUID(),
+					game_id: game_id,
+					updated_at: now,
+					created_at: now,
+				}),
+			);
+		}
+
+		// Destiny Status
 		store.commit(
 			events.destinyStatusCreated({
-				id: gameId, // Use gameId as the destiny status ID
-				gameId: gameId,
-				name: 'Destiny',
-				power: 800,
-				maxPower: 1000,
-				shields: 400,
-				maxShields: 500,
-				hull: 900,
-				maxHull: 1000,
-				raceId: ancientsRaceId,
-				crew: '[]',
-				location: `{"systemId": "${destinySystemId}"}`,
-				shield: '{"strength": 400, "max": 500, "coverage": 80}',
-				crewStatus: '{"onboard": 12, "capacity": 100, "manifest": []}',
-				atmosphere: '{"co2": 0.04, "o2": 20.9, "co2Scrubbers": 1}',
-				weapons: '{"mainGun": false, "turrets": {"total": 12, "working": 6}}',
-				shuttles: '{"total": 2, "working": 1, "damaged": 1}',
-				notes: '["Ship systems coming online. Crew exploring available sections."]',
-				gameDays: 1,
-				gameHours: 0,
-				ftlStatus: 'ftl',
-				nextFtlTransition: 6 + Math.random() * 42,
-				createdAt: now,
+				...destinyStatusTemplate,
+				id: game_id,
 			}),
 		);
 
-		// Add initial inventory
-		const initialInventory = [
-			{ resourceType: 'food', amount: 50, location: 'ship', description: 'Emergency food supplies' },
-			{ resourceType: 'water', amount: 100, location: 'ship', description: 'Water reserves' },
-			{ resourceType: 'parts', amount: 10, location: 'ship', description: 'Spare parts' },
-			{ resourceType: 'medicine', amount: 5, location: 'ship', description: 'Medical supplies' },
-			{ resourceType: 'ancient_tech', amount: 2, location: 'ship', description: 'Ancient technology' },
-		];
+		// Default Rooms
+		for (const room of roomTemplates) {
+			store.commit(
+				events.roomCreated({
+					...room,
+					// Template ID
+					template_id: room.id,
+					// ID is unique per game
+					id: crypto.randomUUID(),
+					game_id: game_id,
+				}),
+			);
+		};
 
-		for (const item of initialInventory) {
+		// Add initial inventory
+		for (const item of startingInventory) {
 			store.commit(
 				events.inventoryAdded({
+					...item,
 					id: crypto.randomUUID(),
-					gameId: gameId,
-					resourceType: item.resourceType,
-					amount: item.amount,
-					location: item.location,
-					description: item.description,
-					createdAt: now,
+					game_id: game_id,
 				}),
 			);
 		}
-
-		return gameId;
+		return game_id;
 	};
 
-	const updateGame = (gameId: string, updates: { name?: string; totalTimeProgressed?: number }) => {
+	const updateGame = (game_id: string, updates: { name?: string; totalTimeProgressed?: number }) => {
 		store.commit(
 			events.gameUpdated({
-				id: gameId,
+				id: game_id,
 				...updates,
 				...(updates.totalTimeProgressed !== undefined && {
 					lastPlayed: new Date(),
@@ -248,16 +145,15 @@ export const useGameService = () => {
 		);
 	};
 
-	const deleteGame = (gameId: string) => {
+	const deleteGame = (game_id: string) => {
 		store.commit(
 			events.gameDeleted({
-				id: gameId,
-				deletedAt: new Date(),
+				id: game_id,
 			}),
 		);
 	};
 
-	const updateDestinyStatus = (gameId: string, updates: {
+	const updateDestinyStatus = (game_id: string, updates: {
 		power?: number;
 		shields?: number;
 		hull?: number;
@@ -267,22 +163,33 @@ export const useGameService = () => {
 	}) => {
 		store.commit(
 			events.destinyStatusUpdated({
-				gameId,
+				game_id,
 				...updates,
 			}),
 		);
 	};
 
-	const addInventoryItem = (gameId: string, resourceType: string, amount: number, location?: string, description?: string) => {
+	const addInventoryItem = ({
+		game_id,
+		resource_type,
+		amount,
+		location,
+		description,
+	}: {
+		game_id: string,
+		resource_type: string,
+		amount: number,
+		location?: string,
+		description?: string,
+	}) => {
 		store.commit(
 			events.inventoryAdded({
 				id: crypto.randomUUID(),
-				gameId,
-				resourceType,
+				game_id,
+				resource_type,
 				amount,
 				location,
 				description,
-				createdAt: new Date(),
 			}),
 		);
 	};
@@ -306,12 +213,19 @@ export const useGameService = () => {
 		);
 	};
 
-	const startRoomExploration = (roomId: string, crewAssigned: string[]) => {
+	/**
+	 * Start a room exploration
+	 *
+	 * @param roomId - The ID of the room to explore
+	 * @param crewAssigned - The IDs of the crew members assigned to the exploration
+	 * @param startTime - The game time when the exploration started
+	 */
+	const startRoomExploration = (roomId: string, crewAssigned: string[], startTime: number) => {
 		store.commit(
 			events.roomExplorationStarted({
-				roomId,
-				crewAssigned,
-				startTime: new Date(),
+				room_id: roomId,
+				crew_assigned: crewAssigned,
+				start_time: startTime,
 			}),
 		);
 	};
@@ -319,19 +233,18 @@ export const useGameService = () => {
 	const completeRoomExploration = (roomId: string, discovered: string[] = []) => {
 		store.commit(
 			events.roomExplorationCompleted({
-				roomId,
-				completedAt: new Date(),
+				room_id: roomId,
+				completed_at: new Date(),
 				discovered,
 			}),
 		);
 	};
 
-	const unlockTechnology = (id: string, gameId: string) => {
+	const unlockTechnology = (id: string, game_id: string) => {
 		store.commit(
 			events.technologyUnlocked({
 				id,
-				gameId,
-				unlockedAt: new Date(),
+				game_id,
 			}),
 		);
 	};
@@ -349,11 +262,15 @@ export const useGameService = () => {
 			events.roomUpdated({
 				id: roomId,
 				...updates,
-				updatedAt: new Date(),
 			}),
 		);
 	};
 
+	const getTechnologyForRoom = async (templateID: string): Promise<RoomTechnology[]> => {
+		return apiService.getTechnologyForRoom(templateID);
+	};
+
+	// TODO: Fix this
 	const updateDoorState = (fromRoomId: string, toRoomId: string, newState: 'closed' | 'opened' | 'locked') => {
 		// Helper to update the doors property for a room
 		const updateRoomDoors = (roomId: string, targetRoomId: string) => {
@@ -365,9 +282,6 @@ export const useGameService = () => {
 			store.commit(
 				events.roomUpdated({
 					id: roomId,
-					// Only update the doors property; the reducer/materializer will merge
-					// The UI should ensure the new state is correct
-					updatedAt: new Date(),
 				}),
 			);
 		};
@@ -379,13 +293,14 @@ export const useGameService = () => {
 	// Query functions - these return the query objects for use with useQuery
 	const queries = {
 		allGames: () => allGames$,
-		gameById: (gameId: string) => gameById$(gameId),
-		roomsByGame: (gameId: string) => roomsByGameId$(gameId),
-		destinyStatus: (gameId: string) => destinyStatusByGameId$(gameId),
-		peopleByGame: (gameId: string) => peopleByGameId$(gameId),
-		inventoryByGame: (gameId: string) => inventoryByGameId$(gameId),
-		galaxiesByGame: (gameId: string) => galaxiesByGameId$(gameId),
-		starSystemsByGame: (gameId: string) => starSystemsByGameId$(gameId),
+		gameById: (game_id: string) => gameById$(game_id),
+		roomsByGame: (game_id: string) => roomsBygame_id$(game_id),
+		roomById: (room_id: string) => roomById$(room_id),
+		destinyStatus: (game_id: string) => destinyStatusBygame_id$(game_id),
+		peopleByGame: (game_id: string) => peopleBygame_id$(game_id),
+		inventoryByGame: (game_id: string) => inventoryBygame_id$(game_id),
+		galaxiesByGame: (game_id: string) => galaxiesBygame_id$(game_id),
+		starSystemsByGame: (game_id: string) => starSystemsBygame_id$(game_id),
 	};
 
 	return {
@@ -402,6 +317,7 @@ export const useGameService = () => {
 		unlockTechnology,
 		updateRoom,
 		updateDoorState,
+		getTechnologyForRoom,
 		// Queries
 		queries,
 	};

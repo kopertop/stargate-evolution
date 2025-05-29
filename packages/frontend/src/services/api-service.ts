@@ -1,63 +1,9 @@
 // Template service for fetching game templates from backend API
 // Simplified version without WatermelonDB dependencies
 
-export interface RoomTemplate {
-	id: string;
-	type: string;
-	name: string;
-	description?: string;
-	image?: string;
-	default_status: string;
-	default_technology: string[]; // JSON array
-}
+import { ShipLayout, RoomTemplate, PersonTemplate, RaceTemplate, Galaxy, StarSystem, DestinyStatus, Inventory, RoomTechnology } from '@stargate/common/zod-templates';
 
-export interface PersonTemplate {
-	id: string;
-	name: string;
-	role: string;
-	race_template_id?: string;
-	default_location?: any; // JSON object
-	skills: string[]; // JSON array
-	description?: string;
-	image?: string;
-}
-
-export interface RaceTemplate {
-	id: string;
-	name: string;
-	default_technology: string[]; // JSON array
-	default_ships: string[]; // JSON array
-}
-
-export interface ShipLayoutRoom {
-	id: string;
-	start_x: number;
-	start_y: number;
-	end_x: number;
-	end_y: number;
-	floor: number;
-	initial_state: string; // JSON object
-	connection_north?: string;
-	connection_south?: string;
-	connection_east?: string;
-	connection_west?: string;
-}
-
-export interface ShipLayoutDoor {
-	from_room_id: string;
-	to_room_id: string;
-	initial_state: string;
-	requirements?: string; // JSON array
-	description?: string;
-}
-
-export interface ShipLayout {
-	layout_id: string;
-	rooms: ShipLayoutRoom[];
-	doors: ShipLayoutDoor[];
-}
-
-class TemplateService {
+class APIService {
 	private baseUrl: string;
 	private cache: Map<string, any> = new Map();
 	private cacheExpiry: Map<string, number> = new Map();
@@ -72,13 +18,13 @@ class TemplateService {
 		const cacheKey = endpoint;
 		const now = Date.now();
 
-		console.log(`[TemplateService] Fetching ${endpoint} from ${this.baseUrl}`);
+		console.log(`[apiService] Fetching ${endpoint} from ${this.baseUrl}`);
 
 		// Check if we have valid cached data
 		if (this.cache.has(cacheKey) && this.cacheExpiry.has(cacheKey)) {
 			const expiry = this.cacheExpiry.get(cacheKey)!;
 			if (now < expiry) {
-				console.log(`[TemplateService] Using cached data for ${endpoint}`);
+				console.log(`[apiService] Using cached data for ${endpoint}`);
 				return this.cache.get(cacheKey) as T;
 			}
 		}
@@ -86,17 +32,17 @@ class TemplateService {
 		// Fetch fresh data
 		try {
 			const fullUrl = `${this.baseUrl}${endpoint}`;
-			console.log(`[TemplateService] Making request to: ${fullUrl}`);
+			console.log(`[apiService] Making request to: ${fullUrl}`);
 
 			const response = await fetch(fullUrl);
-			console.log(`[TemplateService] Response status: ${response.status} ${response.statusText}`);
+			console.log(`[apiService] Response status: ${response.status} ${response.statusText}`);
 
 			if (!response.ok) {
 				throw new Error(`HTTP ${response.status}: ${response.statusText}`);
 			}
 
 			const data = await response.json();
-			console.log(`[TemplateService] Successfully fetched ${endpoint}, data length:`, Array.isArray(data) ? data.length : 'not array');
+			console.log(`[apiService] Successfully fetched ${endpoint}, data length:`, Array.isArray(data) ? data.length : 'not array');
 
 			// Cache the data
 			this.cache.set(cacheKey, data);
@@ -104,11 +50,11 @@ class TemplateService {
 
 			return data as T;
 		} catch (error) {
-			console.error(`[TemplateService] Failed to fetch ${endpoint}:`, error);
+			console.error(`[apiService] Failed to fetch ${endpoint}:`, error);
 
 			// Return cached data if available, even if expired
 			if (this.cache.has(cacheKey)) {
-				console.warn(`[TemplateService] Using expired cache for ${endpoint}`);
+				console.warn(`[apiService] Using expired cache for ${endpoint}`);
 				return this.cache.get(cacheKey) as T;
 			}
 
@@ -152,6 +98,26 @@ class TemplateService {
 			}
 			throw error;
 		}
+	}
+
+	async getAllGalaxyTemplates(): Promise<Galaxy[]> {
+		return this.fetchWithCache<Galaxy[]>('/api/templates/galaxies');
+	}
+
+	async getAllStarSystemTemplates(): Promise<StarSystem[]> {
+		return this.fetchWithCache<StarSystem[]>('/api/templates/star-systems');
+	}
+
+	async getDestinyStatusTemplate(): Promise<DestinyStatus> {
+		return this.fetchWithCache<DestinyStatus>('/api/templates/destiny-status');
+	}
+
+	async getStartingInventory(): Promise<Inventory[]> {
+		return this.fetchWithCache<Inventory[]>('/api/templates/starting-inventory');
+	}
+
+	async getTechnologyForRoom(templateID: string): Promise<RoomTechnology[]> {
+		return this.fetchWithCache<RoomTechnology[]>(`/api/templates/room-technologies/${templateID}`);
 	}
 
 	// Helper methods for parsing JSON fields
@@ -207,5 +173,5 @@ class TemplateService {
 }
 
 // Export a singleton instance
-export const templateService = new TemplateService();
-export default templateService;
+export const apiService = new APIService();
+export default apiService;

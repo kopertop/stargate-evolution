@@ -14,7 +14,7 @@ interface RoomDetailsModalProps {
 	show: boolean;
 	onHide: () => void;
 	room: RoomType | null;
-	gameId: string;
+	game_id: string;
 }
 
 interface TechnologyWithTemplate {
@@ -26,7 +26,7 @@ export const RoomDetailsModal: React.FC<RoomDetailsModalProps> = ({
 	show,
 	onHide,
 	room,
-	gameId,
+	game_id,
 }) => {
 	const [technologies, setTechnologies] = useState<TechnologyWithTemplate[]>([]);
 	const [isLoading, setIsLoading] = useState(false);

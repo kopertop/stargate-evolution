@@ -29,7 +29,7 @@ export interface ExplorationProgress {
 export type RoomType = {
 	id: string;
 	name?: string;
-	gameId: string;
+	game_id: string;
 	templateId: string; // Reference to the room template ID
 	type: string;
 	// New rectangle positioning (preferred)
@@ -59,7 +59,7 @@ export type RoomType = {
 // DestinyStatus type with parsed JSON fields
 export type DestinyStatusType = {
 	id: string;
-	gameId: string;
+	game_id: string;
 	name: string;
 	power: number;
 	maxPower: number;
@@ -87,7 +87,7 @@ export type DestinyStatusType = {
 // Person type with parsed JSON fields
 export type PersonType = {
 	id: string;
-	gameId: string;
+	game_id: string;
 	raceId: string;
 	name: string;
 	role: string;
@@ -113,7 +113,7 @@ export function roomDataToType(room: any): RoomType {
 
 	return {
 		id: room.id,
-		gameId: room.gameId,
+		game_id: room.game_id,
 		templateId: room.templateId,
 		type: room.type,
 		// New rectangle positioning (if available)
@@ -144,7 +144,7 @@ export function roomDataToType(room: any): RoomType {
 export function destinyStatusDataToType(status: any): DestinyStatusType {
 	return {
 		id: status.id,
-		gameId: status.gameId,
+		game_id: status.game_id,
 		name: status.name,
 		power: status.power,
 		maxPower: status.maxPower,
@@ -173,7 +173,7 @@ export function destinyStatusDataToType(status: any): DestinyStatusType {
 export function personDataToType(person: any): PersonType {
 	return {
 		id: person.id,
-		gameId: person.gameId,
+		game_id: person.game_id,
 		raceId: person.raceId,
 		name: person.name,
 		role: person.role,

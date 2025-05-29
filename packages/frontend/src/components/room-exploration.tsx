@@ -20,7 +20,7 @@ interface CrewMember {
 }
 
 interface RoomExplorationProps {
-	gameId: string;
+	game_id: string;
 	roomId: string;
 	showModal: boolean;
 	onClose: () => void;
@@ -28,7 +28,7 @@ interface RoomExplorationProps {
 }
 
 export const RoomExploration: React.FC<RoomExplorationProps> = ({
-	gameId,
+	game_id,
 	roomId,
 	showModal,
 	onClose,
@@ -46,19 +46,19 @@ export const RoomExploration: React.FC<RoomExplorationProps> = ({
 
 	// Observable Setup
 	useEffect(() => {
-		if (roomId && gameId) {
+		if (roomId && game_id) {
 			const gameSubscription = database.get<Game>('games')
-				.findAndObserve(gameId)
+				.findAndObserve(game_id)
 				.subscribe((g) => {
 					setGame(g);
 				});
 			const roomsSubscription = database.get<Room>('rooms')
-				.query(Q.where('game_id', gameId))
+				.query(Q.where('game_id', game_id))
 				.observe().subscribe((r) => {
 					setRooms(r.map(roomModelToType));
 				});
 			const destinyStatusSubscription = database.get<DestinyStatus>('destiny_status')
-				.findAndObserve(gameId).subscribe((d) => {
+				.findAndObserve(game_id).subscribe((d) => {
 					setDestinyStatus(destinyStatusModelToType(d));
 				});
 			const selectedRoomSubscription = database.get<Room>('rooms')
@@ -66,11 +66,11 @@ export const RoomExploration: React.FC<RoomExplorationProps> = ({
 					setSelectedRoom(roomModelToType(r));
 				});
 			const availableCrewSubscription = database.get<Person>('people')
-				.query(Q.where('game_id', gameId)).observe().subscribe((p) => {
+				.query(Q.where('game_id', game_id)).observe().subscribe((p) => {
 					setAvailableCrew(p.map(personModelToType));
 				});
 			const assignedCrewSubscription = database.get<Person>('people')
-				.query(Q.where('game_id', gameId)).observe().subscribe((p) => {
+				.query(Q.where('game_id', game_id)).observe().subscribe((p) => {
 					setAssignedCrew(p.map((pc) => personModelToType(pc)));
 				});
 			return () => {
@@ -84,7 +84,7 @@ export const RoomExploration: React.FC<RoomExplorationProps> = ({
 		}
 	}, [
 		roomId,
-		gameId,
+		game_id,
 	]);
 
 	// Initialize selected crew when modal opens for ongoing exploration

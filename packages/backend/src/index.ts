@@ -1,9 +1,12 @@
 import { jwtVerify, SignJWT } from 'jose';
 
 import { validateUser, validateSession } from './auth-types';
+import { getDefaultDestinyStatusTemplate, getStartingInventoryTemplate } from './templates/destiny-status-template';
+import { getAllGalaxyTemplates, getGalaxyTemplateById } from './templates/galaxy-templates';
 import { getAllPersonTemplates, getPersonTemplateById, getPersonTemplatesByRole, getAllRaceTemplates } from './templates/person-templates';
 import { getAllRoomTemplates, getRoomTemplateById, getRoomTemplatesByType } from './templates/room-templates';
 import { getAllLayoutIds, getShipLayoutById, getRoomsByLayoutId, getDoorsByLayoutId, getRoomById, getDoorById, getShipLayoutWithTechnology } from './templates/ship-layouts';
+import { getAllStarSystemTemplates, getStarSystemTemplateById, getStarSystemsByGalaxyId } from './templates/star-system-templates';
 import { getAllTechnologyTemplates, getTechnologyTemplateById, getTechnologyTemplatesByCategory, getRoomTechnologyByRoomId, getAllRoomTechnology } from './templates/technology-templates';
 import { Env } from './types';
 
@@ -331,6 +334,105 @@ export default {
 				}));
 			}
 		}
+
+		if (url.pathname === '/api/templates/galaxies' && request.method === 'GET') {
+			try {
+				const galaxies = await getAllGalaxyTemplates(env.DB);
+				return withCors(new Response(JSON.stringify(galaxies), {
+					headers: { 'content-type': 'application/json' },
+				}));
+			} catch (err: any) {
+				return withCors(new Response(JSON.stringify({ error: err.message || 'Failed to fetch galaxy templates' }), {
+					status: 500, headers: { 'content-type': 'application/json' },
+				}));
+			}
+		}
+
+		if (url.pathname.startsWith('/api/templates/galaxies/') && request.method === 'GET') {
+			try {
+				const galaxyId = url.pathname.split('/').pop();
+				if (!galaxyId) throw new Error('Galaxy ID required');
+				const galaxy = await getGalaxyTemplateById(env.DB, galaxyId);
+				if (!galaxy) {
+					return withCors(new Response(JSON.stringify({ error: 'Galaxy template not found' }), {
+						status: 404, headers: { 'content-type': 'application/json' },
+					}));
+				}
+				return withCors(new Response(JSON.stringify(galaxy), {
+					headers: { 'content-type': 'application/json' },
+				}));
+			} catch (err: any) {
+				return withCors(new Response(JSON.stringify({ error: err.message || 'Failed to fetch galaxy template' }), {
+					status: 500, headers: { 'content-type': 'application/json' },
+				}));
+			}
+		}
+
+		if (url.pathname === '/api/templates/star-systems' && request.method === 'GET') {
+			try {
+				const galaxyId = url.searchParams.get('galaxy_id');
+				if (galaxyId) {
+					const systems = await getStarSystemsByGalaxyId(env.DB, galaxyId);
+					return withCors(new Response(JSON.stringify(systems), {
+						headers: { 'content-type': 'application/json' },
+					}));
+				}
+				const systems = await getAllStarSystemTemplates(env.DB);
+				return withCors(new Response(JSON.stringify(systems), {
+					headers: { 'content-type': 'application/json' },
+				}));
+			} catch (err: any) {
+				return withCors(new Response(JSON.stringify({ error: err.message || 'Failed to fetch star system templates' }), {
+					status: 500, headers: { 'content-type': 'application/json' },
+				}));
+			}
+		}
+
+		if (url.pathname.startsWith('/api/templates/star-systems/') && request.method === 'GET') {
+			try {
+				const systemId = url.pathname.split('/').pop();
+				if (!systemId) throw new Error('Star system ID required');
+				const system = await getStarSystemTemplateById(env.DB, systemId);
+				if (!system) {
+					return withCors(new Response(JSON.stringify({ error: 'Star system template not found' }), {
+						status: 404, headers: { 'content-type': 'application/json' },
+					}));
+				}
+				return withCors(new Response(JSON.stringify(system), {
+					headers: { 'content-type': 'application/json' },
+				}));
+			} catch (err: any) {
+				return withCors(new Response(JSON.stringify({ error: err.message || 'Failed to fetch star system template' }), {
+					status: 500, headers: { 'content-type': 'application/json' },
+				}));
+			}
+		}
+
+		if (url.pathname === '/api/templates/destiny-status' && request.method === 'GET') {
+			try {
+				const status = getDefaultDestinyStatusTemplate();
+				return withCors(new Response(JSON.stringify(status), {
+					headers: { 'content-type': 'application/json' },
+				}));
+			} catch (err: any) {
+				return withCors(new Response(JSON.stringify({ error: err.message || 'Failed to fetch destiny status template' }), {
+					status: 500, headers: { 'content-type': 'application/json' },
+				}));
+			}
+		}
+		if (url.pathname === '/api/templates/starting-inventory' && request.method === 'GET') {
+			try {
+				const inventory = getStartingInventoryTemplate();
+				return withCors(new Response(JSON.stringify(inventory), {
+					headers: { 'content-type': 'application/json' },
+				}));
+			} catch (err: any) {
+				return withCors(new Response(JSON.stringify({ error: err.message || 'Failed to fetch starting inventory template' }), {
+					status: 500, headers: { 'content-type': 'application/json' },
+				}));
+			}
+		}
+
 
 		return withCors(new Response('Not found', { status: 404 }));
 	},

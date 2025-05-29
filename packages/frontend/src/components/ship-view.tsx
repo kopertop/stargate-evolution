@@ -10,7 +10,7 @@ interface ShipViewProps {
 	destinyStatus: DestinyStatus;
 	onStatusUpdate: (newStatus: DestinyStatus) => void;
 	onNavigateToGalaxy: () => void;
-	gameId?: string;
+	game_id?: string;
 }
 
 // Resource consumption rates (per crew member per day)
@@ -25,13 +25,13 @@ export const ShipView: React.FC<ShipViewProps> = ({
 	destinyStatus,
 	onStatusUpdate,
 	onNavigateToGalaxy,
-	gameId,
+	game_id,
 }) => {
 	const [gameIsPaused, setGameIsPaused] = useState(true);
 	const [lastTimeRemaining, setLastTimeRemaining] = useState(destinyStatus.nextFtlTransition);
 
 	const gameService = useGameService();
-	const inventoryArr = useQuery(gameId ? gameService.queries.inventoryByGame(gameId) : gameService.queries.inventoryByGame('')) || [];
+	const inventoryArr = useQuery(game_id ? gameService.queries.inventoryByGame(game_id) : gameService.queries.inventoryByGame('')) || [];
 	const inventoryMap = Object.fromEntries(inventoryArr.map((i: any) => [i.resourceType, i.amount]));
 
 	// Calculate daily resource consumption
@@ -66,7 +66,7 @@ export const ShipView: React.FC<ShipViewProps> = ({
 	return (
 		<div className="ship-view" style={{ width: '100%', height: '100%' }}>
 			{/* Interactive Ship Map - Full Screen */}
-			<ShipMap gameId={gameId || ''} />
+			<ShipMap game_id={game_id || ''} />
 		</div>
 	);
 };

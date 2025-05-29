@@ -1,3 +1,4 @@
+import { useQuery } from '@livestore/react';
 import { Q } from '@nozbe/watermelondb';
 import database, { Person, Room } from '@stargate/db';
 import React, { useState, useEffect } from 'react';
@@ -6,10 +7,12 @@ import type { IconType } from 'react-icons';
 import { GiMeeple, GiCog, GiHammerNails, GiMedicalPack, GiMagnifyingGlass } from 'react-icons/gi';
 
 import { useGameState } from '../contexts/game-state-context';
-import { personModelToType, roomModelToType, PersonType, RoomType } from '../types/model-types';
+import { useGameService } from '../services/use-game-service';
+import { personDataToType, roomDataToType, PersonType, RoomType } from '../types/model-types';
+import { personModelToType, roomModelToType } from '../types/model-types';
 
 interface CrewStatusProps {
-	gameId: string;
+	game_id: string;
 }
 
 interface CrewMemberWithTask extends PersonType {
@@ -32,105 +35,22 @@ const Icon: React.FC<{ icon: IconType; size?: number; className?: string }> = ({
 	return <IconComponent size={size} className={className} />;
 };
 
-export const CrewStatus: React.FC<CrewStatusProps> = ({ gameId }) => {
+export const CrewStatus: React.FC<CrewStatusProps> = ({ game_id }) => {
 	const { gameTime } = useGameState();
 	const [showCrewDetails, setShowCrewDetails] = useState(false);
 	const [crewHoverTimeout, setCrewHoverTimeout] = useState<NodeJS.Timeout | null>(null);
-	const [crewMembers, setCrewMembers] = useState<CrewMemberWithTask[]>([]);
-	const [rooms, setRooms] = useState<RoomType[]>([]);
 
-	// Observable setup for crew members and rooms
-	useEffect(() => {
-		if (!gameId) return;
-
-		const crewSubscription = database.get<Person>('people')
-			.query(Q.where('game_id', gameId))
-			.observe()
-			.subscribe((people) => {
-				const typedCrew = people.map(personModelToType);
-				setCrewMembers(typedCrew.map(enrichCrewMemberWithTask));
-			});
-
-		const roomsSubscription = database.get<Room>('rooms')
-			.query(Q.where('game_id', gameId))
-			.observe()
-			.subscribe((roomData) => {
-				setRooms(roomData.map(roomModelToType));
-			});
-
-		return () => {
-			crewSubscription.unsubscribe();
-			roomsSubscription.unsubscribe();
-		};
-	}, [gameId]);
-
-	// Update crew tasks when rooms change
-	useEffect(() => {
-		setCrewMembers(prev => prev.map(enrichCrewMemberWithTask));
-	}, [rooms, gameTime]);
-
-	const enrichCrewMemberWithTask = (crewMember: PersonType): CrewMemberWithTask => {
-		if (!crewMember.assignedTo) {
-			return {
-				...crewMember,
-				currentTask: {
-					type: 'idle',
-					description: 'Available for assignment',
-				},
-			};
-		}
-
-		// Find the room they're assigned to
-		const assignedRoom = rooms.find(room => room.id === crewMember.assignedTo);
-		if (!assignedRoom) {
-			return {
-				...crewMember,
-				currentTask: {
-					type: 'idle',
-					description: 'Assignment unclear',
-				},
-			};
-		}
-
-		// Check if they're working on exploration
-		if (assignedRoom.explorationData) {
-			try {
-				const explorationData = typeof assignedRoom.explorationData === 'string'
-					? JSON.parse(assignedRoom.explorationData)
-					: assignedRoom.explorationData;
-
-				if (explorationData.crewAssigned?.includes(crewMember.id)) {
-					const progress = explorationData.progress || 0;
-					const timeRemaining = explorationData.timeRemaining || 0;
-
-					return {
-						...crewMember,
-						currentTask: {
-							type: 'exploration',
-							roomId: assignedRoom.id,
-							roomName: assignedRoom.type,
-							progress,
-							timeRemaining,
-							description: `Exploring ${assignedRoom.type}`,
-						},
-					};
-				}
-			} catch (error) {
-				console.error('Error parsing exploration data:', error);
-			}
-		}
-
-		// Default to general assignment
+	const gameService = useGameService();
+	const peopleArr = useQuery(game_id ? gameService.queries.peopleByGame(game_id) : gameService.queries.peopleByGame('')) || [];
+	const roomsArr = useQuery(game_id ? gameService.queries.roomsByGame(game_id) : gameService.queries.roomsByGame('')) || [];
+	const crewMembers: CrewMemberWithTask[] = peopleArr.map((person) => {
+		const typed = personDataToType(person);
 		return {
-			...crewMember,
-			currentTask: {
-				type: 'repair', // Could be expanded to detect actual task type
-				roomId: assignedRoom.id,
-				roomName: assignedRoom.type,
-				description: `Working in ${assignedRoom.type}`,
-			},
+			...typed,
+			skills: Array.isArray(typed.skills) ? typed.skills : (typeof typed.skills === 'string' ? (() => { try { return JSON.parse(typed.skills); } catch { return []; } })() : []),
 		};
-	};
+	}).map(enrichCrewMemberWithTask);
+	const rooms: RoomType[] = roomsArr.map(roomDataToType);
 
 	const handleCrewMouseEnter = () => {
 		if (crewHoverTimeout) {
@@ -205,6 +125,59 @@ export const CrewStatus: React.FC<CrewStatusProps> = ({ gameId }) => {
 	// Calculate unassigned vs total crew
 	const unassignedCrew = crewMembers.filter(c => c.currentTask?.type === 'idle').length;
 	const totalCrew = crewMembers.length;
+
+	function enrichCrewMemberWithTask(crewMember: PersonType): CrewMemberWithTask {
+		if (!crewMember.assignedTo) {
+			return {
+				...crewMember,
+				currentTask: {
+					type: 'idle',
+					description: 'Available for assignment',
+				},
+			};
+		}
+		const assignedRoom = rooms.find(room => room.id === crewMember.assignedTo);
+		if (!assignedRoom) {
+			return {
+				...crewMember,
+				currentTask: {
+					type: 'idle',
+					description: 'Assignment unclear',
+				},
+			};
+		}
+		if (assignedRoom.explorationData) {
+			try {
+				const explorationData = assignedRoom.explorationData;
+				if (explorationData.crewAssigned?.includes(crewMember.id)) {
+					const progress = explorationData.progress || 0;
+					const timeRemaining = explorationData.timeRemaining || 0;
+					return {
+						...crewMember,
+						currentTask: {
+							type: 'exploration',
+							roomId: assignedRoom.id,
+							roomName: assignedRoom.type,
+							progress,
+							timeRemaining,
+							description: `Exploring ${assignedRoom.type}`,
+						},
+					};
+				}
+			} catch (error) {
+				console.error('Error parsing exploration data:', error);
+			}
+		}
+		return {
+			...crewMember,
+			currentTask: {
+				type: 'repair',
+				roomId: assignedRoom.id,
+				roomName: assignedRoom.type,
+				description: `Working in ${assignedRoom.type}`,
+			},
+		};
+	}
 
 	return (
 		<Nav.Item className="d-flex align-items-center me-3 position-relative">

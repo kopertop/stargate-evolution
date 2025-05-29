@@ -5,9 +5,9 @@ export const DoorTemplateSchema = z.object({
 	layout_id: z.string(),
 	from_room_id: z.string(),
 	to_room_id: z.string(),
-	requirements: z.string().nullable().optional(),
+	requirements: z.string().optional(),
 	initial_state: z.string(),
-	description: z.string().nullable().optional(),
+	description: z.string().optional(),
 	created_at: z.number(),
 	updated_at: z.number(),
 });

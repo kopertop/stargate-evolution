@@ -8,7 +8,7 @@ import { toast } from 'react-toastify';
 
 import { renderGoogleSignInButton } from '../auth/google-auth';
 import { getSession, setSession } from '../auth/session';
-import { templateService } from '../services/template-service';
+import { apiService } from '../services/api-service';
 import { useGameService } from '../services/use-game-service';
 
 type GameSummary = {
@@ -105,7 +105,7 @@ export const MenuPage: React.FC = () => {
 			setIsCreatingGame(true);
 
 			// For now, create a simple game - we can enhance this later with templates
-			const gameId = await gameService.createNewGame('New Stargate Game');
+			const game_id = await gameService.createNewGame('New Stargate Game');
 
 			toast.success('New game created!', {
 				position: 'top-right',
@@ -116,7 +116,7 @@ export const MenuPage: React.FC = () => {
 				draggable: true,
 				progress: undefined,
 			});
-			onStartGame(gameId);
+			onStartGame(game_id);
 		} catch (err: any) {
 			console.error('Failed to create game:', err);
 			toast.error(`Failed to create game: ${err.message || err}`, {
@@ -133,12 +133,12 @@ export const MenuPage: React.FC = () => {
 		}
 	};
 
-	const onStartGame = (gameId: string) => {
-		navigate(`/game/${gameId}`);
+	const onStartGame = (game_id: string) => {
+		navigate(`/game/${game_id}`);
 	};
 
-	const handleLoadGame = (gameId: string) => {
-		onStartGame(gameId);
+	const handleLoadGame = (game_id: string) => {
+		onStartGame(game_id);
 	};
 
 	const handleContinueGame = () => {
