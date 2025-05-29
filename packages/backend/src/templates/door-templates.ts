@@ -1,5 +1,5 @@
 import type { D1Database } from '@cloudflare/workers-types';
-import { DoorTemplateSchema, type DoorTemplate } from '@stargate/common/src/models/door-template';
+import { DoorTemplateSchema, type DoorTemplate } from '@stargate/common/models/door-template';
 
 export async function getAllDoorTemplates(db: D1Database): Promise<DoorTemplate[]> {
 	const result = await db.prepare('SELECT * FROM door_templates ORDER BY id').all();

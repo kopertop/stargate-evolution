@@ -18,6 +18,9 @@
     "isolatedModules": true,
     "baseUrl": ".",
     "paths": {
+      "@stargate/common/models/*": [
+        "packages/common/src/models/*"
+      ],
       "@stargate/common/*": [
         "packages/common/src/*"
       ],

@@ -1,6 +1,6 @@
-import { DestinyStatusSchema, type DestinyStatus } from '@stargate/common/src/models/destiny-status';
-import { Inventory } from 'packages/common/dist/models/inventory';
-import { InventorySchema } from 'packages/common/dist/models/inventory';
+import { DestinyStatusSchema, type DestinyStatus } from '@stargate/common/models/destiny-status';
+import { Inventory } from '@stargate/common/models/inventory';
+import { InventorySchema } from '@stargate/common/models/inventory';
 
 /**
  * Default ship status for a new game

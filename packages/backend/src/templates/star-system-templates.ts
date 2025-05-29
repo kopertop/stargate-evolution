@@ -1,5 +1,5 @@
 import type { D1Database } from '@cloudflare/workers-types';
-import { StarSystemSchema, type StarSystem } from '@stargate/common/src/models/star-system';
+import { StarSystemSchema, type StarSystem } from '@stargate/common/models/star-system';
 
 export async function getAllStarSystemTemplates(db: D1Database): Promise<StarSystem[]> {
 	const result = await db.prepare('SELECT * FROM star_system_templates ORDER BY name').all();

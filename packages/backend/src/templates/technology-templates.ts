@@ -1,6 +1,6 @@
 import type { D1Database } from '@cloudflare/workers-types';
-import { RoomTechnologySchema, type RoomTechnology } from '@stargate/common/src/models/room-technology';
-import { TechnologyTemplateSchema, type TechnologyTemplate } from '@stargate/common/src/models/technology-template';
+import { RoomTechnologySchema, type RoomTechnology } from '@stargate/common/models/room-technology';
+import { TechnologyTemplateSchema, type TechnologyTemplate } from '@stargate/common/models/technology-template';
 
 export async function getAllTechnologyTemplates(db: D1Database): Promise<TechnologyTemplate[]> {
 	const result = await db.prepare('SELECT * FROM technology_templates ORDER BY category, name').all();

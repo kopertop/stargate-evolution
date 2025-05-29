@@ -1,7 +1,7 @@
 import type { D1Database } from '@cloudflare/workers-types';
-import { DoorTemplateSchema } from '@stargate/common/src/models/door-template';
-import { RoomTemplateSchema } from '@stargate/common/src/models/room-template';
-import { ShipLayoutSchema } from '@stargate/common/src/models/ship-layout';
+import { DoorTemplateSchema } from '@stargate/common/models/door-template';
+import { RoomTemplateSchema } from '@stargate/common/models/room-template';
+import { ShipLayoutSchema } from '@stargate/common/models/ship-layout';
 import { z } from 'zod';
 
 import { getRoomTechnologyByRoomId } from './technology-templates';

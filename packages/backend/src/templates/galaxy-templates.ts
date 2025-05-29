@@ -1,5 +1,5 @@
 import type { D1Database } from '@cloudflare/workers-types';
-import { GalaxySchema, type Galaxy } from '@stargate/common/src/models/galaxy';
+import { GalaxySchema, type Galaxy } from '@stargate/common/models/galaxy';
 
 export async function getAllGalaxyTemplates(db: D1Database): Promise<Galaxy[]> {
 	const result = await db.prepare('SELECT * FROM galaxy_templates ORDER BY name').all();

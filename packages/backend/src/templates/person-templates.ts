@@ -1,6 +1,6 @@
 import type { D1Database } from '@cloudflare/workers-types';
-import { PersonTemplateSchema, type PersonTemplate } from '@stargate/common/src/models/person-template';
-import { RaceTemplateSchema, type RaceTemplate } from '@stargate/common/src/models/race-template';
+import { PersonTemplateSchema, type PersonTemplate } from '@stargate/common/models/person-template';
+import { RaceTemplateSchema, type RaceTemplate } from '@stargate/common/models/race-template';
 
 export async function getAllPersonTemplates(db: D1Database): Promise<PersonTemplate[]> {
 	const result = await db.prepare('SELECT * FROM person_templates ORDER BY id').all();

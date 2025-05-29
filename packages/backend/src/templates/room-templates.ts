@@ -1,5 +1,5 @@
 import type { D1Database } from '@cloudflare/workers-types';
-import { RoomTemplateSchema, type RoomTemplate } from '@stargate/common/src/models/room-template';
+import { RoomTemplateSchema, type RoomTemplate } from '@stargate/common/models/room-template';
 
 export async function getAllRoomTemplates(db: D1Database): Promise<RoomTemplate[]> {
 	const result = await db.prepare('SELECT * FROM room_templates ORDER BY layout_id, id').all();

@@ -1,5 +1,5 @@
-import type { RoomTechnology } from '@stargate/common/src/models/room-technology';
-import type { TechnologyTemplate } from '@stargate/common/src/models/technology-template';
+import type { RoomTechnology } from '@stargate/common/models/room-technology';
+import type { TechnologyTemplate } from '@stargate/common/models/technology-template';
 
 const API_BASE_URL = 'http://localhost:8787';
 

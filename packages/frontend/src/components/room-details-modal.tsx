@@ -1,5 +1,5 @@
-import type { RoomTechnology } from '@stargate/common/src/models/room-technology';
-import type { TechnologyTemplate } from '@stargate/common/src/models/technology-template';
+import type { RoomTechnology } from '@stargate/common/models/room-technology';
+import type { TechnologyTemplate } from '@stargate/common/models/technology-template';
 import { title as titleCase } from 'case';
 import React, { useState, useEffect } from 'react';
 import { Modal, Button, Alert, Card, Badge, Row, Col } from 'react-bootstrap';
