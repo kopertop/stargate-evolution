@@ -1,0 +1,6 @@
+name = "stargate-sync-backend"
+main = "./sync-worker.js"
+compatibility_date = "2025-05-08"
+
+[env.development]
+format = "modules"
