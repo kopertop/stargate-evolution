@@ -294,7 +294,7 @@ export class GameService {
 						toRoomId,
 						door.initial_state as 'closed' | 'opened' | 'locked',
 						door.requirements ? JSON.parse(door.requirements) : [],
-						door.description,
+						door.description ?? undefined,
 					);
 				})
 				.filter(door => door !== null);

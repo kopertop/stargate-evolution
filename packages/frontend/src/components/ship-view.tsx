@@ -1,5 +1,9 @@
 import React, { useState } from 'react';
 
+import { BaseStarfield } from './backgrounds/base-starfield';
+import { FTLBackground } from './backgrounds/ftl-background';
+import { SolarSystemBackground } from './backgrounds/solar-system-background';
+
 import type { DestinyStatus } from '../types';
 
 import { ShipMap } from './ship-map';
@@ -116,10 +120,25 @@ export const ShipView: React.FC<ShipViewProps> = ({
 		});
 	};
 
+	let background;
+	if (destinyStatus.ftlStatus === 'ftl') {
+	background = <FTLBackground className="position-absolute top-0 start-0 w-100 h-100" />;
+	} else if (destinyStatus.location?.systemId) {
+	background = (
+	<SolarSystemBackground
+	starType={destinyStatus.location.starType}
+	className="position-absolute top-0 start-0 w-100 h-100"
+	/>
+	);
+	} else {
+	background = <BaseStarfield className="position-absolute top-0 start-0 w-100 h-100" />;
+	}
+
 	return (
-		<div className="ship-view" style={{ width: '100%', height: '100%' }}>
-			{/* Interactive Ship Map - Full Screen */}
-			<ShipMap gameId={gameId || ''} />
-		</div>
+	<div className="ship-view" style={{ width: '100%', height: '100%', position: 'relative' }}>
+	{background}
+	{/* Interactive Ship Map - Full Screen */}
+	<ShipMap gameId={gameId || ''} />
+	</div>
 	);
 };
