@@ -1,5 +1,5 @@
 import { useQuery } from '@livestore/react';
-import { DestinyStatus } from '@stargate/common/zod-templates';
+import { DestinyStatus } from '@stargate/common';
 import React, { useMemo, useState } from 'react';
 
 import { useGameService } from '../services/use-game-service';

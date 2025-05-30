@@ -1,6 +1,6 @@
 import { useQuery } from '@livestore/react';
 import { DoorRequirement } from '@stargate/common/models/door-template';
-import { DestinyStatus, DoorTemplate, RoomTemplate } from '@stargate/common/zod-templates';
+import { DestinyStatus, DoorTemplate, RoomTemplate } from '@stargate/common';
 import React, { useState, useEffect } from 'react';
 import { Button, Modal, Alert } from 'react-bootstrap';
 import { GiKey, GiPauseButton } from 'react-icons/gi';

@@ -1,5 +1,5 @@
 import { useStore } from '@livestore/react';
-import { RoomTechnology, RoomTemplate } from '@stargate/common/zod-templates';
+import { RoomTechnology, RoomTemplate } from '@stargate/common';
 
 import {
 	gameById$,

@@ -7,11 +7,15 @@ import {
 	RaceTemplateSchema,
 	PersonTemplateSchema,
 	InventorySchema,
-	PlanetSchema,
 	ShipLayoutSchema,
-} from '@stargate/common/zod-templates';
+	GameSchema,
+	PlanetSchema,
+	DestinyStatusSchema,
+	TechnologySchema,
+	StargateSchema,
+	ChevronSchema,
+} from '@stargate/common';
 import {
-	z,
 	ZodObject,
 	ZodTypeAny,
 	ZodString,
@@ -136,14 +140,13 @@ export function zodToUpdateSchema<T extends ZodRawShape>(
 			struct[key] = zodFieldToSchema(zodField);
 		} else {
 			const base = zodFieldToSchema(zodField);
-			struct[key] = Schema.optional(base);
+			struct[key] = Schema.optional(base as any);
 		}
 	}
 	return Schema.Struct(struct) as any;
 }
 
 // Core game tables
-import { GameSchema } from '@stargate/common/models/game';
 
 export const tables = {
 	// Game management
@@ -316,7 +319,7 @@ export const events = {
 	// Ship structure events
 	shipCreated: Events.synced({
 		name: 'v1.ShipCreated',
-		schema: zodToSchema(ShipSchema),
+		schema: zodToSchema(ShipLayoutSchema),
 	}),
 
 	stargateCreated: Events.synced({
@@ -331,7 +334,7 @@ export const events = {
 
 	roomCreated: Events.synced({
 		name: 'v1.RoomCreated',
-		schema: zodToSchema(RoomSchema),
+		schema: zodToSchema(RoomTemplateSchema),
 	}),
 
 	// Destiny status updates
@@ -385,7 +388,7 @@ export const events = {
 
 	roomUpdated: Events.synced({
 		name: 'v1.RoomUpdated',
-		schema: zodToUpdateSchema(RoomSchema),
+		schema: zodToUpdateSchema(RoomTemplateSchema),
 	}),
 };
 
@@ -512,7 +515,7 @@ const materializers = State.SQLite.materializers(events, {
 		tables.destinyStatus.update({
 			...omit(fields, 'id'),
 			updated_at: Date.now(),
-		}).where({ id: fields.game_id }),
+		}).where({ id: fields.id }),
 
 	'v1.InventoryAdded': (fields) => tables.inventory.insert({
 		...fields,

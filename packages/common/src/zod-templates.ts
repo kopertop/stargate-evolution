@@ -11,6 +11,10 @@ export { StarSystemSchema } from './models/star-system';
 export { InventorySchema } from './models/inventory';
 export { GameSchema } from './models/game';
 export { ExplorationProgressSchema } from './models/exploration-progress';
+export { PlanetSchema } from './models/planet';
+export { TechnologySchema } from './models/technology-schema';
+export { StargateSchema } from './models/stargate-schema';
+export { ChevronSchema } from './models/chevron-schema';
 
 export type { RoomTemplate } from './models/room-template';
 export type { DoorTemplate } from './models/door-template';
@@ -25,3 +29,7 @@ export type { StarSystem } from './models/star-system';
 export type { Inventory } from './models/inventory';
 export type { GameType } from './models/game';
 export type { ExplorationProgress } from './models/exploration-progress';
+export type { Planet } from './models/planet';
+export type { Technology } from './models/technology-schema';
+export type { Stargate } from './models/stargate-schema';
+export type { Chevron } from './models/chevron-schema';

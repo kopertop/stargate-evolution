@@ -1,4 +1,4 @@
-import { RoomTemplate } from '@stargate/common/zod-templates';
+import { RoomTemplate } from '@stargate/common';
 import { title as titleCase } from 'case';
 import React, { useState } from 'react';
 

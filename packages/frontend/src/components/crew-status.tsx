@@ -1,5 +1,5 @@
 import { useQuery } from '@livestore/react';
-import { PersonTemplate } from '@stargate/common/zod-templates';
+import { PersonTemplate } from '@stargate/common';
 import React, { useState } from 'react';
 import { Nav, ProgressBar } from 'react-bootstrap';
 import type { IconType } from 'react-icons';

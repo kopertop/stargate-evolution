@@ -1,5 +1,5 @@
 import { useQuery } from '@livestore/react';
-import { ExplorationProgress, PersonTemplate, RoomTemplate } from '@stargate/common/zod-templates';
+import { ExplorationProgress, PersonTemplate, RoomTemplate } from '@stargate/common';
 import React, { useState, useEffect } from 'react';
 import { Button, Modal, Alert, Badge } from 'react-bootstrap';
 import { GiMeeple, GiCog } from 'react-icons/gi';
