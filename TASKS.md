@@ -17,6 +17,8 @@
 - [x] Auto-Generated D1 Migration System: Complete migration from Sequelize to CloudFlare D1 with auto-generated schema from TypeScript models, full test coverage, and working create/get game endpoints
 - [x] **Frontend-First Database Architecture**: Created `packages/db` with WatermelonDB schema, models, and GameService for offline-first game creation
 - [x] Frontend deployment configured with Wrangler for Cloudflare Pages
+- [x] Fixed room creation null handling bug in `use-game-service`
+- [x] Refactored room creation with `roomTemplateToEvent` utility
 
 ## 🚧 In Progress / Next Up
 - [ ] **Convert Frontend to React + PixiJS**: Migrate from vanilla JS to React components with PixiJS integration
