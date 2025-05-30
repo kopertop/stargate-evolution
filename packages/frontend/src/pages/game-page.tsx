@@ -1,6 +1,7 @@
 import { useQuery } from '@livestore/react';
 import * as PIXI from 'pixi.js';
 import React, { useEffect, useRef, useState } from 'react';
+import { ProgressBar, Spinner } from 'react-bootstrap';
 import { GiReturnArrow } from 'react-icons/gi';
 import { useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
@@ -65,9 +66,6 @@ const GamePageInner: React.FC = () => {
 	// Calculate maximum travel range based on power (can be adjusted for game balance)
 	const maxTravelRange = destinyStatus ? Math.floor(destinyStatus.power / 2) : 400;
 
-	// Check if data is still loading
-	const isDataLoading = !game || !destinyStatus;
-
 	useEffect(() => {
 		const initPIXI = async () => {
 			if (!canvasRef.current) {
@@ -98,7 +96,7 @@ const GamePageInner: React.FC = () => {
 				}
 
 				// Set loading to false when both PIXI and data are ready
-				if (!isDataLoading) {
+				if (game && destinyStatus) {
 					setIsLoading(false);
 				}
 			} catch (error) {
@@ -127,19 +125,10 @@ const GamePageInner: React.FC = () => {
 
 	// Update loading state when data becomes available
 	useEffect(() => {
-		if (!isDataLoading && appRef.current) {
+		if (game && destinyStatus && appRef.current) {
 			setIsLoading(false);
 		}
-	}, [isDataLoading]);
-
-	// Initialize starting inventory if needed
-	useEffect(() => {
-		if (game_id && game && destinyStatus) {
-			// Check if we need to add starting inventory
-			// This is handled by the game-page logic for now, but could be moved to a service
-			console.log('Game and destiny status loaded:', { game, destinyStatus });
-		}
-	}, [game_id, game, destinyStatus]);
+	}, [game, destinyStatus]);
 
 	// Process galaxy and star system data
 	useEffect(() => {
@@ -269,7 +258,7 @@ const GamePageInner: React.FC = () => {
 		}}>
 			<div ref={canvasRef} />
 
-			{(isLoading || isDataLoading) && (
+			{(isLoading) && (
 				<div className="text-white" style={{
 					position: 'absolute',
 					top: '50%',
@@ -278,18 +267,12 @@ const GamePageInner: React.FC = () => {
 					textAlign: 'center',
 				}}>
 					<h3>Loading Stargate Evolution...</h3>
-					{isDataLoading && (
-						<div>
-							<p>Loading game data...</p>
-							{!game && <p>• Loading game...</p>}
-							{!destinyStatus && <p>• Loading ship status...</p>}
-						</div>
-					)}
+					<Spinner animation="border" role="status"/>
 				</div>
 			)}
 
 			{/* Ship View */}
-			{!isLoading && !isDataLoading && viewMode === 'ship-view' && destinyStatus && (
+			{!isLoading && viewMode === 'ship-view' && destinyStatus && (
 				<div style={{ width: '100vw', height: '100vh', position: 'relative', overflow: 'hidden' }}>
 					<NavButton onClick={handleBackToMenu}>
 						<GiReturnArrow size={20} /> Back to Menu
@@ -313,7 +296,7 @@ const GamePageInner: React.FC = () => {
 			)}
 
 			{/* Galaxy Map View */}
-			{!isLoading && !isDataLoading && viewMode === 'galaxy-map' && galaxies.length > 0 && (
+			{!isLoading && viewMode === 'galaxy-map' && galaxies.length > 0 && (
 				<div style={{ width: '100vw', height: '100vh', position: 'relative' }}>
 					<NavButton onClick={handleBackToShip}>
 						<GiReturnArrow size={20} /> Back to Ship
@@ -328,7 +311,7 @@ const GamePageInner: React.FC = () => {
 				</div>
 			)}
 
-			{!isLoading && !isDataLoading && viewMode === 'galaxy-map' && galaxies.length === 0 && (
+			{!isLoading && viewMode === 'galaxy-map' && galaxies.length === 0 && (
 				<div style={{ width: '100vw', height: '100vh', position: 'relative' }}>
 					<NavButton onClick={handleBackToShip}>
 						<GiReturnArrow size={20} /> Back to Ship
@@ -348,7 +331,7 @@ const GamePageInner: React.FC = () => {
 				</div>
 			)}
 
-			{!isDataLoading && viewMode === 'game-view' && (
+			{viewMode === 'game-view' && (
 				<NavButton onClick={handleBackToGalaxyMap}>
 					<GiReturnArrow size={20} /> Back to Galaxy Map
 				</NavButton>

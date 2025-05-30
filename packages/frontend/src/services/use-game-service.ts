@@ -1,5 +1,6 @@
 import { useStore } from '@livestore/react';
-import { RoomTechnology, roomTemplateToEvent, type RoomEventData } from '@stargate/common';
+import { trimNullStrings } from '@stargate/common/trim-nulls';
+import { RoomTechnology } from '@stargate/common/zod-templates';
 
 import {
 	gameById$,
@@ -20,116 +21,147 @@ export const useGameService = () => {
 	const { store } = useStore();
 
 	const createNewGame = async (name: string = 'New Stargate Game'): Promise<string> => {
+		console.log('[createNewGame] called');
 		const game_id = crypto.randomUUID();
 		const now = new Date();
 
-		// Fetch templates from backend
-		const [
-			roomTemplates,
-			personTemplates,
-			raceTemplates,
-			shipLayout,
-			galaxyTemplates,
-			starSystemTemplates,
-			destinyStatusTemplate,
-			startingInventory,
-		] = await Promise.all([
-			apiService.getAllRoomTemplates(),
-			apiService.getAllPersonTemplates(),
-			apiService.getAllRaceTemplates(),
-			apiService.getShipLayoutById('destiny'),
-			apiService.getAllGalaxyTemplates(),
-			apiService.getAllStarSystemTemplates(),
-			apiService.getDestinyStatusTemplate(),
-			apiService.getStartingInventory(),
-		]);
+		try {
+			// Fetch templates from backend
+			const [
+				roomTemplates,
+				personTemplates,
+				raceTemplates,
+				shipLayout,
+				galaxyTemplates,
+				starSystemTemplates,
+				destinyStatusTemplate,
+				startingInventory,
+			] = await Promise.all([
+				apiService.getAllRoomTemplates(),
+				apiService.getAllPersonTemplates(),
+				apiService.getAllRaceTemplates(),
+				apiService.getShipLayoutById('destiny'),
+				apiService.getAllGalaxyTemplates(),
+				apiService.getAllStarSystemTemplates(),
+				apiService.getDestinyStatusTemplate(),
+				apiService.getStartingInventory(),
+			]);
 
-		// Create the game record
-		store.commit(
-			events.gameCreated({
-				id: game_id,
-				name,
-			}),
-		);
-
-		// Create races from templates
-		for (const race of raceTemplates) {
+			// Create the game record
 			store.commit(
-				events.raceCreated({
-					...race,
-					id: crypto.randomUUID(),
-					game_id: game_id,
+				events.gameCreated({
+					id: game_id,
+					name,
 				}),
 			);
-		}
 
-		// Create crew from person templates
-		for (const person of personTemplates) {
+			// Create races from templates
+			for (const race of raceTemplates) {
+				store.commit(
+					events.raceCreated({
+						...race,
+						id: crypto.randomUUID(),
+						game_id: game_id,
+					}),
+				);
+			}
+
+			// Create crew from person templates
+			for (const person of personTemplates) {
+				store.commit(
+					events.personCreated({
+						...person,
+						id: crypto.randomUUID(),
+						game_id: game_id,
+					}),
+				);
+			}
+
+			// Import galaxy structure
+			for (const galaxy of galaxyTemplates) {
+				store.commit(
+					events.galaxyCreated({
+						...galaxy,
+						id: crypto.randomUUID(),
+						game_id: game_id,
+					}),
+				);
+			}
+
+			// Create star systems
+			for (const starSystem of starSystemTemplates) {
+				store.commit(
+					events.starSystemCreated({
+						...starSystem,
+						id: crypto.randomUUID(),
+						game_id: game_id,
+						updated_at: now,
+						created_at: now,
+					}),
+				);
+			}
+
+			// Destiny Status
 			store.commit(
-				events.personCreated({
-					...person,
-					id: crypto.randomUUID(),
-					game_id: game_id,
+				events.destinyStatusCreated({
+					...destinyStatusTemplate,
+					id: game_id,
 				}),
 			);
-		}
 
-		// Import galaxy structure
-		for (const galaxy of galaxyTemplates) {
-			store.commit(
-				events.galaxyCreated({
-					...galaxy,
-					id: crypto.randomUUID(),
-					game_id: game_id,
-				}),
-			);
-		}
-
-		// Create star systems
-		for (const starSystem of starSystemTemplates) {
-			store.commit(
-				events.starSystemCreated({
-					...starSystem,
-					id: crypto.randomUUID(),
-					game_id: game_id,
-					updated_at: now,
-					created_at: now,
-				}),
-			);
-		}
-
-		// Destiny Status
-		store.commit(
-			events.destinyStatusCreated({
-				...destinyStatusTemplate,
-				id: game_id,
-			}),
-		);
-
-		// Default Rooms
-		for (const room of roomTemplates) {
-			const base: RoomEventData = roomTemplateToEvent(room);
-			store.commit(
-				events.roomCreated({
-					...base,
+			// Default Rooms
+			let createdRoomCount = 0;
+			for (const room of roomTemplates) {
+				// Parse initial_state JSON to get found, locked, explored
+				let found = false, locked = false, explored = false;
+				let parsedState: any = {};
+				try {
+					if (room.initial_state) {
+						parsedState = JSON.parse(room.initial_state);
+						found = !!parsedState.found;
+						locked = !!parsedState.locked;
+						explored = !!parsedState.explored;
+					}
+				} catch (e) {
+					console.warn('Failed to parse initial_state for room', room.id, e);
+				}
+				const roomEvent = {
+					...room,
+					image: room.image ?? undefined,
+					connection_north: room.connection_north ?? undefined,
+					connection_south: room.connection_south ?? undefined,
+					connection_east: room.connection_east ?? undefined,
+					connection_west: room.connection_west ?? undefined,
+					// Template ID
 					template_id: room.id,
+					// ID is unique per game
 					id: crypto.randomUUID(),
 					game_id: game_id,
-				}),
-			);
-		}
+					found,
+					locked,
+					explored,
+				};
+				console.log('[createNewGame] Room:', room.id, 'initial_state:', parsedState, 'event:', roomEvent);
+				store.commit(events.roomCreated(roomEvent));
+				createdRoomCount++;
+			};
+			console.log(`[createNewGame] Created ${createdRoomCount} rooms for game_id ${game_id}`);
 
-		// Add initial inventory
-		for (const item of startingInventory) {
-			store.commit(
-				events.inventoryAdded({
-					...item,
-					id: crypto.randomUUID(),
-					game_id: game_id,
-				}),
-			);
+			// Add initial inventory
+			for (const item of startingInventory) {
+				store.commit(
+					events.inventoryAdded({
+						...item,
+						id: crypto.randomUUID(),
+						game_id: game_id,
+					}),
+				);
+			}
+			return game_id;
+		} catch (err) {
+			console.error('[createNewGame] Error:', err);
+			throw err;
 		}
-		return game_id;
 	};
 
 	const updateGame = (game_id: string, updates: { name?: string; totalTimeProgressed?: number }) => {

@@ -1,4 +1,4 @@
-export function trimNullStrings<T>(obj: T): T {
+export function trimNullStrings<T>(obj: T): NonNullable<T> {
 	if (Array.isArray(obj)) {
 		return obj.map(trimNullStrings) as any;
 	}
@@ -10,5 +10,5 @@ export function trimNullStrings<T>(obj: T): T {
 		}
 		return out;
 	}
-	return obj;
+	return obj as NonNullable<T>;
 }
