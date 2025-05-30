@@ -47,3 +47,39 @@ Always keep mono-repo dependencies in sync and use the scripts defined in each p
 - Style using React Bootstrap before applying custom styles
 - Try to avoid custom styles if possible
 - If absolutely necessary, use flexbox custom styles instead of absolute positioning
+
+## Room and Technology Creation
+- Define new rooms and technologies using the template tables in `DB-TEMPLATE-TASKS.md`.
+- Ensure room coordinates do not overlap when adding to a ship layout.
+- Every room must connect to at least one other room.
+- Provide a clear path from the gate room or an elevator to every room, filling unused spaces with corridors as needed.
+- Place at least one elevator on each floor and link all elevators so they provide inter-floor access regardless of position.
+
+## Adding Rooms and Technologies
+When creating new rooms or technology entries, add a migration file under `packages/backend/migrations` with the next sequential number (e.g., `007_add_lab.sql`). A migration can insert both a technology and the room that uses it.
+
+```sql
+-- 007_add_lab.sql
+INSERT INTO technology_templates (id, name, description)
+VALUES ('beaming_pad', 'Asgard Beaming Pad', 'Transports crew and cargo instantly');
+
+INSERT INTO room_templates (
+  id, layout_id, type, name, start_x, start_y, end_x, end_y, floor,
+  connection_north, connection_south, connection_east, connection_west,
+  technology
+) VALUES (
+  'lab_alpha', 'destiny', 'lab', 'Laboratory Alpha',
+  8, -2, 10, 0, 0,
+  NULL, 'north_corridor', NULL, 'mess_hall',
+  '["beaming_pad"]'
+);
+```
+
+Follow these layout rules:
+- Room coordinates may not overlap.
+- Each room must connect to another room.
+- Every room must be reachable from the stargate room or via an elevator.
+- Fill gaps between rooms with corridors.
+- Include at least one elevator on each floor and link all elevators together.
+
+After adding a migration, run `pnpm -r test` from the repository root. Backend tests validate these migrations and must pass before committing.
