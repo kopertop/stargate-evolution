@@ -124,19 +124,9 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 		return (
 			<g>
 				<defs>
-					<pattern
-						id={`wall-pattern-${room.id}`}
-						patternUnits="userSpaceOnUse"
-						width="32"
-						height="32"
-					>
-						<image
-							href="/images/wall.png"
-							x="0"
-							y="0"
-							width="32"
-							height="32"
-						/>
+					<pattern id={`wall-pattern-${room.id}`} patternUnits="userSpaceOnUse" width="8" height="8">
+						<rect x="0" y="0" width="8" height="8" fill="#555" />
+						<path d="M0 0 L8 8 M8 0 L0 8" stroke="#777" strokeWidth="1" />
 					</pattern>
 				</defs>
 
