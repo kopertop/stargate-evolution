@@ -1,5 +1,5 @@
 import { useStore } from '@livestore/react';
-import { RoomTechnology } from '@stargate/common/zod-templates';
+import { RoomTechnology, roomTemplateToEvent, type RoomEventData } from '@stargate/common';
 
 import {
 	gameById$,
@@ -108,17 +108,16 @@ export const useGameService = () => {
 
 		// Default Rooms
 		for (const room of roomTemplates) {
+			const base: RoomEventData = roomTemplateToEvent(room);
 			store.commit(
 				events.roomCreated({
-					...room,
-					// Template ID
+					...base,
 					template_id: room.id,
-					// ID is unique per game
 					id: crypto.randomUUID(),
 					game_id: game_id,
 				}),
 			);
-		};
+		}
 
 		// Add initial inventory
 		for (const item of startingInventory) {
@@ -294,7 +293,7 @@ export const useGameService = () => {
 		store.commit(
 			events.personUpdated({
 				id: personId,
-				assigned_to: roomId,
+				assigned_to: roomId ?? undefined,
 				updated_at: new Date(),
 			}),
 		);
