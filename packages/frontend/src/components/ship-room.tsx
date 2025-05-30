@@ -4,6 +4,10 @@ import React, { useState } from 'react';
 
 import { getConnectionSide, GRID_UNIT, WALL_THICKNESS, DOOR_SIZE } from '../utils/grid-system';
 
+interface RoomWithDoors extends RoomTemplate {
+	doors?: string | any[];
+}
+
 interface ShipRoomProps {
 	room: RoomTemplate;
 	position: { x: number; y: number };
@@ -77,7 +81,7 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 
 		if (room.found && room.explored && !room.locked) {
 			// Fully explored and operational
-			if (room.type === 'gate_room' && room.technology.includes('stargate')) {
+			if (room.type === 'gate_room') {
 				return '/images/floor-tiles/floor-green.png'; // Fully operational stargate
 			}
 			return '/images/floor-tiles/floor-green.png'; // Fully explored
@@ -105,7 +109,7 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 
 		// Check each door in room.doors to determine where door openings should be
 		// This includes doors to undiscovered rooms
-		for (const door of room.doors) {
+		for (const door of Array.isArray((room as RoomWithDoors).doors) ? (room as RoomWithDoors).doors : (room as RoomWithDoors).doors ? JSON.parse((room as RoomWithDoors).doors as string) : []) {
 			// Find the connected room from allRooms (includes undiscovered rooms)
 			const connectedRoom = allRooms.find(r => r.id === door.toRoomId);
 			if (!connectedRoom) continue;
@@ -113,7 +117,6 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 			// Use grid system to determine connection side
 			const side = getConnectionSide(room, connectedRoom);
 			if (side) {
-
 				openings.push({ side, position: 0.5, toRoomId: door.toRoomId });
 			}
 		}
@@ -355,7 +358,7 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 	const renderStargate = () => {
 		if (!room.type.includes('gate_room')) return null;
 
-		const isActive = room.technology.includes('stargate') && room.status === 'ok';
+		const isActive = room.status === 'ok';
 		const stargateImage = isActive ? '/images/stargate-active.png' : '/images/stargate.png';
 
 		return (
@@ -393,39 +396,37 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 
 	// Render exploration progress
 	const renderExplorationProgress = () => {
-		if (!room.explorationData) return null;
+		if (!room.exploration_data) return null;
 
 		const maxDimension = Math.max(halfWidth, halfHeight);
 		// Size of the progress ring is half the size of the room
 		const progressRadius = maxDimension / 2;
 		const circumference = 2 * Math.PI * progressRadius;
-		const strokeDasharray = `${(room.explorationData.progress / 100) * circumference} ${circumference}`;
+		const explorationData = typeof room.exploration_data === 'string' ? JSON.parse(room.exploration_data) : room.exploration_data;
+		const strokeDasharray = `${(explorationData.progress / 100) * circumference} ${circumference}`;
 
 		return (
 			<g>
-				{/* Progress ring */}
 				<circle
 					cx={position.x}
 					cy={position.y}
 					r={progressRadius}
 					fill="none"
-					stroke="#fbbf24"
-					strokeWidth="6" // Increased from 4 to 6 for larger visibility
+					stroke="#00bfff"
+					strokeWidth={8}
 					strokeDasharray={strokeDasharray}
-					transform={`rotate(-90 ${position.x} ${position.y})`}
-					opacity="0.8"
+					style={{ opacity: 0.7 }}
 				/>
-				{/* Progress percentage text - centered in the room */}
 				<text
 					x={position.x}
-					y={position.y + 6} // Centered vertically (slight offset for better visual alignment)
+					y={position.y}
 					textAnchor="middle"
-					fill="#fbbf24"
-					fontSize="18" // Increased from 12 to 18
-					fontWeight="bold"
+					dominantBaseline="middle"
+					fontSize={24}
+					fill="#fff"
 					style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.8)' }}
 				>
-					{Math.round(room.explorationData.progress)}%
+					{Math.round(explorationData.progress)}%
 				</text>
 			</g>
 		);
@@ -433,7 +434,7 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 
 	// Render locked indicator
 	const renderLockedIndicator = () => {
-		if (!room.found || !room.locked || room.explorationData) return null;
+		if (!room.found || !room.locked || room.exploration_data) return null;
 
 		return (
 			<g>

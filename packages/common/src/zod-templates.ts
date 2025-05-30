@@ -15,6 +15,7 @@ export { PlanetSchema } from './models/planet';
 export { TechnologySchema } from './models/technology-schema';
 export { StargateSchema } from './models/stargate-schema';
 export { ChevronSchema } from './models/chevron-schema';
+export { DoorInfoSchema } from './models/door-info';
 
 export type { RoomTemplate } from './models/room-template';
 export type { DoorTemplate } from './models/door-template';
@@ -33,3 +34,4 @@ export type { Planet } from './models/planet';
 export type { Technology } from './models/technology-schema';
 export type { Stargate } from './models/stargate-schema';
 export type { Chevron } from './models/chevron-schema';
+export type { DoorInfo } from './models/door-info';

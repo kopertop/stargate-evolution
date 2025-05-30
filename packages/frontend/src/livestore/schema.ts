@@ -1,4 +1,5 @@
 import { Events, makeSchema, Schema, SessionIdSymbol, State } from '@livestore/livestore';
+import { DestinyStatus } from '@stargate/common';
 
 // Core game tables
 export const tables = {
@@ -194,10 +195,8 @@ export const tables = {
 			end_x: State.SQLite.real(),
 			end_y: State.SQLite.real(),
 			floor: State.SQLite.real(),
-			initial_state: State.SQLite.text(),
 			image: State.SQLite.text({ nullable: true }),
 			base_exploration_time: State.SQLite.real({ nullable: true }),
-			default_status: State.SQLite.text({ nullable: true }),
 			connection_north: State.SQLite.text({ nullable: true }),
 			connection_south: State.SQLite.text({ nullable: true }),
 			connection_east: State.SQLite.text({ nullable: true }),
@@ -230,8 +229,12 @@ export const tables = {
 			race_id: State.SQLite.text(),
 			location: State.SQLite.text(), // JSON stored as text
 			stargate_id: State.SQLite.text({ nullable: true }),
-			shield: State.SQLite.text(), // JSON stored as text
-			atmosphere: State.SQLite.text(), // JSON stored as text
+
+			// Atmosphere
+			co2: State.SQLite.real(),
+			o2: State.SQLite.real(),
+			co2Scrubbers: State.SQLite.real(),
+
 			weapons: State.SQLite.text(), // JSON stored as text
 			shuttles: State.SQLite.text(), // JSON stored as text
 			notes: State.SQLite.text({ nullable: true }), // JSON array stored as text
@@ -239,6 +242,8 @@ export const tables = {
 			game_hours: State.SQLite.real(),
 			ftl_status: State.SQLite.text({ default: 'normal_space' }), // 'ftl' or 'normal_space'
 			next_ftl_transition: State.SQLite.real(),
+
+			// History
 			created_at: State.SQLite.integer({ schema: Schema.DateFromNumber }),
 			updated_at: State.SQLite.integer({ schema: Schema.DateFromNumber }),
 		},
@@ -343,8 +348,6 @@ export const events = {
 			race_id: Schema.String,
 			location: Schema.String,
 			stargate_id: Schema.optional(Schema.String),
-			shield: Schema.String,
-			atmosphere: Schema.String,
 			weapons: Schema.String,
 			shuttles: Schema.String,
 			notes: Schema.optional(Schema.String),
@@ -352,6 +355,11 @@ export const events = {
 			game_hours: Schema.Number,
 			ftl_status: Schema.String,
 			next_ftl_transition: Schema.Number,
+
+			// Atmosphere
+			co2: Schema.Number,
+			o2: Schema.Number,
+			co2Scrubbers: Schema.Number,
 		}),
 	}),
 
@@ -451,10 +459,8 @@ export const events = {
 			end_x: Schema.Number,
 			end_y: Schema.Number,
 			floor: Schema.Number,
-			initial_state: Schema.String,
 			image: Schema.optional(Schema.String),
 			base_exploration_time: Schema.optional(Schema.Number),
-			default_status: Schema.optional(Schema.String),
 			connection_north: Schema.optional(Schema.String),
 			connection_south: Schema.optional(Schema.String),
 			connection_east: Schema.optional(Schema.String),
