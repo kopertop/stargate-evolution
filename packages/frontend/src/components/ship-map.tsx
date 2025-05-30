@@ -1,12 +1,12 @@
 import { useQuery } from '@livestore/react';
+import { DoorRequirement } from '@stargate/common/models/door-template';
+import { DestinyStatus, DoorTemplate, RoomTemplate } from '@stargate/common/zod-templates';
 import React, { useState, useEffect } from 'react';
 import { Button, Modal, Alert } from 'react-bootstrap';
 import { GiKey, GiPauseButton } from 'react-icons/gi';
 
 import { useGameState } from '../contexts/game-state-context';
 import { useGameService } from '../services/use-game-service';
-import type { DoorInfo, DoorRequirement } from '../types';
-import { DestinyStatusType, RoomType, roomDataToType, destinyStatusDataToType } from '../types/model-types';
 import { getRoomScreenPosition as getGridRoomScreenPosition } from '../utils/grid-system';
 
 import { CountdownClock } from './countdown-clock';
@@ -27,11 +27,11 @@ interface ShipMapProps {
 
 export const ShipMap: React.FC<ShipMapProps> = ({ game_id }) => {
 	const { isPaused: gameStatePaused, resumeGame } = useGameState();
-	const [selectedRoom, setSelectedRoom] = useState<RoomType | null>(null);
+	const [selectedRoom, setSelectedRoom] = useState<RoomTemplate | null>(null);
 	const [showExplorationModal, setShowExplorationModal] = useState(false);
 	const [showRoomDetailsModal, setShowRoomDetailsModal] = useState(false);
 	const [showDoorModal, setShowDoorModal] = useState(false);
-	const [selectedDoor, setSelectedDoor] = useState<{ fromRoom: RoomType; door: DoorInfo } | null>(null);
+	const [selectedDoor, setSelectedDoor] = useState<{ fromRoom: RoomTemplate; door: DoorTemplate } | null>(null);
 	const [showDangerWarning, setShowDangerWarning] = useState(false);
 	const [dangerousDoor, setDangerousDoor] = useState<{ fromRoomId: string; toRoomId: string; reason: string } | null>(null);
 
@@ -41,10 +41,9 @@ export const ShipMap: React.FC<ShipMapProps> = ({ game_id }) => {
 	const [lastMousePos, setLastMousePos] = useState({ x: 0, y: 0 });
 
 	const gameService = useGameService();
-	const roomsArr = useQuery(game_id ? gameService.queries.roomsByGame(game_id) : gameService.queries.roomsByGame('')) || [];
-	const rooms: RoomType[] = roomsArr.map(roomDataToType);
+	const rooms = useQuery(game_id ? gameService.queries.roomsByGame(game_id) : gameService.queries.roomsByGame('')) || [];
 	const destinyStatusArr = useQuery(game_id ? gameService.queries.destinyStatus(game_id) : gameService.queries.destinyStatus('')) || [];
-	const destinyStatus: DestinyStatusType | undefined = destinyStatusArr[0] ? destinyStatusDataToType(destinyStatusArr[0]) : undefined;
+	const destinyStatus = destinyStatusArr[0] as DestinyStatus;
 	const inventoryArr = useQuery(game_id ? gameService.queries.inventoryByGame(game_id) : gameService.queries.inventoryByGame('')) || [];
 	const inventoryMap = Object.fromEntries(inventoryArr.map((i: any) => [i.resourceType, i.amount]));
 
@@ -57,14 +56,14 @@ export const ShipMap: React.FC<ShipMapProps> = ({ game_id }) => {
 	}, []);
 
 	// Check if room is visible (only found rooms are visible)
-	const isRoomVisible = (room: RoomType): boolean => {
+	const isRoomVisible = (room: RoomTemplate): boolean => {
 		return room.found;
 	};
 
 	// Handle room click
-	const handleRoomClick = (room: RoomType) => {
+	const handleRoomClick = (room: RoomTemplate) => {
 		if (!isRoomVisible(room) || gameStatePaused) return;
-		if (room.explorationData) {
+		if (room.exploration_data) {
 			setSelectedRoom(room);
 			setShowExplorationModal(true);
 			return;
@@ -79,7 +78,7 @@ export const ShipMap: React.FC<ShipMapProps> = ({ game_id }) => {
 	};
 
 	// Convert room coordinates to screen position using grid system
-	const getRoomScreenPosition = (room: RoomType) => {
+	const getRoomScreenPosition = (room: RoomTemplate) => {
 		return getGridRoomScreenPosition(room);
 	};
 
@@ -112,37 +111,40 @@ export const ShipMap: React.FC<ShipMapProps> = ({ game_id }) => {
 	};
 
 	// Check if door requirements are met
-	const checkDoorRequirements = (door: DoorInfo): { canOpen: boolean; unmetRequirements: DoorRequirement[] } => {
+	const checkDoorRequirements = (door: DoorTemplate): { canOpen: boolean; unmetRequirements: DoorRequirement[] } => {
 		if (!destinyStatus) {
 			return { canOpen: false, unmetRequirements: [] };
 		}
 		const unmetRequirements: DoorRequirement[] = [];
-		for (const requirement of door.requirements) {
-			let met = requirement.met;
-			switch (requirement.type) {
-			case 'power_level': {
-				const requiredPower = parseInt(requirement.value);
-				met = destinyStatus.power >= requiredPower;
-				break;
-			}
-			case 'item':
-				met = (inventoryMap[requirement.value] || 0) > 0;
-				break;
-			case 'technology':
-				met = (inventoryMap[requirement.value] || 0) > 0;
-				break;
-			case 'crew_skill':
-				met = true; // Simplified for now
-				break;
-			case 'story_progress':
-				met = false; // Default to false for now
-				break;
-			case 'code':
-				met = false; // Default to false for now
-				break;
-			}
-			if (!met) {
-				unmetRequirements.push({ ...requirement, met });
+		if (door.requirements) {
+			const requirements = JSON.parse(door.requirements) as DoorRequirement[];
+			for (const requirement of requirements) {
+				let met = requirement.met;
+				switch (requirement.type) {
+				case 'power_level': {
+					const requiredPower = parseInt(requirement.value);
+					met = destinyStatus.power >= requiredPower;
+					break;
+				}
+				case 'item':
+					met = (inventoryMap[requirement.value] || 0) > 0;
+					break;
+				case 'technology':
+					met = (inventoryMap[requirement.value] || 0) > 0;
+					break;
+				case 'crew_skill':
+					met = true; // Simplified for now
+					break;
+				case 'story_progress':
+					met = false; // Default to false for now
+					break;
+				case 'code':
+					met = false; // Default to false for now
+					break;
+				}
+				if (!met) {
+					unmetRequirements.push({ ...requirement, met });
+				}
 			}
 		}
 		return {
@@ -156,7 +158,7 @@ export const ShipMap: React.FC<ShipMapProps> = ({ game_id }) => {
 		if (gameStatePaused) return;
 		const fromRoom = rooms.find(r => r.id === fromRoomId);
 		if (!fromRoom) return;
-		const door = fromRoom.doors.find(d => d.toRoomId === toRoomId);
+		const door = fromRoom.doors?.find(d => d.toRoomId === toRoomId);
 		if (!door) return;
 		if (door.state === 'locked') {
 			const { canOpen } = checkDoorRequirements(door);

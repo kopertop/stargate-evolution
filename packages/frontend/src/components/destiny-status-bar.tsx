@@ -1,4 +1,5 @@
 import { useQuery } from '@livestore/react';
+import type { DestinyStatus } from '@stargate/common/models/destiny-status';
 import React, { useState } from 'react';
 import { Navbar, Nav } from 'react-bootstrap';
 import type { IconType } from 'react-icons';
@@ -18,7 +19,6 @@ import { MdCo2 } from 'react-icons/md';
 import { SiO2 } from 'react-icons/si';
 
 import { useGameService } from '../services/use-game-service';
-import type { DestinyStatus } from '../types';
 
 import { CrewStatus } from './crew-status';
 
@@ -49,7 +49,8 @@ export const DestinyStatusBar: React.FC<DestinyStatusBarProps> = ({ status }) =>
 	const [resourcesHoverTimeout, setResourcesHoverTimeout] = useState<NodeJS.Timeout | null>(null);
 
 	const gameService = useGameService();
-	const inventoryArr = useQuery(status.game_id ? gameService.queries.inventoryByGame(status.game_id) : gameService.queries.inventoryByGame('')) || [];
+	const inventoryArr = useQuery(status.id ? gameService.queries.inventoryByGame(status.id) : gameService.queries.inventoryByGame('')) || [];
+	console.log('[DestinyStatusBar] inventoryArr:', inventoryArr);
 	const inventoryMap = Object.fromEntries(inventoryArr.map((i: any) => [i.resourceType, i.amount]));
 
 	const handleInventoryMouseEnter = () => {
@@ -149,10 +150,11 @@ export const DestinyStatusBar: React.FC<DestinyStatusBarProps> = ({ status }) =>
 
 	// Calculate weapons summary
 	const getWeaponsSummary = () => {
-		const mainGunActive = status.weapons.mainGun ? 1 : 0;
-		const turretsActive = status.weapons.turrets.working;
+		const weapons = JSON.parse(status.weapons) as { main_gun: boolean; turrets: { working: number; total: number } };
+		const mainGunActive = weapons.main_gun ? 1 : 0;
+		const turretsActive = weapons.turrets.working;
 		const totalActive = mainGunActive + turretsActive;
-		const totalWeapons = 1 + status.weapons.turrets.total; // 1 main gun + total turrets
+		const totalWeapons = 1 + weapons.turrets.total; // 1 main gun + total turrets
 		return { totalActive, totalWeapons };
 	};
 
@@ -178,10 +180,10 @@ export const DestinyStatusBar: React.FC<DestinyStatusBarProps> = ({ status }) =>
 					<Nav.Item className="d-flex align-items-center me-3">
 						<Icon icon={GiShield} />
 						<span title="Shield" className="d-none d-sm-inline">
-							{status.shield.strength}/{status.shield.max}
+							{status.shields}/{status.max_shields}
 						</span>
 						<span title="Shield" className="d-sm-none">
-							{status.shield.strength}
+							{status.shields}
 						</span>
 					</Nav.Item>
 
@@ -189,7 +191,7 @@ export const DestinyStatusBar: React.FC<DestinyStatusBarProps> = ({ status }) =>
 					<Nav.Item className="d-flex align-items-center me-3">
 						<Icon icon={GiElectric} />
 						<span title="Power">
-							{status.power}/{status.maxPower}
+							{status.power}/{status.max_power}
 						</span>
 					</Nav.Item>
 
@@ -205,14 +207,14 @@ export const DestinyStatusBar: React.FC<DestinyStatusBarProps> = ({ status }) =>
 						>
 							<Icon icon={SiO2} />
 							<span className="me-2">
-								<span className={status.atmosphere.o2 < 18 ? 'text-danger' : status.atmosphere.o2 < 20 ? 'text-warning' : 'text-success'}>
-									{status.atmosphere.o2.toFixed(1)}%
+								<span className={status.o2 < 18 ? 'text-danger' : status.o2 < 20 ? 'text-warning' : 'text-success'}>
+									{status.o2.toFixed(1)}%
 								</span>
 							</span>
 							<Icon icon={MdCo2} />
 							<span>
-								<span className={status.atmosphere.co2 > 5 ? 'text-danger' : status.atmosphere.co2 > 2 ? 'text-warning' : 'text-success'}>
-									{status.atmosphere.co2.toFixed(1)}%
+								<span className={status.co2 > 5 ? 'text-danger' : status.co2 > 2 ? 'text-warning' : 'text-success'}>
+									{status.co2.toFixed(1)}%
 								</span>
 							</span>
 						</span>
@@ -241,8 +243,8 @@ export const DestinyStatusBar: React.FC<DestinyStatusBarProps> = ({ status }) =>
 											<Icon icon={SiO2} size={14} />
 											Oxygen:
 										</span>
-										<span className={status.atmosphere.o2 < 18 ? 'text-danger' : status.atmosphere.o2 < 20 ? 'text-warning' : 'text-success'}>
-											{status.atmosphere.o2.toFixed(1)}%
+										<span className={status.o2 < 18 ? 'text-danger' : status.o2 < 20 ? 'text-warning' : 'text-success'}>
+											{status.o2.toFixed(1)}%
 										</span>
 									</div>
 									<div className="d-flex justify-content-between align-items-center">
@@ -250,8 +252,8 @@ export const DestinyStatusBar: React.FC<DestinyStatusBarProps> = ({ status }) =>
 											<Icon icon={MdCo2} size={14} />
 											Carbon Dioxide:
 										</span>
-										<span className={status.atmosphere.co2 > 5 ? 'text-danger' : status.atmosphere.co2 > 2 ? 'text-warning' : 'text-success'}>
-											{status.atmosphere.co2.toFixed(1)}%
+										<span className={status.co2 > 5 ? 'text-danger' : status.co2 > 2 ? 'text-warning' : 'text-success'}>
+											{status.co2.toFixed(1)}%
 										</span>
 									</div>
 									<div className="mt-2 pt-2" style={{ borderTop: '1px solid #444' }}>
@@ -260,8 +262,8 @@ export const DestinyStatusBar: React.FC<DestinyStatusBarProps> = ({ status }) =>
 												<Icon icon={GiBroom} size={14} />
 												CO₂ Scrubbers:
 											</span>
-											<span className={status.atmosphere.co2Scrubbers === 0 ? 'text-danger' : status.atmosphere.co2Scrubbers < 50 ? 'text-warning' : 'text-success'}>
-												{status.atmosphere.co2Scrubbers}%
+											<span className={status.co2Scrubbers === 0 ? 'text-danger' : status.co2Scrubbers < 50 ? 'text-warning' : 'text-success'}>
+												{status.co2Scrubbers}%
 											</span>
 										</div>
 									</div>
@@ -381,7 +383,7 @@ export const DestinyStatusBar: React.FC<DestinyStatusBarProps> = ({ status }) =>
 				<Nav className="ms-auto d-flex flex-row align-items-center">
 					{/* Crew Status */}
 					<CrewStatus
-						game_id={status.game_id}
+						game_id={status.id}
 					/>
 
 					{/* Shuttles Section with Details on Hover */}
@@ -395,7 +397,7 @@ export const DestinyStatusBar: React.FC<DestinyStatusBarProps> = ({ status }) =>
 							onMouseLeave={handleShuttleMouseLeave}
 						>
 							<Icon icon={GiInterceptorShip} />
-							{status.shuttles.working}/{status.shuttles.total}
+							{JSON.parse(status.shuttles).working}/{JSON.parse(status.shuttles).total}
 						</span>
 
 						{/* Shuttle Details Popup */}
@@ -419,21 +421,21 @@ export const DestinyStatusBar: React.FC<DestinyStatusBarProps> = ({ status }) =>
 								<div className="ms-3">
 									<div className="d-flex justify-content-between">
 										<span>Working:</span>
-										<span className={status.shuttles.working === 0 ? 'text-danger' : 'text-success'}>
-											{status.shuttles.working}
+										<span className={JSON.parse(status.shuttles).working === 0 ? 'text-danger' : 'text-success'}>
+											{JSON.parse(status.shuttles).working}
 										</span>
 									</div>
 									<div className="d-flex justify-content-between">
 										<span>Total:</span>
 										<span className="text-light">
-											{status.shuttles.total}
+											{JSON.parse(status.shuttles).total}
 										</span>
 									</div>
-									{status.shuttles.damaged > 0 && (
+									{JSON.parse(status.shuttles).damaged > 0 && (
 										<div className="d-flex justify-content-between">
 											<span>Damaged:</span>
 											<span className="text-warning">
-												{status.shuttles.damaged}
+												{JSON.parse(status.shuttles).damaged}
 											</span>
 										</div>
 									)}
@@ -489,8 +491,8 @@ export const DestinyStatusBar: React.FC<DestinyStatusBarProps> = ({ status }) =>
 											<Icon icon={GiCannonShot} size={14} />
 											Main Gun:
 										</span>
-										<span className={status.weapons.mainGun ? 'text-success' : 'text-danger'}>
-											{status.weapons.mainGun ? 'Online' : 'Offline'}
+										<span className={JSON.parse(status.weapons).main_gun ? 'text-success' : 'text-danger'}>
+											{JSON.parse(status.weapons).main_gun ? 'Online' : 'Offline'}
 										</span>
 									</div>
 									<div className="d-flex justify-content-between align-items-center">
@@ -498,8 +500,8 @@ export const DestinyStatusBar: React.FC<DestinyStatusBarProps> = ({ status }) =>
 											<Icon icon={GiTurret} size={14} />
 											Turrets Active:
 										</span>
-										<span className={status.weapons.turrets.working === 0 ? 'text-danger' : 'text-success'}>
-											{status.weapons.turrets.working}
+										<span className={JSON.parse(status.weapons).turrets.working === 0 ? 'text-danger' : 'text-success'}>
+											{JSON.parse(status.weapons).turrets.working}
 										</span>
 									</div>
 									<div className="d-flex justify-content-between align-items-center">
@@ -508,17 +510,17 @@ export const DestinyStatusBar: React.FC<DestinyStatusBarProps> = ({ status }) =>
 											Turrets Total:
 										</span>
 										<span className="text-light">
-											{status.weapons.turrets.total}
+											{JSON.parse(status.weapons).turrets.total}
 										</span>
 									</div>
-									{status.weapons.turrets.total > status.weapons.turrets.working && (
+									{JSON.parse(status.weapons).turrets.total > JSON.parse(status.weapons).turrets.working && (
 										<div className="d-flex justify-content-between align-items-center">
 											<span className="d-flex align-items-center">
 												<Icon icon={GiTurret} size={14} />
 												Turrets Damaged:
 											</span>
 											<span className="text-warning">
-												{status.weapons.turrets.total - status.weapons.turrets.working}
+												{JSON.parse(status.weapons).turrets.total - JSON.parse(status.weapons).turrets.working}
 											</span>
 										</div>
 									)}

@@ -1,16 +1,16 @@
+import { RoomTemplate } from '@stargate/common/zod-templates';
 import { title as titleCase } from 'case';
 import React, { useState } from 'react';
 
-import { RoomType } from '../types/model-types';
 import { getConnectionSide, GRID_UNIT, WALL_THICKNESS, DOOR_SIZE } from '../utils/grid-system';
 
 interface ShipRoomProps {
-	room: RoomType;
+	room: RoomTemplate;
 	position: { x: number; y: number };
 	isVisible: boolean;
 	canExplore?: boolean;
-	onRoomClick: (room: RoomType) => void;
-	allRooms: RoomType[];
+	onRoomClick: (room: RoomTemplate) => void;
+	allRooms: RoomTemplate[];
 }
 
 export const ShipRoom: React.FC<ShipRoomProps> = ({
@@ -30,22 +30,19 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 	// Calculate room dimensions using grid system
 	const getRoomDimensions = () => {
 		// Use new rectangle positioning if available
-		if (room.startX !== undefined && room.startY !== undefined && room.endX !== undefined && room.endY !== undefined) {
+		if (
+			room.start_x !== undefined
+			&& room.start_y !== undefined
+			&& room.end_x !== undefined
+			&& room.end_y !== undefined
+		) {
 			return {
-				width: (room.endX - room.startX) * GRID_UNIT,
-				height: (room.endY - room.startY) * GRID_UNIT,
+				width: (room.end_x - room.start_x) * GRID_UNIT,
+				height: (room.end_y - room.start_y) * GRID_UNIT,
 			};
 		}
 
-		// Fallback to legacy grid positioning
-		if (room.gridWidth !== undefined && room.gridHeight !== undefined) {
-			return {
-				width: room.gridWidth * GRID_UNIT,
-				height: room.gridHeight * GRID_UNIT,
-			};
-		}
-
-		// Final fallback
+		// Fallback to 1x1 room
 		return {
 			width: GRID_UNIT,
 			height: GRID_UNIT,
@@ -58,7 +55,7 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 
 	// Get room color - simplified to just show basic room background
 	const getRoomColor = (): string => {
-		if (room.explorationData) return '#2d1b1b'; // Dark during exploration
+		if (room.exploration_data) return '#2d1b1b'; // Dark during exploration
 		return '#1a1a1a'; // Dark room background
 	};
 

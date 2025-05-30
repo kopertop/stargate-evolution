@@ -12,8 +12,9 @@ export const DestinyStatusSchema = z.object({
 	race_id: z.string(),
 	location: z.string(), // JSON
 	stargate_id: z.string().optional(),
-	shield: z.string(), // JSON
-	atmosphere: z.string(), // JSON
+	co2: z.number(),
+	o2: z.number(),
+	co2Scrubbers: z.number(),
 	weapons: z.string(), // JSON
 	shuttles: z.string(), // JSON
 	notes: z.string().optional(), // JSON array
@@ -21,8 +22,6 @@ export const DestinyStatusSchema = z.object({
 	game_hours: z.number(),
 	ftl_status: z.string(), // 'ftl' or 'normal_space'
 	next_ftl_transition: z.number(), // hours until next FTL transition
-	created_at: z.number(),
-	updated_at: z.number(),
 });
 
 export type DestinyStatus= z.infer<typeof DestinyStatusSchema>;

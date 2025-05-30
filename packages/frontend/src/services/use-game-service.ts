@@ -1,6 +1,5 @@
 import { useStore } from '@livestore/react';
-import { trimNullStrings } from '@stargate/common/trim-nulls';
-import { RoomTechnology } from '@stargate/common/zod-templates';
+import { RoomTechnology, RoomTemplate } from '@stargate/common/zod-templates';
 
 import {
 	gameById$,
@@ -12,6 +11,7 @@ import {
 	galaxiesBygame_id$,
 	starSystemsBygame_id$,
 	roomById$,
+	crewMembers$,
 } from '../livestore/queries';
 import { events } from '../livestore/schema';
 
@@ -112,20 +112,7 @@ export const useGameService = () => {
 			// Default Rooms
 			let createdRoomCount = 0;
 			for (const room of roomTemplates) {
-				// Parse initial_state JSON to get found, locked, explored
-				let found = false, locked = false, explored = false;
-				let parsedState: any = {};
-				try {
-					if (room.initial_state) {
-						parsedState = JSON.parse(room.initial_state);
-						found = !!parsedState.found;
-						locked = !!parsedState.locked;
-						explored = !!parsedState.explored;
-					}
-				} catch (e) {
-					console.warn('Failed to parse initial_state for room', room.id, e);
-				}
-				const roomEvent = {
+				store.commit(events.roomCreated({
 					...room,
 					image: room.image ?? undefined,
 					connection_north: room.connection_north ?? undefined,
@@ -137,12 +124,8 @@ export const useGameService = () => {
 					// ID is unique per game
 					id: crypto.randomUUID(),
 					game_id: game_id,
-					found,
-					locked,
-					explored,
-				};
-				console.log('[createNewGame] Room:', room.id, 'initial_state:', parsedState, 'event:', roomEvent);
-				store.commit(events.roomCreated(roomEvent));
+
+				}));
 				createdRoomCount++;
 			};
 			console.log(`[createNewGame] Created ${createdRoomCount} rooms for game_id ${game_id}`);
@@ -188,9 +171,9 @@ export const useGameService = () => {
 		power?: number;
 		shields?: number;
 		hull?: number;
-		gameDays?: number;
-		gameHours?: number;
-		ftlStatus?: string;
+		game_days?: number;
+		game_hours?: number;
+		ftl_status?: string;
 	}) => {
 		store.commit(
 			events.destinyStatusUpdated({
@@ -280,15 +263,7 @@ export const useGameService = () => {
 		);
 	};
 
-	const updateRoom = (roomId: string, updates: Partial<{
-		found: boolean;
-		locked: boolean;
-		explored: boolean;
-		status: string;
-		connectedRooms: string;
-		doors: string;
-		explorationData: string;
-	}>) => {
+	const updateRoom = (roomId: string, updates: Partial<RoomTemplate>) => {
 		store.commit(
 			events.roomUpdated({
 				id: roomId,
@@ -351,6 +326,7 @@ export const useGameService = () => {
 		inventoryByGame: (game_id: string) => inventoryBygame_id$(game_id),
 		galaxiesByGame: (game_id: string) => galaxiesBygame_id$(game_id),
 		starSystemsByGame: (game_id: string) => starSystemsBygame_id$(game_id),
+		crewMembers: (game_id: string) => crewMembers$(game_id),
 	};
 
 	return {

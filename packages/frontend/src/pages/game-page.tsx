@@ -1,7 +1,8 @@
 import { useQuery } from '@livestore/react';
+import type { DestinyStatus } from '@stargate/common/models/destiny-status';
 import * as PIXI from 'pixi.js';
 import React, { useEffect, useRef, useState } from 'react';
-import { ProgressBar, Spinner } from 'react-bootstrap';
+import { Spinner } from 'react-bootstrap';
 import { GiReturnArrow } from 'react-icons/gi';
 import { useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
@@ -15,7 +16,6 @@ import { DestinyStatusProvider, useDestinyStatus } from '../contexts/destiny-sta
 import { GameStateProvider, useGameState } from '../contexts/game-state-context';
 import { Game } from '../game';
 import { useGameService } from '../services/use-game-service';
-import { type DestinyStatusType } from '../types/model-types';
 
 type ViewMode = 'ship-view' | 'galaxy-map' | 'game-view';
 
@@ -237,7 +237,7 @@ const GamePageInner: React.FC = () => {
 		setViewMode('galaxy-map');
 	};
 
-	const handleDestinyStatusUpdate = async (newStatus: DestinyStatusType) => {
+	const handleDestinyStatusUpdate = async (newStatus: DestinyStatus) => {
 		await updateDestinyStatus(newStatus);
 	};
 

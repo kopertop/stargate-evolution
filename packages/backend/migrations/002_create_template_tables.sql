@@ -37,10 +37,12 @@ CREATE TABLE IF NOT EXISTS room_templates (
 	end_x INTEGER NOT NULL,   -- Right edge of room rectangle
 	end_y INTEGER NOT NULL,   -- Bottom edge of room rectangle
 	floor INTEGER NOT NULL,
-	initial_state TEXT, -- JSON: { found, locked, explored }
+	found BOOLEAN DEFAULT FALSE,
+	locked BOOLEAN DEFAULT FALSE,
+	explored BOOLEAN DEFAULT FALSE,
 	image TEXT,
 	base_exploration_time INTEGER DEFAULT 2,
-	default_status TEXT DEFAULT 'ok', -- 'ok', 'damaged', 'destroyed'
+	status TEXT DEFAULT 'ok', -- 'ok', 'damaged', 'destroyed'
 	connection_north TEXT,
 	connection_south TEXT,
 	connection_east TEXT,

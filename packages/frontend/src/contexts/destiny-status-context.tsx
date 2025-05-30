@@ -1,4 +1,5 @@
 import { useQuery } from '@livestore/react';
+import type { DestinyStatus } from '@stargate/common/models/destiny-status';
 import React, {
 	createContext,
 	useContext,
@@ -9,16 +10,15 @@ import React, {
 } from 'react';
 
 import { useGameService } from '../services/use-game-service';
-import { destinyStatusDataToType, DestinyStatusType } from '../types/model-types';
 
 import { useGameState } from './game-state-context';
 
 interface DestinyStatusContextType {
-	destinyStatus: DestinyStatusType | null;
+	destinyStatus: DestinyStatus | null;
 	ftlDropoutTime: number | null; // Time when Destiny dropped out of FTL (in totalTimeProgressed)
 	timeUntilNextTransition: number; // Hours until next FTL transition
 	isInFTL: boolean;
-	updateDestinyStatus: (updates: Partial<DestinyStatusType>) => Promise<void>;
+	updateDestinyStatus: (updates: Partial<DestinyStatus>) => Promise<void>;
 	triggerFTLTransition: () => Promise<void>;
 }
 
@@ -30,7 +30,7 @@ interface DestinyStatusProviderProps {
 
 export const DestinyStatusProvider: React.FC<DestinyStatusProviderProps> = ({ children }) => {
 	const { gameTime, game } = useGameState();
-	const [destinyStatus, setDestinyStatus] = useState<DestinyStatusType | null>(null);
+	const [destinyStatus, setDestinyStatus] = useState<DestinyStatus | null>(null);
 	const [ftlDropoutTime, setFtlDropoutTime] = useState<number | null>(null);
 	const [lastUpdateTime, setLastUpdateTime] = useState<number>(0);
 
@@ -38,28 +38,27 @@ export const DestinyStatusProvider: React.FC<DestinyStatusProviderProps> = ({ ch
 
 	// Query destiny status using LiveStore
 	const destinyQuery = useQuery(game?.id ? gameService.queries.destinyStatus(game.id) : gameService.queries.destinyStatus(''));
-	const destinyRecord = destinyQuery?.[0];
+
+	useEffect(() => {
+		setDestinyStatus(destinyQuery[0] as DestinyStatus);
+	}, [destinyQuery]);
 
 	// Load initial Destiny status
 	useEffect(() => {
-		if (!destinyRecord) return;
+		if (!destinyStatus) return;
 
 		try {
-			// Convert LiveStore data to DestinyStatusType format
-			const typedStatus = destinyStatusDataToType(destinyRecord);
-
-			setDestinyStatus(typedStatus);
 
 			// If ship is in normal space, calculate when it dropped out
-			if (typedStatus.ftlStatus === 'normal_space') {
+			if (destinyStatus?.ftl_status === 'normal_space') {
 				// Estimate dropout time based on current time and remaining transition time
-				const estimatedDropoutTime = gameTime - (typedStatus.nextFtlTransition * 3600); // Convert hours to seconds
+				const estimatedDropoutTime = gameTime - (destinyStatus.next_ftl_transition * 3600); // Convert hours to seconds
 				setFtlDropoutTime(estimatedDropoutTime);
 			}
 		} catch (error) {
 			console.error('Failed to load Destiny status:', error);
 		}
-	}, [destinyRecord, gameTime]);
+	}, [destinyStatus, gameTime]);
 
 	// Track time progression and update FTL countdown
 	useEffect(() => {
@@ -69,8 +68,8 @@ export const DestinyStatusProvider: React.FC<DestinyStatusProviderProps> = ({ ch
 		const hoursDelta = timeDelta / 3600; // Convert seconds to hours
 
 		// Update game time
-		let newGameHours = destinyStatus.gameHours + hoursDelta;
-		let newGameDays = destinyStatus.gameDays;
+		let newGameHours = destinyStatus.game_hours + hoursDelta;
+		let newGameDays = destinyStatus.game_days;
 
 		// Handle day rollover
 		while (newGameHours >= 24) {
@@ -79,13 +78,13 @@ export const DestinyStatusProvider: React.FC<DestinyStatusProviderProps> = ({ ch
 		}
 
 		// Update FTL transition countdown
-		let newNextFtlTransition = destinyStatus.nextFtlTransition - hoursDelta;
-		let newFtlStatus = destinyStatus.ftlStatus;
+		let newNextFtlTransition = destinyStatus.next_ftl_transition - hoursDelta;
+		let newFtlStatus = destinyStatus.ftl_status;
 		let newDropoutTime = ftlDropoutTime;
 
 		// Handle FTL transitions
 		if (newNextFtlTransition <= 0) {
-			if (destinyStatus.ftlStatus === 'ftl') {
+			if (destinyStatus.ftl_status === 'ftl') {
 				// Dropping out of FTL
 				newFtlStatus = 'normal_space';
 				newNextFtlTransition = 6 + Math.random() * 12; // 6-18 hours in normal space
@@ -101,12 +100,12 @@ export const DestinyStatusProvider: React.FC<DestinyStatusProviderProps> = ({ ch
 		}
 
 		// Update destiny status with new time values
-		const updatedStatus: DestinyStatusType = {
+		const updatedStatus: DestinyStatus = {
 			...destinyStatus,
-			gameDays: newGameDays,
-			gameHours: newGameHours,
-			ftlStatus: newFtlStatus,
-			nextFtlTransition: Math.max(0, newNextFtlTransition),
+			game_days: newGameDays,
+			game_hours: newGameHours,
+			ftl_status: newFtlStatus,
+			next_ftl_transition: Math.max(0, newNextFtlTransition),
 		};
 
 		setDestinyStatus(updatedStatus);
@@ -116,7 +115,7 @@ export const DestinyStatusProvider: React.FC<DestinyStatusProviderProps> = ({ ch
 		updateDestinyStatusInStore(updatedStatus);
 	}, [gameTime, destinyStatus, lastUpdateTime, ftlDropoutTime]);
 
-	const updateDestinyStatusInStore = async (status: DestinyStatusType) => {
+	const updateDestinyStatusInStore = async (status: DestinyStatus) => {
 		if (!game?.id) return;
 
 		try {
@@ -124,16 +123,16 @@ export const DestinyStatusProvider: React.FC<DestinyStatusProviderProps> = ({ ch
 				power: status.power,
 				shields: status.shields,
 				hull: status.hull,
-				gameDays: status.gameDays,
-				gameHours: status.gameHours,
-				ftlStatus: status.ftlStatus,
+				game_days: status.game_days,
+				game_hours: status.game_hours,
+				ftl_status: status.ftl_status,
 			});
 		} catch (error) {
 			console.error('Failed to update Destiny status in store:', error);
 		}
 	};
 
-	const updateDestinyStatus = useCallback(async (updates: Partial<DestinyStatusType>) => {
+	const updateDestinyStatus = useCallback(async (updates: Partial<DestinyStatus>) => {
 		if (!destinyStatus) return;
 
 		const updatedStatus = { ...destinyStatus, ...updates };
@@ -144,7 +143,7 @@ export const DestinyStatusProvider: React.FC<DestinyStatusProviderProps> = ({ ch
 	const triggerFTLTransition = useCallback(async () => {
 		if (!destinyStatus) return;
 
-		const newFtlStatus = destinyStatus.ftlStatus === 'ftl' ? 'normal_space' : 'ftl';
+		const newFtlStatus = destinyStatus.ftl_status === 'ftl' ? 'normal_space' : 'ftl';
 		let newNextFtlTransition: number;
 		let newDropoutTime = ftlDropoutTime;
 
@@ -161,13 +160,13 @@ export const DestinyStatusProvider: React.FC<DestinyStatusProviderProps> = ({ ch
 		}
 
 		await updateDestinyStatus({
-			ftlStatus: newFtlStatus,
-			nextFtlTransition: newNextFtlTransition,
+			ftl_status: newFtlStatus,
+			next_ftl_transition: newNextFtlTransition,
 		});
 	}, [destinyStatus, gameTime, ftlDropoutTime, updateDestinyStatus]);
 
-	const timeUntilNextTransition = destinyStatus?.nextFtlTransition || 0;
-	const isInFTL = destinyStatus?.ftlStatus === 'ftl';
+	const timeUntilNextTransition = destinyStatus?.next_ftl_transition || 0;
+	const isInFTL = destinyStatus?.ftl_status === 'ftl';
 
 	const value: DestinyStatusContextType = {
 		destinyStatus,

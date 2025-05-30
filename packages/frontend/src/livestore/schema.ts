@@ -1,262 +1,227 @@
 import { Events, makeSchema, Schema, SessionIdSymbol, State } from '@livestore/livestore';
+import omit from 'object.omit';
+import {
+	RoomTemplateSchema,
+	GalaxySchema,
+	StarSystemSchema,
+	RaceTemplateSchema,
+	PersonTemplateSchema,
+	InventorySchema,
+	PlanetSchema,
+	ShipLayoutSchema,
+} from '@stargate/common/zod-templates';
+import {
+	z,
+	ZodObject,
+	ZodTypeAny,
+	ZodString,
+	ZodNumber,
+	ZodBoolean,
+	ZodOptional,
+	ZodNullable,
+	ZodRawShape,
+} from 'zod';
+
+function isNullable(zodField: ZodTypeAny): boolean {
+	// Walk through ZodOptional and ZodNullable wrappers to check for nullability
+	let current = zodField;
+	while (current instanceof ZodOptional || current instanceof ZodNullable) {
+		if (current instanceof ZodNullable) return true;
+		current = current._def.innerType;
+	}
+	return false;
+}
+
+// Utility: Convert Zod schema to LiveStore table columns
+// Map Zod types to LiveStore column types
+// This is a type-level mapping for better type inference
+export type ZodToTableColumn<T extends ZodTypeAny> =
+	T extends ZodString ? ReturnType<typeof State.SQLite.text> :
+	T extends ZodNumber ? ReturnType<typeof State.SQLite.real> :
+	T extends ZodBoolean ? ReturnType<typeof State.SQLite.boolean> :
+	T extends ZodOptional<infer U> ? ZodToTableColumn<U> :
+	T extends ZodNullable<infer U> ? ZodToTableColumn<U> :
+	ReturnType<typeof State.SQLite.text>;
+
+export type ZodToTableColumns<T extends ZodRawShape> = {
+	[K in keyof T]: ZodToTableColumn<T[K]>;
+};
+
+export function zodToTable<T extends ZodRawShape>(
+	zodSchema: ZodObject<T>,
+): ZodToTableColumns<T> & {
+	created_at: ReturnType<typeof State.SQLite.real>,
+	updated_at: ReturnType<typeof State.SQLite.real>,
+} {
+	const columns: Partial<ZodToTableColumns<T>> = {};
+	for (const [key, value] of Object.entries(zodSchema.shape)) {
+		const zodField = value as ZodTypeAny;
+		let col;
+		if (zodField instanceof ZodString) {
+			col = State.SQLite.text({ nullable: isNullable(zodField) });
+		} else if (zodField instanceof ZodNumber) {
+			col = State.SQLite.real();
+		} else if (zodField instanceof ZodBoolean) {
+			col = State.SQLite.boolean();
+		} else if (zodField instanceof ZodOptional) {
+			const inner = (zodField as ZodOptional<ZodTypeAny>)._def.innerType;
+			col = zodToTable({ shape: { [key]: inner } } as any)[key];
+		} else if (zodField instanceof ZodNullable) {
+			const inner = (zodField as ZodNullable<ZodTypeAny>)._def.innerType;
+			col = zodToTable({ shape: { [key]: inner } } as any)[key];
+			if (typeof col === 'object') col.nullable = true;
+		} else {
+			col = State.SQLite.text({ nullable: isNullable(zodField) });
+		}
+		(columns as any)[key] = col;
+	}
+	return {
+		...columns as ZodToTableColumns<T>,
+		created_at: State.SQLite.real(),
+		updated_at: State.SQLite.real(),
+	};
+}
+
+// Utility: Convert Zod schema to LiveStore table schemas
+// Map Zod types to LiveStore column types
+// This is a type-level mapping for better type inference
+export type ZodToSchemaColumn<T extends ZodTypeAny> =
+	T extends ZodString ? typeof Schema.String :
+	T extends ZodNumber ? typeof Schema.Number :
+	T extends ZodBoolean ? typeof Schema.Boolean :
+	T extends ZodOptional<infer U> ? ZodToSchemaColumn<U> :
+	T extends ZodNullable<infer U> ? ZodToSchemaColumn<U> :
+	typeof Schema.String;
+
+export type ZodToSchemaColumns<T extends ZodRawShape> = {
+	[K in keyof T]: ZodToSchemaColumn<T[K]>;
+};
+
+// Utility: Convert Zod schema to LiveStore event Schema.Struct (all required fields, type-safe)
+function zodFieldToSchema(zodField: ZodTypeAny): typeof Schema[keyof typeof Schema] {
+	if (zodField instanceof ZodString) {
+		return Schema.String;
+	} else if (zodField instanceof ZodNumber) {
+		return Schema.Number;
+	} else if (zodField instanceof ZodBoolean) {
+		return Schema.Boolean;
+	} else if (zodField instanceof ZodOptional) {
+		const inner = (zodField as ZodOptional<ZodTypeAny>)._def.innerType;
+		return zodFieldToSchema(inner);
+	} else if (zodField instanceof ZodNullable) {
+		const inner = (zodField as ZodNullable<ZodTypeAny>)._def.innerType;
+		return zodFieldToSchema(inner);
+	} else {
+		return Schema.String;
+	}
+}
+
+export function zodToSchema<T extends ZodRawShape>(
+	zodSchema: ZodObject<T>,
+): Schema.Struct<ZodToSchemaColumns<T>> {
+	const struct: Record<string, any> = {};
+	for (const [key, value] of Object.entries(zodSchema.shape)) {
+		struct[key] = zodFieldToSchema(value as ZodTypeAny);
+	}
+	return Schema.Struct(struct) as any;
+}
+
+export function zodToUpdateSchema<T extends ZodRawShape>(
+	zodSchema: ZodObject<T>,
+): Schema.Struct<ZodToSchemaColumns<T>> {
+	const struct: Record<string, any> = {};
+	for (const [key, value] of Object.entries(zodSchema.shape)) {
+		const zodField = value as ZodTypeAny;
+		if (key === 'id') {
+			struct[key] = zodFieldToSchema(zodField);
+		} else {
+			const base = zodFieldToSchema(zodField);
+			struct[key] = Schema.optional(base);
+		}
+	}
+	return Schema.Struct(struct) as any;
+}
 
 // Core game tables
+import { GameSchema } from '@stargate/common/models/game';
+
 export const tables = {
 	// Game management
 	games: State.SQLite.table({
 		name: 'games',
-		columns: {
-			id: State.SQLite.text({ primaryKey: true }),
-			name: State.SQLite.text(),
-			total_time_progressed: State.SQLite.real({ default: 0 }),
-			created_at: State.SQLite.integer({ schema: Schema.DateFromNumber }),
-			updated_at: State.SQLite.integer({ schema: Schema.DateFromNumber }),
-			last_played: State.SQLite.integer({ schema: Schema.DateFromNumber }),
-		},
+		columns: zodToTable(GameSchema),
 	}),
 
 	// Universe structure
 	galaxies: State.SQLite.table({
 		name: 'galaxies',
-		columns: {
-			id: State.SQLite.text({ primaryKey: true }),
-			game_id: State.SQLite.text(),
-			name: State.SQLite.text(),
-			x: State.SQLite.real(),
-			y: State.SQLite.real(),
-			created_at: State.SQLite.integer({ schema: Schema.DateFromNumber }),
-			updated_at: State.SQLite.integer({ schema: Schema.DateFromNumber }),
-		},
+		columns: zodToTable(GalaxySchema),
 	}),
 
 	starSystems: State.SQLite.table({
 		name: 'star_systems',
-		columns: {
-			id: State.SQLite.text({ primaryKey: true }),
-			game_id: State.SQLite.text(),
-			galaxy_id: State.SQLite.text(),
-			name: State.SQLite.text(),
-			x: State.SQLite.real(),
-			y: State.SQLite.real(),
-			description: State.SQLite.text({ nullable: true }),
-			image: State.SQLite.text({ nullable: true }),
-			created_at: State.SQLite.integer({ schema: Schema.DateFromNumber }),
-			updated_at: State.SQLite.integer({ schema: Schema.DateFromNumber }),
-		},
+		columns: zodToTable(StarSystemSchema),
 	}),
 
 	stars: State.SQLite.table({
 		name: 'stars',
-		columns: {
-			id: State.SQLite.text({ primaryKey: true }),
-			game_id: State.SQLite.text(),
-			star_system_id: State.SQLite.text(),
-			name: State.SQLite.text(),
-			type: State.SQLite.text(),
-			description: State.SQLite.text({ nullable: true }),
-			image: State.SQLite.text({ nullable: true }),
-			radius: State.SQLite.real(),
-			mass: State.SQLite.real(),
-			temperature: State.SQLite.real(),
-			luminosity: State.SQLite.real(),
-			age: State.SQLite.real(),
-			created_at: State.SQLite.integer({ schema: Schema.DateFromNumber }),
-			updated_at: State.SQLite.integer({ schema: Schema.DateFromNumber }),
-		},
+		columns: zodToTable(StarSystemSchema),
 	}),
 
 	planets: State.SQLite.table({
 		name: 'planets',
-		columns: {
-			id: State.SQLite.text({ primaryKey: true }),
-			game_id: State.SQLite.text(),
-			star_system_id: State.SQLite.text(),
-			name: State.SQLite.text(),
-			type: State.SQLite.text(),
-			created_at: State.SQLite.integer({ schema: Schema.DateFromNumber }),
-			updated_at: State.SQLite.integer({ schema: Schema.DateFromNumber }),
-		},
+		columns: zodToTable(PlanetSchema),
 	}),
 
 	// Civilizations and people
 	races: State.SQLite.table({
 		name: 'races',
-		columns: {
-			id: State.SQLite.text({ primaryKey: true }),
-			game_id: State.SQLite.text(),
-			name: State.SQLite.text(),
-			description: State.SQLite.text({ nullable: true }),
-			default_technology: State.SQLite.text({ nullable: true }),
-			default_ships: State.SQLite.text({ nullable: true }),
-			created_at: State.SQLite.integer({ schema: Schema.DateFromNumber }),
-			updated_at: State.SQLite.integer({ schema: Schema.DateFromNumber }),
-		},
+		columns: zodToTable(RaceTemplateSchema),
 	}),
 
 	people: State.SQLite.table({
 		name: 'people',
-		columns: {
-			id: State.SQLite.text({ primaryKey: true }),
-			game_id: State.SQLite.text(),
-			race_template_id: State.SQLite.text({ nullable: true }),
-			name: State.SQLite.text(),
-			role: State.SQLite.text(),
-			skills: State.SQLite.text(),
-			description: State.SQLite.text({ nullable: true }),
-			image: State.SQLite.text({ nullable: true }),
-			default_location: State.SQLite.text({ nullable: true }),
-			assigned_to: State.SQLite.text({ nullable: true }),
-			conditions: State.SQLite.text({ nullable: true }),
-			created_at: State.SQLite.integer({ schema: Schema.DateFromNumber }),
-			updated_at: State.SQLite.integer({ schema: Schema.DateFromNumber }),
-		},
+		columns: zodToTable(PersonTemplateSchema),
 	}),
 
 	// Technology and ships
 	technology: State.SQLite.table({
 		name: 'technology',
-		columns: {
-			id: State.SQLite.text({ primaryKey: true }),
-			game_id: State.SQLite.text(),
-			name: State.SQLite.text(),
-			description: State.SQLite.text(),
-			unlocked: State.SQLite.boolean({ default: false }),
-			cost: State.SQLite.real(),
-			image: State.SQLite.text({ nullable: true }),
-			number_on_destiny: State.SQLite.real({ nullable: true }),
-			created_at: State.SQLite.integer({ schema: Schema.DateFromNumber }),
-			updated_at: State.SQLite.integer({ schema: Schema.DateFromNumber }),
-		},
+		columns: zodToTable(TechnologySchema),
 	}),
 
 	ships: State.SQLite.table({
 		name: 'ships',
-		columns: {
-			id: State.SQLite.text({ primaryKey: true }),
-			game_id: State.SQLite.text(),
-			race_id: State.SQLite.text(),
-			name: State.SQLite.text(),
-			power: State.SQLite.real(),
-			maxPower: State.SQLite.real(),
-			shields: State.SQLite.real(),
-			max_shields: State.SQLite.real(),
-			hull: State.SQLite.real(),
-			max_hull: State.SQLite.real(),
-			crew: State.SQLite.text(),
-			location: State.SQLite.text(),
-			created_at: State.SQLite.integer({ schema: Schema.DateFromNumber }),
-			updated_at: State.SQLite.integer({ schema: Schema.DateFromNumber }),
-		},
+		columns: zodToTable(ShipLayoutSchema),
 	}),
 
 	// Stargate network
 	stargates: State.SQLite.table({
 		name: 'stargates',
-		columns: {
-			id: State.SQLite.text({ primaryKey: true }),
-			game_id: State.SQLite.text(),
-			address: State.SQLite.text(),
-			type: State.SQLite.text(),
-			location_id: State.SQLite.text({ nullable: true }),
-			connected_to: State.SQLite.text(),
-			created_at: State.SQLite.integer({ schema: Schema.DateFromNumber }),
-			updated_at: State.SQLite.integer({ schema: Schema.DateFromNumber }),
-		},
+		columns: zodToTable(StargateSchema),
 	}),
 
 	chevrons: State.SQLite.table({
 		name: 'chevrons',
-		columns: {
-			id: State.SQLite.text({ primaryKey: true }),
-			game_id: State.SQLite.text(),
-			stargate_id: State.SQLite.text(),
-			symbol: State.SQLite.text(),
-			description: State.SQLite.text({ nullable: true }),
-			image: State.SQLite.text({ nullable: true }),
-			created_at: State.SQLite.integer({ schema: Schema.DateFromNumber }),
-			updated_at: State.SQLite.integer({ schema: Schema.DateFromNumber }),
-		},
+		columns: zodToTable(ChevronSchema),
 	}),
 
 	// Ship rooms and layout
 	rooms: State.SQLite.table({
 		name: 'rooms',
-		columns: {
-			id: State.SQLite.text({ primaryKey: true }),
-			game_id: State.SQLite.text(),
-			template_id: State.SQLite.text(),
-			layout_id: State.SQLite.text(),
-			type: State.SQLite.text(),
-			name: State.SQLite.text(),
-			description: State.SQLite.text({ nullable: true }),
-			start_x: State.SQLite.real(),
-			start_y: State.SQLite.real(),
-			end_x: State.SQLite.real(),
-			end_y: State.SQLite.real(),
-			floor: State.SQLite.real(),
-			initial_state: State.SQLite.text(),
-			image: State.SQLite.text({ nullable: true }),
-			base_exploration_time: State.SQLite.real({ nullable: true }),
-			default_status: State.SQLite.text({ nullable: true }),
-			connection_north: State.SQLite.text({ nullable: true }),
-			connection_south: State.SQLite.text({ nullable: true }),
-			connection_east: State.SQLite.text({ nullable: true }),
-			connection_west: State.SQLite.text({ nullable: true }),
-			created_at: State.SQLite.integer({ schema: Schema.DateFromNumber }),
-			updated_at: State.SQLite.integer({ schema: Schema.DateFromNumber }),
-			// Runtime/game fields (optional)
-			found: State.SQLite.boolean({ nullable: true }),
-			locked: State.SQLite.boolean({ nullable: true }),
-			explored: State.SQLite.boolean({ nullable: true }),
-			status: State.SQLite.text({ nullable: true }),
-			connected_rooms: State.SQLite.text({ nullable: true }),
-			doors: State.SQLite.text({ nullable: true }),
-			exploration_data: State.SQLite.text({ nullable: true }),
-		},
+		columns: zodToTable(RoomTemplateSchema),
 	}),
 
 	// Destiny ship status
 	destinyStatus: State.SQLite.table({
 		name: 'destiny_status',
-		columns: {
-			id: State.SQLite.text({ primaryKey: true }),
-			name: State.SQLite.text(),
-			power: State.SQLite.real(), // JSON stored as text
-			max_power: State.SQLite.real(),
-			shields: State.SQLite.real(),
-			max_shields: State.SQLite.real(),
-			hull: State.SQLite.real(), // JSON stored as text
-			max_hull: State.SQLite.real(),
-			race_id: State.SQLite.text(),
-			location: State.SQLite.text(), // JSON stored as text
-			stargate_id: State.SQLite.text({ nullable: true }),
-			shield: State.SQLite.text(), // JSON stored as text
-			atmosphere: State.SQLite.text(), // JSON stored as text
-			weapons: State.SQLite.text(), // JSON stored as text
-			shuttles: State.SQLite.text(), // JSON stored as text
-			notes: State.SQLite.text({ nullable: true }), // JSON array stored as text
-			game_days: State.SQLite.real(),
-			game_hours: State.SQLite.real(),
-			ftl_status: State.SQLite.text({ default: 'normal_space' }), // 'ftl' or 'normal_space'
-			next_ftl_transition: State.SQLite.real(),
-			created_at: State.SQLite.integer({ schema: Schema.DateFromNumber }),
-			updated_at: State.SQLite.integer({ schema: Schema.DateFromNumber }),
-		},
+		columns: zodToTable(DestinyStatusSchema),
 	}),
 
 	// Inventory management
 	inventory: State.SQLite.table({
 		name: 'inventory',
-		columns: {
-			id: State.SQLite.text({ primaryKey: true }),
-			game_id: State.SQLite.text(),
-			resource_type: State.SQLite.text(),
-			amount: State.SQLite.real(),
-			location: State.SQLite.text({ nullable: true }), // e.g., 'ship', 'room_id', etc.
-			description: State.SQLite.text({ nullable: true }),
-			created_at: State.SQLite.integer({ schema: Schema.DateFromNumber }),
-			updated_at: State.SQLite.integer({ schema: Schema.DateFromNumber }),
-		},
+		columns: zodToTable(InventorySchema),
 	}),
 
 	// Client-side UI state
@@ -287,26 +252,113 @@ export const events = {
 	// Game management events
 	gameCreated: Events.synced({
 		name: 'v1.GameCreated',
-		schema: Schema.Struct({
-			id: Schema.String,
-			name: Schema.String,
-		}),
+		schema: zodToSchema(GameSchema),
 	}),
 
 	gameUpdated: Events.synced({
 		name: 'v1.GameUpdated',
-		schema: Schema.Struct({
-			id: Schema.String,
-			total_time_progressed: Schema.optional(Schema.Number),
-			last_played: Schema.optional(Schema.Date),
-		}),
+		schema: zodToUpdateSchema(GameSchema),
 	}),
 
 	gameDeleted: Events.synced({
 		name: 'v1.GameDeleted',
-		schema: Schema.Struct({
-			id: Schema.String,
-		}),
+		schema: Schema.Struct({ id: Schema.String }),
+	}),
+
+	// Universe structure events
+	galaxyCreated: Events.synced({
+		name: 'v1.GalaxyCreated',
+		schema: zodToSchema(GalaxySchema),
+	}),
+
+	starSystemCreated: Events.synced({
+		name: 'v1.StarSystemCreated',
+		schema: zodToSchema(StarSystemSchema),
+	}),
+
+	starCreated: Events.synced({
+		name: 'v1.StarCreated',
+		schema: zodToSchema(StarSystemSchema),
+	}),
+
+	planetCreated: Events.synced({
+		name: 'v1.PlanetCreated',
+		schema: zodToSchema(PlanetSchema),
+	}),
+
+	// Civilization events
+	raceCreated: Events.synced({
+		name: 'v1.RaceCreated',
+		schema: zodToSchema(RaceTemplateSchema), // <-- FIXED: use RaceTemplateSchema
+	}),
+
+	personCreated: Events.synced({
+		name: 'v1.PersonCreated',
+		schema: zodToSchema(PersonTemplateSchema),
+	}),
+
+	personUpdated: Events.synced({
+		name: 'v1.PersonUpdated',
+		schema: zodToUpdateSchema(PersonTemplateSchema),
+	}),
+
+	// Technology events
+	technologyCreated: Events.synced({
+		name: 'v1.TechnologyCreated',
+		schema: zodToSchema(TechnologySchema),
+	}),
+
+	technologyUnlocked: Events.synced({
+		name: 'v1.TechnologyUnlocked',
+		schema: zodToUpdateSchema(TechnologySchema),
+	}),
+
+	// Ship structure events
+	shipCreated: Events.synced({
+		name: 'v1.ShipCreated',
+		schema: zodToSchema(ShipSchema),
+	}),
+
+	stargateCreated: Events.synced({
+		name: 'v1.StargateCreated',
+		schema: zodToSchema(StargateSchema),
+	}),
+
+	chevronCreated: Events.synced({
+		name: 'v1.ChevronCreated',
+		schema: zodToSchema(ChevronSchema),
+	}),
+
+	roomCreated: Events.synced({
+		name: 'v1.RoomCreated',
+		schema: zodToSchema(RoomSchema),
+	}),
+
+	// Destiny status updates
+	destinyStatusCreated: Events.synced({
+		name: 'v1.DestinyStatusCreated',
+		schema: zodToSchema(DestinyStatusSchema),
+	}),
+
+	destinyStatusUpdated: Events.synced({
+		name: 'v1.DestinyStatusUpdated',
+		schema: zodToUpdateSchema(DestinyStatusSchema),
+	}),
+
+	// Inventory events
+	inventoryAdded: Events.synced({
+		name: 'v1.InventoryAdded',
+		schema: zodToSchema(InventorySchema),
+	}),
+
+	inventoryUpdated: Events.synced({
+		name: 'v1.InventoryUpdated',
+		schema: zodToUpdateSchema(InventorySchema),
+	}),
+
+	inventoryRemoved: Events.synced({
+		name: 'v1.InventoryRemoved',
+		schema: Schema.Struct({ id: Schema.String }),
 	}),
 
 	// Room exploration events
@@ -328,202 +380,12 @@ export const events = {
 		}),
 	}),
 
-	// Destiny status updates
-	destinyStatusCreated: Events.synced({
-		name: 'v1.DestinyStatusCreated',
-		schema: Schema.Struct({
-			id: Schema.String, // Game ID
-			name: Schema.String,
-			power: Schema.Number,
-			max_power: Schema.Number,
-			shields: Schema.Number,
-			max_shields: Schema.Number,
-			hull: Schema.Number,
-			max_hull: Schema.Number,
-			race_id: Schema.String,
-			location: Schema.String,
-			stargate_id: Schema.optional(Schema.String),
-			shield: Schema.String,
-			atmosphere: Schema.String,
-			weapons: Schema.String,
-			shuttles: Schema.String,
-			notes: Schema.optional(Schema.String),
-			game_days: Schema.Number,
-			game_hours: Schema.Number,
-			ftl_status: Schema.String,
-			next_ftl_transition: Schema.Number,
-		}),
-	}),
-
-	destinyStatusUpdated: Events.synced({
-		name: 'v1.DestinyStatusUpdated',
-		schema: Schema.Struct({
-			game_id: Schema.String,
-			power: Schema.optional(Schema.Number),
-			shields: Schema.optional(Schema.Number),
-			hull: Schema.optional(Schema.Number),
-			game_days: Schema.optional(Schema.Number),
-			game_hours: Schema.optional(Schema.Number),
-			ftl_status: Schema.optional(Schema.String),
-		}),
-	}),
-
-	// Universe structure events
-	galaxyCreated: Events.synced({
-		name: 'v1.GalaxyCreated',
-		schema: Schema.Struct({
-			id: Schema.String,
-			game_id: Schema.String,
-			name: Schema.String,
-			x: Schema.Number,
-			y: Schema.Number,
-		}),
-	}),
-
-	starSystemCreated: Events.synced({
-		name: 'v1.StarSystemCreated',
-		schema: Schema.Struct({
-			id: Schema.String,
-			game_id: Schema.String,
-			galaxy_id: Schema.String,
-			name: Schema.String,
-			x: Schema.Number,
-			y: Schema.Number,
-			description: Schema.optional(Schema.String),
-			image: Schema.optional(Schema.String),
-			created_at: Schema.Date,
-			updated_at: Schema.Date,
-		}),
-	}),
-
-	// Civilization events
-	raceCreated: Events.synced({
-		name: 'v1.RaceCreated',
-		schema: Schema.Struct({
-			id: Schema.String,
-			game_id: Schema.String,
-			name: Schema.String,
-			description: Schema.optional(Schema.String),
-			default_technology: Schema.optional(Schema.String),
-			default_ships: Schema.optional(Schema.String),
-		}),
-	}),
-
-	personCreated: Events.synced({
-		name: 'v1.PersonCreated',
-		schema: Schema.Struct({
-			id: Schema.String,
-			game_id: Schema.String,
-			race_template_id: Schema.optional(Schema.String),
-			name: Schema.String,
-			role: Schema.String,
-			skills: Schema.String,
-			description: Schema.optional(Schema.String),
-			image: Schema.optional(Schema.String),
-			default_location: Schema.optional(Schema.String),
-			assigned_to: Schema.optional(Schema.String),
-			conditions: Schema.optional(Schema.String),
-		}),
-	}),
-
-	personUpdated: Events.synced({
-		name: 'v1.PersonUpdated',
-		schema: Schema.Struct({
-			id: Schema.String,
-			assigned_to: Schema.optional(Schema.String),
-			updated_at: Schema.Date,
-		}),
-	}),
-
-	// Ship structure events
-	roomCreated: Events.synced({
-		name: 'v1.RoomCreated',
-		schema: Schema.Struct({
-			id: Schema.String,
-			game_id: Schema.String,
-			layout_id: Schema.String,
-			template_id: Schema.String,
-			type: Schema.String,
-			name: Schema.String,
-			description: Schema.optional(Schema.String),
-			start_x: Schema.Number,
-			start_y: Schema.Number,
-			end_x: Schema.Number,
-			end_y: Schema.Number,
-			floor: Schema.Number,
-			initial_state: Schema.String,
-			image: Schema.optional(Schema.String),
-			base_exploration_time: Schema.optional(Schema.Number),
-			default_status: Schema.optional(Schema.String),
-			connection_north: Schema.optional(Schema.String),
-			connection_south: Schema.optional(Schema.String),
-			connection_east: Schema.optional(Schema.String),
-			connection_west: Schema.optional(Schema.String),
-			// Runtime/game fields (optional)
-			found: Schema.optional(Schema.Boolean),
-			locked: Schema.optional(Schema.Boolean),
-			explored: Schema.optional(Schema.Boolean),
-			status: Schema.optional(Schema.String),
-			connected_rooms: Schema.optional(Schema.String),
-			doors: Schema.optional(Schema.String),
-			exploration_data: Schema.optional(Schema.String),
-		}),
-	}),
-
-	// Inventory events
-	inventoryAdded: Events.synced({
-		name: 'v1.InventoryAdded',
-		schema: Schema.Struct({
-			id: Schema.String,
-			game_id: Schema.String,
-			resource_type: Schema.String,
-			amount: Schema.Number,
-			location: Schema.optional(Schema.String),
-			description: Schema.optional(Schema.String),
-		}),
-	}),
-
-	inventoryUpdated: Events.synced({
-		name: 'v1.InventoryUpdated',
-		schema: Schema.Struct({
-			id: Schema.String,
-			amount: Schema.optional(Schema.Number),
-			location: Schema.optional(Schema.String),
-			description: Schema.optional(Schema.String),
-		}),
-	}),
-
-	inventoryRemoved: Events.synced({
-		name: 'v1.InventoryRemoved',
-		schema: Schema.Struct({
-			id: Schema.String,
-		}),
-	}),
-
-	// Technology events
-	technologyUnlocked: Events.synced({
-		name: 'v1.TechnologyUnlocked',
-		schema: Schema.Struct({
-			id: Schema.String,
-			game_id: Schema.String,
-		}),
-	}),
-
 	// UI state events (local only)
 	uiStateSet: tables.uiState.set,
 
 	roomUpdated: Events.synced({
 		name: 'v1.RoomUpdated',
-		schema: Schema.Struct({
-			id: Schema.String,
-			found: Schema.optional(Schema.Boolean),
-			locked: Schema.optional(Schema.Boolean),
-			explored: Schema.optional(Schema.Boolean),
-			status: Schema.optional(Schema.String),
-			connected_rooms: Schema.optional(Schema.String),
-			doors: Schema.optional(Schema.String),
-			exploration_data: Schema.optional(Schema.String),
-		}),
+		schema: zodToUpdateSchema(RoomSchema),
 	}),
 };
 
@@ -532,18 +394,18 @@ const materializers = State.SQLite.materializers(events, {
 	'v1.GameCreated': (fields) =>
 		tables.games.insert({
 			...fields,
-			created_at: new Date(),
-			updated_at: new Date(),
-			last_played: new Date(),
+			created_at: Date.now(),
+			updated_at: Date.now(),
+			last_played: Date.now(),
 		}),
 
 	'v1.GameUpdated': (fields) =>
 		tables.games.update({
-			...fields,
-			updated_at: new Date(),
+			...omit(fields, 'id'),
+			updated_at: Date.now(),
 		}).where({ id: fields.id }),
 
-	'v1.GameDeleted': ({ id }) => Object.entries(tables)
+	'v1.GameDeleted': ({ id }: any) => Object.entries(tables)
 		.map(([tableName, tableInstance]) => {
 			if (
 				tableName === 'games'
@@ -556,8 +418,120 @@ const materializers = State.SQLite.materializers(events, {
 			}
 		}),
 
+	'v1.GalaxyCreated': (fields) => tables.galaxies.insert({
+		...fields,
+		created_at: Date.now(),
+		updated_at: Date.now(),
+	}),
+
+	'v1.StarSystemCreated': (fields) => tables.starSystems.insert({
+		...fields,
+		created_at: Date.now(),
+		updated_at: Date.now(),
+	}),
+
+	'v1.StarCreated': (fields) => tables.stars.insert({
+		...fields,
+		created_at: Date.now(),
+		updated_at: Date.now(),
+	}),
+
+	'v1.PlanetCreated': (fields) => tables.planets.insert({
+		...fields,
+		created_at: Date.now(),
+		updated_at: Date.now(),
+	}),
+
+	'v1.RaceCreated': (fields) => tables.races.insert({
+		...fields,
+		created_at: Date.now(),
+		updated_at: Date.now(),
+	}),
+
+	'v1.PersonCreated': (fields) => tables.people.insert({
+		...fields,
+		created_at: Date.now(),
+		updated_at: Date.now(),
+	}),
+
+	'v1.PersonUpdated': (fields) =>
+		tables.people.update({
+			...omit(fields, 'id'),
+			updated_at: Date.now(),
+		}).where({ id: fields.id }),
+
+	'v1.TechnologyCreated': (fields) => tables.technology.insert({
+		...fields,
+		created_at: Date.now(),
+		updated_at: Date.now(),
+	}),
+
+	'v1.TechnologyUnlocked': (fields) =>
+		tables.technology.update({
+			...omit(fields, 'id'),
+			updated_at: Date.now(),
+		}).where({ id: fields.id }),
+
+	'v1.ShipCreated': (fields) => tables.ships.insert({
+		...fields,
+		created_at: Date.now(),
+		updated_at: Date.now(),
+	}),
+
+	'v1.StargateCreated': (fields) => tables.stargates.insert({
+		...fields,
+		created_at: Date.now(),
+		updated_at: Date.now(),
+	}),
+
+	'v1.ChevronCreated': (fields) => tables.chevrons.insert({
+		...fields,
+		created_at: Date.now(),
+		updated_at: Date.now(),
+	}),
+
+	'v1.RoomCreated': (fields) => tables.rooms.insert({
+		...fields,
+		created_at: Date.now(),
+		updated_at: Date.now(),
+	}),
+
+	'v1.RoomUpdated': (fields) =>
+		tables.rooms.update({
+			...omit(fields, 'id'),
+			updated_at: Date.now(),
+		}).where({ id: fields.id }),
+
+	'v1.DestinyStatusCreated': (fields) => tables.destinyStatus.insert({
+		...fields,
+		created_at: Date.now(),
+		updated_at: Date.now(),
+	}),
+
+	'v1.DestinyStatusUpdated': (fields) =>
+		tables.destinyStatus.update({
+			...omit(fields, 'id'),
+			updated_at: Date.now(),
+		}).where({ id: fields.game_id }),
+
+	'v1.InventoryAdded': (fields) => tables.inventory.insert({
+		...fields,
+		created_at: Date.now(),
+		updated_at: Date.now(),
+	}),
+
+	'v1.InventoryUpdated': (fields) =>
+		tables.inventory.update({
+			...fields,
+			updated_at: Date.now(),
+		}).where({ id: fields.id }),
+
+	'v1.InventoryRemoved': (fields) =>
+		tables.inventory.delete().where({ id: fields.id }),
+
 	'v1.RoomExplorationStarted': (fields) =>
 		tables.rooms.update({
+			updated_at: Date.now(),
 			exploration_data: JSON.stringify({
 				status: 'in_progress',
 				crew_assigned: fields.crew_assigned,
@@ -568,85 +542,17 @@ const materializers = State.SQLite.materializers(events, {
 	'v1.RoomExplorationCompleted': (fields) =>
 		tables.rooms.update({
 			explored: true,
+			updated_at: Date.now(),
 			exploration_data: JSON.stringify({
 				status: 'completed',
 				completed_at: Date.now(),
 				discovered: fields.discovered,
 			}),
 		}).where({ id: fields.room_id }),
-
-	'v1.DestinyStatusCreated': (fields) => tables.destinyStatus.insert({
-		 ...fields,
-		created_at: new Date(),
-		updated_at: new Date(),
-	 }),
-
-	'v1.GalaxyCreated': (fields) => tables.galaxies.insert({
-		...fields,
-		created_at: new Date(),
-		updated_at: new Date(),
-	}),
-
-	'v1.StarSystemCreated': (fields) => tables.starSystems.insert({
-		...fields,
-		created_at: new Date(),
-		updated_at: new Date(),
-	}),
-
-	'v1.RaceCreated': (fields) => tables.races.insert({
-		...fields,
-		created_at: new Date(),
-		updated_at: new Date(),
-	}),
-
-	'v1.PersonCreated': (fields) => tables.people.insert({
-		...fields,
-		created_at: new Date(),
-		updated_at: new Date(),
-	}),
-
-	'v1.RoomCreated': (fields) => tables.rooms.insert({
-		...fields,
-		created_at: new Date(),
-		updated_at: new Date(),
-	}),
-
-	'v1.DestinyStatusUpdated': ({ game_id, ...updates }) =>
-		tables.destinyStatus.update({
-			...updates,
-		}).where({ id: game_id }),
-
-	'v1.TechnologyUnlocked': ({ id }) =>
-		tables.technology.update({ unlocked: true }).where({ id }),
-
-	'v1.InventoryAdded': (fields) =>
-		tables.inventory.insert({
-			...fields,
-			created_at: new Date(),
-			updated_at: new Date(),
-		}),
-
-	'v1.InventoryUpdated': ({ id, ...updates }) =>
-		tables.inventory.update({
-			...updates,
-			updated_at: new Date(),
-		}).where({ id }),
-
-	'v1.InventoryRemoved': ({ id }) =>
-		tables.inventory.delete().where({ id }),
-
-	'v1.RoomUpdated': ({ id, ...updates }) =>
-		tables.rooms.update({
-			...updates,
-			updated_at: new Date(),
-		}).where({ id }),
-
-	'v1.PersonUpdated': (fields) =>
-		tables.people.update({
-			...fields,
-		}).where({ id: fields.id }),
 });
 
 const state = State.SQLite.makeState({ tables, materializers });
 
 export const schema = makeSchema({ events, state });
+
+

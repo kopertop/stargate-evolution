@@ -1,18 +1,19 @@
 import { useQuery } from '@livestore/react';
+import { PersonTemplate } from '@stargate/common/zod-templates';
 import React, { useState } from 'react';
 import { Nav, ProgressBar } from 'react-bootstrap';
 import type { IconType } from 'react-icons';
 import { GiMeeple, GiCog, GiHammerNails, GiMedicalPack, GiMagnifyingGlass } from 'react-icons/gi';
 
-import { useGameState } from '../contexts/game-state-context';
 import { useGameService } from '../services/use-game-service';
-import { personDataToType, roomDataToType, PersonType, RoomType } from '../types/model-types';
 
 interface CrewStatusProps {
 	game_id: string;
 }
 
-interface CrewMemberWithTask extends PersonType {
+interface CrewMemberWithTask extends Omit<PersonTemplate, 'skills'> {
+	skills: string[];
+	assigned_to?: string;
 	currentTask?: {
 		type: 'exploration' | 'repair' | 'research' | 'medical' | 'idle';
 		roomId?: string;
@@ -39,17 +40,9 @@ export const CrewStatus: React.FC<CrewStatusProps> = ({ game_id }) => {
 	const gameService = useGameService();
 	const peopleArr = useQuery(game_id ? gameService.queries.peopleByGame(game_id) : gameService.queries.peopleByGame('')) || [];
 	const roomsArr = useQuery(game_id ? gameService.queries.roomsByGame(game_id) : gameService.queries.roomsByGame('')) || [];
-	const rooms: RoomType[] = roomsArr.map(roomDataToType);
-	const crewMembers: CrewMemberWithTask[] = peopleArr.map((person) => {
-		const typed = personDataToType(person);
-		return {
-			...typed,
-			skills: Array.isArray(typed.skills) ? typed.skills : (typeof typed.skills === 'string' ? (() => { try { return JSON.parse(typed.skills); } catch { return []; } })() : []),
-		};
-	}).map(enrichCrewMemberWithTask);
 
-	function enrichCrewMemberWithTask(crewMember: PersonType): CrewMemberWithTask {
-		if (!crewMember.assignedTo) {
+	function enrichCrewMemberWithTask(crewMember: any): CrewMemberWithTask {
+		if (!crewMember.assigned_to) {
 			return {
 				...crewMember,
 				currentTask: {
@@ -58,7 +51,7 @@ export const CrewStatus: React.FC<CrewStatusProps> = ({ game_id }) => {
 				},
 			};
 		}
-		const assignedRoom = rooms.find(room => room.id === crewMember.assignedTo);
+		const assignedRoom = roomsArr.find((room) => room.id === crewMember.assigned_to);
 		if (!assignedRoom) {
 			return {
 				...crewMember,
@@ -68,9 +61,9 @@ export const CrewStatus: React.FC<CrewStatusProps> = ({ game_id }) => {
 				},
 			};
 		}
-		if (assignedRoom.explorationData) {
+		if (assignedRoom.exploration_data) {
 			try {
-				const explorationData = assignedRoom.explorationData;
+				const explorationData = JSON.parse(assignedRoom.exploration_data) as any;
 				if (explorationData.crewAssigned?.includes(crewMember.id)) {
 					const progress = explorationData.progress || 0;
 					const timeRemaining = explorationData.timeRemaining || 0;
@@ -100,6 +93,15 @@ export const CrewStatus: React.FC<CrewStatusProps> = ({ game_id }) => {
 			},
 		};
 	}
+
+	const crewMembers: CrewMemberWithTask[] = peopleArr.map((person) => {
+		return {
+			...person,
+			skills: Array.isArray(person.skills) ? person.skills : (typeof person.skills === 'string' ? (() => { try { return JSON.parse(person.skills); } catch { return []; } })() : []),
+		};
+	}).map(enrichCrewMemberWithTask);
+
+
 
 	const handleCrewMouseEnter = () => {
 		if (crewHoverTimeout) {

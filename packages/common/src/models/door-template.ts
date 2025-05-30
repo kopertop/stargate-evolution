@@ -13,3 +13,11 @@ export const DoorTemplateSchema = z.object({
 });
 
 export type DoorTemplate = z.infer<typeof DoorTemplateSchema>;
+
+export const DoorRequirementSchema = z.object({
+	type: z.string(),
+	value: z.string(),
+	met: z.boolean(),
+});
+
+export type DoorRequirement = z.infer<typeof DoorRequirementSchema>;

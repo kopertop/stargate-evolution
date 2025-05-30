@@ -10,6 +10,7 @@ export { GalaxySchema } from './models/galaxy';
 export { StarSystemSchema } from './models/star-system';
 export { InventorySchema } from './models/inventory';
 export { GameSchema } from './models/game';
+export { ExplorationProgressSchema } from './models/exploration-progress';
 
 export type { RoomTemplate } from './models/room-template';
 export type { DoorTemplate } from './models/door-template';
@@ -23,3 +24,4 @@ export type { Galaxy } from './models/galaxy';
 export type { StarSystem } from './models/star-system';
 export type { Inventory } from './models/inventory';
 export type { GameType } from './models/game';
+export type { ExplorationProgress } from './models/exploration-progress';

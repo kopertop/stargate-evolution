@@ -1,8 +1,8 @@
 import { useQuery } from '@livestore/react';
-import React, { useState } from 'react';
+import { DestinyStatus } from '@stargate/common/zod-templates';
+import React, { useMemo, useState } from 'react';
 
 import { useGameService } from '../services/use-game-service';
-import type { DestinyStatus } from '../types';
 
 import { ShipMap } from './ship-map';
 
@@ -28,26 +28,34 @@ export const ShipView: React.FC<ShipViewProps> = ({
 	game_id,
 }) => {
 	const [gameIsPaused, setGameIsPaused] = useState(true);
-	const [lastTimeRemaining, setLastTimeRemaining] = useState(destinyStatus.nextFtlTransition);
+	const [lastTimeRemaining, setLastTimeRemaining] = useState(destinyStatus.next_ftl_transition);
 
 	const gameService = useGameService();
 	const inventoryArr = useQuery(game_id ? gameService.queries.inventoryByGame(game_id) : gameService.queries.inventoryByGame('')) || [];
-	const inventoryMap = Object.fromEntries(inventoryArr.map((i: any) => [i.resourceType, i.amount]));
+	const crewMembers = useQuery(game_id ? gameService.queries.crewMembers(game_id) : gameService.queries.crewMembers('')) || [];
+	const crewCount = useMemo(() => crewMembers.length, [crewMembers]);
+
+	const inventoryMap = useMemo(() => {
+		const map = new Map<string, number>();
+		for (const item of inventoryArr) {
+			map.set(item.resource_type, item.amount);
+		}
+		return map;
+	}, [inventoryArr]);
 
 	// Calculate daily resource consumption
-	const crewCount = destinyStatus.crewStatus.onboard;
-	const dailyFoodConsumption = crewCount * RESOURCE_CONSUMPTION.food;
-	const dailyWaterConsumption = crewCount * RESOURCE_CONSUMPTION.water;
-	const hourlyO2Consumption = crewCount * RESOURCE_CONSUMPTION.oxygen;
-	const hourlyCO2Generation = crewCount * RESOURCE_CONSUMPTION.co2_generation;
+	const dailyFoodConsumption = useMemo(() => crewCount * RESOURCE_CONSUMPTION.food, [crewCount]);
+	const dailyWaterConsumption = useMemo(() => crewCount * RESOURCE_CONSUMPTION.water, [crewCount]);
+	const hourlyO2Consumption = useMemo(() => crewCount * RESOURCE_CONSUMPTION.oxygen, [crewCount]);
+	const hourlyCO2Generation = useMemo(() => crewCount * RESOURCE_CONSUMPTION.co2_generation, [crewCount]);
 
 	// Get game time from destiny status
-	const gameTime = {
-		days: destinyStatus.gameDays,
-		hours: destinyStatus.gameHours,
-		ftlStatus: destinyStatus.ftlStatus as 'ftl' | 'normal_space',
-		nextDropOut: destinyStatus.nextFtlTransition,
-	};
+	const gameTime = useMemo(() => ({
+		days: destinyStatus.game_days,
+		hours: destinyStatus.game_hours,
+		ftlStatus: destinyStatus.ftl_status as 'ftl' | 'normal_space',
+		nextDropOut: destinyStatus.next_ftl_transition,
+	}), [destinyStatus]);
 
 	// Handle real-time countdown updates from the clock
 	const handleCountdownUpdate = (newTimeRemaining: number) => {

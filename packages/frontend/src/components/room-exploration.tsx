@@ -1,11 +1,11 @@
 import { useQuery } from '@livestore/react';
+import { ExplorationProgress, PersonTemplate, RoomTemplate } from '@stargate/common/zod-templates';
 import React, { useState, useEffect } from 'react';
 import { Button, Modal, Alert, Badge } from 'react-bootstrap';
 import { GiMeeple, GiCog } from 'react-icons/gi';
 
 import { useGameState } from '../contexts/game-state-context';
 import { useGameService } from '../services/use-game-service';
-import { destinyStatusDataToType, DestinyStatusType, ExplorationProgress, personDataToType, PersonType, roomDataToType, RoomType } from '../types/model-types';
 
 import { RoomExplorationProgress } from './room-exploration-progress';
 
@@ -37,23 +37,23 @@ export const RoomExploration: React.FC<RoomExplorationProps> = ({
 	const { isPaused: gameStatePaused, gameTime } = useGameState();
 	const [selectedCrew, setSelectedCrew] = useState<string[]>([]);
 	const [isManagingExploration, setIsManagingExploration] = useState(false);
+	const [explorationData, setExplorationData] = useState<ExplorationProgress | null>(null);
 
 	const gameService = useGameService();
-	const roomsArr = useQuery(game_id ? gameService.queries.roomsByGame(game_id) : gameService.queries.roomsByGame('')) || [];
-	const rooms: RoomType[] = roomsArr.map(roomDataToType);
-	const peopleArr = useQuery(game_id ? gameService.queries.peopleByGame(game_id) : gameService.queries.peopleByGame('')) || [];
-	const people: PersonType[] = peopleArr.map(personDataToType);
-	const destinyStatusArr = useQuery(game_id ? gameService.queries.destinyStatus(game_id) : gameService.queries.destinyStatus('')) || [];
-	const destinyStatus: DestinyStatusType | undefined = destinyStatusArr[0] ? destinyStatusDataToType(destinyStatusArr[0]) : undefined;
+	const rooms = useQuery(game_id ? gameService.queries.roomsByGame(game_id) : gameService.queries.roomsByGame('')) || [];
+	const people = useQuery(game_id ? gameService.queries.peopleByGame(game_id) : gameService.queries.peopleByGame('')) || [];
 
 	const selectedRoom = rooms.find(r => r.id === roomId) || null;
-	const availableCrew = people.filter(p => !p.assignedTo);
-	const assignedCrew = people.filter(p => p.assignedTo === roomId);
+	const availableCrew = people.filter(p => !p.assigned_to);
+	const assignedCrew = people.filter(p => p.assigned_to === roomId);
 
 	// Initialize selected crew when modal opens for ongoing exploration
 	useEffect(() => {
-		if (showModal && selectedRoom?.explorationData) {
-			setSelectedCrew(selectedRoom.explorationData.crewAssigned);
+		if (selectedRoom?.exploration_data) {
+			setExplorationData(JSON.parse(selectedRoom.exploration_data || '{}'));
+		}
+		if (showModal && selectedRoom?.exploration_data) {
+			setSelectedCrew(people.filter(p => p.assigned_to === roomId).map(p => p.id));
 			setIsManagingExploration(true);
 		} else if (showModal) {
 			setSelectedCrew([]);
@@ -62,13 +62,18 @@ export const RoomExploration: React.FC<RoomExplorationProps> = ({
 	}, [showModal, selectedRoom]);
 
 	// Check if room can be explored
-	const canExploreRoom = (room: RoomType): boolean => {
+	const canExploreRoom = (room: RoomTemplate): boolean => {
 		if (!room.found) return false;
 		if (room.explored) return false;
 		if (gameStatePaused) return false;
-		if (room.explorationData) return false;
-		if (room.connectedRooms.length === 0) return false;
-		const isAdjacentToUnlocked = room.connectedRooms.some((connectedId: string) => {
+		if (room.exploration_data) return false;
+		if (room.connection_north || room.connection_south || room.connection_east || room.connection_west) return false;
+		const isAdjacentToUnlocked = [
+			room.connection_north,
+			room.connection_south,
+			room.connection_east,
+			room.connection_west,
+		].filter(Boolean).some((connectedId: string | null) => {
 			const connectedRoom = rooms.find(r => r.id === connectedId);
 			return !(connectedRoom?.locked || false);
 		});
@@ -85,13 +90,13 @@ export const RoomExploration: React.FC<RoomExplorationProps> = ({
 	};
 
 	// Update crew assignments for ongoing exploration
-	const updateExplorationCrew = async (room: RoomType, newCrewIds: string[]) => {
-		if (!room.explorationData) return;
-		const baseTime = room.baseExplorationTime || 2;
+	const updateExplorationCrew = async (room: RoomTemplate, newCrewIds: string[]) => {
+		if (!room.exploration_data) return;
+		const baseTime = room.base_exploration_time || 2;
 		const crewMultiplier = Math.max(0.5, 1 / Math.max(1, newCrewIds.length));
 		const newTimeRemaining = baseTime * crewMultiplier;
 		try {
-			const oldCrewIds = room.explorationData.crewAssigned;
+			const oldCrewIds = JSON.parse(room.exploration_data).crewAssigned;
 			for (const crewId of oldCrewIds) {
 				if (!newCrewIds.includes(crewId)) {
 					await gameService.assignCrewToRoom(crewId, null);
@@ -103,11 +108,11 @@ export const RoomExploration: React.FC<RoomExplorationProps> = ({
 				}
 			}
 			const updatedExploration = {
-				...room.explorationData,
+				...JSON.parse(room.exploration_data),
 				crewAssigned: newCrewIds,
 				timeRemaining: newTimeRemaining,
 			};
-			await gameService.updateRoom(room.id, { explorationData: JSON.stringify(updatedExploration) });
+			await gameService.updateRoom(room.id, { exploration_data: JSON.stringify(updatedExploration) });
 			onClose();
 		} catch (error) {
 			console.error('Failed to update exploration crew:', error);
@@ -115,9 +120,9 @@ export const RoomExploration: React.FC<RoomExplorationProps> = ({
 	};
 
 	// Start room exploration
-	const startExploration = async (room: RoomType, assignedCrewIds: string[]) => {
+	const startExploration = async (room: RoomTemplate, assignedCrewIds: string[]) => {
 		if (!canExploreRoom(room) || assignedCrewIds.length === 0) return;
-		const baseTime = room.baseExplorationTime || 2;
+		const baseTime = room.base_exploration_time || 2;
 		const crewMultiplier = Math.max(0.5, 1 / assignedCrewIds.length);
 		const explorationTime = baseTime * crewMultiplier;
 		try {
@@ -125,14 +130,12 @@ export const RoomExploration: React.FC<RoomExplorationProps> = ({
 				await gameService.assignCrewToRoom(crewId, room.id);
 			}
 			const newExploration: ExplorationProgress = {
-				roomId: room.id,
+				room_id: room.id,
 				progress: 0,
-				crewAssigned: assignedCrewIds,
-				timeRemaining: explorationTime,
-				timeToComplete: explorationTime,
-				startTime: gameTime,
+				crew_assigned: assignedCrewIds,
+				time_remaining: explorationTime,
 			};
-			await gameService.updateRoom(room.id, { explorationData: JSON.stringify(newExploration) });
+			await gameService.updateRoom(room.id, { exploration_data: JSON.stringify(newExploration) });
 			onExplorationStart(room.id, assignedCrewIds);
 			setSelectedCrew([]);
 			onClose();
@@ -141,21 +144,17 @@ export const RoomExploration: React.FC<RoomExplorationProps> = ({
 		}
 	};
 
-	const getCrewDisplayName = (crew: CrewMember): string => {
-		return crew.name || crew.id.replace('_', ' ');
-	};
-
-	const calculateTimeRemaining = (room: RoomType, crewCount: number): number => {
-		const baseTime = room.baseExplorationTime || 2;
+	const calculateTimeRemaining = (room: RoomTemplate, crewCount: number): number => {
+		const baseTime = room.base_exploration_time || 2;
 		const crewMultiplier = Math.max(0.5, 1 / Math.max(1, crewCount));
-		const pctTimeRemaining = 100 - (room.explorationData?.progress || 0);
+		const pctTimeRemaining = 100 - (JSON.parse(room.exploration_data || '{}').progress || 0);
 		return (baseTime * crewMultiplier) * (pctTimeRemaining / 100);
 	};
 
-	const cancelExploration = async (room: RoomType) => {
-		if (!room.explorationData) return;
+	const cancelExploration = async (room: RoomTemplate) => {
+		if (!room.exploration_data) return;
 		try {
-			for (const crewId of room.explorationData.crewAssigned) {
+			for (const crewId of JSON.parse(room.exploration_data).crewAssigned) {
 				await gameService.assignCrewToRoom(crewId, null);
 			}
 			await gameService.clearExplorationProgress(room.id);
@@ -167,7 +166,7 @@ export const RoomExploration: React.FC<RoomExplorationProps> = ({
 
 	const availableCrewMembers = availableCrew;
 	const assignedCrewMembers = assignedCrew.filter((crew) =>
-		selectedRoom?.explorationData?.crewAssigned.includes(crew.id),
+		JSON.parse(selectedRoom?.exploration_data || '{}').crewAssigned.includes(crew.id),
 	);
 
 	return (
@@ -192,7 +191,7 @@ export const RoomExploration: React.FC<RoomExplorationProps> = ({
 				<Modal.Body>
 					{selectedRoom && (
 						<div>
-							{isManagingExploration && selectedRoom.explorationData ? (
+							{isManagingExploration && explorationData ? (
 								// Ongoing exploration management
 								<div>
 									<RoomExplorationProgress roomId={selectedRoom.id} />
@@ -201,11 +200,14 @@ export const RoomExploration: React.FC<RoomExplorationProps> = ({
 
 									{selectedCrew.length > 0 && (
 										<Alert variant="warning" className="mb-3">
-											<strong>New estimated time:</strong> {calculateTimeRemaining(selectedRoom, selectedCrew.length).toFixed(1)} hours
-											{selectedCrew.length !== selectedRoom.explorationData.crewAssigned.length && (
+											<strong>New estimated time:</strong> {calculateTimeRemaining(
+												selectedRoom,
+												selectedCrew.length,
+											)?.toFixed(1)} hours
+											{selectedCrew.length !== explorationData.crew_assigned.length && (
 												<div className="mt-1">
 													<small>
-														{selectedCrew.length > selectedRoom.explorationData.crewAssigned.length
+														{selectedCrew.length > explorationData.crew_assigned.length
 															? '⚡ Adding crew will speed up exploration'
 															: '⏳ Removing crew will slow down exploration'
 														}
@@ -221,7 +223,10 @@ export const RoomExploration: React.FC<RoomExplorationProps> = ({
 									<p>Select crew members to explore this room. More crew members will speed up exploration.</p>
 									{selectedCrew.length > 0 && (
 										<p>
-											<strong>Estimated time:</strong> {calculateTimeRemaining(selectedRoom, selectedCrew.length).toFixed(1)} hours
+											<strong>Estimated time:</strong> {calculateTimeRemaining(
+												selectedRoom,
+												selectedCrew.length,
+											)?.toFixed(1)} hours
 										</p>
 									)}
 								</div>
@@ -243,7 +248,7 @@ export const RoomExploration: React.FC<RoomExplorationProps> = ({
 													onClick={() => toggleCrewSelection(crew.id)}
 												>
 													<GiMeeple className="me-1" />
-													{getCrewDisplayName(crew)}
+													{crew.name}
 													{!selectedCrew.includes(crew.id) && ' (removing)'}
 												</Badge>
 											))}
@@ -274,7 +279,8 @@ export const RoomExploration: React.FC<RoomExplorationProps> = ({
 								</Button>
 								{availableCrewMembers.length === 0 && !isManagingExploration && (
 									<Alert variant="warning" className="mt-2">
-									No crew members are currently available. All crew are assigned to rooms or exploring.
+									No crew members are currently available.
+									All crew are assigned to rooms or exploring.
 									</Alert>
 								)}
 								<div className="mt-2">
@@ -287,7 +293,7 @@ export const RoomExploration: React.FC<RoomExplorationProps> = ({
 											onClick={() => toggleCrewSelection(crew.id)}
 										>
 											<GiMeeple className="me-1" />
-											{getCrewDisplayName(crew)}
+											{crew.name}
 										</Badge>
 									))}
 								</div>
@@ -302,7 +308,7 @@ export const RoomExploration: React.FC<RoomExplorationProps> = ({
 											return crew ? (
 												<Badge key={crewId} bg="success" className="me-2 mb-2">
 													<GiMeeple className="me-1" />
-													{getCrewDisplayName(crew)}
+													{crew.name}
 												</Badge>
 											) : null;
 										})}
