@@ -1,4 +1,8 @@
+import fs from 'fs';
+import path from 'path';
+
 import type { RoomTemplate } from '@stargate/common';
+import { Parser } from 'node-sql-parser';
 import { describe, it, expect } from 'vitest';
 
 import {
@@ -389,27 +393,93 @@ describe('getConnectionSide and areRoomsAdjacent', () => {
 		expect(areRoomsAdjacent(center, farEast)).toBe(false);
 	});
 
-	it('should layout the Destiny ship from seed and prevent overlaps', () => {
-		const rooms: RoomTemplate[] = [
-			{
-				id: 'gate_room', layout_id: 'destiny', type: 'gate_room', name: 'Gate Room', description: '', width: 4, height: 4, floor: 0, found: true, locked: false, explored: true, exploration_data: '', image: null, base_exploration_time: 2, status: 'ok', connection_north: 'south_corridor', connection_south: null, connection_east: 'control_interface', connection_west: 'north_corridor', created_at: 0, updated_at: 0,
-			},
-			{ id: 'north_corridor', layout_id: 'destiny', type: 'corridor_basic', name: 'North Corridor', description: '', width: 2, height: 2, floor: 0, found: false, locked: false, explored: false, exploration_data: '', image: null, base_exploration_time: 0, status: 'ok', connection_north: null, connection_south: null, connection_east: 'gate_room', connection_west: null, created_at: 0, updated_at: 0 },
-			{ id: 'south_corridor', layout_id: 'destiny', type: 'corridor_basic', name: 'South Corridor', description: '', width: 2, height: 2, floor: 0, found: false, locked: false, explored: false, exploration_data: '', image: null, base_exploration_time: 0, status: 'ok', connection_north: null, connection_south: 'gate_room', connection_east: null, connection_west: null, created_at: 0, updated_at: 0 },
-			{ id: 'control_interface', layout_id: 'destiny', type: 'control_room', name: 'Control Interface', description: '', width: 2, height: 2, floor: 0, found: false, locked: false, explored: false, exploration_data: '', image: null, base_exploration_time: 4, status: 'ok', connection_north: null, connection_south: null, connection_east: 'kino_room', connection_west: 'gate_room', created_at: 0, updated_at: 0 },
-			{ id: 'kino_room', layout_id: 'destiny', type: 'kino_room', name: 'Kino Room', description: '', width: 2, height: 2, floor: 0, found: false, locked: false, explored: false, exploration_data: '', image: null, base_exploration_time: 2, status: 'ok', connection_north: null, connection_south: null, connection_east: null, connection_west: 'control_interface', created_at: 0, updated_at: 0 },
-			{ id: 'bridge', layout_id: 'destiny', type: 'bridge_command', name: 'Bridge', description: '', width: 2, height: 2, floor: 0, found: false, locked: true, explored: false, exploration_data: '', image: null, base_exploration_time: 48, status: 'ok', connection_north: null, connection_south: 'south_corridor', connection_east: null, connection_west: null, created_at: 0, updated_at: 0 },
-			{ id: 'medical_bay', layout_id: 'destiny', type: 'medical_bay_standard', name: 'Medical Bay', description: '', width: 2, height: 2, floor: 0, found: false, locked: false, explored: false, exploration_data: '', image: null, base_exploration_time: 4, status: 'ok', connection_north: null, connection_south: null, connection_east: null, connection_west: 'kino_room', created_at: 0, updated_at: 0 },
-			{ id: 'mess_hall', layout_id: 'destiny', type: 'mess_hall_standard', name: 'Mess Hall', description: '', width: 2, height: 2, floor: 0, found: false, locked: false, explored: false, exploration_data: '', image: null, base_exploration_time: 2, status: 'ok', connection_north: null, connection_south: 'north_corridor', connection_east: null, connection_west: null, created_at: 0, updated_at: 0 },
-			{ id: 'crew_corridor_1', layout_id: 'destiny', type: 'corridor_basic', name: 'Crew Corridor 1', description: '', width: 2, height: 2, floor: 0, found: false, locked: false, explored: false, exploration_data: '', image: null, base_exploration_time: 2, status: 'ok', connection_north: 'crew_quarters_1', connection_south: 'control_interface', connection_east: 'control_interface', connection_west: null, created_at: 0, updated_at: 0 },
-			{ id: 'crew_quarters_1', layout_id: 'destiny', type: 'crew_quarters', name: 'Crew Quarters 1', description: '', width: 2, height: 2, floor: 0, found: false, locked: false, explored: false, exploration_data: '', image: null, base_exploration_time: 4, status: 'ok', connection_north: null, connection_south: 'crew_corridor_1', connection_east: null, connection_west: null, created_at: 0, updated_at: 0 },
-			{ id: 'crew_corridor_2', layout_id: 'destiny', type: 'corridor_basic', name: 'Crew Corridor 2', description: '', width: 2, height: 2, floor: 0, found: false, locked: false, explored: false, exploration_data: '', image: null, base_exploration_time: 6, status: 'ok', connection_north: 'crew_quarters_2', connection_south: 'crew_corridor_1', connection_east: 'crew_corridor_1', connection_west: null, created_at: 0, updated_at: 0 },
-			{ id: 'crew_quarters_2', layout_id: 'destiny', type: 'crew_quarters', name: 'Crew Quarters 2', description: '', width: 2, height: 2, floor: 0, found: false, locked: false, explored: false, exploration_data: '', image: null, base_exploration_time: 8, status: 'ok', connection_north: null, connection_south: 'crew_corridor_2', connection_east: null, connection_west: null, created_at: 0, updated_at: 0 },
-			{ id: 'crew_corridor_3', layout_id: 'destiny', type: 'corridor_basic', name: 'Crew Corridor 3', description: '', width: 2, height: 2, floor: 0, found: false, locked: false, explored: false, exploration_data: '', image: null, base_exploration_time: 10, status: 'ok', connection_north: 'crew_quarters_3', connection_south: 'crew_corridor_2', connection_east: 'crew_corridor_2', connection_west: null, created_at: 0, updated_at: 0 },
-			{ id: 'crew_quarters_3', layout_id: 'destiny', type: 'crew_quarters', name: 'Crew Quarters 3', description: '', width: 2, height: 2, floor: 0, found: false, locked: false, explored: false, exploration_data: '', image: null, base_exploration_time: 12, status: 'ok', connection_north: null, connection_south: 'crew_corridor_3', connection_east: null, connection_west: null, created_at: 0, updated_at: 0 },
-			{ id: 'crew_corridor_4', layout_id: 'destiny', type: 'corridor_basic', name: 'Crew Corridor 4', description: '', width: 2, height: 2, floor: 0, found: false, locked: false, explored: false, exploration_data: '', image: null, base_exploration_time: 14, status: 'ok', connection_north: 'crew_quarters_4', connection_south: 'crew_corridor_3', connection_east: 'crew_corridor_3', connection_west: null, created_at: 0, updated_at: 0 },
-			{ id: 'crew_quarters_4', layout_id: 'destiny', type: 'crew_quarters', name: 'Crew Quarters 4', description: '', width: 2, height: 2, floor: 0, found: false, locked: false, explored: false, exploration_data: '', image: null, base_exploration_time: 16, status: 'ok', connection_north: null, connection_south: 'crew_corridor_4', connection_east: null, connection_west: null, created_at: 0, updated_at: 0 },
+	// Utility to parse the SQL migration file and extract room templates
+	function parseRoomTemplatesFromSQL(sqlFilePath: string): RoomTemplate[] {
+		const parser = new Parser();
+		const sql = fs.readFileSync(sqlFilePath, 'utf-8');
+		const ast = parser.astify(sql, { database: 'sqlite' });
+		// Find the insert statement for room_templates
+		function isInsertWithValues(node: any): node is { type: string; table: any[]; values: any[] } {
+			return node && node.type === 'insert' && Array.isArray(node.table) && node.table[0].table === 'room_templates' && Array.isArray(node.values);
+		}
+		const insert = Array.isArray(ast)
+			? ast.find(isInsertWithValues)
+			: (isInsertWithValues(ast) ? ast : null);
+		if (!insert) throw new Error('Could not find room_templates insert statement');
+		const values = (insert as { values: any[] }).values;
+		const fields = [
+			'id', 'layout_id', 'type', 'name', 'description', 'width', 'height', 'floor', 'found',
+			'connection_north', 'connection_south', 'connection_east', 'connection_west',
+			'base_exploration_time', 'locked',
 		];
+		return values.map((tuple) => {
+			const obj: any = {};
+			const row = Array.isArray(tuple.value) ? tuple.value : [tuple.value];
+			for (let i = 0; i < row.length; i++) {
+				const val = row[i];
+				let v = val.value;
+				if (v === null || v === undefined) v = '';
+				if (fields[i] === 'width' || fields[i] === 'height' || fields[i] === 'floor' || fields[i] === 'base_exploration_time') v = v === '' ? 0 : Number(v);
+				else if (fields[i] === 'found' || fields[i] === 'locked') v = v === '' ? false : (v === true || v === 1 || v === '1');
+				else if (['id', 'layout_id', 'type', 'name', 'description', 'connection_north', 'connection_south', 'connection_east', 'connection_west'].includes(fields[i])) v = typeof v === 'string' ? v : '';
+				obj[fields[i]] = v;
+			}
+			const room: RoomTemplate = {
+				id: obj.id,
+				layout_id: obj.layout_id,
+				type: obj.type,
+				name: obj.name,
+				description: obj.description,
+				width: obj.width,
+				height: obj.height,
+				floor: obj.floor,
+				found: obj.found,
+				locked: obj.locked,
+				explored: obj.found,
+				exploration_data: '',
+				image: null,
+				base_exploration_time: obj.base_exploration_time,
+				status: 'ok',
+				connection_north: obj.connection_north === '' ? null : obj.connection_north,
+				connection_south: obj.connection_south === '' ? null : obj.connection_south,
+				connection_east: obj.connection_east === '' ? null : obj.connection_east,
+				connection_west: obj.connection_west === '' ? null : obj.connection_west,
+				created_at: 0,
+				updated_at: 0,
+			};
+			return room;
+		});
+	}
+	it('should parse the default Destiny ship layout', () => {
+		const sqlFilePath = path.resolve(__dirname, '../../../backend/migrations/005_seed_ship_layouts.sql');
+		const rooms: RoomTemplate[] = parseRoomTemplatesFromSQL(sqlFilePath);
+		const roomIDs = rooms.map(r => r.id);
+		expect(roomIDs).toContain('gate_room');
+		expect(roomIDs).toContain('north_corridor');
+		expect(roomIDs).toContain('south_corridor');
+		expect(roomIDs).toContain('east_corridor');
+		expect(roomIDs).toContain('west_corridor');
+		expect(roomIDs).toContain('control_interface');
+		expect(roomIDs).toContain('kino_room');
+		expect(roomIDs).toContain('crew_corridor_1');
+		expect(roomIDs).toContain('crew_quarters_1');
+		expect(roomIDs).toContain('crew_corridor_2');
+		expect(roomIDs).toContain('crew_quarters_2');
+		expect(roomIDs).toContain('crew_corridor_3');
+		for (const room of rooms) {
+			expect(room.id).toBeDefined();
+			expect(room.layout_id).toBeDefined();
+			expect(room.type).toBeDefined();
+			expect(room.name).toBeDefined();
+			expect(room.description).toBeDefined();
+			expect(room.width).toBeGreaterThan(0);
+			expect(room.height).toBeGreaterThan(0);
+		}
+	});
+
+	it('should layout the Destiny ship from seed and prevent overlaps', () => {
+		const sqlFilePath = path.resolve(__dirname, '../../../backend/migrations/005_seed_ship_layouts.sql');
+		const rooms: RoomTemplate[] = parseRoomTemplatesFromSQL(sqlFilePath);
 
 		const positions = calculateRoomPositions(rooms, 'gate_room');
 

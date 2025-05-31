@@ -16,56 +16,122 @@ export function calculateRoomPositions(
 	rootRoomId: string,
 ): Record<string, { gridX: number; gridY: number }> {
 	const positions: Record<string, { gridX: number; gridY: number }> = {};
+	const occupied: Set<string> = new Set(); // Track occupied grid cells as 'x,y'
 	const visited = new Set<string>();
 	const roomMap = Object.fromEntries(rooms.map(r => [r.id, r]));
 
-	const queue: Array<{ id: string; gridX: number; gridY: number }> = [];
-	const root = roomMap[rootRoomId];
-	if (!root) return positions;
+	function markOccupied(room: RoomTemplate, gridX: number, gridY: number) {
+		const halfW = Math.floor(room.width / 2);
+		const halfH = Math.floor(room.height / 2);
+		for (let dx = -halfW; dx < room.width - halfW; dx++) {
+			for (let dy = -halfH; dy < room.height - halfH; dy++) {
+				occupied.add(`${gridX + dx},${gridY + dy}`);
+			}
+		}
+	}
 
-	queue.push({ id: rootRoomId, gridX: 0, gridY: 0 });
+	function isOccupied(room: RoomTemplate, gridX: number, gridY: number) {
+		const halfW = Math.floor(room.width / 2);
+		const halfH = Math.floor(room.height / 2);
+		for (let dx = -halfW; dx < room.width - halfW; dx++) {
+			for (let dy = -halfH; dy < room.height - halfH; dy++) {
+				if (occupied.has(`${gridX + dx},${gridY + dy}`)) return true;
+			}
+		}
+		return false;
+	}
+
+	const queue: Array<string> = [];
+	positions[rootRoomId] = { gridX: 0, gridY: 0 };
+	markOccupied(roomMap[rootRoomId], 0, 0);
+	visited.add(rootRoomId);
+	queue.push(rootRoomId);
+
+	const directions: Array<{ key: keyof RoomTemplate; dir: string }> = [
+		{ key: 'connection_north', dir: 'north' },
+		{ key: 'connection_south', dir: 'south' },
+		{ key: 'connection_east', dir: 'east' },
+		{ key: 'connection_west', dir: 'west' },
+	];
 
 	while (queue.length > 0) {
-		const { id, gridX, gridY } = queue.shift()!;
-		if (visited.has(id)) continue;
-		visited.add(id);
-		positions[id] = { gridX, gridY };
-
+		const id = queue.shift()!;
 		const room = roomMap[id];
-		if (!room) continue;
+		const pos = positions[id];
+		if (!room || !pos) continue;
 
-		const directions: Array<{
-			key: 'connection_north' | 'connection_south' | 'connection_east' | 'connection_west',
-			dx: number,
-			dy: number
-		}> = [
-			{ key: 'connection_north', dx: 0, dy: 1 },
-			{ key: 'connection_south', dx: 0, dy: -1 },
-			{ key: 'connection_east', dx: 1, dy: 0 },
-			{ key: 'connection_west', dx: -1, dy: 0 },
-		];
+		for (const dirObj of directions) {
+			// Gather all children for this edge
+			const children: Array<{ connId: string; connRoom: RoomTemplate }> = [];
+			for (const other of rooms) {
+				if (visited.has(other.id)) continue;
+				if (room[dirObj.key] === other.id) {
+					children.push({ connId: other.id, connRoom: other });
+				}
+			}
+			if (children.length === 0) continue;
 
-		for (const dir of directions) {
-			const connId = room[dir.key] as string | null;
-			if (!connId || visited.has(connId)) continue;
-			const connRoom = roomMap[connId];
-			if (!connRoom) continue;
-
-			let nextX = gridX;
-			let nextY = gridY;
-			if (dir.key === 'connection_north') {
-				nextY += Math.ceil(room.height / 2) + Math.ceil(connRoom.height / 2);
+			// Assign each child a unique slot
+			let parentSlots = 1;
+			if (dirObj.dir === 'north' || dirObj.dir === 'south') {
+				parentSlots = room.width;
 			}
-			if (dir.key === 'connection_south') {
-				nextY -= Math.ceil(room.height / 2) + Math.ceil(connRoom.height / 2);
+			if (dirObj.dir === 'east' || dirObj.dir === 'west') {
+				parentSlots = room.height;
 			}
-			if (dir.key === 'connection_east') {
-				nextX += Math.ceil(room.width / 2) + Math.ceil(connRoom.width / 2);
+			for (let i = 0; i < children.length; i++) {
+				const { connId, connRoom } = children[i];
+				let placed = false;
+				for (let slot = 0; slot < parentSlots; slot++) {
+					let nextX = pos.gridX;
+					let nextY = pos.gridY;
+					if (dirObj.dir === 'north') {
+						nextY += Math.ceil(room.height / 2) + Math.ceil(connRoom.height / 2);
+						nextX += -Math.floor((room.width - 1) / 2) + slot;
+					}
+					if (dirObj.dir === 'south') {
+						nextY -= Math.ceil(room.height / 2) + Math.ceil(connRoom.height / 2);
+						nextX += -Math.floor((room.width - 1) / 2) + slot;
+					}
+					if (dirObj.dir === 'east') {
+						nextX += Math.ceil(room.width / 2) + Math.ceil(connRoom.width / 2);
+						nextY += -Math.floor((room.height - 1) / 2) + slot;
+					}
+					if (dirObj.dir === 'west') {
+						nextX -= Math.ceil(room.width / 2) + Math.ceil(connRoom.width / 2);
+						nextY += -Math.floor((room.height - 1) / 2) + slot;
+					}
+					if (!isOccupied(connRoom, nextX, nextY)) {
+						positions[connId] = { gridX: nextX, gridY: nextY };
+						markOccupied(connRoom, nextX, nextY);
+						visited.add(connId);
+						queue.push(connId);
+						placed = true;
+						break;
+					}
+				}
+				// If not placed, try sliding further out in the intended direction
+				if (!placed) {
+					let tryX = pos.gridX;
+					let tryY = pos.gridY;
+					let attempts = 0;
+					if (dirObj.dir === 'north') tryY += Math.ceil(room.height / 2) + Math.ceil(connRoom.height / 2);
+					if (dirObj.dir === 'south') tryY -= Math.ceil(room.height / 2) + Math.ceil(connRoom.height / 2);
+					if (dirObj.dir === 'east') tryX += Math.ceil(room.width / 2) + Math.ceil(connRoom.width / 2);
+					if (dirObj.dir === 'west') tryX -= Math.ceil(room.width / 2) + Math.ceil(connRoom.width / 2);
+					while (isOccupied(connRoom, tryX, tryY) && attempts < 10) {
+						if (dirObj.dir === 'north') tryY++;
+						if (dirObj.dir === 'south') tryY--;
+						if (dirObj.dir === 'east') tryX++;
+						if (dirObj.dir === 'west') tryX--;
+						attempts++;
+					}
+					positions[connId] = { gridX: tryX, gridY: tryY };
+					markOccupied(connRoom, tryX, tryY);
+					visited.add(connId);
+					queue.push(connId);
+				}
 			}
-			if (dir.key === 'connection_west') {
-				nextX -= Math.ceil(room.width / 2) + Math.ceil(connRoom.width / 2);
-			}
-			queue.push({ id: connId, gridX: nextX, gridY: nextY });
 		}
 	}
 
