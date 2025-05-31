@@ -18,6 +18,14 @@ interface ShipRoomProps {
 	allRooms: RoomTemplate[];
 }
 
+const CONNECTION_FIELDS = [
+	{ dir: 'north', key: 'connection_north' },
+	{ dir: 'south', key: 'connection_south' },
+	{ dir: 'east', key: 'connection_east' },
+	{ dir: 'west', key: 'connection_west' },
+] as const;
+
+
 export const ShipRoom: React.FC<ShipRoomProps> = ({
 	room,
 	position,
@@ -30,23 +38,14 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 	const { game } = useGameState();
 	const [isHovered, setIsHovered] = useState(false);
 	const gameService = useGameService();
-	const prevFound = useRef(room.found);
 	const [debugMenu, setDebugMenu] = useState(false);
 	const doors = useQuery(gameService.queries.getDoorsForRoom(room.id)) || [];
 
 	useEffect(() => {
-		if (!room.found || prevFound.current) return;
-		prevFound.current = true;
+		if (!room.found) return;
 
-		const connectionFields = [
-			{ dir: 'north', key: 'connection_north' },
-			{ dir: 'south', key: 'connection_south' },
-			{ dir: 'east', key: 'connection_east' },
-			{ dir: 'west', key: 'connection_west' },
-		];
-
-		for (const { key } of connectionFields) {
-			const toRoomId = (room as any)[key] as string | null | undefined;
+		for (const { key } of CONNECTION_FIELDS) {
+			const toRoomId = room[key];
 			if (!toRoomId || typeof toRoomId !== 'string') continue;
 			// Check if a door already exists in either direction
 			const exists = doors.some((d: any) =>
@@ -63,6 +62,13 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 				console.error('No game ID found');
 				throw new Error('No game ID found');
 			}
+			console.log('creating door', {
+				doorId,
+				gameId,
+				fromRoomId: room.id,
+				toRoomId,
+				state,
+			});
 			gameService.store.commit(events.doorCreated({
 				id: doorId,
 				game_id: gameId,
@@ -71,7 +77,13 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 				state,
 			}));
 		}
-	}, [room.found, room, allRooms, gameService, doors]);
+	}, [
+		room,
+		allRooms,
+		gameService,
+		doors,
+		game?.id,
+	]);
 
 	// Don't render if not visible (fog of war)
 	if (!isVisible) return null;
