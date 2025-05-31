@@ -17,7 +17,7 @@ import {
 import { MdCo2 } from 'react-icons/md';
 import { SiO2 } from 'react-icons/si';
 
-import { useGameService } from '../services/use-game-service';
+import { useGameService } from '../services/game-service';
 
 import { CrewStatus } from './crew-status';
 

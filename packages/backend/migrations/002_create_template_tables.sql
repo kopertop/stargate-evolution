@@ -32,10 +32,8 @@ CREATE TABLE IF NOT EXISTS room_templates (
 	type TEXT NOT NULL, -- 'corridor', 'bridge', 'quarters', etc.
 	name TEXT NOT NULL,
 	description TEXT,
-	start_x INTEGER NOT NULL, -- Left edge of room rectangle
-	start_y INTEGER NOT NULL, -- Top edge of room rectangle
-	end_x INTEGER NOT NULL,   -- Right edge of room rectangle
-	end_y INTEGER NOT NULL,   -- Bottom edge of room rectangle
+	width INTEGER NOT NULL, -- Width of the room in grid units
+	height INTEGER NOT NULL, -- Height of the room in grid units
 	floor INTEGER NOT NULL,
 	found BOOLEAN DEFAULT FALSE,
 	locked BOOLEAN DEFAULT FALSE,
@@ -64,19 +62,6 @@ CREATE TABLE IF NOT EXISTS person_templates (
   created_at INTEGER DEFAULT (strftime('%s','now')),
   updated_at INTEGER DEFAULT (strftime('%s','now')),
   FOREIGN KEY (race_template_id) REFERENCES race_templates(id)
-);
-
--- Door templates (now includes layout and room connection info)
-CREATE TABLE IF NOT EXISTS door_templates (
-	id TEXT PRIMARY KEY,
-	layout_id TEXT NOT NULL, -- e.g. 'destiny', 'atlantis'
-	from_room_id TEXT NOT NULL,
-	to_room_id TEXT NOT NULL,
-	requirements TEXT, -- JSON array of requirement objects
-	initial_state TEXT DEFAULT 'closed', -- 'closed', 'opened', 'locked'
-	description TEXT,
-	created_at INTEGER DEFAULT (strftime('%s','now')),
-	updated_at INTEGER DEFAULT (strftime('%s','now'))
 );
 
 -- Galaxy templates

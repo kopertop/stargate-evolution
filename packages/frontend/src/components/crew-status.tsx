@@ -5,7 +5,7 @@ import { Nav, ProgressBar } from 'react-bootstrap';
 import type { IconType } from 'react-icons';
 import { GiMeeple, GiCog, GiHammerNails, GiMedicalPack, GiMagnifyingGlass } from 'react-icons/gi';
 
-import { useGameService } from '../services/use-game-service';
+import { useGameService } from '../services/game-service';
 
 interface CrewStatusProps {
 	game_id: string;

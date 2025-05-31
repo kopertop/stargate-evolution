@@ -8,32 +8,84 @@ export const SCREEN_CENTER_X = 400;   // Screen center X coordinate
 export const SCREEN_CENTER_Y = 300;   // Screen center Y coordinate
 
 /**
+ * Calculate grid positions for all rooms based on connections and size.
+ * Returns a map of roomId -> { gridX, gridY }
+ */
+export function calculateRoomPositions(
+	rooms: RoomTemplate[],
+	rootRoomId: string,
+): Record<string, { gridX: number; gridY: number }> {
+	const positions: Record<string, { gridX: number; gridY: number }> = {};
+	const visited = new Set<string>();
+	const roomMap = Object.fromEntries(rooms.map(r => [r.id, r]));
+
+	const queue: Array<{ id: string; gridX: number; gridY: number }> = [];
+	const root = roomMap[rootRoomId];
+	if (!root) return positions;
+
+	queue.push({ id: rootRoomId, gridX: 0, gridY: 0 });
+
+	while (queue.length > 0) {
+		const { id, gridX, gridY } = queue.shift()!;
+		if (visited.has(id)) continue;
+		visited.add(id);
+		positions[id] = { gridX, gridY };
+
+		const room = roomMap[id];
+		if (!room) continue;
+
+		const directions: Array<{
+			key: 'connection_north' | 'connection_south' | 'connection_east' | 'connection_west',
+			dx: number,
+			dy: number
+		}> = [
+			{ key: 'connection_north', dx: 0, dy: 1 },
+			{ key: 'connection_south', dx: 0, dy: -1 },
+			{ key: 'connection_east', dx: 1, dy: 0 },
+			{ key: 'connection_west', dx: -1, dy: 0 },
+		];
+
+		for (const dir of directions) {
+			const connId = room[dir.key] as string | null;
+			if (!connId || visited.has(connId)) continue;
+			const connRoom = roomMap[connId];
+			if (!connRoom) continue;
+
+			let nextX = gridX;
+			let nextY = gridY;
+			if (dir.key === 'connection_north') {
+				nextY += Math.ceil(room.height / 2) + Math.ceil(connRoom.height / 2);
+			}
+			if (dir.key === 'connection_south') {
+				nextY -= Math.ceil(room.height / 2) + Math.ceil(connRoom.height / 2);
+			}
+			if (dir.key === 'connection_east') {
+				nextX += Math.ceil(room.width / 2) + Math.ceil(connRoom.width / 2);
+			}
+			if (dir.key === 'connection_west') {
+				nextX -= Math.ceil(room.width / 2) + Math.ceil(connRoom.width / 2);
+			}
+			queue.push({ id: connId, gridX: nextX, gridY: nextY });
+		}
+	}
+
+	return positions;
+}
+
+/**
  * RECTANGLE-BASED POSITIONING SYSTEM
  * Rooms are defined by start_x, start_y, end_x, end_y rectangles
  * Convert these to screen coordinates for rendering
  */
 
 /**
- * Get room position using rectangle-based positioning
- * Rooms now have start_x, start_y, end_x, end_y instead of gridX, gridY, width, height
+ * Get room position using calculated grid positions
+ * @param room RoomTemplate
+ * @param positions Map of roomId -> { gridX, gridY }
  */
-export function getRoomScreenPosition(room: RoomTemplate): { x: number; y: number } {
-	// Check if room has new rectangle positioning
-	if (
-		room.start_x !== undefined
-		&& room.start_y !== undefined
-		&& room.end_x !== undefined && room.end_y !== undefined) {
-		// Calculate center of rectangle
-		const centerX = (room.start_x + room.end_x) / 2;
-		const centerY = (room.start_y + room.end_y) / 2;
-
-		// Convert to screen coordinates
-		return gridToScreenPosition(centerX, centerY);
-	}
-
-	// Final fallback
-	console.warn('[GridSystem] Room missing positioning data:', room);
-	return { x: SCREEN_CENTER_X, y: SCREEN_CENTER_Y };
+export function getRoomScreenPosition(room: RoomTemplate, positions: Record<string, { gridX: number; gridY: number }>): { x: number; y: number } {
+	const pos = positions[room.id] || { gridX: 0, gridY: 0 };
+	return gridToScreenPosition(pos.gridX, pos.gridY);
 }
 
 /**
@@ -48,49 +100,41 @@ export function gridToScreenPosition(gridX: number, gridY: number): { x: number;
 
 /**
  * Get the center position of a room in grid coordinates
+ * @param room RoomTemplate
+ * @param positions Map of roomId -> { gridX, gridY }
  */
-export function getRoomGridCenter(room: RoomTemplate): { gridX: number; gridY: number } {
-	// Use new rectangle positioning if available
-	if (room.start_x !== undefined && room.start_y !== undefined && room.end_x !== undefined && room.end_y !== undefined) {
-		return {
-			gridX: (room.start_x + room.end_x) / 2,
-			gridY: (room.start_y + room.end_y) / 2,
-		};
-	}
-
-	// Final fallback
-	console.warn('[GridSystem] Room missing positioning data for grid center:', room);
-	return { gridX: 0, gridY: 0 };
+export function getRoomGridCenter(room: RoomTemplate, positions: Record<string, { gridX: number; gridY: number }>): { gridX: number; gridY: number } {
+	return positions[room.id] || { gridX: 0, gridY: 0 };
 }
 
 /**
  * Get room boundaries in grid coordinates
+ * @param room RoomTemplate
+ * @param positions Map of roomId -> { gridX, gridY }
  */
-export function getRoomGridBounds(room: RoomTemplate): {
+export function getRoomGridBounds(room: RoomTemplate, positions: Record<string, { gridX: number; gridY: number }>): {
 	left: number;
 	right: number;
 	top: number;
 	bottom: number;
 } {
-	// Use new rectangle positioning if available
-	if (room.start_x !== undefined && room.start_y !== undefined && room.end_x !== undefined && room.end_y !== undefined) {
-		return {
-			left: room.start_x,
-			right: room.end_x,
-			top: room.end_y,    // In rectangle system, end_y is the top
-			bottom: room.start_y, // start_y is the bottom
-		};
-	}
-
-	// Final fallback
-	console.warn('[GridSystem] Room missing positioning data for bounds:', room);
-	return { left: 0, right: 1, top: 1, bottom: 0 };
+	const center = positions[room.id] || { gridX: 0, gridY: 0 };
+	const halfWidth = room.width / 2;
+	const halfHeight = room.height / 2;
+	return {
+		left: center.gridX - halfWidth,
+		right: center.gridX + halfWidth,
+		top: center.gridY + halfHeight,
+		bottom: center.gridY - halfHeight,
+	};
 }
 
 /**
  * Get room boundaries in screen coordinates (pixels)
+ * @param room RoomTemplate
+ * @param positions Map of roomId -> { gridX, gridY }
  */
-export function getRoomScreenBounds(room: RoomTemplate): {
+export function getRoomScreenBounds(room: RoomTemplate, positions: Record<string, { gridX: number; gridY: number }>): {
 	left: number;
 	right: number;
 	top: number;
@@ -98,7 +142,7 @@ export function getRoomScreenBounds(room: RoomTemplate): {
 	width: number;
 	height: number;
 } {
-	const gridBounds = getRoomGridBounds(room);
+	const gridBounds = getRoomGridBounds(room, positions);
 	const topLeft = gridToScreenPosition(gridBounds.left, gridBounds.top);
 	const bottomRight = gridToScreenPosition(gridBounds.right, gridBounds.bottom);
 
@@ -119,8 +163,8 @@ export function areRoomsAdjacent(room1: RoomTemplate, room2: RoomTemplate): bool
 	// Must be on the same floor
 	if (room1.floor !== room2.floor) return false;
 
-	const bounds1 = getRoomGridBounds(room1);
-	const bounds2 = getRoomGridBounds(room2);
+	const bounds1 = getRoomGridBounds(room1, {});
+	const bounds2 = getRoomGridBounds(room2, {});
 
 	// Check for horizontal adjacency (sharing vertical border)
 	const horizontallyAdjacent = (
@@ -140,33 +184,23 @@ export function areRoomsAdjacent(room1: RoomTemplate, room2: RoomTemplate): bool
 /**
  * Get the side where two rooms connect (handles both adjacent and non-adjacent rooms)
  */
-export function getConnectionSide(fromRoom: RoomTemplate, toRoom: RoomTemplate): 'top' | 'bottom' | 'left' | 'right' | null {
-	const bounds1 = getRoomGridBounds(fromRoom);
-	const bounds2 = getRoomGridBounds(toRoom);
+export function getConnectionSide(
+	fromRoom: RoomTemplate,
+	toRoom: RoomTemplate,
+): 'top' | 'bottom' | 'left' | 'right' | null {
+	// Check the forward direction
+	if (fromRoom.connection_north === toRoom.id) return 'top';
+	if (fromRoom.connection_south === toRoom.id) return 'bottom';
+	if (fromRoom.connection_east === toRoom.id) return 'right';
+	if (fromRoom.connection_west === toRoom.id) return 'left';
 
-	// First check for direct adjacency
-	if (bounds1.right === bounds2.left) return 'right';
-	if (bounds1.left === bounds2.right) return 'left';
-	if (bounds1.top === bounds2.bottom) return 'top';
-	if (bounds1.bottom === bounds2.top) return 'bottom';
+	// Check the reverse direction
+	if (toRoom.connection_north === fromRoom.id) return 'bottom';
+	if (toRoom.connection_south === fromRoom.id) return 'top';
+	if (toRoom.connection_east === fromRoom.id) return 'left';
+	if (toRoom.connection_west === fromRoom.id) return 'right';
 
-	// If not directly adjacent, determine connection side based on relative positions
-	const fromCenterX = bounds1.left + (bounds1.right - bounds1.left) / 2;
-	const fromCenterY = bounds1.bottom + (bounds1.top - bounds1.bottom) / 2;
-	const toCenterX = bounds2.left + (bounds2.right - bounds2.left) / 2;
-	const toCenterY = bounds2.bottom + (bounds2.top - bounds2.bottom) / 2;
-
-	const deltaX = toCenterX - fromCenterX;
-	const deltaY = toCenterY - fromCenterY;
-
-	// Determine primary direction
-	if (Math.abs(deltaX) > Math.abs(deltaY)) {
-		// Horizontal connection
-		return deltaX > 0 ? 'right' : 'left';
-	} else {
-		// Vertical connection
-		return deltaY > 0 ? 'top' : 'bottom';
-	}
+	return null;
 }
 
 /**
@@ -191,8 +225,8 @@ export function getDoorPosition(fromRoom: RoomTemplate, toRoom: RoomTemplate): {
 	const side = getConnectionSide(fromRoom, toRoom);
 	if (!side) return null;
 
-	const fromBounds = getRoomGridBounds(fromRoom);
-	const toBounds = getRoomGridBounds(toRoom);
+	const fromBounds = getRoomGridBounds(fromRoom, {});
+	const toBounds = getRoomGridBounds(toRoom, {});
 
 	let gridX: number;
 	let gridY: number;

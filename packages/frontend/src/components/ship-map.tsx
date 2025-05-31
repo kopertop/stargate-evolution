@@ -1,14 +1,12 @@
 import { useQuery } from '@livestore/react';
-import { DestinyStatus, DoorTemplate, RoomTemplate } from '@stargate/common';
-import type { DoorInfo } from '@stargate/common/models/door-info';
-import { DoorRequirement } from '@stargate/common/models/door-template';
+import type { DestinyStatus, DoorInfo, RoomTemplate } from '@stargate/common';
 import React, { useState, useEffect } from 'react';
 import { Button, Modal, Alert } from 'react-bootstrap';
 import { GiKey, GiPauseButton } from 'react-icons/gi';
 
 import { useGameState } from '../contexts/game-state-context';
-import { useGameService } from '../services/use-game-service';
-import { getRoomScreenPosition as getGridRoomScreenPosition } from '../utils/grid-system';
+import { useGameService } from '../services/game-service';
+import { getRoomScreenPosition as getGridRoomScreenPosition, calculateRoomPositions } from '../utils/grid-system';
 
 import { CountdownClock } from './countdown-clock';
 import { RoomDetailsModal } from './room-details-modal';
@@ -42,17 +40,20 @@ function generateDoorsForRooms(rooms: RoomTemplate[]): (RoomTemplate & { doors: 
 		];
 		directions.forEach(dir => {
 			if (dir.to) {
-				// TODO: In the future, check if the connected room is adjacent; if not, generate a corridor room in between.
-				// For now, just create a door for every connection.
+				const connectedRoom = rooms.find(r => r.id === dir.to);
+				const isLocked = !!room.locked || !!connectedRoom?.locked;
 				doors.push({
 					toRoomId: dir.to,
-					state: 'closed',
+					state: isLocked ? 'locked' : 'closed',
 				});
 			}
 		});
 		if (room.type === 'gate_room') {
 			console.log('[DEBUG] Gate Room:', room);
-			console.log('[DEBUG] Generated doors for Gate Room:', doors);
+			console.log('[DEBUG] Generated doors for Gate Room:', {
+				doors,
+				directions,
+			});
 		}
 		return {
 			...room,
@@ -70,7 +71,7 @@ export const ShipMap: React.FC<ShipMapProps> = ({ game_id }) => {
 	const [showExplorationModal, setShowExplorationModal] = useState(false);
 	const [showRoomDetailsModal, setShowRoomDetailsModal] = useState(false);
 	const [showDoorModal, setShowDoorModal] = useState(false);
-	const [selectedDoor, setSelectedDoor] = useState<{ fromRoom: RoomTemplate; door: DoorTemplate | DoorInfo } | null>(null);
+	const [selectedDoor, setSelectedDoor] = useState<{ fromRoom: RoomTemplate; door: DoorInfo } | null>(null);
 	const [showDangerWarning, setShowDangerWarning] = useState(false);
 	const [dangerousDoor, setDangerousDoor] = useState<{ fromRoomId: string; toRoomId: string; reason: string } | null>(null);
 	const [rooms, setRooms] = useState<(RoomTemplate & { doors: DoorInfo[] })[]>([]);
@@ -82,6 +83,15 @@ export const ShipMap: React.FC<ShipMapProps> = ({ game_id }) => {
 
 	const gameService = useGameService();
 	const roomsRaw = useQuery(gameService.queries.roomsByGame(game_id));
+
+	// Calculate room positions using the new utility
+	const positions = React.useMemo(() => {
+		if (!rooms.length) return {};
+		// Use 'gate_room' as the root if it exists, otherwise first room
+		const rootRoom = rooms.find(r => r.type === 'gate_room')?.id || rooms[0]?.id;
+		if (!rootRoom) return {};
+		return calculateRoomPositions(rooms, rootRoom);
+	}, [rooms]);
 
 	useEffect(() => {
 		const roomsPrepped = Array.from(roomsRaw).map(room => ({
@@ -135,8 +145,8 @@ export const ShipMap: React.FC<ShipMapProps> = ({ game_id }) => {
 	};
 
 	// Convert room coordinates to screen position using grid system
-	const getRoomScreenPosition = (room: RoomTemplate) => {
-		return getGridRoomScreenPosition(room);
+	const getRoomScreenPosition = (room: RoomTemplate, positions: any) => {
+		return getGridRoomScreenPosition(room, positions);
 	};
 
 	// Check if a door is dangerous to open
@@ -168,11 +178,11 @@ export const ShipMap: React.FC<ShipMapProps> = ({ game_id }) => {
 	};
 
 	// Check if door requirements are met
-	const checkDoorRequirements = (door: DoorInfo): { canOpen: boolean; unmetRequirements: DoorRequirement[] } => {
+	const checkDoorRequirements = (door: DoorInfo): { canOpen: boolean; unmetRequirements: DoorInfo['requirements'] } => {
 		if (!destinyStatus) {
 			return { canOpen: false, unmetRequirements: [] };
 		}
-		const unmetRequirements: DoorRequirement[] = [];
+		const unmetRequirements: DoorInfo['requirements'] = [];
 		if (door.requirements) {
 			for (const requirement of door.requirements) {
 				let met = requirement.met;
@@ -211,40 +221,40 @@ export const ShipMap: React.FC<ShipMapProps> = ({ game_id }) => {
 
 	// Handle door click to open/close/unlock doors
 	const handleDoorClick = async (fromRoomId: string, toRoomId: string) => {
-		if (gameStatePaused) return;
+		if (gameStatePaused) {
+			console.log('[DEBUG] Game is paused, skipping door click');
+			return;
+		}
 		const fromRoom = rooms.find(r => r.id === fromRoomId);
-		console.log('[DEBUG] From Room:', fromRoom);
-		if (!fromRoom) return;
+		if (!fromRoom) {
+			console.warn('[WARNING] From room not found, skipping door click', { fromRoomId, toRoomId });
+			return;
+		}
 		const door = fromRoom.doors?.find(d => d.toRoomId === toRoomId);
-		console.log('[DEBUG] Door:', door);
-		if (!door) return;
+		if (!door) {
+			console.warn('[WARNING] Door not found, skipping door click', { fromRoomId, toRoomId });
+			return;
+		}
 		if (door.state === 'locked') {
-			const { canOpen } = checkDoorRequirements(door);
-			if (canOpen) {
-				await gameService.updateDoorState(fromRoomId, toRoomId, 'opened');
-				await gameService.updateRoom(toRoomId, { found: true });
-			} else {
-				setSelectedDoor({ fromRoom, door });
-				setShowDoorModal(true);
+			// Always show locked door modal, even if requirements are met
+			setSelectedDoor({ fromRoom, door });
+			setShowDoorModal(true);
+			return;
+		}
+		const newState = door.state === 'opened' ? 'closed' : 'opened';
+		if (newState === 'opened') {
+			const { isDangerous, reason } = checkDoorDanger(fromRoomId, toRoomId);
+			if (isDangerous) {
+				setDangerousDoor({ fromRoomId, toRoomId, reason });
+				setShowDangerWarning(true);
+				return;
 			}
-		} else {
-			const newState = door.state === 'opened' ? 'closed' : 'opened';
-			if (newState === 'opened') {
-				const { isDangerous, reason } = checkDoorDanger(fromRoomId, toRoomId);
-				if (isDangerous) {
-					setDangerousDoor({ fromRoomId, toRoomId, reason });
-					setShowDangerWarning(true);
-					return;
-				}
-			}
-			console.log('[DEBUG] Updating door state to:', newState);
-			await updateDoorState(fromRoomId, toRoomId, newState);
-			if (newState === 'opened') {
-				// Open both rooms
-				await gameService.updateRoom(fromRoomId, { found: true });
-				await gameService.updateRoom(toRoomId, { found: true });
-				await handleDoorOpenConsequences(fromRoomId, toRoomId);
-			}
+		}
+		await updateDoorState(fromRoomId, toRoomId, newState);
+		if (newState === 'opened') {
+			await gameService.updateRoom(fromRoomId, { found: true });
+			await gameService.updateRoom(toRoomId, { found: true });
+			await handleDoorOpenConsequences(fromRoomId, toRoomId);
 		}
 	};
 
@@ -526,7 +536,7 @@ export const ShipMap: React.FC<ShipMapProps> = ({ game_id }) => {
 					{/* Render all visible rooms */}
 					{rooms
 						.map(room => {
-							const position = getRoomScreenPosition(room);
+							const position = getRoomScreenPosition(room, positions);
 							return (
 								<ShipRoom
 									key={room.id}
@@ -640,11 +650,9 @@ export const ShipMap: React.FC<ShipMapProps> = ({ game_id }) => {
 					{selectedDoor && (
 						<div>
 							<p><strong>Door:</strong> {selectedDoor.fromRoom.name}</p>
-
 							<Alert variant="warning">
-								This door is locked and requires the following to unlock:
+								This door is locked. You must meet the following requirements to unlock it:
 							</Alert>
-
 							{requirements.length > 0 ? requirements.map((req, index) => {
 								const door = selectedDoor.door;
 								const toRoomId = (door as any).toRoomId || (door as any).to_room_id;
@@ -672,9 +680,47 @@ export const ShipMap: React.FC<ShipMapProps> = ({ game_id }) => {
 									</div>
 								);
 							}) : <div>No requirements found</div>}
+							{/* Unlock/Open button if all requirements are met */}
+							{requirements.length > 0 && requirements.every((req: any) => checkDoorRequirements({
+								toRoomId: (selectedDoor.door as any).toRoomId,
+								state: (selectedDoor.door as any).state,
+								requirements: [req],
+							}).canOpen) && (
+								<Button
+									variant="success"
+									onClick={async () => {
+										await gameService.updateDoorState(selectedDoor.fromRoom.id, (selectedDoor.door as any).toRoomId, 'opened');
+										await gameService.updateRoom((selectedDoor.door as any).toRoomId, { found: true });
+										setShowDoorModal(false);
+									}}
+								>
+									Unlock & Open Door
+								</Button>
+							)}
 						</div>
 					)}
 				</Modal.Body>
+			</Modal>
+
+			{/* Dangerous Door Modal */}
+			<Modal show={showDangerWarning} onHide={handleDangerCancel}>
+				<Modal.Header closeButton>
+					<Modal.Title>⚠️ Danger: Atmospheric Hazard</Modal.Title>
+				</Modal.Header>
+				<Modal.Body>
+					{dangerousDoor && (
+						<>
+							<p><strong>Warning:</strong> {dangerousDoor.reason}</p>
+							<Alert variant="danger">
+								Opening this door may result in catastrophic consequences (e.g., depressurization, loss of atmosphere, or crew harm). Proceed with extreme caution!
+							</Alert>
+						</>
+					)}
+				</Modal.Body>
+				<Modal.Footer>
+					<Button variant="secondary" onClick={handleDangerCancel}>Cancel</Button>
+					<Button variant="danger" onClick={handleDangerOverride}>Override & Open Anyway</Button>
+				</Modal.Footer>
 			</Modal>
 		</div>
 	);

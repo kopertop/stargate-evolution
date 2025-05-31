@@ -3,11 +3,11 @@ import { jwtVerify, SignJWT } from 'jose';
 import { validateUser, validateSession } from './auth-types';
 import { getDefaultDestinyStatusTemplate, getStartingInventoryTemplate } from './templates/destiny-status-template';
 import { getAllGalaxyTemplates, getGalaxyTemplateById } from './templates/galaxy-templates';
-import { getAllPersonTemplates, getPersonTemplateById, getPersonTemplatesByRole, getAllRaceTemplates } from './templates/person-templates';
-import { getAllRoomTemplates, getRoomTemplateById, getRoomTemplatesByType } from './templates/room-templates';
-import { getAllLayoutIds, getShipLayoutById, getRoomsByLayoutId, getDoorsByLayoutId, getRoomById, getDoorById, getShipLayoutWithTechnology } from './templates/ship-layouts';
+import { getAllPersonTemplates, getAllRaceTemplates } from './templates/person-templates';
+import { getAllRoomTemplates, getRoomTemplateById } from './templates/room-templates';
+import { getAllLayoutIds, getShipLayoutById, getShipLayoutWithTechnology } from './templates/ship-layouts';
 import { getAllStarSystemTemplates, getStarSystemTemplateById, getStarSystemsByGalaxyId } from './templates/star-system-templates';
-import { getAllTechnologyTemplates, getTechnologyTemplateById, getTechnologyTemplatesByCategory, getRoomTechnologyByRoomId, getAllRoomTechnology } from './templates/technology-templates';
+import { getAllTechnologyTemplates, getTechnologyTemplateById, getRoomTechnologyByRoomId, getAllRoomTechnology } from './templates/technology-templates';
 import { Env } from './types';
 
 const corsHeaders = {
@@ -253,25 +253,6 @@ export default {
 				}));
 			} catch (err: any) {
 				return withCors(new Response(JSON.stringify({ error: err.message || 'Failed to fetch ship layout' }), {
-					status: 500, headers: { 'content-type': 'application/json' },
-				}));
-			}
-		}
-
-		if (url.pathname === '/api/templates/doors' && request.method === 'GET') {
-			try {
-				const layoutId = url.searchParams.get('layout_id');
-				if (!layoutId) {
-					return withCors(new Response(JSON.stringify({ error: 'Missing layout_id parameter' }), {
-						status: 400, headers: { 'content-type': 'application/json' },
-					}));
-				}
-				const doors = await getDoorsByLayoutId(env.DB, layoutId);
-				return withCors(new Response(JSON.stringify(doors), {
-					headers: { 'content-type': 'application/json' },
-				}));
-			} catch (err: any) {
-				return withCors(new Response(JSON.stringify({ error: err.message || 'Failed to fetch door templates' }), {
 					status: 500, headers: { 'content-type': 'application/json' },
 				}));
 			}

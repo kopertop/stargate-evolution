@@ -33,23 +33,9 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 
 	// Calculate room dimensions using grid system
 	const getRoomDimensions = () => {
-		// Use new rectangle positioning if available
-		if (
-			room.start_x !== undefined
-			&& room.start_y !== undefined
-			&& room.end_x !== undefined
-			&& room.end_y !== undefined
-		) {
-			return {
-				width: (room.end_x - room.start_x) * GRID_UNIT,
-				height: (room.end_y - room.start_y) * GRID_UNIT,
-			};
-		}
-
-		// Fallback to 1x1 room
 		return {
-			width: GRID_UNIT,
-			height: GRID_UNIT,
+			width: room.width * GRID_UNIT,
+			height: room.height * GRID_UNIT,
 		};
 	};
 
