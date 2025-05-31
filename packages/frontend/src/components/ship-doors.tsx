@@ -13,6 +13,7 @@ interface RoomWithDoors extends RoomTemplate {
 interface ShipDoorsProps {
 	rooms: RoomTemplate[];
 	onDoorClick: (fromRoomId: string, toRoomId: string) => void;
+	roomPosition: Record<string, { gridX: number; gridY: number }>;
 }
 
 interface DoorConnection {
@@ -20,10 +21,11 @@ interface DoorConnection {
 	toRoom: RoomTemplate;
 	doorInfo: DoorInfo;
 	onDoorClick?: (fromRoomId: string, toRoomId: string) => void;
+	roomPosition: Record<string, { gridX: number; gridY: number }>;
 }
 // Calculate door position between two rooms using the grid system
-const calculateDoorPosition = (fromRoom: RoomTemplate, toRoom: RoomTemplate) => {
-	const doorPos = getDoorPosition(fromRoom, toRoom);
+const calculateDoorPosition = (fromRoom: RoomTemplate, toRoom: RoomTemplate, roomPosition: Record<string, { gridX: number; gridY: number }>) => {
+	const doorPos = getDoorPosition(fromRoom, toRoom, roomPosition);
 
 	if (!doorPos) {
 		// No valid connection - shouldn't happen but fallback gracefully
@@ -50,13 +52,14 @@ export const ShipDoor: React.FC<DoorConnection> = ({
 	toRoom,
 	doorInfo,
 	onDoorClick,
+	roomPosition,
 }: DoorConnection) => {
 	const [debugMenu, setDebugMenu] = React.useState(false);
 	const [position, setPosition] = React.useState<ReturnType<typeof calculateDoorPosition> | null>(null);
 
 	React.useEffect(() => {
-		setPosition(calculateDoorPosition(fromRoom, toRoom));
-	}, [fromRoom, toRoom]);
+		setPosition(calculateDoorPosition(fromRoom, toRoom, roomPosition));
+	}, [fromRoom, toRoom, roomPosition]);
 
 	// Handle door click
 	const handleDoorClick = (event: React.MouseEvent) => {
@@ -125,6 +128,7 @@ export const ShipDoor: React.FC<DoorConnection> = ({
 export const ShipDoors: React.FC<ShipDoorsProps> = ({
 	rooms,
 	onDoorClick,
+	roomPosition,
 }) => {
 
 	// Get all unique door connections (prevent duplicates)
@@ -149,6 +153,7 @@ export const ShipDoors: React.FC<ShipDoorsProps> = ({
 						fromRoom: room,
 						toRoom,
 						doorInfo,
+						roomPosition,
 					});
 				}
 			}
@@ -169,6 +174,7 @@ export const ShipDoors: React.FC<ShipDoorsProps> = ({
 					key={`${connection.fromRoom.id}-${connection.toRoom.id}-door`}
 					{...connection}
 					onDoorClick={onDoorClick}
+					roomPosition={roomPosition}
 				/>;
 			})}
 		</g>

@@ -14,6 +14,8 @@ import {
 	starsBySystemId$,
 	roomById$,
 	crewMembers$,
+	doorsForRoom$,
+	doorsByGame$,
 } from '../livestore/queries';
 import { events } from '../livestore/schema';
 
@@ -361,6 +363,8 @@ export const useGameService = () => {
 		starSystemById: (system_id: string) => starSystemById$(system_id),
 		starsBySystemId: (system_id: string) => starsBySystemId$(system_id),
 		crewMembers: (game_id: string) => crewMembers$(game_id),
+		getDoorsForRoom: (room_id: string) => doorsForRoom$(room_id),
+		getDoorsByGame: (game_id: string) => doorsByGame$(game_id),
 	};
 
 	return {

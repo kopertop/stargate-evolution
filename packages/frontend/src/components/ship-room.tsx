@@ -1,12 +1,13 @@
+import { useQuery } from '@livestore/react';
 import { RoomTemplate } from '@stargate/common';
 import { title as titleCase } from 'case';
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Button, Modal } from 'react-bootstrap';
 
+import { useGameState } from '../contexts/game-state-context';
+import { events } from '../livestore/schema';
+import { useGameService } from '../services/game-service';
 import { getConnectionSide, GRID_UNIT, WALL_THICKNESS, DOOR_SIZE } from '../utils/grid-system';
-
-interface RoomWithDoors extends RoomTemplate {
-	doors?: string | any[];
-}
 
 interface ShipRoomProps {
 	room: RoomTemplate;
@@ -26,7 +27,51 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 	allRooms,
 }) => {
 	// State for hover - must be declared before any conditional returns
+	const { game } = useGameState();
 	const [isHovered, setIsHovered] = useState(false);
+	const gameService = useGameService();
+	const prevFound = useRef(room.found);
+	const [debugMenu, setDebugMenu] = useState(false);
+	const doors = useQuery(gameService.queries.getDoorsForRoom(room.id)) || [];
+
+	useEffect(() => {
+		if (!room.found || prevFound.current) return;
+		prevFound.current = true;
+
+		const connectionFields = [
+			{ dir: 'north', key: 'connection_north' },
+			{ dir: 'south', key: 'connection_south' },
+			{ dir: 'east', key: 'connection_east' },
+			{ dir: 'west', key: 'connection_west' },
+		];
+
+		for (const { key } of connectionFields) {
+			const toRoomId = (room as any)[key] as string | null | undefined;
+			if (!toRoomId || typeof toRoomId !== 'string') continue;
+			// Check if a door already exists in either direction
+			const exists = doors.some((d: any) =>
+				(d.from_room_id === room.id && d.to_room_id === toRoomId) ||
+				(d.from_room_id === toRoomId && d.to_room_id === room.id),
+			);
+			if (exists) continue;
+			// Create the door if missing
+			const doorId = [room.id, toRoomId].sort().join('-');
+			const toRoom = allRooms.find(r => r.id === toRoomId);
+			const state = (room.locked || toRoom?.locked) ? 'locked' : 'closed';
+			const gameId = game?.id || '';
+			if (!gameId) {
+				console.error('No game ID found');
+				throw new Error('No game ID found');
+			}
+			gameService.store.commit(events.doorCreated({
+				id: doorId,
+				game_id: gameId,
+				from_room_id: room.id,
+				to_room_id: toRoomId,
+				state,
+			}));
+		}
+	}, [room.found, room, allRooms, gameService, doors]);
 
 	// Don't render if not visible (fog of war)
 	if (!isVisible) return null;
@@ -90,23 +135,17 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 		const openings: Array<{
 			side: 'top' | 'bottom' | 'left' | 'right';
 			position: number; // Position along the wall (0-1)
-			toRoomId: string; // Add room ID for door identification
+			toRoomId: string;
 		}> = [];
-
-		// Check each door in room.doors to determine where door openings should be
-		// This includes doors to undiscovered rooms
-		for (const door of Array.isArray((room as RoomWithDoors).doors) ? (room as RoomWithDoors).doors : (room as RoomWithDoors).doors ? JSON.parse((room as RoomWithDoors).doors as string) : []) {
-			// Find the connected room from allRooms (includes undiscovered rooms)
-			const connectedRoom = allRooms.find(r => r.id === door.toRoomId);
+		for (const door of doors) {
+			const connectedRoomId = door.from_room_id === room.id ? door.to_room_id : door.from_room_id;
+			const connectedRoom = allRooms.find(r => r.id === connectedRoomId);
 			if (!connectedRoom) continue;
-
-			// Use grid system to determine connection side
 			const side = getConnectionSide(room, connectedRoom);
 			if (side) {
-				openings.push({ side, position: 0.5, toRoomId: door.toRoomId });
+				openings.push({ side, position: 0.5, toRoomId: connectedRoomId });
 			}
 		}
-
 		return openings;
 	};
 
@@ -486,8 +525,76 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 		);
 	};
 
+	// Room click handler with shift+click debug
+	const handleRoomClick = (event: React.MouseEvent) => {
+		if (event.shiftKey) {
+			setDebugMenu(true);
+		} else {
+			onRoomClick(room);
+		}
+	};
+
 	return (
 		<g>
+			{/* Debug Modal for Room */}
+			{debugMenu && (
+				<Modal show={!!debugMenu} onHide={() => setDebugMenu(false)}>
+					<Modal.Header closeButton>
+						<Modal.Title>Room Debug Menu</Modal.Title>
+					</Modal.Header>
+					<Modal.Body>
+						<div><strong>ID:</strong> {room.id}</div>
+						<div><strong>Name:</strong> {room.name}</div>
+						<div><strong>Type:</strong> {room.type}</div>
+						<div><strong>Found:</strong> {String(room.found)}</div>
+						<div><strong>Locked:</strong> {String(room.locked)}</div>
+						<div><strong>Explored:</strong> {String(room.explored)}</div>
+						<div className="mt-2"><strong>Connections:</strong>
+							<ul style={{ marginBottom: 0 }}>
+								{['connection_north','connection_south','connection_east','connection_west'].map(key => {
+									const connectedRoom = allRooms.find(r => r.id === (room as any)[key]);
+									return (room as any)[key]
+										? <li key={key}>
+											{key.replace('connection_', '')}: {connectedRoom ? connectedRoom.name : (room as any)[key]} ({connectedRoom ? connectedRoom.id : ''})
+										</li>
+										: null;
+								})}
+							</ul>
+						</div>
+						<div className="mt-2"><strong>Doors:</strong>
+							<table className="table table-sm table-bordered" style={{ background: '#222', color: '#fff' }}>
+								<thead>
+									<tr>
+										<th>To Room</th>
+										<th>To Room ID</th>
+										<th>Side</th>
+										<th>State</th>
+									</tr>
+								</thead>
+								<tbody>
+									{(() => {
+										return doors?.map((door) => {
+											const connectedRoom = allRooms.find(r => r.id === door.to_room_id);
+											const side = connectedRoom ? getConnectionSide(room, connectedRoom) : '?';
+											return (
+												<tr key={door.id}>
+													<td>{connectedRoom ? connectedRoom.name : 'Unknown'}</td>
+													<td>{door.to_room_id}</td>
+													<td>{side}</td>
+													<td>{door.state}</td>
+												</tr>
+											);
+										});
+									})()}
+								</tbody>
+							</table>
+						</div>
+					</Modal.Body>
+					<Modal.Footer>
+						<Button onClick={() => setDebugMenu(false)}>Close</Button>
+					</Modal.Footer>
+				</Modal>
+			)}
 			{/* Room background image (if found) - tiled pattern */}
 			{room.found && (
 				<g>
@@ -548,7 +655,7 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 					cursor: canExplore ? 'pointer' : 'default',
 					filter: room.found ? 'none' : 'brightness(0.6)',
 				}}
-				onClick={() => onRoomClick(room)}
+				onClick={handleRoomClick}
 				onMouseEnter={() => setIsHovered(true)}
 				onMouseLeave={() => setIsHovered(false)}
 			/>

@@ -1,5 +1,5 @@
 import { useQuery } from '@livestore/react';
-import type { DestinyStatus, DoorInfo, RoomTemplate } from '@stargate/common';
+import { DoorInfoSchema, type DestinyStatus, type DoorInfo, type RoomTemplate } from '@stargate/common';
 import React, { useState, useEffect } from 'react';
 import { Button, Modal, Alert } from 'react-bootstrap';
 import { GiKey, GiPauseButton } from 'react-icons/gi';
@@ -25,56 +25,22 @@ interface ShipMapProps {
 	game_id: string;
 }
 
-// Utility to generate doors array from connection fields
-function generateDoorsForRooms(rooms: RoomTemplate[]): (RoomTemplate & { doors: DoorInfo[] })[] {
-	// Debug: Print all room IDs and their found status
-	console.log('[DEBUG] All rooms:', rooms.map(r => ({ id: r.id, name: r.name, found: r.found })));
-	// Make a mutable copy to avoid readonly type issues
-	return [...rooms].map(room => {
-		const doors: DoorInfo[] = [];
-		const directions = [
-			{ key: 'connection_north', to: room.connection_north },
-			{ key: 'connection_south', to: room.connection_south },
-			{ key: 'connection_east', to: room.connection_east },
-			{ key: 'connection_west', to: room.connection_west },
-		];
-		directions.forEach(dir => {
-			if (dir.to) {
-				const connectedRoom = rooms.find(r => r.id === dir.to);
-				const isLocked = !!room.locked || !!connectedRoom?.locked;
-				doors.push({
-					toRoomId: dir.to,
-					state: isLocked ? 'locked' : 'closed',
-				});
-			}
-		});
-		if (room.type === 'gate_room') {
-			console.log('[DEBUG] Gate Room:', room);
-			console.log('[DEBUG] Generated doors for Gate Room:', {
-				doors,
-				directions,
-			});
-		}
-		return {
-			...room,
-			found: !!room.found,
-			locked: !!room.locked,
-			explored: !!room.explored,
-			doors,
-		};
-	});
-}
-
 export const ShipMap: React.FC<ShipMapProps> = ({ game_id }) => {
 	const { isPaused: gameStatePaused, resumeGame } = useGameState();
 	const [selectedRoom, setSelectedRoom] = useState<RoomTemplate | null>(null);
 	const [showExplorationModal, setShowExplorationModal] = useState(false);
 	const [showRoomDetailsModal, setShowRoomDetailsModal] = useState(false);
 	const [showDoorModal, setShowDoorModal] = useState(false);
-	const [selectedDoor, setSelectedDoor] = useState<{ fromRoom: RoomTemplate; door: DoorInfo } | null>(null);
+	const [selectedDoor, setSelectedDoor] = useState<{
+			fromRoom: RoomTemplate;
+			door: DoorInfo;
+	} | null>(null);
 	const [showDangerWarning, setShowDangerWarning] = useState(false);
-	const [dangerousDoor, setDangerousDoor] = useState<{ fromRoomId: string; toRoomId: string; reason: string } | null>(null);
-	const [rooms, setRooms] = useState<(RoomTemplate & { doors: DoorInfo[] })[]>([]);
+	const [dangerousDoor, setDangerousDoor] = useState<{
+		fromRoomId: string;
+		toRoomId: string;
+		reason: string;
+	} | null>(null);
 
 	// Camera state for zooming and panning
 	const [camera, setCamera] = useState<CameraTransform>({ x: 0, y: 0, scale: 1 });
@@ -82,31 +48,22 @@ export const ShipMap: React.FC<ShipMapProps> = ({ game_id }) => {
 	const [lastMousePos, setLastMousePos] = useState({ x: 0, y: 0 });
 
 	const gameService = useGameService();
-	const roomsRaw = useQuery(gameService.queries.roomsByGame(game_id));
-
-	// Calculate room positions using the new utility
-	const positions = React.useMemo(() => {
-		if (!rooms.length) return {};
-		// Use 'gate_room' as the root if it exists, otherwise first room
-		const rootRoom = rooms.find(r => r.type === 'gate_room')?.id || rooms[0]?.id;
-		if (!rootRoom) return {};
-		return calculateRoomPositions(rooms, rootRoom);
-	}, [rooms]);
-
-	useEffect(() => {
-		const roomsPrepped = Array.from(roomsRaw).map(room => ({
+	const roomsRaw = useQuery(gameService.queries.roomsByGame(game_id)) || [];
+	const doors = useQuery(gameService.queries.getDoorsByGame(game_id)) || [];
+	// Normalize rooms to mutable, non-nullable fields
+	const rooms: RoomTemplate[] = React.useMemo(() => {
+		return roomsRaw.map(room => ({
 			...room,
+			description: room.description ?? '',
 			found: !!room.found,
 			locked: !!room.locked,
 			explored: !!room.explored,
-			description: typeof room.description === 'string' ? room.description : undefined,
-			status: typeof room.status === 'string' ? room.status : undefined,
-			exploration_data: typeof room.exploration_data === 'string' ? room.exploration_data : undefined,
-			base_exploration_time: typeof room.base_exploration_time === 'number' ? room.base_exploration_time : undefined,
+			exploration_data: room.exploration_data ?? undefined,
+			status: room.status ?? undefined,
+			base_exploration_time: room.base_exploration_time ?? undefined,
 			created_at: typeof room.created_at === 'number' ? room.created_at : (room.created_at ? new Date(room.created_at).getTime() : Date.now()),
 			updated_at: typeof room.updated_at === 'number' ? room.updated_at : (room.updated_at ? new Date(room.updated_at).getTime() : Date.now()),
 		}));
-		setRooms(generateDoorsForRooms(roomsPrepped));
 	}, [roomsRaw]);
 
 	const destinyStatusArr = useQuery(game_id ? gameService.queries.destinyStatus(game_id) : gameService.queries.destinyStatus('')) || [];
@@ -225,19 +182,24 @@ export const ShipMap: React.FC<ShipMapProps> = ({ game_id }) => {
 			console.log('[DEBUG] Game is paused, skipping door click');
 			return;
 		}
+		const door = doors.find(d =>
+			(d.from_room_id === fromRoomId && d.to_room_id === toRoomId) ||
+			(d.from_room_id === toRoomId && d.to_room_id === fromRoomId),
+		);
 		const fromRoom = rooms.find(r => r.id === fromRoomId);
-		if (!fromRoom) {
-			console.warn('[WARNING] From room not found, skipping door click', { fromRoomId, toRoomId });
-			return;
-		}
-		const door = fromRoom.doors?.find(d => d.toRoomId === toRoomId);
-		if (!door) {
-			console.warn('[WARNING] Door not found, skipping door click', { fromRoomId, toRoomId });
+		if (!fromRoom || !door) {
+			console.warn('[WARNING] Door or fromRoom not found, skipping door click', { fromRoomId, toRoomId });
 			return;
 		}
 		if (door.state === 'locked') {
-			// Always show locked door modal, even if requirements are met
-			setSelectedDoor({ fromRoom, door });
+			setSelectedDoor({
+				fromRoom,
+				door: DoorInfoSchema.parse({
+					toRoomId: door.to_room_id,
+					state: door.state as 'locked' | 'opened' | 'closed',
+					requirements: JSON.parse(door.requirements ?? '[]') as DoorInfo['requirements'],
+				}),
+			});
 			setShowDoorModal(true);
 			return;
 		}
@@ -261,7 +223,7 @@ export const ShipMap: React.FC<ShipMapProps> = ({ game_id }) => {
 	// Update door state in database
 	const updateDoorState = async (fromRoomId: string, toRoomId: string, newState: 'closed' | 'opened' | 'locked') => {
 		try {
-			gameService.updateDoorState(fromRoomId, toRoomId, newState);
+			await gameService.updateDoorState(fromRoomId, toRoomId, newState);
 		} catch (error) {
 			console.error('[ShipMap] Failed to update door state in database:', error);
 		}
@@ -288,52 +250,34 @@ export const ShipMap: React.FC<ShipMapProps> = ({ game_id }) => {
 	// Monitor open dangerous doors for continuous atmospheric drain
 	useEffect(() => {
 		if (gameStatePaused) return;
-
 		const interval = setInterval(() => {
-			// Check for open doors to dangerous rooms
 			let hasOpenDangerousDoor = false;
 			let severityMultiplier = 0;
-
-			for (const room of rooms) {
-				for (const door of room.doors) {
-					if (door.state === 'opened') {
-						const { isDangerous } = checkDoorDanger(room.id, door.toRoomId);
-						if (isDangerous) {
-							hasOpenDangerousDoor = true;
-							const toRoom = rooms.find(r => r.id === door.toRoomId);
-
-							// Increase severity based on room status
-							if (toRoom?.status === 'destroyed') {
-								severityMultiplier += 2; // Severe drain
-							} else if (toRoom?.status === 'damaged') {
-								severityMultiplier += 1; // Moderate drain
-							}
+			for (const door of doors) {
+				if (door.state === 'opened') {
+					const { isDangerous } = checkDoorDanger(door.from_room_id, door.to_room_id);
+					if (isDangerous) {
+						hasOpenDangerousDoor = true;
+						const toRoom = rooms.find(r => r.id === door.to_room_id);
+						if (toRoom?.status === 'destroyed') {
+							severityMultiplier += 2;
+						} else if (toRoom?.status === 'damaged') {
+							severityMultiplier += 1;
 						}
 					}
 				}
 			}
-
-			// Apply continuous atmospheric drain if dangerous doors are open
 			if (hasOpenDangerousDoor && severityMultiplier > 0 && destinyStatus) {
-				const drainRate = 0.1 * severityMultiplier; // Base drain per second
-
+				const drainRate = 0.1 * severityMultiplier;
 				const newO2 = Math.max(0, destinyStatus.o2 - drainRate);
 				const newCO2 = Math.min(10, destinyStatus.co2 + (drainRate * 0.5));
-
-				// Log warning every 10 seconds
 				if (Date.now() % 10000 < 1000) {
 					console.log(`🚨 Atmospheric breach ongoing! O2: ${newO2.toFixed(1)}% | CO2: ${newCO2.toFixed(1)}%`);
 				}
 			}
-		}, 1000); // Check every second
-
+		}, 1000);
 		return () => clearInterval(interval);
-	}, [
-		gameStatePaused,
-		rooms,
-		destinyStatus?.o2,
-		destinyStatus?.co2,
-	]);
+	}, [gameStatePaused, rooms, doors, destinyStatus?.o2, destinyStatus?.co2]);
 
 	// Keyboard controls for camera movement and zoom
 	useEffect(() => {
@@ -461,6 +405,13 @@ export const ShipMap: React.FC<ShipMapProps> = ({ game_id }) => {
 		}
 	}
 
+	// Compute room positions for the grid system
+	const roomPosition = React.useMemo(() => {
+		if (!rooms || rooms.length === 0) return {};
+		const rootRoom = rooms.find(r => r.type === 'gate_room')?.id || rooms[0]?.id;
+		return rootRoom ? calculateRoomPositions(rooms, rootRoom) : {};
+	}, [rooms]);
+
 	return (
 		<div style={{ position: 'relative', width: '100%', height: '100%', backgroundColor: '#000' }}>
 			{/* Countdown Clock */}
@@ -534,27 +485,30 @@ export const ShipMap: React.FC<ShipMapProps> = ({ game_id }) => {
 				{/* Camera transform group */}
 				<g transform={`translate(${camera.x}, ${camera.y}) scale(${camera.scale})`}>
 					{/* Render all visible rooms */}
-					{rooms
-						.map(room => {
-							const position = getRoomScreenPosition(room, positions);
-							return (
-								<ShipRoom
-									key={room.id}
-									room={room}
-									position={position}
-									isVisible={room.found}
-									canExplore={room.found && !room.explored && !room.exploration_data && !gameStatePaused}
-									onRoomClick={handleRoomClick}
-									allRooms={rooms}
-								/>
-							);
-						})
-					}
-
-					{/* Centralized door rendering - prevents duplicates */}
+					{rooms.map(room => {
+						const position = getRoomScreenPosition(room, roomPosition);
+						return (
+							<ShipRoom
+								key={room.id}
+								room={room}
+								position={position}
+								isVisible={room.found || false}
+								canExplore={(
+									room.found
+									&& !room.explored
+									&& !room.exploration_data
+									&& !gameStatePaused
+								) || false}
+								onRoomClick={handleRoomClick}
+								allRooms={rooms}
+							/>
+						);
+					})}
+					{/* Render all doors */}
 					<ShipDoors
 						rooms={rooms}
 						onDoorClick={handleDoorClick}
+						roomPosition={roomPosition}
 					/>
 				</g>
 			</svg>
@@ -655,11 +609,10 @@ export const ShipMap: React.FC<ShipMapProps> = ({ game_id }) => {
 							</Alert>
 							{requirements.length > 0 ? requirements.map((req, index) => {
 								const door = selectedDoor.door;
-								const toRoomId = (door as any).toRoomId || (door as any).to_room_id;
 								const state = (door as any).state || (door as any).initial_state || 'locked';
 								const isReqMet = checkDoorRequirements({
-									toRoomId,
-									state,
+									toRoomId: (door as any).to_room_id,
+									state: (door as any).state,
 									requirements: [req],
 								}).canOpen;
 								return (
@@ -682,15 +635,15 @@ export const ShipMap: React.FC<ShipMapProps> = ({ game_id }) => {
 							}) : <div>No requirements found</div>}
 							{/* Unlock/Open button if all requirements are met */}
 							{requirements.length > 0 && requirements.every((req: any) => checkDoorRequirements({
-								toRoomId: (selectedDoor.door as any).toRoomId,
+								toRoomId: (selectedDoor.door as any).to_room_id,
 								state: (selectedDoor.door as any).state,
 								requirements: [req],
 							}).canOpen) && (
 								<Button
 									variant="success"
 									onClick={async () => {
-										await gameService.updateDoorState(selectedDoor.fromRoom.id, (selectedDoor.door as any).toRoomId, 'opened');
-										await gameService.updateRoom((selectedDoor.door as any).toRoomId, { found: true });
+										await gameService.updateDoorState(selectedDoor.fromRoom.id, (selectedDoor.door as any).to_room_id, 'opened');
+										await gameService.updateRoom((selectedDoor.door as any).to_room_id, { found: true });
 										setShowDoorModal(false);
 									}}
 								>

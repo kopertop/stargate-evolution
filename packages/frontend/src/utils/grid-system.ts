@@ -281,7 +281,11 @@ export function findAdjacentRooms(room: RoomTemplate, allRooms: RoomTemplate[]):
 /**
  * Calculate door position between two rooms
  */
-export function getDoorPosition(fromRoom: RoomTemplate, toRoom: RoomTemplate): {
+export function getDoorPosition(
+	fromRoom: RoomTemplate,
+	toRoom: RoomTemplate,
+	roomPosition: Record<string, { gridX: number; gridY: number }>,
+): {
 	side: 'top' | 'bottom' | 'left' | 'right';
 	gridX: number;
 	gridY: number;
@@ -291,8 +295,8 @@ export function getDoorPosition(fromRoom: RoomTemplate, toRoom: RoomTemplate): {
 	const side = getConnectionSide(fromRoom, toRoom);
 	if (!side) return null;
 
-	const fromBounds = getRoomGridBounds(fromRoom, {});
-	const toBounds = getRoomGridBounds(toRoom, {});
+	const fromBounds = getRoomGridBounds(fromRoom, roomPosition);
+	const toBounds = getRoomGridBounds(toRoom, roomPosition);
 
 	let gridX: number;
 	let gridY: number;

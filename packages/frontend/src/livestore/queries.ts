@@ -1,4 +1,4 @@
-import { queryDb } from '@livestore/livestore';
+import { queryDb, Schema, sql, State } from '@livestore/livestore';
 
 import { tables } from './schema';
 
@@ -28,6 +28,12 @@ export const unexploredRooms$ = (game_id: string) => queryDb(
 	() => tables.rooms.where({ game_id, explored: false }),
 	{ label: `unexploredRooms:${game_id}` },
 );
+
+export const doorsForRoom$ = (room_id: string) => queryDb({
+	query: sql`select * from doors where from_room_id = ? OR to_room_id = ?`,
+	bindValues: [room_id, room_id],
+	schema: Schema.Array(tables.doors.rowSchema),
+});
 
 // Destiny status queries
 export const destinyStatusBygame_id$ = (game_id: string) => queryDb(
@@ -103,4 +109,10 @@ export const starSystemById$ = (systemId: string) => queryDb(
 export const starsBySystemId$ = (systemId: string) => queryDb(
 	() => tables.stars.where({ star_system_id: systemId }),
 	{ label: `starsBySystemId:${systemId}` },
+);
+
+// Door queries
+export const doorsByGame$ = (game_id: string) => queryDb(
+	() => tables.doors.where({ game_id }),
+	{ label: `doorsByGame:${game_id}` },
 );

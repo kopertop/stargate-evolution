@@ -1,5 +1,4 @@
 import { Events, makeSchema, Schema, SessionIdSymbol, State } from '@livestore/livestore';
-import { DestinyStatus } from '@stargate/common';
 
 // Core game tables
 export const tables = {
@@ -206,9 +205,23 @@ export const tables = {
 			locked: State.SQLite.boolean({ nullable: true }),
 			explored: State.SQLite.boolean({ nullable: true }),
 			status: State.SQLite.text({ nullable: true }),
-			connected_rooms: State.SQLite.text({ nullable: true }),
-			doors: State.SQLite.text({ nullable: true }),
 			exploration_data: State.SQLite.text({ nullable: true }),
+		},
+	}),
+
+	// Doors
+	doors: State.SQLite.table({
+		name: 'doors',
+		columns: {
+			id: State.SQLite.text({ primaryKey: true }),
+			game_id: State.SQLite.text(),
+			from_room_id: State.SQLite.text(),
+			to_room_id: State.SQLite.text(),
+			state: State.SQLite.text(),
+			// JSON Door Requirements
+			requirements: State.SQLite.text({ nullable: true }),
+			created_at: State.SQLite.integer({ schema: Schema.DateFromNumber }),
+			updated_at: State.SQLite.integer({ schema: Schema.DateFromNumber }),
 		},
 	}),
 
@@ -468,8 +481,18 @@ export const events = {
 			explored: Schema.optional(Schema.Boolean),
 			status: Schema.optional(Schema.String),
 			connected_rooms: Schema.optional(Schema.String),
-			doors: Schema.optional(Schema.String),
 			exploration_data: Schema.optional(Schema.String),
+		}),
+	}),
+
+	doorCreated: Events.synced({
+		name: 'v1.DoorCreated',
+		schema: Schema.Struct({
+			id: Schema.String,
+			game_id: Schema.String,
+			from_room_id: Schema.String,
+			to_room_id: Schema.String,
+			state: Schema.String,
 		}),
 	}),
 
@@ -528,6 +551,14 @@ export const events = {
 			connection_east: Schema.optional(Schema.String),
 			connection_west: Schema.optional(Schema.String),
 			exploration_data: Schema.optional(Schema.String),
+		}),
+	}),
+
+	doorUpdated: Events.synced({
+		name: 'v1.DoorUpdated',
+		schema: Schema.Struct({
+			id: Schema.String,
+			state: Schema.String,
 		}),
 	}),
 };
@@ -616,6 +647,12 @@ const materializers = State.SQLite.materializers(events, {
 		updated_at: new Date(),
 	}),
 
+	'v1.DoorCreated': (fields) => tables.doors.insert({
+		...fields,
+		created_at: new Date(),
+		updated_at: new Date(),
+	}),
+
 	'v1.DestinyStatusUpdated': ({ game_id, ...updates }) =>
 		tables.destinyStatus.update({
 			...updates,
@@ -643,6 +680,12 @@ const materializers = State.SQLite.materializers(events, {
 
 	'v1.RoomUpdated': ({ id, ...updates }) =>
 		tables.rooms.update({
+			...updates,
+			updated_at: new Date(),
+		}).where({ id }),
+
+	'v1.DoorUpdated': ({ id, ...updates }) =>
+		tables.doors.update({
 			...updates,
 			updated_at: new Date(),
 		}).where({ id }),

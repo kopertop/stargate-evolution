@@ -50,7 +50,7 @@ INSERT INTO room_templates (
 		2,                              -- height
 		0,                              -- floor
 		false,                          -- found
-		NULL,                           -- connection_north
+		'mess_hall',                           -- connection_north
 		'gate_room',                    -- connection_south
 		NULL,                           -- connection_east
 		NULL,                           -- connection_west
@@ -125,7 +125,7 @@ INSERT INTO room_templates (
 		0,                              -- floor
 		false,                          -- found
 		NULL,                           -- connection_north
-		NULL,                           -- connection_south
+		'observation_deck_corridor',    -- connection_south
 		'kino_room',                    -- connection_east
 		'west_corridor',                -- connection_west
 		4,                              -- base_exploration_time
@@ -144,14 +144,67 @@ INSERT INTO room_templates (
 		false,                          -- found
 		NULL,                           -- connection_north
 		NULL,                           -- connection_south
-		NULL,                           -- connection_east
+		'bridge_corridor',              -- connection_east
 		'control_interface',            -- connection_west
 		2,                              -- base_exploration_time
 		false,                          -- locked
 		'ok'                            -- status
 	),
+	(
+		'observation_deck_corridor',    -- id
+		'destiny',                      -- layout_id
+		'corridor_basic',               -- type
+		'Observation Deck Corridor',    -- name
+		'Corridor leading to the observation deck', -- description
+		2,                              -- width
+		8,                              -- height
+		0,                              -- floor
+		false,                          -- found
+		'observation_deck',             -- connection_north
+		'control_interface',            -- connection_south
+		NULL,                           -- connection_east
+		NULL,                           -- connection_west
+		4,                              -- base_exploration_time
+		false,                          -- locked
+		'ok'                            -- status
+	),
+	(
+		'observation_deck',             -- id
+		'destiny',                      -- layout_id
+		'observation_deck',             -- type
+		'Observation Deck',             -- name
+		'Large observation deck with panoramic views', -- description
+		8,                              -- width
+		2,                              -- height
+		0,                              -- floor
+		false,                          -- found
+		NULL,                           -- connection_north
+		'observation_deck_corridor',    -- connection_south
+		NULL,                           -- connection_east
+		NULL,                           -- connection_west
+		16,                             -- base_exploration_time
+		false,                          -- locked
+		'ok'                            -- status
+	),
 
-	-- Additional rooms for future expansion (simplified for now)
+	(
+		'bridge_corridor',    -- id
+		'destiny',            -- layout_id
+		'corridor_basic',     -- type
+		'Bridge Corridor',    -- name
+		'Corridor leading to the bridge', -- description
+		8,                    -- width
+		2,                    -- height
+		0,                    -- floor
+		false,                -- found
+		'bridge',             -- connection_north
+		'kino_room',          -- connection_south
+		NULL,                 -- connection_east
+		NULL,                 -- connection_west
+		0,                   -- base_exploration_time
+		false,                -- locked
+		'damaged'             -- status
+	),
 	(
 		'bridge',           -- id
 		'destiny',          -- layout_id
@@ -166,7 +219,7 @@ INSERT INTO room_templates (
 		'north_corridor',   -- connection_south
 		NULL,               -- connection_east
 		NULL,               -- connection_west
-		48,                 -- base_exploration_time
+		336,                 -- base_exploration_time (336 hours = 14 days)
 		true,               -- locked
 		'locked'                -- status
 	),
@@ -194,7 +247,7 @@ INSERT INTO room_templates (
 		'mess_hall_standard', -- type
 		'Mess Hall',        -- name
 		'Mess hall',        -- description
-		2,                  -- width
+		4,                  -- width
 		2,                  -- height
 		0,                  -- floor
 		false,              -- found
