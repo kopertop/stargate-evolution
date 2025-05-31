@@ -10,6 +10,8 @@ import {
 	inventoryBygame_id$,
 	galaxiesBygame_id$,
 	starSystemsBygame_id$,
+	starSystemById$,
+	starsBySystemId$,
 	roomById$,
 	crewMembers$,
 } from '../livestore/queries';
@@ -356,6 +358,8 @@ export const useGameService = () => {
 		inventoryByGame: (game_id: string) => inventoryBygame_id$(game_id),
 		galaxiesByGame: (game_id: string) => galaxiesBygame_id$(game_id),
 		starSystemsByGame: (game_id: string) => starSystemsBygame_id$(game_id),
+		starSystemById: (system_id: string) => starSystemById$(system_id),
+		starsBySystemId: (system_id: string) => starsBySystemId$(system_id),
 		crewMembers: (game_id: string) => crewMembers$(game_id),
 	};
 

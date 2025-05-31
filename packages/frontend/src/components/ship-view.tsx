@@ -5,6 +5,7 @@ import React, { useMemo, useState } from 'react';
 import { useGameService } from '../services/game-service';
 
 import { ShipMap } from './ship-map';
+import { SpaceBackground } from './space-background';
 
 interface ShipViewProps {
 	destinyStatus: DestinyStatus;
@@ -72,7 +73,11 @@ export const ShipView: React.FC<ShipViewProps> = ({
 	};
 
 	return (
-		<div className="ship-view" style={{ width: '100%', height: '100%' }}>
+		<div className="ship-view" style={{ position: 'relative', width: '100%', height: '100%' }}>
+			<SpaceBackground
+				mode={destinyStatus.ftl_status === 'ftl' ? 'ftl' : destinyStatus.location ? 'system' : 'empty'}
+				systemId={destinyStatus.location}
+			/>
 			{/* Interactive Ship Map - Full Screen */}
 			<ShipMap game_id={game_id || ''} />
 		</div>
