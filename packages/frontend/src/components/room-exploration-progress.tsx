@@ -4,7 +4,7 @@ import React from 'react';
 import { Alert, ProgressBar } from 'react-bootstrap';
 import { FaClock } from 'react-icons/fa';
 
-import { useGameService } from '../services/use-game-service';
+import { useGameService } from '../services/game-service';
 
 interface RoomExplorationProgressProps {
 	roomId: string;

@@ -9,7 +9,7 @@ import React, {
 } from 'react';
 import { toast } from 'react-toastify';
 
-import { useGameService } from '../services/use-game-service';
+import { useGameService } from '../services/game-service';
 import { ApiService } from '../utils/api-service';
 
 interface GameStateContextType {

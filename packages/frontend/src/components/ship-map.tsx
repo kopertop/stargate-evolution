@@ -1,13 +1,11 @@
 import { useQuery } from '@livestore/react';
-import { DestinyStatus, DoorTemplate, RoomTemplate } from '@stargate/common';
-import type { DoorInfo } from '@stargate/common/models/door-info';
-import { DoorRequirement } from '@stargate/common/models/door-template';
+import type { DestinyStatus, DoorInfo, RoomTemplate } from '@stargate/common';
 import React, { useState, useEffect } from 'react';
 import { Button, Modal, Alert } from 'react-bootstrap';
 import { GiKey, GiPauseButton } from 'react-icons/gi';
 
 import { useGameState } from '../contexts/game-state-context';
-import { useGameService } from '../services/use-game-service';
+import { useGameService } from '../services/game-service';
 import { getRoomScreenPosition as getGridRoomScreenPosition, calculateRoomPositions } from '../utils/grid-system';
 
 import { CountdownClock } from './countdown-clock';
@@ -73,7 +71,7 @@ export const ShipMap: React.FC<ShipMapProps> = ({ game_id }) => {
 	const [showExplorationModal, setShowExplorationModal] = useState(false);
 	const [showRoomDetailsModal, setShowRoomDetailsModal] = useState(false);
 	const [showDoorModal, setShowDoorModal] = useState(false);
-	const [selectedDoor, setSelectedDoor] = useState<{ fromRoom: RoomTemplate; door: DoorTemplate | DoorInfo } | null>(null);
+	const [selectedDoor, setSelectedDoor] = useState<{ fromRoom: RoomTemplate; door: DoorInfo } | null>(null);
 	const [showDangerWarning, setShowDangerWarning] = useState(false);
 	const [dangerousDoor, setDangerousDoor] = useState<{ fromRoomId: string; toRoomId: string; reason: string } | null>(null);
 	const [rooms, setRooms] = useState<(RoomTemplate & { doors: DoorInfo[] })[]>([]);
@@ -180,11 +178,11 @@ export const ShipMap: React.FC<ShipMapProps> = ({ game_id }) => {
 	};
 
 	// Check if door requirements are met
-	const checkDoorRequirements = (door: DoorInfo): { canOpen: boolean; unmetRequirements: DoorRequirement[] } => {
+	const checkDoorRequirements = (door: DoorInfo): { canOpen: boolean; unmetRequirements: DoorInfo['requirements'] } => {
 		if (!destinyStatus) {
 			return { canOpen: false, unmetRequirements: [] };
 		}
-		const unmetRequirements: DoorRequirement[] = [];
+		const unmetRequirements: DoorInfo['requirements'] = [];
 		if (door.requirements) {
 			for (const requirement of door.requirements) {
 				let met = requirement.met;

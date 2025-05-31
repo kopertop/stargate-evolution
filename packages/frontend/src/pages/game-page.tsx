@@ -15,7 +15,7 @@ import { ShipView } from '../components/ship-view';
 import { DestinyStatusProvider, useDestinyStatus } from '../contexts/destiny-status-context';
 import { GameStateProvider, useGameState } from '../contexts/game-state-context';
 import { Game } from '../game';
-import { useGameService } from '../services/use-game-service';
+import { useGameService } from '../services/game-service';
 
 type ViewMode = 'ship-view' | 'galaxy-map' | 'game-view';
 

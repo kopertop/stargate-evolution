@@ -9,7 +9,7 @@ import { toast } from 'react-toastify';
 import { renderGoogleSignInButton } from '../auth/google-auth';
 import { getSession, setSession } from '../auth/session';
 import { apiService } from '../services/api-service';
-import { useGameService } from '../services/use-game-service';
+import { useGameService } from '../services/game-service';
 
 type GameSummary = {
 	id: string;

@@ -337,7 +337,6 @@ describe('getConnectionSide and areRoomsAdjacent', () => {
 			updated_at: 0,
 		},
 	];
-	const positions = calculateRoomPositions(rooms, 'center');
 
 	it('should detect correct connection sides', () => {
 		const center = rooms[0];

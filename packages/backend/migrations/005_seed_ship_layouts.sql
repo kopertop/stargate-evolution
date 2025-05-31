@@ -32,18 +32,3 @@ INSERT INTO room_templates (id, layout_id, type, name, description, width, heigh
 	-- Multi-level rooms (for future expansion)
 	('engineering', 'destiny', 'engineering_main', 'Engineering', 'Engineering section', 4, 4, 1, false, NULL, NULL, NULL, NULL, 12, false),
 	('hydroponics', 'destiny', 'hydroponics_bay', 'Hydroponics', 'Hydroponics bay', 4, 4, -1, false, NULL, NULL, NULL, NULL, 6, false);
-
--- Doors (updated for new room layout)
-INSERT INTO door_templates (id, layout_id, from_room_id, to_room_id, requirements, initial_state, description) VALUES
-	-- Main gate room connections
-	('door_gate_north', 'destiny', 'gate_room', 'north_corridor', '[]', 'closed', 'North corridor access'),
-	('door_gate_south', 'destiny', 'gate_room', 'south_corridor', '[]', 'closed', 'South corridor access'),
-	('door_gate_control', 'destiny', 'gate_room', 'control_interface', '[]', 'closed', 'Control interface access'),
-
-	-- Control interface to kino room
-	('door_control_kino', 'destiny', 'control_interface', 'kino_room', '[{"type":"technology","value":"kino_systems","description":"Kino room requires functional remote systems","met":false}]', 'locked', 'Kino room - Systems lock'),
-
-	-- Extended connections
-	('door_south_bridge', 'destiny', 'south_corridor', 'bridge', '[{"type":"code","value":"bridge_access_code","description":"Bridge requires an access code found in the ship command protocols","met":false}]', 'locked', 'Bridge command center - Code required'),
-	('door_north_mess', 'destiny', 'north_corridor', 'mess_hall', '[]', 'closed', 'Mess hall access'),
-	('door_kino_medical', 'destiny', 'kino_room', 'medical_bay', '[{"type":"technology","value":"medical_scanner","description":"Medical bay requires functional scanner systems","met":false}]', 'locked', 'Medical bay - Biometric lock');

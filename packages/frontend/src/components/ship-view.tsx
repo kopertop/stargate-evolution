@@ -2,7 +2,7 @@ import { useQuery } from '@livestore/react';
 import { DestinyStatus } from '@stargate/common';
 import React, { useMemo, useState } from 'react';
 
-import { useGameService } from '../services/use-game-service';
+import { useGameService } from '../services/game-service';
 
 import { ShipMap } from './ship-map';
 

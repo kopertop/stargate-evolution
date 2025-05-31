@@ -2,7 +2,7 @@ import type { DoorInfo, RoomTemplate } from '@stargate/common';
 import React from 'react';
 import { Button, Modal } from 'react-bootstrap';
 
-import { getDoorPosition, WALL_THICKNESS, DOOR_SIZE } from '../utils/grid-system';
+import { getDoorPosition, WALL_THICKNESS, DOOR_SIZE, getConnectionSide } from '../utils/grid-system';
 
 interface RoomWithDoors extends RoomTemplate {
 	doors?: string | any[];
@@ -77,12 +77,6 @@ const getDoorImage = (connection: DoorConnection): string => {
 	}
 };
 
-function getConnectionDirection(fromRoom: RoomTemplate, toRoom: RoomTemplate) {
-	const direction = getDoorPosition(fromRoom, toRoom);
-	if (!direction) return '';
-	return direction.side;
-}
-
 export const ShipDoor: React.FC<DoorConnection> = ({
 	fromRoom,
 	toRoom,
@@ -124,10 +118,10 @@ export const ShipDoor: React.FC<DoorConnection> = ({
 					<Modal.Title>Debug Menu</Modal.Title>
 				</Modal.Header>
 				<Modal.Body>
-					<div>From Room: {fromRoom.name} {getConnectionDirection(fromRoom, toRoom)}</div>
+					<div>From Room: {fromRoom.name} {getConnectionSide(fromRoom, toRoom)}</div>
 					<div><code>{fromRoom.id}</code></div>
 
-					<div className="mt-2">To Room: {toRoom.name} {getConnectionDirection(toRoom, fromRoom)}</div>
+					<div className="mt-2">To Room: {toRoom.name} {getConnectionSide(toRoom, fromRoom)}</div>
 					<div><code>{toRoom.id}</code></div>
 
 					<div className="mt-2">Current State: {doorInfo.state}</div>
@@ -208,7 +202,7 @@ export const ShipDoors: React.FC<ShipDoorsProps> = ({
 		<g>
 			{doorConnections.map((connection) => {
 				return <ShipDoor
-					key={connection.fromRoom.id}
+					key={`${connection.fromRoom.id}-${connection.toRoom.id}-door`}
 					{...connection}
 					onDoorClick={onDoorClick}
 				/>;

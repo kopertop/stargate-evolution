@@ -64,19 +64,6 @@ CREATE TABLE IF NOT EXISTS person_templates (
   FOREIGN KEY (race_template_id) REFERENCES race_templates(id)
 );
 
--- Door templates (now includes layout and room connection info)
-CREATE TABLE IF NOT EXISTS door_templates (
-	id TEXT PRIMARY KEY,
-	layout_id TEXT NOT NULL, -- e.g. 'destiny', 'atlantis'
-	from_room_id TEXT NOT NULL,
-	to_room_id TEXT NOT NULL,
-	requirements TEXT, -- JSON array of requirement objects
-	initial_state TEXT DEFAULT 'closed', -- 'closed', 'opened', 'locked'
-	description TEXT,
-	created_at INTEGER DEFAULT (strftime('%s','now')),
-	updated_at INTEGER DEFAULT (strftime('%s','now'))
-);
-
 -- Galaxy templates
 CREATE TABLE IF NOT EXISTS galaxy_templates (
 	id TEXT PRIMARY KEY,

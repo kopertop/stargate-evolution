@@ -5,7 +5,7 @@ import { Button, Modal, Alert, Badge } from 'react-bootstrap';
 import { GiMeeple, GiCog } from 'react-icons/gi';
 
 import { useGameState } from '../contexts/game-state-context';
-import { useGameService } from '../services/use-game-service';
+import { useGameService } from '../services/game-service';
 
 import { RoomExplorationProgress } from './room-exploration-progress';
 

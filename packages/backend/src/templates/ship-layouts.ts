@@ -1,5 +1,4 @@
 import type { D1Database } from '@cloudflare/workers-types';
-import { DoorTemplateSchema } from '@stargate/common/models/door-template';
 import { RoomTemplateSchema } from '@stargate/common/models/room-template';
 import { ShipLayoutSchema } from '@stargate/common/models/ship-layout';
 import { z } from 'zod';
@@ -16,23 +15,16 @@ export async function getRoomsByLayoutId(db: D1Database, layout_id: string): Pro
 	return z.array(RoomTemplateSchema).parse(result.results);
 }
 
-export async function getDoorsByLayoutId(db: D1Database, layout_id: string): Promise<z.infer<typeof DoorTemplateSchema>[]> {
-	const result = await db.prepare('SELECT * FROM door_templates WHERE layout_id = ? ORDER BY id').bind(layout_id).all();
-	return z.array(DoorTemplateSchema).parse(result.results);
-}
-
 export async function getShipLayoutById(db: D1Database, layout_id: string): Promise<z.infer<typeof ShipLayoutSchema> | null> {
 	const rooms = await getRoomsByLayoutId(db, layout_id);
 	if (!rooms.length) return null;
-	const doors = await getDoorsByLayoutId(db, layout_id);
-	return ShipLayoutSchema.parse({ layout_id, rooms, doors });
+	return ShipLayoutSchema.parse({ layout_id, rooms });
 }
 
 // Enhanced version that includes room technology data
 export async function getShipLayoutWithTechnology(db: D1Database, layout_id: string): Promise<any | null> {
 	const rooms = await getRoomsByLayoutId(db, layout_id);
 	if (!rooms.length) return null;
-	const doors = await getDoorsByLayoutId(db, layout_id);
 
 	// Get technology for each room
 	const roomsWithTech = await Promise.all(
@@ -42,7 +34,7 @@ export async function getShipLayoutWithTechnology(db: D1Database, layout_id: str
 		}),
 	);
 
-	return { layout_id, rooms: roomsWithTech, doors };
+	return { layout_id, rooms: roomsWithTech };
 }
 
 export async function getRoomById(db: D1Database, id: string): Promise<z.infer<typeof RoomTemplateSchema> | null> {
@@ -51,8 +43,3 @@ export async function getRoomById(db: D1Database, id: string): Promise<z.infer<t
 	return RoomTemplateSchema.parse(result);
 }
 
-export async function getDoorById(db: D1Database, id: string): Promise<z.infer<typeof DoorTemplateSchema> | null> {
-	const result = await db.prepare('SELECT * FROM door_templates WHERE id = ?').bind(id).first();
-	if (!result) return null;
-	return DoorTemplateSchema.parse(result);
-}

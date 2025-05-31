@@ -9,7 +9,7 @@ import React, {
 	useEffect,
 } from 'react';
 
-import { useGameService } from '../services/use-game-service';
+import { useGameService } from '../services/game-service';
 
 import { useGameState } from './game-state-context';
 
