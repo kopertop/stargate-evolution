@@ -1,0 +1,12 @@
+{
+"extends": "../../tsconfig.json",
+"include": ["test/**/*.ts", "vitest.config.ts"],
+"compilerOptions": {
+"moduleResolution": "bundler",
+"types": [
+"@cloudflare/vitest-pool-workers",
+"vite/client",
+"node"
+]
+}
+}
