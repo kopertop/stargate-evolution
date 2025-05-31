@@ -1,13 +1,15 @@
 import { useQuery } from '@livestore/react';
 import { RoomTemplate } from '@stargate/common';
 import { title as titleCase } from 'case';
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button, Modal } from 'react-bootstrap';
 
 import { useGameState } from '../contexts/game-state-context';
 import { events } from '../livestore/schema';
 import { useGameService } from '../services/game-service';
 import { getConnectionSide, GRID_UNIT, WALL_THICKNESS, DOOR_SIZE } from '../utils/grid-system';
+
+import { ShipDoor } from './ship-door';
 
 interface ShipRoomProps {
 	room: RoomTemplate;
@@ -39,7 +41,7 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 	const [isHovered, setIsHovered] = useState(false);
 	const gameService = useGameService();
 	const [debugMenu, setDebugMenu] = useState(false);
-	const doors = useQuery(gameService.queries.getDoorsForRoom(room.id)) || [];
+	const doors = useQuery(gameService.queries.getDoorsForRoom(room.id));
 
 	useEffect(() => {
 		if (!room.found) return;
@@ -166,8 +168,6 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 		const openings = getDoorOpenings();
 		return openings?.some(opening => opening.side === side) ?? false;
 	};
-
-	// Door rendering is now handled by the centralized ShipDoors component
 
 	// Render walls with gaps for door openings
 	const renderWalls = () => {
@@ -317,8 +317,36 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 						);
 					}
 
-					// Add door gap (no wall segment) - door will be rendered by ShipDoors component
-					// Just leave the gap empty
+					// Add door gap (no wall segment) - render ShipDoor here
+					const door = doors.find(d =>
+						(d.from_room_id === room.id && d.to_room_id === opening.toRoomId) ||
+						(d.from_room_id === opening.toRoomId && d.to_room_id === room.id),
+					);
+					const connectedRoom = allRooms.find(r => r.id === opening.toRoomId);
+					if (door && connectedRoom) {
+						const doorInfo = {
+							id: door.id,
+							toRoomId: door.to_room_id,
+							state: door.state as 'locked' | 'opened' | 'closed',
+							requirements: door.requirements ? JSON.parse(door.requirements) : [],
+						};
+						const doorProps = {
+							fromRoom: room,
+							toRoom: connectedRoom,
+							doorInfo,
+							roomPosition: {
+								[room.id]: { gridX: position.x, gridY: position.y },
+								[connectedRoom.id]: { gridX: position.x, gridY: position.y },
+							},
+						};
+						const doorX = doorStartX;
+						const doorY = wallY;
+						elements.push(
+							<g key={`door-${door.id}`} transform={`translate(${doorX}, ${doorY})`}>
+								<ShipDoor {...doorProps} rotation={0} />
+							</g>,
+						);
+					}
 
 					currentX = doorEndX;
 				});
@@ -363,8 +391,36 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 						);
 					}
 
-					// Add door gap (no wall segment) - door will be rendered by ShipDoors component
-					// Just leave the gap empty
+					// Add door gap (no wall segment) - render ShipDoor here
+					const door = doors.find(d =>
+						(d.from_room_id === room.id && d.to_room_id === opening.toRoomId) ||
+						(d.from_room_id === opening.toRoomId && d.to_room_id === room.id),
+					);
+					const connectedRoom = allRooms.find(r => r.id === opening.toRoomId);
+					if (door && connectedRoom) {
+						const doorInfo = {
+							id: door.id,
+							toRoomId: door.to_room_id,
+							state: door.state as 'locked' | 'opened' | 'closed',
+							requirements: door.requirements ? JSON.parse(door.requirements) : [],
+						};
+						const doorProps = {
+							fromRoom: room,
+							toRoom: connectedRoom,
+							doorInfo,
+							roomPosition: {
+								[room.id]: { gridX: position.x, gridY: position.y },
+								[connectedRoom.id]: { gridX: position.x, gridY: position.y },
+							},
+						};
+						const doorX = wallX;
+						const doorY = doorStartY;
+						elements.push(
+							<g key={`door-${door.id}`} transform={`translate(${doorX}, ${doorY})`}>
+								<ShipDoor {...doorProps} rotation={90} />
+							</g>,
+						);
+					}
 
 					currentY = doorEndY;
 				});
@@ -547,7 +603,106 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 	};
 
 	return (
-		<g>
+		<>
+			<g>
+				{/* Room background image (if found) - tiled pattern */}
+				{room.found && (
+					<g>
+						<defs>
+							<pattern
+								id={`floor-pattern-${room.id}`}
+								patternUnits="userSpaceOnUse"
+								width="64"
+								height="64"
+							>
+								<image
+									href={getFloorTileImage()}
+									x="0"
+									y="0"
+									width="64"
+									height="64"
+								/>
+							</pattern>
+						</defs>
+						<rect
+							x={position.x - halfWidth}
+							y={position.y - halfHeight}
+							width={roomDimensions.width}
+							height={roomDimensions.height}
+							fill={`url(#floor-pattern-${room.id})`}
+							opacity="0.8"
+							rx="4"
+							ry="4"
+							style={{ pointerEvents: 'none' }} // Prevent interference with room clicks
+						/>
+						{/* Room overlay image (if available) */}
+						<image
+							href={getRoomOverlayImage()}
+							x={position.x - 24}
+							y={position.y - 24}
+							width="48"
+							height="48"
+							opacity="0.9"
+							style={{ pointerEvents: 'none' }} // Prevent interference with room clicks
+							// eslint-disable-next-line react/no-unknown-property
+							onError={(e) => {
+							// Hide image if it doesn't exist
+								(e.target as SVGImageElement).style.display = 'none';
+							}}
+						/>
+					</g>
+				)}
+
+				{/* Room click area (invisible) */}
+				<rect
+					x={position.x - halfWidth}
+					y={position.y - halfHeight}
+					width={roomDimensions.width}
+					height={roomDimensions.height}
+					fill={room.found ? 'transparent' : getRoomColor()}
+					stroke="none"
+					style={{
+						cursor: canExplore ? 'pointer' : 'default',
+						filter: room.found ? 'none' : 'brightness(0.6)',
+					}}
+					onClick={handleRoomClick}
+					onMouseEnter={() => setIsHovered(true)}
+					onMouseLeave={() => setIsHovered(false)}
+				/>
+
+				{/* Walls with door gaps */}
+				{renderWalls()}
+
+				{/* Stargate (for gate room) */}
+				{renderStargate()}
+
+				{/* Room type icon */}
+				{renderRoomIcon()}
+
+				{/* Exploration progress */}
+				{renderExplorationProgress()}
+
+				{/* Locked indicator */}
+				{renderLockedIndicator()}
+
+				{/* Room label */}
+				{renderHoverOverlay()}
+
+				{/* Fog of war overlay for locked rooms */}
+				{room.found && room.locked && (
+					<rect
+						x={position.x - halfWidth}
+						y={position.y - halfHeight}
+						width={roomDimensions.width}
+						height={roomDimensions.height}
+						fill="#000000"
+						opacity="0.4"
+						pointerEvents="none"
+						rx="4"
+						ry="4"
+					/>
+				)}
+			</g>
 			{/* Debug Modal for Room */}
 			{debugMenu && (
 				<Modal show={!!debugMenu} onHide={() => setDebugMenu(false)}>
@@ -607,103 +762,6 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 					</Modal.Footer>
 				</Modal>
 			)}
-			{/* Room background image (if found) - tiled pattern */}
-			{room.found && (
-				<g>
-					<defs>
-						<pattern
-							id={`floor-pattern-${room.id}`}
-							patternUnits="userSpaceOnUse"
-							width="64"
-							height="64"
-						>
-							<image
-								href={getFloorTileImage()}
-								x="0"
-								y="0"
-								width="64"
-								height="64"
-							/>
-						</pattern>
-					</defs>
-					<rect
-						x={position.x - halfWidth}
-						y={position.y - halfHeight}
-						width={roomDimensions.width}
-						height={roomDimensions.height}
-						fill={`url(#floor-pattern-${room.id})`}
-						opacity="0.8"
-						rx="4"
-						ry="4"
-						style={{ pointerEvents: 'none' }} // Prevent interference with room clicks
-					/>
-					{/* Room overlay image (if available) */}
-					<image
-						href={getRoomOverlayImage()}
-						x={position.x - 24}
-						y={position.y - 24}
-						width="48"
-						height="48"
-						opacity="0.9"
-						style={{ pointerEvents: 'none' }} // Prevent interference with room clicks
-						// eslint-disable-next-line react/no-unknown-property
-						onError={(e) => {
-							// Hide image if it doesn't exist
-							(e.target as SVGImageElement).style.display = 'none';
-						}}
-					/>
-				</g>
-			)}
-
-			{/* Room click area (invisible) */}
-			<rect
-				x={position.x - halfWidth}
-				y={position.y - halfHeight}
-				width={roomDimensions.width}
-				height={roomDimensions.height}
-				fill={room.found ? 'transparent' : getRoomColor()}
-				stroke="none"
-				style={{
-					cursor: canExplore ? 'pointer' : 'default',
-					filter: room.found ? 'none' : 'brightness(0.6)',
-				}}
-				onClick={handleRoomClick}
-				onMouseEnter={() => setIsHovered(true)}
-				onMouseLeave={() => setIsHovered(false)}
-			/>
-
-			{/* Walls with door gaps */}
-			{renderWalls()}
-
-			{/* Stargate (for gate room) */}
-			{renderStargate()}
-
-			{/* Room type icon */}
-			{renderRoomIcon()}
-
-			{/* Exploration progress */}
-			{renderExplorationProgress()}
-
-			{/* Locked indicator */}
-			{renderLockedIndicator()}
-
-			{/* Room label */}
-			{renderHoverOverlay()}
-
-			{/* Fog of war overlay for locked rooms */}
-			{room.found && room.locked && (
-				<rect
-					x={position.x - halfWidth}
-					y={position.y - halfHeight}
-					width={roomDimensions.width}
-					height={roomDimensions.height}
-					fill="#000000"
-					opacity="0.4"
-					pointerEvents="none"
-					rx="4"
-					ry="4"
-				/>
-			)}
-		</g>
+		</>
 	);
 };

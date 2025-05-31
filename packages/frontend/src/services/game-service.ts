@@ -1,5 +1,5 @@
 import { useStore } from '@livestore/react';
-import { NullToUndefined, RoomTechnology, RoomTemplate } from '@stargate/common';
+import { DoorInfo, NullToUndefined, RoomTechnology, RoomTemplate } from '@stargate/common';
 
 import {
 	gameById$,
@@ -305,29 +305,24 @@ export const useGameService = () => {
 		return apiService.getTechnologyForRoom(templateID);
 	};
 
-	// TODO: Fix this
 	const updateDoorState = (
-		fromRoomId: string,
-		toRoomId: string,
+		doorId: string,
 		newState: 'closed' | 'opened' | 'locked',
 	) => {
-		console.log('[updateDoorState] called', fromRoomId, toRoomId, newState);
-		// Helper to update the doors property for a room
-		const updateRoomDoors = (roomId: string, targetRoomId: string) => {
-			// Fetch the current room from the store (not reactive, but for event emission)
-			// In a real app, you might want to query the current state or pass in the current doors array
-			// For now, we assume the UI has the latest state and can pass it in if needed
-			// Here, we just emit the event with the new doors state
-			// This is a placeholder for a more robust implementation
-			store.commit(
-				events.roomUpdated({
-					id: roomId,
-				}),
-			);
-		};
-		// Update both rooms' doors
-		updateRoomDoors(fromRoomId, toRoomId);
-		updateRoomDoors(toRoomId, fromRoomId);
+		console.log('[updateDoorState] called', doorId, newState);
+		store.commit(
+			events.doorUpdated({
+				id: doorId,
+				state: newState,
+			}),
+		);
+	};
+
+	const openDoor = async (door: DoorInfo) => {
+		updateDoorState(door.id, 'opened');
+		updateRoom(door.toRoomId, { found: true });
+		// Handle door open consequences
+		console.log('[openDoor] consequences', door);
 	};
 
 	const assignCrewToRoom = (personId: string, roomId: string | null) => {
@@ -384,6 +379,7 @@ export const useGameService = () => {
 		getTechnologyForRoom,
 		assignCrewToRoom,
 		clearExplorationProgress,
+		openDoor,
 		// Queries
 		queries,
 		// Raw store

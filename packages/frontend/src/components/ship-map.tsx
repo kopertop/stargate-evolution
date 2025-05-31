@@ -11,7 +11,6 @@ import { getRoomScreenPosition as getGridRoomScreenPosition, calculateRoomPositi
 import { CountdownClock } from './countdown-clock';
 import { RoomDetailsModal } from './room-details-modal';
 import { RoomExploration } from './room-exploration';
-import { ShipDoors } from './ship-doors';
 import { ShipRoom } from './ship-room';
 
 
@@ -30,17 +29,6 @@ export const ShipMap: React.FC<ShipMapProps> = ({ game_id }) => {
 	const [selectedRoom, setSelectedRoom] = useState<RoomTemplate | null>(null);
 	const [showExplorationModal, setShowExplorationModal] = useState(false);
 	const [showRoomDetailsModal, setShowRoomDetailsModal] = useState(false);
-	const [showDoorModal, setShowDoorModal] = useState(false);
-	const [selectedDoor, setSelectedDoor] = useState<{
-			fromRoom: RoomTemplate;
-			door: DoorInfo;
-	} | null>(null);
-	const [showDangerWarning, setShowDangerWarning] = useState(false);
-	const [dangerousDoor, setDangerousDoor] = useState<{
-		fromRoomId: string;
-		toRoomId: string;
-		reason: string;
-	} | null>(null);
 
 	// Camera state for zooming and panning
 	const [camera, setCamera] = useState<CameraTransform>({ x: 0, y: 0, scale: 1 });
@@ -48,8 +36,8 @@ export const ShipMap: React.FC<ShipMapProps> = ({ game_id }) => {
 	const [lastMousePos, setLastMousePos] = useState({ x: 0, y: 0 });
 
 	const gameService = useGameService();
-	const roomsRaw = useQuery(gameService.queries.roomsByGame(game_id)) || [];
-	const doors = useQuery(gameService.queries.getDoorsByGame(game_id)) || [];
+	const roomsRaw = useQuery(gameService.queries.roomsByGame(game_id));
+	const doors = useQuery(gameService.queries.getDoorsByGame(game_id));
 	// Normalize rooms to mutable, non-nullable fields
 	const rooms: RoomTemplate[] = React.useMemo(() => {
 		return roomsRaw.map(room => ({
@@ -68,8 +56,6 @@ export const ShipMap: React.FC<ShipMapProps> = ({ game_id }) => {
 
 	const destinyStatusArr = useQuery(game_id ? gameService.queries.destinyStatus(game_id) : gameService.queries.destinyStatus('')) || [];
 	const destinyStatus = destinyStatusArr[0] as DestinyStatus;
-	const inventoryArr = useQuery(game_id ? gameService.queries.inventoryByGame(game_id) : gameService.queries.inventoryByGame('')) || [];
-	const inventoryMap = Object.fromEntries(inventoryArr.map((i) => [i.resource_type, i.amount]));
 
 	// Auto-focus the SVG for keyboard controls
 	useEffect(() => {
@@ -132,119 +118,6 @@ export const ShipMap: React.FC<ShipMapProps> = ({ game_id }) => {
 			};
 		}
 		return { isDangerous: false, reason: '' };
-	};
-
-	// Check if door requirements are met
-	const checkDoorRequirements = (door: DoorInfo): { canOpen: boolean; unmetRequirements: DoorInfo['requirements'] } => {
-		if (!destinyStatus) {
-			return { canOpen: false, unmetRequirements: [] };
-		}
-		const unmetRequirements: DoorInfo['requirements'] = [];
-		if (door.requirements) {
-			for (const requirement of door.requirements) {
-				let met = requirement.met;
-				switch (requirement.type) {
-				case 'power_level': {
-					const requiredPower = parseInt(requirement.value);
-					met = destinyStatus.power >= requiredPower;
-					break;
-				}
-				case 'item':
-					met = (inventoryMap[requirement.value] || 0) > 0;
-					break;
-				case 'technology':
-					met = (inventoryMap[requirement.value] || 0) > 0;
-					break;
-				case 'crew_skill':
-					met = true; // Simplified for now
-					break;
-				case 'story_progress':
-					met = false; // Default to false for now
-					break;
-				case 'code':
-					met = false; // Default to false for now
-					break;
-				}
-				if (!met) {
-					unmetRequirements.push({ ...requirement, met: met || false });
-				}
-			}
-		}
-		return {
-			canOpen: unmetRequirements.length === 0,
-			unmetRequirements,
-		};
-	};
-
-	// Handle door click to open/close/unlock doors
-	const handleDoorClick = async (fromRoomId: string, toRoomId: string) => {
-		if (gameStatePaused) {
-			console.log('[DEBUG] Game is paused, skipping door click');
-			return;
-		}
-		const door = doors.find(d =>
-			(d.from_room_id === fromRoomId && d.to_room_id === toRoomId) ||
-			(d.from_room_id === toRoomId && d.to_room_id === fromRoomId),
-		);
-		const fromRoom = rooms.find(r => r.id === fromRoomId);
-		if (!fromRoom || !door) {
-			console.warn('[WARNING] Door or fromRoom not found, skipping door click', { fromRoomId, toRoomId });
-			return;
-		}
-		if (door.state === 'locked') {
-			setSelectedDoor({
-				fromRoom,
-				door: DoorInfoSchema.parse({
-					toRoomId: door.to_room_id,
-					state: door.state as 'locked' | 'opened' | 'closed',
-					requirements: JSON.parse(door.requirements ?? '[]') as DoorInfo['requirements'],
-				}),
-			});
-			setShowDoorModal(true);
-			return;
-		}
-		const newState = door.state === 'opened' ? 'closed' : 'opened';
-		if (newState === 'opened') {
-			const { isDangerous, reason } = checkDoorDanger(fromRoomId, toRoomId);
-			if (isDangerous) {
-				setDangerousDoor({ fromRoomId, toRoomId, reason });
-				setShowDangerWarning(true);
-				return;
-			}
-		}
-		await updateDoorState(fromRoomId, toRoomId, newState);
-		if (newState === 'opened') {
-			await gameService.updateRoom(fromRoomId, { found: true });
-			await gameService.updateRoom(toRoomId, { found: true });
-			await handleDoorOpenConsequences(fromRoomId, toRoomId);
-		}
-	};
-
-	// Update door state in database
-	const updateDoorState = async (fromRoomId: string, toRoomId: string, newState: 'closed' | 'opened' | 'locked') => {
-		try {
-			await gameService.updateDoorState(fromRoomId, toRoomId, newState);
-		} catch (error) {
-			console.error('[ShipMap] Failed to update door state in database:', error);
-		}
-	};
-
-	// Handle consequences of opening a door (atmospheric effects, etc.)
-	const handleDoorOpenConsequences = async (fromRoomId: string, toRoomId: string) => {
-		if (!destinyStatus) return;
-		const { isDangerous } = checkDoorDanger(fromRoomId, toRoomId);
-		if (isDangerous) {
-			const toRoom = rooms.find(r => r.id === toRoomId);
-			if (toRoom?.status === 'damaged') {
-				const newO2 = Math.max(0, destinyStatus.o2 - 2);
-				const newCO2 = Math.min(10, destinyStatus.co2 + 1);
-				console.log('⚠️ Atmospheric breach detected! O2 levels dropping due to damaged room connection.', newO2, newCO2);
-			} else if (toRoom?.status === 'destroyed') {
-				const newO2 = Math.max(0, destinyStatus.o2 - 5);
-				const newCO2 = Math.min(10, destinyStatus.co2 + 2);
-				console.log('🚨 CRITICAL BREACH! Massive atmospheric loss due to destroyed room exposure!', newO2, newCO2);
-			}
-		}
 	};
 
 	// Monitor open dangerous doors for continuous atmospheric drain
@@ -327,83 +200,9 @@ export const ShipMap: React.FC<ShipMapProps> = ({ game_id }) => {
 		return () => window.removeEventListener('keydown', handleKeyDown);
 	}, [camera.scale]);
 
-	// Mouse controls for dragging and wheel zoom
-	const handleMouseDown = (e: React.MouseEvent) => {
-		setIsDragging(true);
-		setLastMousePos({ x: e.clientX, y: e.clientY });
-	};
-
-	/** Mouse Drag Controls */
-	const handleMouseMove = (e: React.MouseEvent) => {
-		if (!isDragging) return;
-
-		const deltaX = (e.clientX - lastMousePos.x);
-		const deltaY = (e.clientY - lastMousePos.y);
-
-		setCamera(prev => ({
-			...prev,
-			// NOTE: DO NOT adjust by scale here, or it will feel very weird
-			// Dragging here moves the camera at the same speed regardless of zoom level
-			x: prev.x + deltaX,
-			y: prev.y + deltaY,
-		}));
-
-		setLastMousePos({ x: e.clientX, y: e.clientY });
-	};
-
-	const handleMouseUp = () => {
-		setIsDragging(false);
-	};
-
-	const handleWheel = (e: React.WheelEvent) => {
-		// e.preventDefault();
-		const zoomSpeed = 0.005;
-		const delta = -e.deltaY * zoomSpeed;
-
-		setCamera(prev => ({
-			...prev,
-			scale: Math.max(0.2, Math.min(3, prev.scale + delta)),
-		}));
-	};
-
-	// Reset camera to default position and zoom
 	const resetCamera = () => {
 		setCamera({ x: 0, y: 0, scale: 1 });
 	};
-
-	// Handle user overriding the danger warning
-	const handleDangerOverride = async () => {
-		if (!dangerousDoor) return;
-
-		const { fromRoomId, toRoomId } = dangerousDoor;
-
-		// Close the warning modal
-		setShowDangerWarning(false);
-		setDangerousDoor(null);
-
-		// Open the door despite the danger
-		await updateDoorState(fromRoomId, toRoomId, 'opened');
-		await handleDoorOpenConsequences(fromRoomId, toRoomId);
-	};
-
-	// Handle user canceling the dangerous door operation
-	const handleDangerCancel = () => {
-		setShowDangerWarning(false);
-		setDangerousDoor(null);
-	};
-
-	let requirements: any[] = [];
-	if (selectedDoor && selectedDoor.door && selectedDoor.door.requirements) {
-		if (typeof selectedDoor.door.requirements === 'string') {
-			try {
-				requirements = JSON.parse(selectedDoor.door.requirements);
-			} catch {
-				requirements = [];
-			}
-		} else if (Array.isArray(selectedDoor.door.requirements)) {
-			requirements = selectedDoor.door.requirements;
-		}
-	}
 
 	// Compute room positions for the grid system
 	const roomPosition = React.useMemo(() => {
@@ -504,12 +303,6 @@ export const ShipMap: React.FC<ShipMapProps> = ({ game_id }) => {
 							/>
 						);
 					})}
-					{/* Render all doors */}
-					<ShipDoors
-						rooms={rooms}
-						onDoorClick={handleDoorClick}
-						roomPosition={roomPosition}
-					/>
 				</g>
 			</svg>
 
@@ -591,90 +384,6 @@ export const ShipMap: React.FC<ShipMapProps> = ({ game_id }) => {
 				room={selectedRoom}
 				game_id={game_id}
 			/>
-
-			{/* Door Requirements Modal */}
-			<Modal show={showDoorModal} onHide={() => setShowDoorModal(false)}>
-				<Modal.Header closeButton>
-					<Modal.Title>
-						<GiKey className="me-2" />
-						Door Locked
-					</Modal.Title>
-				</Modal.Header>
-				<Modal.Body>
-					{selectedDoor && (
-						<div>
-							<p><strong>Door:</strong> {selectedDoor.fromRoom.name}</p>
-							<Alert variant="warning">
-								This door is locked. You must meet the following requirements to unlock it:
-							</Alert>
-							{requirements.length > 0 ? requirements.map((req, index) => {
-								const door = selectedDoor.door;
-								const state = (door as any).state || (door as any).initial_state || 'locked';
-								const isReqMet = checkDoorRequirements({
-									toRoomId: (door as any).to_room_id,
-									state: (door as any).state,
-									requirements: [req],
-								}).canOpen;
-								return (
-									<div key={index} className={`alert ${isReqMet ? 'alert-success' : 'alert-danger'} mb-2`}>
-										<strong>{req.type.replace('_', ' ').toUpperCase()}:</strong> {req.description}
-										{req.type === 'power_level' && destinyStatus && (
-											<div className="mt-1">
-												<small>Required: {req.value} | Current: {destinyStatus.power}</small>
-											</div>
-										)}
-										{(req.type === 'item' || req.type === 'technology') && (
-											<div className="mt-1">
-												<small>
-													In inventory: {inventoryMap[req.value] || 0}
-												</small>
-											</div>
-										)}
-									</div>
-								);
-							}) : <div>No requirements found</div>}
-							{/* Unlock/Open button if all requirements are met */}
-							{requirements.length > 0 && requirements.every((req: any) => checkDoorRequirements({
-								toRoomId: (selectedDoor.door as any).to_room_id,
-								state: (selectedDoor.door as any).state,
-								requirements: [req],
-							}).canOpen) && (
-								<Button
-									variant="success"
-									onClick={async () => {
-										await gameService.updateDoorState(selectedDoor.fromRoom.id, (selectedDoor.door as any).to_room_id, 'opened');
-										await gameService.updateRoom((selectedDoor.door as any).to_room_id, { found: true });
-										setShowDoorModal(false);
-									}}
-								>
-									Unlock & Open Door
-								</Button>
-							)}
-						</div>
-					)}
-				</Modal.Body>
-			</Modal>
-
-			{/* Dangerous Door Modal */}
-			<Modal show={showDangerWarning} onHide={handleDangerCancel}>
-				<Modal.Header closeButton>
-					<Modal.Title>⚠️ Danger: Atmospheric Hazard</Modal.Title>
-				</Modal.Header>
-				<Modal.Body>
-					{dangerousDoor && (
-						<>
-							<p><strong>Warning:</strong> {dangerousDoor.reason}</p>
-							<Alert variant="danger">
-								Opening this door may result in catastrophic consequences (e.g., depressurization, loss of atmosphere, or crew harm). Proceed with extreme caution!
-							</Alert>
-						</>
-					)}
-				</Modal.Body>
-				<Modal.Footer>
-					<Button variant="secondary" onClick={handleDangerCancel}>Cancel</Button>
-					<Button variant="danger" onClick={handleDangerOverride}>Override & Open Anyway</Button>
-				</Modal.Footer>
-			</Modal>
 		</div>
 	);
 };
