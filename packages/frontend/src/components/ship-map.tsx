@@ -221,11 +221,20 @@ export const ShipMap: React.FC<ShipMapProps> = ({ game_id }) => {
 
 	// Handle door click to open/close/unlock doors
 	const handleDoorClick = async (fromRoomId: string, toRoomId: string) => {
-		if (gameStatePaused) return;
+		if (gameStatePaused) {
+			console.log('[DEBUG] Game is paused, skipping door click');
+			return;
+		}
 		const fromRoom = rooms.find(r => r.id === fromRoomId);
-		if (!fromRoom) return;
+		if (!fromRoom) {
+			console.warn('[WARNING] From room not found, skipping door click', { fromRoomId, toRoomId });
+			return;
+		}
 		const door = fromRoom.doors?.find(d => d.toRoomId === toRoomId);
-		if (!door) return;
+		if (!door) {
+			console.warn('[WARNING] Door not found, skipping door click', { fromRoomId, toRoomId });
+			return;
+		}
 		if (door.state === 'locked') {
 			// Always show locked door modal, even if requirements are met
 			setSelectedDoor({ fromRoom, door });

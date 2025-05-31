@@ -4,6 +4,8 @@ import { Button, Modal } from 'react-bootstrap';
 
 import { getDoorPosition, WALL_THICKNESS, DOOR_SIZE, getConnectionSide } from '../utils/grid-system';
 
+import { ShipDoorImage } from './ship-door-image';
+
 interface RoomWithDoors extends RoomTemplate {
 	doors?: string | any[];
 }
@@ -42,40 +44,6 @@ const calculateDoorPosition = (fromRoom: RoomTemplate, toRoom: RoomTemplate) => 
 		side: doorPos.side,
 	};
 };
-// Get door image based on state and safety
-const getDoorImage = (connection: DoorConnection): string => {
-	const { fromRoom, toRoom, doorInfo } = connection;
-
-	switch (doorInfo.state) {
-	case 'opened':
-		return '/images/doors/door-opened.png';
-	case 'closed':
-		// Check if door should be restricted (unsafe conditions)
-		if ((fromRoom.status === 'damaged' || toRoom.status === 'damaged' ||
-				fromRoom.status === 'destroyed' || toRoom.status === 'destroyed')) {
-			return '/images/doors/door-restricted.png';
-		}
-		return '/images/doors/door-closed.png';
-	case 'locked': {
-		// Check if this is a dangerous door (red) or code-locked door (gold)
-		if (toRoom.status === 'damaged' || toRoom.status === 'destroyed') {
-			// Red door for dangerous rooms
-			return '/images/doors/door-locked.png';
-		}
-
-		// Check if door has code requirements (gold door)
-		const hasCodeRequirement = doorInfo.requirements?.some((req: any) => req.type === 'code');
-		if (hasCodeRequirement) {
-			return '/images/doors/door-restricted.png'; // Gold door for code access
-		}
-
-		// Default locked door (red)
-		return '/images/doors/door-locked.png';
-	}
-	default:
-		return '/images/doors/door-closed.png';
-	}
-};
 
 export const ShipDoor: React.FC<DoorConnection> = ({
 	fromRoom,
@@ -86,22 +54,16 @@ export const ShipDoor: React.FC<DoorConnection> = ({
 	const [debugMenu, setDebugMenu] = React.useState(false);
 	const [position, setPosition] = React.useState<ReturnType<typeof calculateDoorPosition> | null>(null);
 
-	const doorImage = React.useMemo(() => getDoorImage({
-		fromRoom,
-		toRoom,
-		doorInfo,
-	}), [fromRoom, toRoom, doorInfo]);
-
 	React.useEffect(() => {
 		setPosition(calculateDoorPosition(fromRoom, toRoom));
 	}, [fromRoom, toRoom]);
 
 	// Handle door click
 	const handleDoorClick = (event: React.MouseEvent) => {
+		console.log('[DEBUG] Door clicked:', { fromRoom, toRoom, doorInfo });
 		// Check to see if the user is holding down the shift key, if so we'll
 		// open a DEBUG menu showing the door connection and the rooms it connects to.
 		if (event.shiftKey) {
-			console.log('[DEBUG] Door clicked:', { fromRoom, toRoom, doorInfo });
 			// Open a DEBUG menu showing the door connection and the rooms it connects to.
 			setDebugMenu(true);
 		} else {
@@ -139,20 +101,22 @@ export const ShipDoor: React.FC<DoorConnection> = ({
 			</Modal>
 		)}
 		{position && (
-			<g key={`door-${fromRoom.id}-${toRoom.id}`}>
-				<image
-					href={doorImage}
-					x={position.x - DOOR_SIZE / 2}
-					y={position.y - WALL_THICKNESS / 2}
-					width={DOOR_SIZE}
-					height={WALL_THICKNESS}
+			<g key={`door-${fromRoom.id}-${toRoom.id}`}
+				transform={position.rotation !== 0 ? `rotate(${position.rotation} ${position.x} ${position.y})` : undefined}
+			>
+				<g
 					style={{ cursor: 'pointer', opacity: 0.7 }}
+					transform={`translate(${position.x - DOOR_SIZE / 2}, ${position.y - WALL_THICKNESS / 2})`}
 					onClick={handleDoorClick}
-					transform={position.rotation !== 0 ?
-						`rotate(${position.rotation} ${position.x} ${position.y})` :
-						undefined
-					}
-				/>
+				>
+					<ShipDoorImage
+						state={doorInfo.state}
+						isDanger={toRoom.status === 'damaged' || toRoom.status === 'destroyed' || fromRoom.status === 'damaged' || fromRoom.status === 'destroyed'}
+						isCodeLocked={!!doorInfo.requirements?.some((req: any) => req.type === 'code')}
+						width={DOOR_SIZE}
+						height={WALL_THICKNESS}
+					/>
+				</g>
 			</g>
 		)}
 	</>);
