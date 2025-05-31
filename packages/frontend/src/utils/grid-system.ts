@@ -86,21 +86,23 @@ export function calculateRoomPositions(
 					let nextX = pos.gridX;
 					let nextY = pos.gridY;
 					if (dirObj.dir === 'north') {
+						// Center child on parent's top wall
 						nextY += Math.ceil(room.height / 2) + Math.ceil(connRoom.height / 2);
-						nextX += -Math.floor((room.width - 1) / 2) + slot;
+						nextX += 0;
 					}
 					if (dirObj.dir === 'south') {
 						nextY -= Math.ceil(room.height / 2) + Math.ceil(connRoom.height / 2);
-						nextX += -Math.floor((room.width - 1) / 2) + slot;
+						nextX += 0;
 					}
 					if (dirObj.dir === 'east') {
 						nextX += Math.ceil(room.width / 2) + Math.ceil(connRoom.width / 2);
-						nextY += -Math.floor((room.height - 1) / 2) + slot;
+						nextY += 0;
 					}
 					if (dirObj.dir === 'west') {
 						nextX -= Math.ceil(room.width / 2) + Math.ceil(connRoom.width / 2);
-						nextY += -Math.floor((room.height - 1) / 2) + slot;
+						nextY += 0;
 					}
+
 					if (!isOccupied(connRoom, nextX, nextY)) {
 						positions[connId] = { gridX: nextX, gridY: nextY };
 						markOccupied(connRoom, nextX, nextY);
@@ -302,26 +304,35 @@ export function getDoorPosition(
 	let gridY: number;
 
 	switch (side) {
-	case 'right':
+	case 'right': {
+		// Center door along the shared wall segment
+		const fromCenterY = (fromBounds.top + fromBounds.bottom) / 2;
+		const toCenterY = (toBounds.top + toBounds.bottom) / 2;
 		gridX = fromBounds.right;
-		gridY = Math.max(fromBounds.bottom, toBounds.bottom) +
-				Math.min(fromBounds.top - fromBounds.bottom, toBounds.top - toBounds.bottom) / 2;
+		gridY = (fromCenterY + toCenterY) / 2;
 		break;
-	case 'left':
+	}
+	case 'left': {
+		const fromCenterY = (fromBounds.top + fromBounds.bottom) / 2;
+		const toCenterY = (toBounds.top + toBounds.bottom) / 2;
 		gridX = fromBounds.left;
-		gridY = Math.max(fromBounds.bottom, toBounds.bottom) +
-				Math.min(fromBounds.top - fromBounds.bottom, toBounds.top - toBounds.bottom) / 2;
+		gridY = (fromCenterY + toCenterY) / 2;
 		break;
-	case 'top':
-		gridX = Math.max(fromBounds.left, toBounds.left) +
-				Math.min(fromBounds.right - fromBounds.left, toBounds.right - toBounds.left) / 2;
+	}
+	case 'top': {
+		const fromCenterX = (fromBounds.left + fromBounds.right) / 2;
+		const toCenterX = (toBounds.left + toBounds.right) / 2;
+		gridX = (fromCenterX + toCenterX) / 2;
 		gridY = fromBounds.top;
 		break;
-	case 'bottom':
-		gridX = Math.max(fromBounds.left, toBounds.left) +
-				Math.min(fromBounds.right - fromBounds.left, toBounds.right - toBounds.left) / 2;
+	}
+	case 'bottom': {
+		const fromCenterX = (fromBounds.left + fromBounds.right) / 2;
+		const toCenterX = (toBounds.left + toBounds.right) / 2;
+		gridX = (fromCenterX + toCenterX) / 2;
 		gridY = fromBounds.bottom;
 		break;
+	}
 	}
 
 	const screenPos = gridToScreenPosition(gridX, gridY);

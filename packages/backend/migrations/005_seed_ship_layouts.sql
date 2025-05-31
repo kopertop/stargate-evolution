@@ -138,8 +138,8 @@ INSERT INTO room_templates (
 		'kino_room',                    -- type
 		'Kino Room',                    -- name
 		'Kino storage and control',     -- description
-		1,                              -- width
-		1,                              -- height
+		2,                              -- width
+		2,                              -- height
 		0,                              -- floor
 		false,                          -- found
 		NULL,                           -- connection_north
@@ -268,8 +268,8 @@ INSERT INTO room_templates (
 		'corridor_basic',       -- type
 		'Crew Corridor 1',      -- name
 		'Corridor to the right of the control interface', -- description
-		1,                      -- width
-		1,                      -- height
+		2,                      -- width
+		2,                      -- height
 		0,                      -- floor
 		false,                  -- found
 		'crew_quarters_1',      -- connection_north
@@ -286,8 +286,8 @@ INSERT INTO room_templates (
 		'crew_quarters',        -- type
 		'Crew Quarters 1',      -- name
 		'Crew quarters',        -- description
-		1,                      -- width
-		1,                      -- height
+		2,                      -- width
+		2,                      -- height
 		0,                      -- floor
 		false,                  -- found
 		NULL,                   -- connection_north
@@ -304,8 +304,8 @@ INSERT INTO room_templates (
 		'corridor_basic',       -- type
 		'Crew Corridor 2',      -- name
 		'Corridor to the right of the control interface', -- description
-		1,                      -- width
-		1,                      -- height
+		2,                      -- width
+		2,                      -- height
 		0,                      -- floor
 		false,                  -- found
 		'crew_quarters_2',      -- connection_north
@@ -322,8 +322,8 @@ INSERT INTO room_templates (
 		'crew_quarters',        -- type
 		'Crew Quarters 2',      -- name
 		'Crew quarters',        -- description
-		1,                      -- width
-		1,                      -- height
+		2,                      -- width
+		2,                      -- height
 		0,                      -- floor
 		false,                  -- found
 		NULL,                   -- connection_north
@@ -340,8 +340,8 @@ INSERT INTO room_templates (
 		'corridor_basic',       -- type
 		'Crew Corridor 3',      -- name
 		'Corridor to the right of the control interface', -- description
-		1,                      -- width
-		1,                      -- height
+		2,                      -- width
+		2,                      -- height
 		0,                      -- floor
 		false,                  -- found
 		'crew_quarters_3',      -- connection_north
@@ -358,8 +358,8 @@ INSERT INTO room_templates (
 		'crew_quarters',        -- type
 		'Crew Quarters 3',      -- name
 		'Crew quarters',        -- description
-		1,                      -- width
-		1,                      -- height
+		2,                      -- width
+		2,                      -- height
 		0,                      -- floor
 		false,                  -- found
 		NULL,                   -- connection_north
@@ -376,8 +376,8 @@ INSERT INTO room_templates (
 		'corridor_basic',       -- type
 		'Crew Corridor 4',      -- name
 		'Corridor to the right of the control interface', -- description
-		1,                      -- width
-		1,                      -- height
+		2,                      -- width
+		2,                      -- height
 		0,                      -- floor
 		false,                  -- found
 		'crew_quarters_4',      -- connection_north
@@ -394,8 +394,8 @@ INSERT INTO room_templates (
 		'crew_quarters',        -- type
 		'Crew Quarters 4',      -- name
 		'Crew quarters',        -- description
-		1,                      -- width
-		1,                      -- height
+		2,                      -- width
+		2,                      -- height
 		0,                      -- floor
 		false,                  -- found
 		NULL,                   -- connection_north
@@ -416,7 +416,7 @@ INSERT INTO room_templates (
 		'Engineering section',  -- description
 		4,                      -- width
 		4,                      -- height
-		1,                      -- floor
+		0,                      -- floor
 		false,                  -- found
 		NULL,                   -- connection_north
 		NULL,                   -- connection_south
@@ -432,7 +432,7 @@ INSERT INTO room_templates (
 		'corridor_basic',          -- type
 		'Hydroponics Corridor',    -- name
 		'Corridor to hydroponics', -- description
-		1,                         -- width
+		2,                         -- width
 		4,                         -- height
 		0,                         -- floor
 		false,                     -- found
@@ -452,7 +452,7 @@ INSERT INTO room_templates (
 		'Hydroponics bay',      -- description
 		4,                      -- width
 		4,                      -- height
-		-1,                     -- floor
+		0,                     -- floor
 		false,                  -- found
 		'hydroponics_corridor', -- connection_north
 		NULL,                   -- connection_south
