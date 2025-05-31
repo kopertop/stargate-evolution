@@ -21,7 +21,7 @@ const SPEED_OPTIONS: { value: number; label: string; description: string }[] = [
 
 export const CountdownClock: React.FC = () => {
 	const { isPaused, timeSpeed, togglePause, setTimeSpeed } = useGameState();
-	const { timeUntilNextTransition, isInFTL, destinyStatus, ftlDropoutTime } = useDestinyStatus();
+	const { timeUntilNextTransition, isInFTL, destinyStatus } = useDestinyStatus();
 	const [showSpeedDropdown, setShowSpeedDropdown] = useState(false);
 
 	// Keyboard controls
@@ -44,10 +44,10 @@ export const CountdownClock: React.FC = () => {
 	}, [setTimeSpeed]);
 
 	// Convert hours to display format
-	const totalMinutes = Math.max(0, Math.floor(timeUntilNextTransition * 60));
+	const totalMinutes = Math.max(0, Math.floor(timeUntilNextTransition / 60));
 	const hours = Math.floor(totalMinutes / 60);
 	const minutes = totalMinutes % 60;
-	const seconds = Math.floor((timeUntilNextTransition * 3600) % 60);
+	const seconds = Math.floor((timeUntilNextTransition) % 60);
 
 	// Determine if we should show red (under 15 minutes)
 	const isUrgent = timeUntilNextTransition < 0.25; // 15 minutes = 0.25 hours
@@ -106,11 +106,6 @@ export const CountdownClock: React.FC = () => {
 	}, []);
 
 	const currentSpeedOption = SPEED_OPTIONS.find(opt => opt.value === timeSpeed) || SPEED_OPTIONS[0];
-
-	// Calculate time since last FTL dropout
-	const timeSinceDropout = ftlDropoutTime && !isInFTL
-		? Math.floor((Date.now() / 1000 - ftlDropoutTime) / 3600)
-		: null;
 
 	return (
 		<div style={{

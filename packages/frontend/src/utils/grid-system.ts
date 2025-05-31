@@ -1,4 +1,4 @@
-import { RoomType } from '../types/model-types';
+import { RoomTemplate } from '@stargate/common';
 
 // Grid system constants
 export const GRID_UNIT = 64;           // Base grid unit (64px)
@@ -17,21 +17,17 @@ export const SCREEN_CENTER_Y = 300;   // Screen center Y coordinate
  * Get room position using rectangle-based positioning
  * Rooms now have start_x, start_y, end_x, end_y instead of gridX, gridY, width, height
  */
-export function getRoomScreenPosition(room: RoomType): { x: number; y: number } {
+export function getRoomScreenPosition(room: RoomTemplate): { x: number; y: number } {
 	// Check if room has new rectangle positioning
-	if (room.startX !== undefined && room.startY !== undefined && room.endX !== undefined && room.endY !== undefined) {
+	if (
+		room.start_x !== undefined
+		&& room.start_y !== undefined
+		&& room.end_x !== undefined && room.end_y !== undefined) {
 		// Calculate center of rectangle
-		const centerX = (room.startX + room.endX) / 2;
-		const centerY = (room.startY + room.endY) / 2;
+		const centerX = (room.start_x + room.end_x) / 2;
+		const centerY = (room.start_y + room.end_y) / 2;
 
 		// Convert to screen coordinates
-		return gridToScreenPosition(centerX, centerY);
-	}
-
-	// Fallback to old grid system for existing rooms
-	if (room.gridX !== undefined && room.gridY !== undefined && room.gridWidth !== undefined && room.gridHeight !== undefined) {
-		const centerX = room.gridX + (room.gridWidth / 2);
-		const centerY = room.gridY + (room.gridHeight / 2);
 		return gridToScreenPosition(centerX, centerY);
 	}
 
@@ -53,20 +49,12 @@ export function gridToScreenPosition(gridX: number, gridY: number): { x: number;
 /**
  * Get the center position of a room in grid coordinates
  */
-export function getRoomGridCenter(room: RoomType): { gridX: number; gridY: number } {
+export function getRoomGridCenter(room: RoomTemplate): { gridX: number; gridY: number } {
 	// Use new rectangle positioning if available
-	if (room.startX !== undefined && room.startY !== undefined && room.endX !== undefined && room.endY !== undefined) {
+	if (room.start_x !== undefined && room.start_y !== undefined && room.end_x !== undefined && room.end_y !== undefined) {
 		return {
-			gridX: (room.startX + room.endX) / 2,
-			gridY: (room.startY + room.endY) / 2,
-		};
-	}
-
-	// Fallback to legacy grid positioning
-	if (room.gridX !== undefined && room.gridY !== undefined && room.gridWidth !== undefined && room.gridHeight !== undefined) {
-		return {
-			gridX: room.gridX + (room.gridWidth / 2),
-			gridY: room.gridY + (room.gridHeight / 2),
+			gridX: (room.start_x + room.end_x) / 2,
+			gridY: (room.start_y + room.end_y) / 2,
 		};
 	}
 
@@ -78,29 +66,19 @@ export function getRoomGridCenter(room: RoomType): { gridX: number; gridY: numbe
 /**
  * Get room boundaries in grid coordinates
  */
-export function getRoomGridBounds(room: RoomType): {
+export function getRoomGridBounds(room: RoomTemplate): {
 	left: number;
 	right: number;
 	top: number;
 	bottom: number;
 } {
 	// Use new rectangle positioning if available
-	if (room.startX !== undefined && room.startY !== undefined && room.endX !== undefined && room.endY !== undefined) {
+	if (room.start_x !== undefined && room.start_y !== undefined && room.end_x !== undefined && room.end_y !== undefined) {
 		return {
-			left: room.startX,
-			right: room.endX,
-			top: room.endY,    // In rectangle system, endY is the top
-			bottom: room.startY, // startY is the bottom
-		};
-	}
-
-	// Fallback to legacy grid positioning
-	if (room.gridX !== undefined && room.gridY !== undefined && room.gridWidth !== undefined && room.gridHeight !== undefined) {
-		return {
-			left: room.gridX,
-			right: room.gridX + room.gridWidth,
-			top: room.gridY + room.gridHeight, // Top is higher Y value
-			bottom: room.gridY,                // Bottom is lower Y value
+			left: room.start_x,
+			right: room.end_x,
+			top: room.end_y,    // In rectangle system, end_y is the top
+			bottom: room.start_y, // start_y is the bottom
 		};
 	}
 
@@ -112,7 +90,7 @@ export function getRoomGridBounds(room: RoomType): {
 /**
  * Get room boundaries in screen coordinates (pixels)
  */
-export function getRoomScreenBounds(room: RoomType): {
+export function getRoomScreenBounds(room: RoomTemplate): {
 	left: number;
 	right: number;
 	top: number;
@@ -137,7 +115,7 @@ export function getRoomScreenBounds(room: RoomType): {
 /**
  * Check if two rooms are adjacent (share a border)
  */
-export function areRoomsAdjacent(room1: RoomType, room2: RoomType): boolean {
+export function areRoomsAdjacent(room1: RoomTemplate, room2: RoomTemplate): boolean {
 	// Must be on the same floor
 	if (room1.floor !== room2.floor) return false;
 
@@ -162,7 +140,7 @@ export function areRoomsAdjacent(room1: RoomType, room2: RoomType): boolean {
 /**
  * Get the side where two rooms connect (handles both adjacent and non-adjacent rooms)
  */
-export function getConnectionSide(fromRoom: RoomType, toRoom: RoomType): 'top' | 'bottom' | 'left' | 'right' | null {
+export function getConnectionSide(fromRoom: RoomTemplate, toRoom: RoomTemplate): 'top' | 'bottom' | 'left' | 'right' | null {
 	const bounds1 = getRoomGridBounds(fromRoom);
 	const bounds2 = getRoomGridBounds(toRoom);
 
@@ -194,7 +172,7 @@ export function getConnectionSide(fromRoom: RoomType, toRoom: RoomType): 'top' |
 /**
  * Find all rooms that are adjacent to the given room
  */
-export function findAdjacentRooms(room: RoomType, allRooms: RoomType[]): RoomType[] {
+export function findAdjacentRooms(room: RoomTemplate, allRooms: RoomTemplate[]): RoomTemplate[] {
 	return allRooms.filter(otherRoom =>
 		otherRoom.id !== room.id && areRoomsAdjacent(room, otherRoom),
 	);
@@ -203,7 +181,7 @@ export function findAdjacentRooms(room: RoomType, allRooms: RoomType[]): RoomTyp
 /**
  * Calculate door position between two rooms
  */
-export function getDoorPosition(fromRoom: RoomType, toRoom: RoomType): {
+export function getDoorPosition(fromRoom: RoomTemplate, toRoom: RoomTemplate): {
 	side: 'top' | 'bottom' | 'left' | 'right';
 	gridX: number;
 	gridY: number;

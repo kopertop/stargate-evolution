@@ -28,8 +28,7 @@ export function getDefaultDestinyStatusTemplate(): DestinyStatus {
 		co2Scrubbers: 1,
 		weapons: '{"mainGun": false, "turrets": {"total": 12, "working": 6}}',
 		shuttles: '{"total": 2, "working": 1, "damaged": 1}',
-		notes: '["Ship systems coming online. Crew exploring available sections."]',
-		next_ftl_transition: Math.floor(Math.random() * 43) + 6,
+		next_ftl_transition: (Math.floor(Math.random() * 43) + 6) * 3600,
 		created_at: Date.now(),
 		updated_at: Date.now(),
 	});
@@ -75,6 +74,13 @@ export function getStartingInventoryTemplate(): Inventory[] {
 			amount: 2,
 			location: 'ship',
 			description: 'Ancient technology parts, used to repair the ship.',
+		},
+		{
+			id: 'oxygen_canister',
+			resource_type: 'oxygen_canister',
+			amount: 5,
+			location: 'ship',
+			description: 'Oxygen canisters, used to replenish the ship\'s oxygen supply.',
 		},
 		{
 			id: 'communication-stones',

@@ -11,13 +11,11 @@ export const DestinyStatusSchema = z.object({
 	max_hull: z.number(),
 	race_id: z.string(),
 	location: z.string(), // JSON
-	stargate_id: z.string().optional(),
 	co2: z.number(),
 	o2: z.number(),
 	co2Scrubbers: z.number(),
 	weapons: z.string(), // JSON
 	shuttles: z.string(), // JSON
-	notes: z.string().optional(), // JSON array
 	game_days: z.number(),
 	game_hours: z.number(),
 	ftl_status: z.string(), // 'ftl' or 'normal_space'

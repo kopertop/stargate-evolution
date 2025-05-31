@@ -11,7 +11,6 @@ import {
 	GiTurret,
 	GiInterceptorShip,
 	GiGasMask,
-	GiBottledBolt,
 	GiHamburgerMenu,
 	GiCannonShot,
 } from 'react-icons/gi';
@@ -42,7 +41,6 @@ export const DestinyStatusBar: React.FC<DestinyStatusBarProps> = ({ status }) =>
 	const [showAtmosphereDetails, setShowAtmosphereDetails] = useState(false);
 	const [showResourcesDetails, setShowResourcesDetails] = useState(false);
 	const [expanded, setExpanded] = useState(false);
-	const [inventoryHoverTimeout, setInventoryHoverTimeout] = useState<NodeJS.Timeout | null>(null);
 	const [shuttleHoverTimeout, setShuttleHoverTimeout] = useState<NodeJS.Timeout | null>(null);
 	const [weaponsHoverTimeout, setWeaponsHoverTimeout] = useState<NodeJS.Timeout | null>(null);
 	const [atmosphereHoverTimeout, setAtmosphereHoverTimeout] = useState<NodeJS.Timeout | null>(null);
@@ -50,23 +48,7 @@ export const DestinyStatusBar: React.FC<DestinyStatusBarProps> = ({ status }) =>
 
 	const gameService = useGameService();
 	const inventoryArr = useQuery(status.id ? gameService.queries.inventoryByGame(status.id) : gameService.queries.inventoryByGame('')) || [];
-	console.log('[DestinyStatusBar] inventoryArr:', inventoryArr);
-	const inventoryMap = Object.fromEntries(inventoryArr.map((i: any) => [i.resourceType, i.amount]));
-
-	const handleInventoryMouseEnter = () => {
-		if (inventoryHoverTimeout) {
-			clearTimeout(inventoryHoverTimeout);
-			setInventoryHoverTimeout(null);
-		}
-		setShowInventoryDetails(true);
-	};
-
-	const handleInventoryMouseLeave = () => {
-		const timeout = setTimeout(() => {
-			setShowInventoryDetails(false);
-		}, 150); // Small delay to prevent flickering
-		setInventoryHoverTimeout(timeout);
-	};
+	const inventoryMap = Object.fromEntries(inventoryArr.map((i) => [i.resource_type, i.amount]));
 
 	const handleShuttleMouseEnter = () => {
 		if (shuttleHoverTimeout) {
@@ -303,7 +285,7 @@ export const DestinyStatusBar: React.FC<DestinyStatusBarProps> = ({ status }) =>
 								onMouseLeave={handleResourcesMouseLeave}
 							>
 								<strong className="d-flex align-items-center mb-2">
-									<Icon icon={GiCardboardBox} />
+									<Icon icon={GiCardboardBox} className="me-2" />
 									Ship Resources
 								</strong>
 								<div className="ms-3">
@@ -530,63 +512,6 @@ export const DestinyStatusBar: React.FC<DestinyStatusBarProps> = ({ status }) =>
 											<Icon icon={GiTurret} size={12} />
 											Ready for: Missiles • Rail Guns • Energy Weapons
 										</small>
-									</div>
-								</div>
-							</div>
-						)}
-					</Nav.Item>
-
-					{/* Inventory Section - At the end */}
-					<Nav.Item className="d-flex align-items-center position-relative">
-						<span
-							title="Inventory (click for details)"
-							className="d-flex align-items-center"
-							style={{ cursor: 'pointer' }}
-							onClick={toggleInventoryDetails}
-							onMouseEnter={handleInventoryMouseEnter}
-							onMouseLeave={handleInventoryMouseLeave}
-						>
-							<Icon icon={GiCardboardBox} />
-							<span className="d-none d-sm-inline">Supplies</span>
-						</span>
-
-						{/* Inventory Details Popup */}
-						{showInventoryDetails && (
-							<div
-								className="position-absolute bottom-100 end-0 mb-2 p-3 rounded shadow-lg"
-								style={{
-									background: 'rgba(18,20,32,0.98)',
-									border: '1px solid #333',
-									minWidth: '280px',
-									fontSize: '0.9rem',
-									zIndex: 10000,
-								}}
-								onMouseEnter={handleInventoryMouseEnter}
-								onMouseLeave={handleInventoryMouseLeave}
-							>
-								<div>
-									<strong className="d-flex align-items-center mb-2">
-										<Icon icon={GiBottledBolt} />
-										Inventory
-									</strong>
-									<div className="ms-3">
-										{Object.entries(inventoryMap).length > 0 ? (
-											Object.entries(inventoryMap).map(([resource, amount]) => {
-												const numAmount = Number(amount);
-												return (
-													<div key={resource} className="d-flex justify-content-between">
-														<span style={{ textTransform: 'capitalize' }}>
-															{resource.replace('_', ' ')}:
-														</span>
-														<span className={numAmount === 0 ? 'text-danger' : numAmount < 5 ? 'text-warning' : 'text-light'}>
-															{numAmount}
-														</span>
-													</div>
-												);
-											})
-										) : (
-											<div className="text-muted">Empty</div>
-										)}
 									</div>
 								</div>
 							</div>

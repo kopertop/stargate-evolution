@@ -10,7 +10,6 @@ import React, {
 import { toast } from 'react-toastify';
 
 import { useGameService } from '../services/use-game-service';
-import { ExplorationProgress } from '../types/model-types';
 import { ApiService } from '../utils/api-service';
 
 interface GameStateContextType {
@@ -110,21 +109,15 @@ export const GameStateProvider: React.FC<GameStateProviderProps> = ({ game_id, c
 		if (game && timeSpeed > 0) {
 			const interval = setInterval(async () => {
 				// GameTick: Update game time
-				const newTime = await new Promise<number>((resolve) => {
-					setGameTime((prev) => {
-						const t = prev + timeSpeed;
-						resolve(t);
-						return t;
-					});
+				setGameTime((prev) => {
+					const newTime = prev + timeSpeed;
+					if (game_id) {
+						updateExplorationProgress(newTime);
+						gameService.updateGame(game_id, { total_time_progressed: newTime });
+					}
+					return newTime;
 				});
 
-				// Update game time using LiveStore
-				if (game_id) {
-					gameService.updateGame(game_id, { totalTimeProgressed: newTime });
-				}
-
-				// Update exploration progress for all ongoing explorations
-				await updateExplorationProgress(newTime);
 			}, 1000);
 			return () => clearInterval(interval);
 		}
@@ -144,7 +137,7 @@ export const GameStateProvider: React.FC<GameStateProviderProps> = ({ game_id, c
 				if (room.exploration_data) {
 					exploringRoomsCount++;
 					try {
-						const exploration = JSON.parse(room.exploration_data) as ExplorationProgress;
+						const exploration = JSON.parse(room.exploration_data);
 
 						// Convert game time (seconds) to hours for calculation
 						const timeElapsed = (currentGameTime - exploration.startTime) / 3600;
@@ -187,7 +180,9 @@ export const GameStateProvider: React.FC<GameStateProviderProps> = ({ game_id, c
 
 			// Debug log every 10 seconds
 			if (Math.floor(currentGameTime) % 10 === 0) {
-				console.log(`🔍 Game Loop: ${exploringRoomsCount} rooms currently being explored`);
+				console.log(`🔍 Game Loop: ${exploringRoomsCount} rooms currently being explored`, {
+					currentGameTime,
+				});
 			}
 		} catch (error) {
 			console.error('Failed to update exploration progress:', error);

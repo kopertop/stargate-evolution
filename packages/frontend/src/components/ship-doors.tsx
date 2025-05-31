@@ -28,10 +28,11 @@ export const ShipDoors: React.FC<ShipDoorsProps> = ({
 		const processedPairs = new Set<string>();
 
 		for (const room of rooms as RoomWithDoors[]) {
-			if (!room.found) continue; // Only render doors for discovered rooms
-
 			for (const doorInfo of Array.isArray(room.doors) ? room.doors : room.doors ? JSON.parse(room.doors) : []) {
-				const toRoom = rooms.find((r) => r.id === doorInfo.toRoomId);
+				const toRoomId = doorInfo.toRoomId || doorInfo.to_room_id;
+				const toRoom = rooms.find((r) => r.id === toRoomId);
+				// Only render if EITHER room is found
+				if (!(room.found || (toRoom && toRoom.found))) continue;
 				if (!toRoom) continue;
 
 				// Create a deterministic pair ID to prevent duplicates
@@ -131,13 +132,22 @@ export const ShipDoors: React.FC<ShipDoorsProps> = ({
 
 				return (
 					<g key={`door-${fromRoom.id}-${toRoom.id}`}>
+						<rect
+							x={position.x - DOOR_SIZE / 2 - 2}
+							y={position.y - WALL_THICKNESS / 2 - 2}
+							width={DOOR_SIZE + 4}
+							height={WALL_THICKNESS + 4}
+							fill="none"
+							stroke="red"
+							strokeWidth={3}
+						/>
 						<image
 							href={doorImage}
 							x={position.x - DOOR_SIZE / 2}
 							y={position.y - WALL_THICKNESS / 2}
 							width={DOOR_SIZE}
 							height={WALL_THICKNESS}
-							style={{ cursor: 'pointer' }}
+							style={{ cursor: 'pointer', opacity: 0.7 }}
 							onClick={() => handleDoorClick(connection)}
 							transform={position.rotation !== 0 ?
 								`rotate(${position.rotation} ${position.x} ${position.y})` :

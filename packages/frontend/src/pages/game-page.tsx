@@ -128,7 +128,7 @@ const GamePageInner: React.FC = () => {
 		if (game && destinyStatus && appRef.current) {
 			setIsLoading(false);
 		}
-	}, [game, destinyStatus]);
+	}, [!!game, !!destinyStatus, !!appRef.current]);
 
 	// Process galaxy and star system data
 	useEffect(() => {

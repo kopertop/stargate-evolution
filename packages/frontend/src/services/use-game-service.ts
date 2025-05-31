@@ -147,13 +147,14 @@ export const useGameService = () => {
 		}
 	};
 
-	const updateGame = (game_id: string, updates: { name?: string; totalTimeProgressed?: number }) => {
+	const updateGame = (game_id: string, updates: { name?: string; total_time_progressed?: number }) => {
 		store.commit(
 			events.gameUpdated({
 				id: game_id,
 				...updates,
-				...(updates.totalTimeProgressed !== undefined && {
-					lastPlayed: new Date(),
+				...(updates.total_time_progressed !== undefined && {
+					total_time_progressed: updates.total_time_progressed,
+					last_played: new Date(),
 				}),
 			}),
 		);
@@ -174,6 +175,7 @@ export const useGameService = () => {
 		game_days?: number;
 		game_hours?: number;
 		ftl_status?: string;
+		next_ftl_transition?: number;
 	}) => {
 		store.commit(
 			events.destinyStatusUpdated({

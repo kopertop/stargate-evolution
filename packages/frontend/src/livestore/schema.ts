@@ -373,6 +373,7 @@ export const events = {
 			game_days: Schema.optional(Schema.Number),
 			game_hours: Schema.optional(Schema.Number),
 			ftl_status: Schema.optional(Schema.String),
+			next_ftl_transition: Schema.optional(Schema.Number),
 		}),
 	}),
 
@@ -620,6 +621,7 @@ const materializers = State.SQLite.materializers(events, {
 	'v1.DestinyStatusUpdated': ({ game_id, ...updates }) =>
 		tables.destinyStatus.update({
 			...updates,
+			updated_at: new Date(),
 		}).where({ id: game_id }),
 
 	'v1.TechnologyUnlocked': ({ id }) =>

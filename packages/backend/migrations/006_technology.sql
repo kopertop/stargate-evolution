@@ -35,6 +35,33 @@ INSERT INTO technology_templates (id, name, description, category, unlock_requir
 		'[]',
 		0,
 		'kino-remote.png'
+	),
+	(
+		'oxygen_canister',
+		'Oxygen Canister',
+		'Canister containing oxygen for the ship',
+		'ship_systems',
+		'[]',
+		0,
+		'oxygen-canister.png'
+	),
+	(
+		'ancient_tech',
+		'Ancient Tech',
+		'Ancient technology parts, used to repair the ship',
+		'ship_systems',
+		'[]',
+		0,
+		'ancient-tech.png'
+	),
+	(
+		'parts',
+		'Parts',
+		'Spare parts',
+		'ship_systems',
+		'[]',
+		0,
+		'ship-parts.png'
 	)
 	;
 
