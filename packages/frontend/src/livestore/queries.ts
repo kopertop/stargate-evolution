@@ -94,3 +94,13 @@ export const starSystemsByGalaxyId$ = (galaxyId: string) => queryDb(
 	() => tables.starSystems.where({ galaxy_id: galaxyId }),
 	{ label: `starSystemsByGalaxyId:${galaxyId}` },
 );
+
+export const starSystemById$ = (systemId: string) => queryDb(
+	() => tables.starSystems.where({ id: systemId }),
+	{ label: `starSystemById:${systemId}` },
+);
+
+export const starsBySystemId$ = (systemId: string) => queryDb(
+	() => tables.stars.where({ star_system_id: systemId }),
+	{ label: `starsBySystemId:${systemId}` },
+);
