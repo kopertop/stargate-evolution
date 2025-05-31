@@ -6,6 +6,7 @@
 		"dev": "vite",
 		"build": "vite build",
 		"typecheck": "tsc --noEmit",
+		"test": "vitest run",
 		"deploy": "wrangler pages deploy ./dist --project-name stargate-frontend"
 	},
 	"dependencies": {

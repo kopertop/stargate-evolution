@@ -32,10 +32,8 @@ CREATE TABLE IF NOT EXISTS room_templates (
 	type TEXT NOT NULL, -- 'corridor', 'bridge', 'quarters', etc.
 	name TEXT NOT NULL,
 	description TEXT,
-	start_x INTEGER NOT NULL, -- Left edge of room rectangle
-	start_y INTEGER NOT NULL, -- Top edge of room rectangle
-	end_x INTEGER NOT NULL,   -- Right edge of room rectangle
-	end_y INTEGER NOT NULL,   -- Bottom edge of room rectangle
+	width INTEGER NOT NULL, -- Width of the room in grid units
+	height INTEGER NOT NULL, -- Height of the room in grid units
 	floor INTEGER NOT NULL,
 	found BOOLEAN DEFAULT FALSE,
 	locked BOOLEAN DEFAULT FALSE,
