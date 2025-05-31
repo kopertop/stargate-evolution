@@ -1,6 +1,6 @@
 // Template service for fetching game templates from backend API
 
-import { trimNullStrings } from '@stargate/common';
+import { Technology, TechnologyTemplate, trimNullStrings } from '@stargate/common';
 import { ShipLayout, RoomTemplate, PersonTemplate, RaceTemplate, Galaxy, StarSystem, DestinyStatus, Inventory, RoomTechnology } from '@stargate/common';
 
 class APIService {
@@ -118,6 +118,10 @@ class APIService {
 
 	async getTechnologyForRoom(templateID: string): Promise<RoomTechnology[]> {
 		return this.fetchWithCache<RoomTechnology[]>(`/api/templates/room-technologies/${templateID}`);
+	}
+
+	async getAllTechnologyTemplates(): Promise<TechnologyTemplate[]> {
+		return this.fetchWithCache<TechnologyTemplate[]>('/api/templates/technology');
 	}
 
 	// Helper methods for parsing JSON fields

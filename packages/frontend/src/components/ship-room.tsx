@@ -1,11 +1,12 @@
 import { useQuery } from '@livestore/react';
-import { RoomTemplate } from '@stargate/common';
+import { DoorRequirement, RoomTemplate } from '@stargate/common';
 import { title as titleCase } from 'case';
 import React, { useState, useEffect } from 'react';
 import { Button, Modal } from 'react-bootstrap';
 
 import { useGameState } from '../contexts/game-state-context';
 import { events } from '../livestore/schema';
+import { apiService } from '../services/api-service';
 import { useGameService } from '../services/game-service';
 import { getConnectionSide, GRID_UNIT, WALL_THICKNESS, DOOR_SIZE } from '../utils/grid-system';
 
@@ -45,7 +46,6 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 
 	useEffect(() => {
 		if (!room.found) return;
-
 		for (const { key } of CONNECTION_FIELDS) {
 			const toRoomId = room[key];
 			if (!toRoomId || typeof toRoomId !== 'string') continue;
@@ -64,12 +64,25 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 				console.error('No game ID found');
 				throw new Error('No game ID found');
 			}
+			const requirements: DoorRequirement[] = [];
+			if (room.locked || toRoom?.locked) {
+				// Lock the room to the bridge
+				if (room.template_id === 'bridge' || toRoom?.template_id === 'bridge') {
+					requirements.push({
+						type: 'code',
+						value: 1,
+						description: 'You must have an ancient code to unlock this door.',
+						met: false,
+					});
+				}
+			}
 			console.log('creating door', {
 				doorId,
 				gameId,
 				fromRoomId: room.id,
 				toRoomId,
 				state,
+				requirements,
 			});
 			gameService.store.commit(events.doorCreated({
 				id: doorId,
@@ -77,6 +90,7 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 				from_room_id: room.id,
 				to_room_id: toRoomId,
 				state,
+				requirements,
 			}));
 		}
 	}, [

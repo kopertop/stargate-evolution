@@ -87,7 +87,7 @@ INSERT INTO room_templates (
 		0,                             -- floor
 		false,                         -- found
 		NULL,                          -- connection_north
-		'hydroponics_corridor',        -- connection_south
+		NULL,                          -- connection_south
 		'control_interface',           -- connection_east
 		'gate_room',                   -- connection_west
 		0,                             -- base_exploration_time
@@ -120,14 +120,14 @@ INSERT INTO room_templates (
 		'control_room',                 -- type
 		'Control Interface',            -- name
 		'Ship control systems',         -- description
-		2,                              -- width
-		2,                              -- height
+		4,                              -- width
+		4,                              -- height
 		0,                              -- floor
 		false,                          -- found
 		NULL,                           -- connection_north
 		'observation_deck_corridor',    -- connection_south
 		'kino_room',                    -- connection_east
-		'west_corridor',                -- connection_west
+		'east_corridor',                -- connection_west
 		4,                              -- base_exploration_time
 		false,                          -- locked
 		'ok'                            -- status
@@ -160,8 +160,8 @@ INSERT INTO room_templates (
 		8,                              -- height
 		0,                              -- floor
 		false,                          -- found
-		'observation_deck',             -- connection_north
-		'control_interface',            -- connection_south
+		'control_interface',             -- connection_north
+		'observation_deck',            -- connection_south
 		NULL,                           -- connection_east
 		NULL,                           -- connection_west
 		4,                              -- base_exploration_time
@@ -178,8 +178,8 @@ INSERT INTO room_templates (
 		2,                              -- height
 		0,                              -- floor
 		false,                          -- found
-		NULL,                           -- connection_north
-		'observation_deck_corridor',    -- connection_south
+		'observation_deck_corridor',    -- connection_north
+		NULL,                           -- connection_south
 		NULL,                           -- connection_east
 		NULL,                           -- connection_west
 		16,                             -- base_exploration_time
@@ -197,11 +197,11 @@ INSERT INTO room_templates (
 		2,                    -- height
 		0,                    -- floor
 		false,                -- found
-		'bridge',             -- connection_north
-		'kino_room',          -- connection_south
-		NULL,                 -- connection_east
+		NULL,                    -- connection_north
+		'hydroponics_corridor',  -- connection_south
+		'bridge',             -- connection_east
 		NULL,                 -- connection_west
-		0,                   -- base_exploration_time
+		0,                    -- base_exploration_time
 		false,                -- locked
 		'damaged'             -- status
 	),
@@ -216,9 +216,9 @@ INSERT INTO room_templates (
 		0,                  -- floor
 		false,              -- found
 		NULL,               -- connection_north
-		'north_corridor',   -- connection_south
+		NULL,               -- connection_south
 		NULL,               -- connection_east
-		NULL,               -- connection_west
+		'bridge_corridor',  -- connection_west
 		336,                 -- base_exploration_time (336 hours = 14 days)
 		true,               -- locked
 		'locked'                -- status
@@ -423,7 +423,7 @@ INSERT INTO room_templates (
 		'west_corridor',        -- connection_east
 		NULL,                   -- connection_west
 		12,                     -- base_exploration_time
-		false,                  -- locked
+		true,                  -- locked
 		'damaged'               -- status
 	),
 	(
@@ -436,7 +436,7 @@ INSERT INTO room_templates (
 		4,                         -- height
 		0,                         -- floor
 		false,                     -- found
-		'east_corridor',           -- connection_north
+		'bridge_corridor',         -- connection_north
 		'hydroponics',             -- connection_south
 		NULL,                      -- connection_east
 		NULL,                      -- connection_west
@@ -459,6 +459,6 @@ INSERT INTO room_templates (
 		NULL,                   -- connection_east
 		NULL,                   -- connection_west
 		6,                      -- base_exploration_time
-		false,                  -- locked
+		true,                  -- locked
 		'damaged'               -- status
 	);

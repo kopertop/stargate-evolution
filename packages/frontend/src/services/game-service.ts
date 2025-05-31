@@ -1,5 +1,5 @@
 import { useStore } from '@livestore/react';
-import { DoorInfo, NullToUndefined, RoomTechnology, RoomTemplate } from '@stargate/common';
+import { DoorInfo, DoorRequirement, NullToUndefined, RoomTechnology, RoomTemplate } from '@stargate/common';
 
 import {
 	gameById$,
@@ -308,12 +308,14 @@ export const useGameService = () => {
 	const updateDoorState = (
 		doorId: string,
 		newState: 'closed' | 'opened' | 'locked',
+		requirements?: DoorRequirement[],
 	) => {
 		console.log('[updateDoorState] called', doorId, newState);
 		store.commit(
 			events.doorUpdated({
 				id: doorId,
 				state: newState,
+				requirements,
 			}),
 		);
 	};

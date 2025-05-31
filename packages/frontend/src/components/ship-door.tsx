@@ -1,9 +1,11 @@
-import type { DoorInfo, RoomTemplate } from '@stargate/common';
+import type { DoorInfo, DoorRequirement, RoomTemplate } from '@stargate/common';
 import React from 'react';
 import { Alert, Button, Modal } from 'react-bootstrap';
 import { GiKey } from 'react-icons/gi';
 
 import { useDestinyStatus } from '../contexts/destiny-status-context';
+import { events } from '../livestore/schema';
+import apiService from '../services/api-service';
 import { useGameService } from '../services/game-service';
 import { WALL_THICKNESS, DOOR_SIZE, getConnectionSide } from '../utils/grid-system';
 
@@ -35,6 +37,28 @@ export const ShipDoor: React.FC<DoorConnection> = ({
 	const [showDangerWarning, setShowDangerWarning] = React.useState(false);
 	const [dangerReason, setDangerReason] = React.useState('');
 
+	const generateRandomRequirements = async (id: string) => {
+		console.log('generating random requirements for door', id);
+		const requirements: DoorRequirement[] = [];
+		const allTechs = await apiService.getAllTechnologyTemplates();
+		const techs = allTechs.filter(t => t.category === 'consumable');
+		if (techs.length) {
+			const totalRequiredItems = Math.floor(Math.random() * techs.length);
+			console.log('totalRequiredItems', totalRequiredItems);
+			for (let i = 0; i < totalRequiredItems; i++) {
+				const tech = techs[Math.floor(Math.random() * techs.length)];
+				requirements.push({
+					type: tech.id,
+					value: Math.floor(Math.random() * 10) + 1,
+					description: tech.name,
+					met: false,
+				});
+			}
+			console.log('requirements', requirements);
+			gameService.updateDoorState(id, 'locked', requirements);
+		}
+	};
+
 	React.useEffect(() => {
 		const danger = toRoom.status === 'damaged'
 			|| toRoom.status === 'destroyed'
@@ -46,9 +70,9 @@ export const ShipDoor: React.FC<DoorConnection> = ({
 		} else if (toRoom.status === 'destroyed' || fromRoom.status === 'destroyed') {
 			setDangerReason('Nothing is on the other side of this door but the empty void of space.');
 		}
-		const codeLocked = !!doorInfo.requirements?.some((req) => req.type === 'code');
+		const isLocked = fromRoom.locked || toRoom.locked;
 		setIsDanger(danger);
-		setIsCodeLocked(codeLocked);
+		setIsCodeLocked(isLocked);
 		if (isDanger) {
 			setDoorColor('red');
 		} else if (isCodeLocked || doorInfo?.state === 'locked') {
@@ -65,6 +89,20 @@ export const ShipDoor: React.FC<DoorConnection> = ({
 		} else {
 			setDoorColor('white');
 		}
+		// Generate random requirements for a door that's locked without any requirements
+		if (isLocked && !doorInfo.requirements?.length) {
+			if (fromRoom.template_id === 'bridge' || toRoom.template_id === 'bridge') {
+				console.log('Bridge requires a code');
+				gameService.updateDoorState(doorInfo.id, 'locked', [{
+					type: 'code',
+					value: 1,
+					description: 'You must have an ancient code to unlock this door.',
+					met: false,
+				}]);
+			} else {
+				generateRandomRequirements(doorInfo.id);
+			}
+		}
 	}, [doorInfo]);
 
 	// Handle door click
@@ -75,9 +113,12 @@ export const ShipDoor: React.FC<DoorConnection> = ({
 		if (event.shiftKey) {
 			// Open a DEBUG menu showing the door connection and the rooms it connects to.
 			setDebugMenu(true);
+		} else if (isCodeLocked) {
+			setShowDoorModal(true);
 		} else {
 			// Standard Door click behavior
 			if (doorInfo.state === 'closed') {
+				console.log('doorInfo.requirements', doorInfo.requirements);
 				if (doorInfo.requirements?.length) {
 					setShowDoorModal(true);
 				} else if (isDanger) {
@@ -178,7 +219,7 @@ export const ShipDoor: React.FC<DoorConnection> = ({
 						const isReqMet = false;
 						return (
 							<div key={index} className={`alert ${isReqMet ? 'alert-success' : 'alert-danger'} mb-2`}>
-								<strong>{req.type.replace('_', ' ').toUpperCase()}:</strong> {req.description}
+								<strong>{req.type.replace('_', ' ').toUpperCase()}:</strong> {req.description} (x{req.value || 1})
 								{req.type === 'power_level' && destinyStatus && (
 									<div className="mt-1">
 										<small>Required: {req.value} | Current: {destinyStatus.power}</small>

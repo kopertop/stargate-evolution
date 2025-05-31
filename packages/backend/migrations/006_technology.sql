@@ -40,7 +40,7 @@ INSERT INTO technology_templates (id, name, description, category, unlock_requir
 		'oxygen_canister',
 		'Oxygen Canister',
 		'Canister containing oxygen for the ship',
-		'ship_systems',
+		'consumable',
 		'[]',
 		0,
 		'oxygen-canister.png'
@@ -49,7 +49,7 @@ INSERT INTO technology_templates (id, name, description, category, unlock_requir
 		'ancient_tech',
 		'Ancient Tech',
 		'Ancient technology parts, used to repair the ship',
-		'ship_systems',
+		'consumable',
 		'[]',
 		0,
 		'ancient-tech.png'
@@ -58,7 +58,7 @@ INSERT INTO technology_templates (id, name, description, category, unlock_requir
 		'parts',
 		'Parts',
 		'Spare parts',
-		'ship_systems',
+		'consumable',
 		'[]',
 		0,
 		'ship-parts.png'

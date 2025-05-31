@@ -493,6 +493,12 @@ export const events = {
 			from_room_id: Schema.String,
 			to_room_id: Schema.String,
 			state: Schema.String,
+			requirements: Schema.optional(Schema.Array(Schema.Struct({
+				type: Schema.String,
+				value: Schema.Number,
+				description: Schema.optional(Schema.String),
+				met: Schema.optional(Schema.Boolean),
+			}))),
 		}),
 	}),
 
@@ -559,6 +565,12 @@ export const events = {
 		schema: Schema.Struct({
 			id: Schema.String,
 			state: Schema.String,
+			requirements: Schema.optional(Schema.Array(Schema.Struct({
+				type: Schema.String,
+				value: Schema.Number,
+				description: Schema.optional(Schema.String),
+				met: Schema.optional(Schema.Boolean),
+			}))),
 		}),
 	}),
 };
@@ -649,6 +661,7 @@ const materializers = State.SQLite.materializers(events, {
 
 	'v1.DoorCreated': (fields) => tables.doors.insert({
 		...fields,
+		requirements: fields.requirements ? JSON.stringify(fields.requirements) : null,
 		created_at: new Date(),
 		updated_at: new Date(),
 	}),
@@ -687,6 +700,7 @@ const materializers = State.SQLite.materializers(events, {
 	'v1.DoorUpdated': ({ id, ...updates }) =>
 		tables.doors.update({
 			...updates,
+			requirements: updates.requirements ? JSON.stringify(updates.requirements) : null,
 			updated_at: new Date(),
 		}).where({ id }),
 
