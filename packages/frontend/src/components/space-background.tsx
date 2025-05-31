@@ -1,7 +1,7 @@
 import { useQuery } from '@livestore/react';
 import React, { useMemo } from 'react';
 
-import { useGameService } from '../services/use-game-service';
+import { useGameService } from '../services/game-service';
 
 interface SpaceBackgroundProps {
        mode: 'system' | 'ftl' | 'empty';

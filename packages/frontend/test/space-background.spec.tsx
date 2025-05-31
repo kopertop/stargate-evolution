@@ -4,7 +4,7 @@ import { describe, it, expect, vi } from 'vitest';
 
 import { SpaceBackground } from '../src/components/space-background';
 
-vi.mock('../src/services/use-game-service', () => ({
+vi.mock('../src/services/game-service', () => ({
 	useGameService: () => ({
 		queries: { starsBySystemId: () => undefined },
 	}),
