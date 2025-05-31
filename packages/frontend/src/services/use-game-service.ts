@@ -1,5 +1,5 @@
 import { useStore } from '@livestore/react';
-import { RoomTechnology, RoomTemplate } from '@stargate/common';
+import { NullToUndefined, RoomTechnology, RoomTemplate } from '@stargate/common';
 
 import {
 	gameById$,
@@ -31,7 +31,6 @@ export const useGameService = () => {
 				roomTemplates,
 				personTemplates,
 				raceTemplates,
-				shipLayout,
 				galaxyTemplates,
 				starSystemTemplates,
 				destinyStatusTemplate,
@@ -40,7 +39,6 @@ export const useGameService = () => {
 				apiService.getAllRoomTemplates(),
 				apiService.getAllPersonTemplates(),
 				apiService.getAllRaceTemplates(),
-				apiService.getShipLayoutById('destiny'),
 				apiService.getAllGalaxyTemplates(),
 				apiService.getAllStarSystemTemplates(),
 				apiService.getDestinyStatusTemplate(),
@@ -111,8 +109,13 @@ export const useGameService = () => {
 
 			// Default Rooms
 			let createdRoomCount = 0;
+			const roomIdMap: Record<string, string> = {};
+			const createdRooms: any[] = [];
+			// First pass: create rooms and store mapping from template_id (or name) to generated UUID
 			for (const room of roomTemplates) {
-				store.commit(events.roomCreated({
+				const generatedId = crypto.randomUUID();
+				roomIdMap[room.id] = generatedId;
+				const newRoom = {
 					...room,
 					image: room.image ?? undefined,
 					connection_north: room.connection_north ?? undefined,
@@ -122,12 +125,32 @@ export const useGameService = () => {
 					// Template ID
 					template_id: room.id,
 					// ID is unique per game
-					id: crypto.randomUUID(),
+					id: generatedId,
 					game_id: game_id,
-
-				}));
+				};
+				createdRooms.push(newRoom);
+				store.commit(events.roomCreated(newRoom));
 				createdRoomCount++;
-			};
+			}
+			// Second pass: update connections to use generated UUIDs
+			for (const room of createdRooms) {
+				const update: Partial<NullToUndefined<RoomTemplate>> = {};
+				if (room.connection_north && roomIdMap[room.connection_north]) {
+					update.connection_north = roomIdMap[room.connection_north];
+				}
+				if (room.connection_south && roomIdMap[room.connection_south]) {
+					update.connection_south = roomIdMap[room.connection_south];
+				}
+				if (room.connection_east && roomIdMap[room.connection_east]) {
+					update.connection_east = roomIdMap[room.connection_east];
+				}
+				if (room.connection_west && roomIdMap[room.connection_west]) {
+					update.connection_west = roomIdMap[room.connection_west];
+				}
+				if (Object.keys(update).length > 0) {
+					store.commit(events.roomUpdated({ id: room.id, ...update }));
+				}
+			}
 			console.log(`[createNewGame] Created ${createdRoomCount} rooms for game_id ${game_id}`);
 
 			// Add initial inventory
@@ -265,7 +288,7 @@ export const useGameService = () => {
 		);
 	};
 
-	const updateRoom = (roomId: string, updates: Partial<RoomTemplate>) => {
+	const updateRoom = (roomId: string, updates: Partial<NullToUndefined<RoomTemplate>>) => {
 		store.commit(
 			events.roomUpdated({
 				id: roomId,
@@ -279,7 +302,12 @@ export const useGameService = () => {
 	};
 
 	// TODO: Fix this
-	const updateDoorState = (fromRoomId: string, toRoomId: string, newState: 'closed' | 'opened' | 'locked') => {
+	const updateDoorState = (
+		fromRoomId: string,
+		toRoomId: string,
+		newState: 'closed' | 'opened' | 'locked',
+	) => {
+		console.log('[updateDoorState] called', fromRoomId, toRoomId, newState);
 		// Helper to update the doors property for a room
 		const updateRoomDoors = (roomId: string, targetRoomId: string) => {
 			// Fetch the current room from the store (not reactive, but for event emission)

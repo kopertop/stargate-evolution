@@ -132,15 +132,6 @@ export const ShipDoors: React.FC<ShipDoorsProps> = ({
 
 				return (
 					<g key={`door-${fromRoom.id}-${toRoom.id}`}>
-						<rect
-							x={position.x - DOOR_SIZE / 2 - 2}
-							y={position.y - WALL_THICKNESS / 2 - 2}
-							width={DOOR_SIZE + 4}
-							height={WALL_THICKNESS + 4}
-							fill="none"
-							stroke="red"
-							strokeWidth={3}
-						/>
 						<image
 							href={doorImage}
 							x={position.x - DOOR_SIZE / 2}

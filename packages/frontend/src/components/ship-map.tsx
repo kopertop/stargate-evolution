@@ -29,6 +29,8 @@ interface ShipMapProps {
 
 // Utility to generate doors array from connection fields
 function generateDoorsForRooms(rooms: RoomTemplate[]): (RoomTemplate & { doors: DoorInfo[] })[] {
+	// Debug: Print all room IDs and their found status
+	console.log('[DEBUG] All rooms:', rooms.map(r => ({ id: r.id, name: r.name, found: r.found })));
 	// Make a mutable copy to avoid readonly type issues
 	return [...rooms].map(room => {
 		const doors: DoorInfo[] = [];
@@ -211,8 +213,10 @@ export const ShipMap: React.FC<ShipMapProps> = ({ game_id }) => {
 	const handleDoorClick = async (fromRoomId: string, toRoomId: string) => {
 		if (gameStatePaused) return;
 		const fromRoom = rooms.find(r => r.id === fromRoomId);
+		console.log('[DEBUG] From Room:', fromRoom);
 		if (!fromRoom) return;
 		const door = fromRoom.doors?.find(d => d.toRoomId === toRoomId);
+		console.log('[DEBUG] Door:', door);
 		if (!door) return;
 		if (door.state === 'locked') {
 			const { canOpen } = checkDoorRequirements(door);
@@ -233,8 +237,11 @@ export const ShipMap: React.FC<ShipMapProps> = ({ game_id }) => {
 					return;
 				}
 			}
+			console.log('[DEBUG] Updating door state to:', newState);
 			await updateDoorState(fromRoomId, toRoomId, newState);
 			if (newState === 'opened') {
+				// Open both rooms
+				await gameService.updateRoom(fromRoomId, { found: true });
 				await gameService.updateRoom(toRoomId, { found: true });
 				await handleDoorOpenConsequences(fromRoomId, toRoomId);
 			}
