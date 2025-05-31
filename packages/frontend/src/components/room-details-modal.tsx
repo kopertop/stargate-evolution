@@ -1,3 +1,4 @@
+import type { RoomTemplate } from '@stargate/common';
 import type { RoomTechnology } from '@stargate/common/models/room-technology';
 import type { TechnologyTemplate } from '@stargate/common/models/technology-template';
 import { title as titleCase } from 'case';
@@ -7,13 +8,12 @@ import { GiCog, GiPerson, GiCube, GiEyeball, GiStarGate } from 'react-icons/gi';
 import { GrTechnology } from 'react-icons/gr';
 
 
-import type { RoomType } from '../types/model-types';
 import { ApiService } from '../utils/api-service';
 
 interface RoomDetailsModalProps {
 	show: boolean;
 	onHide: () => void;
-	room: RoomType | null;
+	room: RoomTemplate | null;
 	game_id: string;
 }
 
@@ -34,20 +34,20 @@ export const RoomDetailsModal: React.FC<RoomDetailsModalProps> = ({
 
 	// Fetch room technology when modal opens
 	useEffect(() => {
-		if (show && room?.templateId) {
+		if (show && room?.template_id) {
 			fetchRoomTechnology();
 		}
-	}, [show, room?.templateId]);
+	}, [show, room?.template_id]);
 
 	const fetchRoomTechnology = async () => {
-		if (!room?.templateId) return;
+		if (!room?.template_id) return;
 
 		setIsLoading(true);
 		setError(null);
 
 		try {
 			// Fetch room technology from backend using template ID
-			const roomTech = await ApiService.getRoomTechnology(room.templateId);
+			const roomTech = await ApiService.getRoomTechnology(room.template_id);
 
 			// Fetch technology templates for each technology
 			const techWithTemplates: TechnologyWithTemplate[] = [];
@@ -135,7 +135,7 @@ export const RoomDetailsModal: React.FC<RoomDetailsModalProps> = ({
 					<p className="text-muted">Room ID: {room.id}</p>
 					<div className="d-flex gap-2">
 						<Badge bg={room.status === 'ok' ? 'success' : room.status === 'damaged' ? 'warning' : 'danger'}>
-							Status: {titleCase(room.status)}
+							Status: {titleCase(room.status || 'unknown')}
 						</Badge>
 						{room.explored && <Badge bg="info">Explored</Badge>}
 						{room.locked && <Badge bg="secondary">Locked</Badge>}

@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 export const RoomTemplateSchema = z.object({
 	id: z.string(),
+	template_id: z.string().optional(),
 	layout_id: z.string(),
 	type: z.string(),
 	name: z.string(),

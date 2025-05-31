@@ -1,10 +1,10 @@
 import { useQuery } from '@livestore/react';
-import type { DestinyStatus } from '@stargate/common/models/destiny-status';
+import type { DestinyStatus, Galaxy } from '@stargate/common';
 import * as PIXI from 'pixi.js';
 import React, { useEffect, useRef, useState } from 'react';
 import { Spinner } from 'react-bootstrap';
 import { GiReturnArrow } from 'react-icons/gi';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
 
 import { DestinyStatusBar } from '../components/destiny-status-bar';
@@ -19,13 +19,6 @@ import { useGameService } from '../services/use-game-service';
 
 type ViewMode = 'ship-view' | 'galaxy-map' | 'game-view';
 
-interface Galaxy {
-	id: string;
-	name: string;
-	position: { x: number; y: number };
-	starSystems: any[];
-}
-
 // Calculate distance between two points
 function calculateDistance(pos1: { x: number; y: number }, pos2: { x: number; y: number }): number {
 	return Math.sqrt((pos1.x - pos2.x) ** 2 + (pos1.y - pos2.y) ** 2);
@@ -37,12 +30,11 @@ function calculateTravelCost(distance: number): number {
 }
 
 // Inner component that uses the context providers
-const GamePageInner: React.FC = () => {
+const GamePageInner: React.FC<{ game_id: string }> = ({ game_id }) => {
 	const canvasRef = useRef<HTMLDivElement>(null);
 	const appRef = useRef<PIXI.Application | null>(null);
 	const gameInstanceRef = useRef<Game | null>(null);
 	const [viewMode, setViewMode] = useState<ViewMode>('ship-view');
-	const [galaxies, setGalaxies] = useState<Galaxy[]>([]);
 	const [isLoading, setIsLoading] = useState(true);
 	const [currentGalaxyId, setCurrentGalaxyId] = useState<string | null>(null);
 	const [showTravelModal, setShowTravelModal] = useState(false);
@@ -52,16 +44,12 @@ const GamePageInner: React.FC = () => {
 
 	// Use the context providers for data
 	const { game } = useGameState();
-	const { destinyStatus, updateDestinyStatus } = useDestinyStatus();
+	const { destinyStatus } = useDestinyStatus();
 	const gameService = useGameService();
-	const game_id = params.game_id;
 
 	// Query galaxy and star system data
-	const galaxiesQuery = useQuery(game_id ? gameService.queries.galaxiesByGame(game_id) : gameService.queries.galaxiesByGame(''));
-	const starSystemsQuery = useQuery(game_id ? gameService.queries.starSystemsByGame(game_id) : gameService.queries.starSystemsByGame(''));
-
-	const rawGalaxies = galaxiesQuery || [];
-	const rawStarSystems = starSystemsQuery || [];
+	const galaxies = useQuery(gameService.queries.galaxiesByGame(game_id));
+	const starSystems = useQuery(gameService.queries.starSystemsByGame(game_id));
 
 	// Calculate maximum travel range based on power (can be adjusted for game balance)
 	const maxTravelRange = destinyStatus ? Math.floor(destinyStatus.power / 2) : 400;
@@ -130,26 +118,6 @@ const GamePageInner: React.FC = () => {
 		}
 	}, [!!game, !!destinyStatus, !!appRef.current]);
 
-	// Process galaxy and star system data
-	useEffect(() => {
-		if (rawGalaxies.length > 0) {
-			const processedGalaxies = rawGalaxies.map((galaxy: any) => {
-				// Find star systems for this galaxy
-				const galaxyStarSystems = rawStarSystems.filter((sys: any) => sys.galaxyId === galaxy.id);
-
-				return {
-					id: galaxy.id,
-					name: galaxy.name,
-					position: { x: galaxy.x || 0, y: galaxy.y || 0 },
-					starSystems: galaxyStarSystems,
-				};
-			});
-
-			console.log('Processed galaxies:', processedGalaxies);
-			setGalaxies(processedGalaxies);
-		}
-	}, [rawGalaxies, rawStarSystems]);
-
 	const handleGalaxySelect = (galaxy: Galaxy) => {
 		console.log('Selected galaxy:', galaxy);
 		setSelectedGalaxy(galaxy);
@@ -161,12 +129,18 @@ const GamePageInner: React.FC = () => {
 
 		const currentGalaxy = galaxies.find(g => g.id === currentGalaxyId);
 		const distance = currentGalaxy ?
-			calculateDistance(currentGalaxy.position, selectedGalaxy.position) : 0;
+			calculateDistance({
+				x: currentGalaxy.x,
+				y: currentGalaxy.y,
+			}, {
+				x: selectedGalaxy.x,
+				y: selectedGalaxy.y,
+			}) : 0;
 		const cost = calculateTravelCost(distance);
 
 		if (destinyStatus.power >= cost) {
 			// Update destiny status using the context
-			await updateDestinyStatus({
+			await gameService.updateDestinyStatus(game_id, {
 				power: destinyStatus.power - cost,
 			});
 
@@ -238,12 +212,18 @@ const GamePageInner: React.FC = () => {
 	};
 
 	const handleDestinyStatusUpdate = async (newStatus: DestinyStatus) => {
-		await updateDestinyStatus(newStatus);
+		await gameService.updateDestinyStatus(game_id, newStatus);
 	};
 
 	const currentGalaxy = galaxies.find(g => g.id === currentGalaxyId) || null;
 	const travelDistance = selectedGalaxy && currentGalaxy ?
-		calculateDistance(currentGalaxy.position, selectedGalaxy.position) : 0;
+		calculateDistance({
+			x: currentGalaxy.x,
+			y: currentGalaxy.y,
+		}, {
+			x: selectedGalaxy.x,
+			y: selectedGalaxy.y,
+		}) : 0;
 	const travelCost = calculateTravelCost(travelDistance);
 
 	return (
@@ -302,7 +282,7 @@ const GamePageInner: React.FC = () => {
 						<GiReturnArrow size={20} /> Back to Ship
 					</NavButton>
 					<GalaxyMap
-						galaxies={galaxies}
+						galaxies={galaxies as any}
 						onGalaxySelect={handleGalaxySelect}
 						currentGalaxyId={currentGalaxyId || undefined}
 						shipPower={destinyStatus?.power || 0}
@@ -363,10 +343,14 @@ const GamePageInner: React.FC = () => {
 export const GamePage: React.FC = () => {
 	const params = useParams();
 
+	if (!params.game_id) {
+		return <Navigate to="/" />;
+	}
+
 	return (
 		<GameStateProvider game_id={params.game_id}>
 			<DestinyStatusProvider>
-				<GamePageInner />
+				<GamePageInner game_id={params.game_id} />
 			</DestinyStatusProvider>
 		</GameStateProvider>
 	);

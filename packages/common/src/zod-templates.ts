@@ -16,6 +16,8 @@ export { TechnologySchema } from './models/technology-schema';
 export { StargateSchema } from './models/stargate-schema';
 export { ChevronSchema } from './models/chevron-schema';
 export { DoorInfoSchema } from './models/door-info';
+export { SessionSchema } from './models/session';
+export { UserSchema } from './models/user';
 
 export type { RoomTemplate } from './models/room-template';
 export type { DoorTemplate } from './models/door-template';
@@ -35,3 +37,5 @@ export type { Technology } from './models/technology-schema';
 export type { Stargate } from './models/stargate-schema';
 export type { Chevron } from './models/chevron-schema';
 export type { DoorInfo } from './models/door-info';
+export type { Session } from './models/session';
+export type { User } from './models/user';

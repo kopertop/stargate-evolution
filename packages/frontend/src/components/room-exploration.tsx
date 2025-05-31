@@ -1,5 +1,5 @@
 import { useQuery } from '@livestore/react';
-import { ExplorationProgress, PersonTemplate, RoomTemplate } from '@stargate/common';
+import { ExplorationProgress, RoomTemplate } from '@stargate/common';
 import React, { useState, useEffect } from 'react';
 import { Button, Modal, Alert, Badge } from 'react-bootstrap';
 import { GiMeeple, GiCog } from 'react-icons/gi';
@@ -34,14 +34,14 @@ export const RoomExploration: React.FC<RoomExplorationProps> = ({
 	onClose,
 	onExplorationStart,
 }) => {
-	const { isPaused: gameStatePaused, gameTime } = useGameState();
+	const { isPaused: gameStatePaused } = useGameState();
 	const [selectedCrew, setSelectedCrew] = useState<string[]>([]);
 	const [isManagingExploration, setIsManagingExploration] = useState(false);
 	const [explorationData, setExplorationData] = useState<ExplorationProgress | null>(null);
 
 	const gameService = useGameService();
-	const rooms = useQuery(game_id ? gameService.queries.roomsByGame(game_id) : gameService.queries.roomsByGame('')) || [];
-	const people = useQuery(game_id ? gameService.queries.peopleByGame(game_id) : gameService.queries.peopleByGame('')) || [];
+	const rooms = useQuery(gameService.queries.roomsByGame(game_id));
+	const people = useQuery(gameService.queries.peopleByGame(game_id));
 
 	const selectedRoom = rooms.find(r => r.id === roomId) || null;
 	const availableCrew = people.filter(p => !p.assigned_to);
@@ -75,7 +75,7 @@ export const RoomExploration: React.FC<RoomExplorationProps> = ({
 			room.connection_west,
 		].filter(Boolean).some((connectedId: string | null) => {
 			const connectedRoom = rooms.find(r => r.id === connectedId);
-			return !(connectedRoom?.locked || false);
+			return !connectedRoom?.locked;
 		});
 		return isAdjacentToUnlocked;
 	};
@@ -201,7 +201,7 @@ export const RoomExploration: React.FC<RoomExplorationProps> = ({
 									{selectedCrew.length > 0 && (
 										<Alert variant="warning" className="mb-3">
 											<strong>New estimated time:</strong> {calculateTimeRemaining(
-												selectedRoom,
+												selectedRoom as any,
 												selectedCrew.length,
 											)?.toFixed(1)} hours
 											{selectedCrew.length !== explorationData.crew_assigned.length && (
@@ -224,7 +224,7 @@ export const RoomExploration: React.FC<RoomExplorationProps> = ({
 									{selectedCrew.length > 0 && (
 										<p>
 											<strong>Estimated time:</strong> {calculateTimeRemaining(
-												selectedRoom,
+												selectedRoom as any,
 												selectedCrew.length,
 											)?.toFixed(1)} hours
 										</p>
@@ -335,14 +335,14 @@ export const RoomExploration: React.FC<RoomExplorationProps> = ({
 						<>
 							<Button
 								variant="danger"
-								onClick={() => selectedRoom && cancelExploration(selectedRoom)}
+								onClick={() => selectedRoom && cancelExploration(selectedRoom as any)}
 								disabled={gameStatePaused}
 							>
 								Cancel Exploration
 							</Button>
 							<Button
 								variant="primary"
-								onClick={() => selectedRoom && updateExplorationCrew(selectedRoom, selectedCrew)}
+								onClick={() => selectedRoom && updateExplorationCrew(selectedRoom as any, selectedCrew)}
 								disabled={gameStatePaused || selectedCrew.length === 0}
 							>
 								Update Crew ({selectedCrew.length} assigned)
@@ -352,7 +352,7 @@ export const RoomExploration: React.FC<RoomExplorationProps> = ({
 						// Button for starting new exploration
 						<Button
 							variant="primary"
-							onClick={() => selectedRoom && startExploration(selectedRoom, selectedCrew)}
+							onClick={() => selectedRoom && startExploration(selectedRoom as any, selectedCrew)}
 							disabled={gameStatePaused || selectedCrew.length === 0}
 						>
 							Start Exploration ({selectedCrew.length} crew)

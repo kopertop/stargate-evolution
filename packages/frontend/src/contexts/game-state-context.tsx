@@ -26,7 +26,7 @@ interface GameStateContextType {
 const GameStateContext = createContext<GameStateContextType | undefined>(undefined);
 
 interface GameStateProviderProps {
-	game_id?: string;
+	game_id: string;
 	children: ReactNode;
 }
 
@@ -38,11 +38,8 @@ export const GameStateProvider: React.FC<GameStateProviderProps> = ({ game_id, c
 	const gameService = useGameService();
 
 	// Query the game and rooms using LiveStore
-	const gameQuery = useQuery(game_id ? gameService.queries.gameById(game_id) : gameService.queries.allGames());
-	const roomsQuery = useQuery(game_id ? gameService.queries.roomsByGame(game_id) : gameService.queries.roomsByGame(''));
-
-	const game = game_id && gameQuery ? gameQuery.find((g) => g.id === game_id) : null;
-	const rooms = game_id ? (roomsQuery || []) : [];
+	const game = useQuery(gameService.queries.gameById(game_id))[0];
+	const rooms = useQuery(gameService.queries.roomsByGame(game_id));
 
 	// Initialize game time from the game data
 	useEffect(() => {

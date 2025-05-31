@@ -1,11 +1,5 @@
+import type { Galaxy } from '@stargate/common';
 import React, { useRef, useEffect } from 'react';
-
-interface Galaxy {
-	id: string;
-	name: string;
-	position: { x: number; y: number };
-	starSystems: any[];
-}
 
 interface GalaxyMapProps {
 	galaxies: Galaxy[];
@@ -68,10 +62,10 @@ export const GalaxyMap: React.FC<GalaxyMapProps> = ({
 		const currentGalaxy = galaxies.find(g => g.id === currentGalaxyId);
 
 		// Calculate bounds of all galaxies
-		const minX = Math.min(...galaxies.map(g => g.position.x));
-		const maxX = Math.max(...galaxies.map(g => g.position.x));
-		const minY = Math.min(...galaxies.map(g => g.position.y));
-		const maxY = Math.max(...galaxies.map(g => g.position.y));
+		const minX = Math.min(...galaxies.map(g => g.x));
+		const maxX = Math.max(...galaxies.map(g => g.x));
+		const minY = Math.min(...galaxies.map(g => g.y));
+		const maxY = Math.max(...galaxies.map(g => g.y));
 
 		// Add padding
 		const padding = 100;
@@ -89,8 +83,8 @@ export const GalaxyMap: React.FC<GalaxyMapProps> = ({
 
 		// Draw travel range circle if we have a current galaxy
 		if (currentGalaxy) {
-			const currentX = currentGalaxy.position.x * scale + offsetX;
-			const currentY = currentGalaxy.position.y * scale + offsetY;
+			const currentX = currentGalaxy.x * scale + offsetX;
+			const currentY = currentGalaxy.y * scale + offsetY;
 			const rangeRadius = maxTravelRange * scale;
 
 			// Draw travel range circle
@@ -105,11 +99,17 @@ export const GalaxyMap: React.FC<GalaxyMapProps> = ({
 
 		// Draw galaxies
 		for (const galaxy of galaxies) {
-			const x = galaxy.position.x * scale + offsetX;
-			const y = galaxy.position.y * scale + offsetY;
+			const x = galaxy.x * scale + offsetX;
+			const y = galaxy.y * scale + offsetY;
 
 			// Calculate if this galaxy is within travel range
-			const distance = currentGalaxy ? calculateDistance(currentGalaxy.position, galaxy.position) : 0;
+			const distance = currentGalaxy ? calculateDistance({
+				x: currentGalaxy.x,
+				y: currentGalaxy.y,
+			}, {
+				x: galaxy.x,
+				y: galaxy.y,
+			}) : 0;
 			const travelCost = calculateTravelCost(distance);
 			const isCurrentGalaxy = galaxy.id === currentGalaxyId;
 			const isInRange = isCurrentGalaxy || distance <= maxTravelRange;
@@ -194,7 +194,7 @@ export const GalaxyMap: React.FC<GalaxyMapProps> = ({
 			ctx.fillText(galaxy.name, x, y + 60);
 
 			// System count and travel info
-			let infoText = `${galaxy.starSystems.length} systems`;
+			let infoText = '';
 			if (!isCurrentGalaxy && distance > 0) {
 				infoText += ` • ${distance.toFixed(0)} ly • ${travelCost} power`;
 			}
@@ -240,10 +240,10 @@ export const GalaxyMap: React.FC<GalaxyMapProps> = ({
 
 		const currentGalaxy = galaxies.find(g => g.id === currentGalaxyId);
 
-		const minX = Math.min(...galaxies.map(g => g.position.x));
-		const maxX = Math.max(...galaxies.map(g => g.position.x));
-		const minY = Math.min(...galaxies.map(g => g.position.y));
-		const maxY = Math.max(...galaxies.map(g => g.position.y));
+		const minX = Math.min(...galaxies.map(g => g.x));
+		const maxX = Math.max(...galaxies.map(g => g.x));
+		const minY = Math.min(...galaxies.map(g => g.y));
+		const maxY = Math.max(...galaxies.map(g => g.y));
 
 		const padding = 100;
 		const totalWidth = maxX - minX + 2 * padding;
@@ -258,13 +258,19 @@ export const GalaxyMap: React.FC<GalaxyMapProps> = ({
 
 		// Check if click is within any galaxy
 		for (const galaxy of galaxies) {
-			const galaxyX = galaxy.position.x * scale + offsetX;
-			const galaxyY = galaxy.position.y * scale + offsetY;
+			const galaxyX = galaxy.x * scale + offsetX;
+			const galaxyY = galaxy.y * scale + offsetY;
 			const distance = Math.sqrt((x - galaxyX) ** 2 + (y - galaxyY) ** 2);
 
 			if (distance <= 40) { // Within galaxy radius
 				// Check if galaxy is reachable
-				const travelDistance = currentGalaxy ? calculateDistance(currentGalaxy.position, galaxy.position) : 0;
+				const travelDistance = currentGalaxy ? calculateDistance({
+					x: currentGalaxy.x,
+					y: currentGalaxy.y,
+				}, {
+					x: galaxy.x,
+					y: galaxy.y,
+				}) : 0;
 				const travelCost = calculateTravelCost(travelDistance);
 				const isCurrentGalaxy = galaxy.id === currentGalaxyId;
 				const isInRange = isCurrentGalaxy || travelDistance <= maxTravelRange;

@@ -1,12 +1,7 @@
+import type { Galaxy } from '@stargate/common';
 import React from 'react';
 import { Modal, Button } from 'react-bootstrap';
 
-interface Galaxy {
-	id: string;
-	name: string;
-	position: { x: number; y: number };
-	starSystems: any[];
-}
 
 interface GalaxyTravelModalProps {
 	show: boolean;
@@ -53,9 +48,11 @@ export const GalaxyTravelModal: React.FC<GalaxyTravelModalProps> = ({
 						<div className="col-6">
 							<strong>Distance:</strong> {distance.toFixed(0)} light-years
 						</div>
+						{/*
 						<div className="col-6">
 							<strong>Systems:</strong> {targetGalaxy?.starSystems.length || 0}
 						</div>
+						*/}
 					</div>
 				</div>
 
