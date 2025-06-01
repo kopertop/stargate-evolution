@@ -626,15 +626,15 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 							<pattern
 								id={`floor-pattern-${room.id}`}
 								patternUnits="userSpaceOnUse"
-								width="64"
-								height="64"
+								width="32"
+								height="32"
 							>
 								<image
 									href={getFloorTileImage()}
 									x="0"
 									y="0"
-									width="64"
-									height="64"
+									width="32"
+									height="32"
 								/>
 							</pattern>
 						</defs>
