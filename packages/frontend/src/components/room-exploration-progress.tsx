@@ -19,11 +19,16 @@ export const RoomExplorationProgress: React.FC<RoomExplorationProgressProps> = (
 
 	let progress = 0;
 	let timeRemaining = 0;
-	if (room && room.exploration_data) {
+	if (room && room.exploration_data && room.exploration_data.trim() !== '') {
 		try {
 			const explorationData = typeof room.exploration_data === 'string' ? JSON.parse(room.exploration_data) as any : room.exploration_data;
-			progress = explorationData.progress;
-			timeRemaining = explorationData.timeRemaining;
+			progress = explorationData.progress || 0;
+			// Check for both field name versions for backward compatibility
+			timeRemaining = explorationData.time_remaining || explorationData.timeRemaining || 0;
+
+			// Ensure valid numbers
+			progress = isNaN(progress) ? 0 : progress;
+			timeRemaining = isNaN(timeRemaining) ? 0 : timeRemaining;
 		} catch {
 			progress = 0;
 			timeRemaining = 0;

@@ -41,6 +41,13 @@ class APIService {
 				throw new Error(`HTTP ${response.status}: ${response.statusText}`);
 			}
 
+			// Check if response is actually JSON
+			const contentType = response.headers.get('content-type');
+			if (!contentType || !contentType.includes('application/json')) {
+				const text = await response.text();
+				throw new Error(`Non-JSON response: ${text}`);
+			}
+
 			const data = await response.json();
 			console.log(`[apiService] Successfully fetched ${endpoint}, data length:`, Array.isArray(data) ? data.length : 'not array');
 
@@ -117,7 +124,16 @@ class APIService {
 	}
 
 	async getTechnologyForRoom(templateID: string): Promise<RoomTechnology[]> {
-		return this.fetchWithCache<RoomTechnology[]>(`/api/templates/room-technologies/${templateID}`);
+		try {
+			return this.fetchWithCache<RoomTechnology[]>(`/api/templates/room-technology/${templateID}`);
+		} catch (error) {
+			// If technology not found for this room type, return empty array
+			if (error instanceof Error && (error.message.includes('404') || error.message.includes('Not found'))) {
+				console.log(`[apiService] No technology found for room type ${templateID}`);
+				return [];
+			}
+			throw error;
+		}
 	}
 
 	async getAllTechnologyTemplates(): Promise<TechnologyTemplate[]> {

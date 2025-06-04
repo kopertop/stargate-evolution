@@ -64,9 +64,10 @@ export const CrewStatus: React.FC<CrewStatusProps> = ({ game_id }) => {
 		if (assignedRoom.exploration_data) {
 			try {
 				const explorationData = JSON.parse(assignedRoom.exploration_data) as any;
-				if (explorationData.crewAssigned?.includes(crewMember.id)) {
+				const crewAssigned = explorationData.crewAssigned || explorationData.crew_assigned || [];
+				if (crewAssigned.includes(crewMember.id)) {
 					const progress = explorationData.progress || 0;
-					const timeRemaining = explorationData.timeRemaining || 0;
+					const timeRemaining = explorationData.time_remaining || explorationData.timeRemaining || 0;
 					return {
 						...crewMember,
 						currentTask: {

@@ -503,40 +503,53 @@ export const ShipRoom: React.FC<ShipRoomProps> = ({
 
 	// Render exploration progress
 	const renderExplorationProgress = () => {
-		if (!room.exploration_data) return null;
+		// Don't show progress if room is fully explored
+		if (room.explored) return null;
 
-		const maxDimension = Math.max(halfWidth, halfHeight);
-		// Size of the progress ring is half the size of the room
-		const progressRadius = maxDimension / 2;
-		const circumference = 2 * Math.PI * progressRadius;
-		const explorationData = typeof room.exploration_data === 'string' ? JSON.parse(room.exploration_data) : room.exploration_data;
-		const strokeDasharray = `${(explorationData.progress / 100) * circumference} ${circumference}`;
+		if (!room.exploration_data || room.exploration_data.trim() === '') return null;
 
-		return (
-			<g>
-				<circle
-					cx={position.x}
-					cy={position.y}
-					r={progressRadius}
-					fill="none"
-					stroke="#00bfff"
-					strokeWidth={8}
-					strokeDasharray={strokeDasharray}
-					style={{ opacity: 0.7 }}
-				/>
-				<text
-					x={position.x}
-					y={position.y}
-					textAnchor="middle"
-					dominantBaseline="middle"
-					fontSize={24}
-					fill="#fff"
-					style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.8)' }}
-				>
-					{Math.round(explorationData.progress)}%
-				</text>
-			</g>
-		);
+		try {
+			const maxDimension = Math.max(halfWidth, halfHeight);
+			// Size of the progress ring is half the size of the room
+			const progressRadius = maxDimension / 2;
+			const circumference = 2 * Math.PI * progressRadius;
+			const explorationData = typeof room.exploration_data === 'string' ? JSON.parse(room.exploration_data) : room.exploration_data;
+
+			// Ensure we have valid progress data
+			const progress = explorationData.progress || 0;
+			const validProgress = isNaN(progress) ? 0 : Math.max(0, Math.min(100, progress));
+
+			const strokeDasharray = `${(validProgress / 100) * circumference} ${circumference}`;
+
+			return (
+				<g>
+					<circle
+						cx={position.x}
+						cy={position.y}
+						r={progressRadius}
+						fill="none"
+						stroke="#00bfff"
+						strokeWidth={8}
+						strokeDasharray={strokeDasharray}
+						style={{ opacity: 0.7 }}
+					/>
+					<text
+						x={position.x}
+						y={position.y}
+						textAnchor="middle"
+						dominantBaseline="middle"
+						fontSize={24}
+						fill="#fff"
+						style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.8)' }}
+					>
+						{Math.round(validProgress)}%
+					</text>
+				</g>
+			);
+		} catch (error) {
+			console.error('Failed to render exploration progress:', error);
+			return null;
+		}
 	};
 
 	// Render locked indicator

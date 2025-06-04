@@ -450,8 +450,7 @@ export const events = {
 		name: 'v1.PersonUpdated',
 		schema: Schema.Struct({
 			id: Schema.String,
-			assigned_to: Schema.optional(Schema.String),
-			updated_at: Schema.Date,
+			assigned_to: Schema.optional(Schema.NullOr(Schema.String)),
 		}),
 	}),
 
@@ -707,6 +706,7 @@ const materializers = State.SQLite.materializers(events, {
 	'v1.PersonUpdated': (fields) =>
 		tables.people.update({
 			...fields,
+			updated_at: new Date(),
 		}).where({ id: fields.id }),
 });
 

@@ -15,7 +15,7 @@ import { useGameState } from '../contexts/game-state-context';
 const SPEED_OPTIONS: { value: number; label: string; description: string }[] = [
 	{ value: 1, label: '1x', description: 'Normal Speed' },
 	{ value: 60, label: '60x', description: '1 min = 1 sec' },
-	{ value: 120, label: '120x', description: '2 min = 1 sec' },
+	{ value: 600, label: '600x', description: '10 min = 1 sec' },
 	{ value: 3600, label: '3600x', description: '1 hour = 1 sec' },
 ];
 

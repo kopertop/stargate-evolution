@@ -331,8 +331,7 @@ export const useGameService = () => {
 		store.commit(
 			events.personUpdated({
 				id: personId,
-				assigned_to: roomId ?? undefined,
-				updated_at: new Date(),
+				assigned_to: roomId,
 			}),
 		);
 	};

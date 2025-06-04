@@ -8,7 +8,7 @@ export class ApiService {
 	 * Fetch all technology templates for a specific room
 	 */
 	static async getRoomTechnology(templateId: string): Promise<RoomTechnology[]> {
-		const response = await fetch(`${API_BASE_URL}/api/templates/room-technology?room_id=${templateId}`);
+		const response = await fetch(`${API_BASE_URL}/api/templates/room-technology/${templateId}`);
 		if (!response.ok) {
 			throw new Error(`Failed to fetch room technology: ${response.statusText}`);
 		}

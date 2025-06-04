@@ -1,6 +1,6 @@
 import { useQuery } from '@livestore/react';
 import { DoorInfoSchema, type DestinyStatus, type DoorInfo, type RoomTemplate } from '@stargate/common';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Button, Modal, Alert } from 'react-bootstrap';
 import { GiKey, GiPauseButton } from 'react-icons/gi';
 
@@ -9,6 +9,7 @@ import { useGameService } from '../services/game-service';
 import { getRoomScreenPosition as getGridRoomScreenPosition, calculateRoomPositions } from '../utils/grid-system';
 
 import { CountdownClock } from './countdown-clock';
+import { ExploredRoomModal } from './explored-room-modal';
 import { RoomDetailsModal } from './room-details-modal';
 import { RoomExploration } from './room-exploration';
 import { ShipRoom } from './ship-room';
@@ -29,6 +30,7 @@ export const ShipMap: React.FC<ShipMapProps> = ({ game_id }) => {
 	const [selectedRoom, setSelectedRoom] = useState<RoomTemplate | null>(null);
 	const [showExplorationModal, setShowExplorationModal] = useState(false);
 	const [showRoomDetailsModal, setShowRoomDetailsModal] = useState(false);
+	const [showExploredRoomModal, setShowExploredRoomModal] = useState(false);
 
 	// Camera state for zooming and panning
 	const [camera, setCamera] = useState<CameraTransform>({ x: 0, y: 0, scale: 1 });
@@ -73,15 +75,26 @@ export const ShipMap: React.FC<ShipMapProps> = ({ game_id }) => {
 	// Handle room click
 	const handleRoomClick = (room: RoomTemplate) => {
 		if (!isRoomVisible(room) || gameStatePaused) return;
-		if (room.exploration_data) {
+
+		// Room is currently being explored - show exploration management modal
+		if (room.exploration_data && !room.explored) {
 			setSelectedRoom(room);
 			setShowExplorationModal(true);
 			return;
 		}
-		if (!!room.found && !room.explored && !gameStatePaused) {
+
+		// Room is found but not explored - show exploration start modal
+		if (room.found && !room.explored && !gameStatePaused) {
 			setSelectedRoom(room);
 			setShowExplorationModal(true);
-		} else if (!!room.found && !!room.explored && !room.locked) {
+		}
+		// Room is fully explored - show explored room modal with technology
+		else if (room.found && room.explored) {
+			setSelectedRoom(room);
+			setShowExploredRoomModal(true);
+		}
+		// Room is found but locked - show room details modal
+		else if (room.found && room.locked) {
 			setSelectedRoom(room);
 			setShowRoomDetailsModal(true);
 		}
@@ -359,7 +372,7 @@ export const ShipMap: React.FC<ShipMapProps> = ({ game_id }) => {
 			)}
 
 			{/* Room Exploration Component */}
-			{selectedRoom && (
+			{selectedRoom && showExplorationModal && (
 				<RoomExploration
 					game_id={game_id}
 					roomId={selectedRoom.id}
@@ -383,6 +396,16 @@ export const ShipMap: React.FC<ShipMapProps> = ({ game_id }) => {
 				}}
 				room={selectedRoom}
 				game_id={game_id}
+			/>
+
+			{/* Explored Room Modal */}
+			<ExploredRoomModal
+				room={selectedRoom}
+				showModal={showExploredRoomModal}
+				onClose={() => {
+					setShowExploredRoomModal(false);
+					setSelectedRoom(null);
+				}}
 			/>
 		</div>
 	);

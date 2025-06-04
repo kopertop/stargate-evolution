@@ -1,4 +1,5 @@
 import { useQuery } from '@livestore/react';
+import { RoomTemplate } from '@stargate/common/models/room-template';
 import React, {
 	createContext,
 	useContext,
@@ -51,12 +52,12 @@ export const GameStateProvider: React.FC<GameStateProviderProps> = ({ game_id, c
 	/**
 	 * Handle technology discovery when a room is fully explored
 	 */
-	const handleTechnologyDiscovery = async (roomId: string, game_id: string) => {
+	const handleTechnologyDiscovery = async (room: typeof rooms[number], game_id: string) => {
 		try {
-			console.log(`🔬 Checking for technology in room ${roomId}...`);
+			console.log(`🔬 Checking for technology in room ${room.template_id}...`);
 
 			// Fetch room technology from backend templates
-			const roomTechnology = await ApiService.getRoomTechnology(roomId);
+			const roomTechnology = await ApiService.getRoomTechnology(room.template_id || room.type);
 
 			if (roomTechnology.length === 0) {
 				console.log('No technology found in this room');
@@ -131,7 +132,7 @@ export const GameStateProvider: React.FC<GameStateProviderProps> = ({ game_id, c
 			let exploringRoomsCount = 0;
 
 			for (const room of rooms) {
-				if (room.exploration_data) {
+				if (room.exploration_data && !room.explored) {
 					exploringRoomsCount++;
 					try {
 						const exploration = JSON.parse(room.exploration_data);
@@ -139,35 +140,64 @@ export const GameStateProvider: React.FC<GameStateProviderProps> = ({ game_id, c
 						// Convert game time (seconds) to hours for calculation
 						const timeElapsed = (currentGameTime - exploration.startTime) / 3600;
 						const newProgress = Math.min(100, (timeElapsed / exploration.timeToComplete) * 100);
-						const newTimeRemaining = exploration.timeToComplete - timeElapsed;
+						const newTimeRemaining = Math.max(0, exploration.timeToComplete - timeElapsed);
 
 						if (newProgress >= 100) {
 							// Exploration complete - mark room as explored and free crew
 							console.log(`🎉 Exploration of ${room.type} (${room.id}) completed!`);
 
+							// Get crew members to free up
+							const crewAssigned = exploration.crewAssigned || exploration.crew_assigned || [];
+
+							// Free crew members from this room
+							for (const crewId of crewAssigned) {
+								gameService.assignCrewToRoom(crewId, null);
+							}
+
+							// Mark room as explored and clear exploration data
+							gameService.updateRoom(room.id, {
+								explored: true,
+								exploration_data: '',
+							});
+
 							// Complete the exploration using LiveStore events
 							gameService.completeRoomExploration(room.id, []);
+
 							// Add discovered items
 							if (room.layout_id) {
-								const inventoryItems = await gameService.getTechnologyForRoom(room.template_id);
-								if (inventoryItems) {
-									for (const item of inventoryItems) {
-										gameService.addInventoryItem({
-											game_id,
-											resource_type: item.technology_template_id,
-											amount: item.count,
-											location: room.id,
-											description: item.description,
-										});
+								try {
+									const inventoryItems = await gameService.getTechnologyForRoom(room.type);
+									if (inventoryItems && inventoryItems.length > 0) {
+										for (const item of inventoryItems) {
+											gameService.addInventoryItem({
+												game_id,
+												resource_type: item.technology_template_id,
+												amount: item.count,
+												location: room.id,
+												description: item.description,
+											});
+										}
 									}
+								} catch (error) {
+									console.log(`No technology found for room type ${room.type}, continuing...`);
 								}
 							}
 
 							// Handle technology discovery
-							await handleTechnologyDiscovery(room.id, game_id);
+							await handleTechnologyDiscovery(room, game_id);
 						} else if (Math.abs(newProgress - exploration.progress) > 0.1) {
-							// Update progress - for now we'll skip frequent updates to avoid too many events
-							// In a real implementation, you might want to batch these or use a different approach
+							// Update progress - only if exploration is not complete
+							const updatedExploration = {
+								...exploration,
+								progress: newProgress,
+								time_remaining: newTimeRemaining,
+								timeRemaining: newTimeRemaining, // camelCase version for backward compatibility
+							};
+
+							// Update the room with new progress
+							gameService.updateRoom(room.id, {
+								exploration_data: JSON.stringify(updatedExploration),
+							});
 						}
 					} catch (error) {
 						console.error(`Failed to parse exploration data for room ${room.id}:`, error);

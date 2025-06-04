@@ -295,8 +295,16 @@ export default {
 		}
 
 		// Room technology endpoints
-		if (url.pathname === '/api/templates/room-technology' && request.method === 'GET') {
+		if (url.pathname.startsWith('/api/templates/room-technology') && request.method === 'GET') {
 			try {
+				if (url.pathname.startsWith('/api/templates/room-technology/')) {
+					const roomId = url.pathname.split('/').pop();
+					if (!roomId) throw new Error('Room ID required');
+					const roomTech = await getRoomTechnologyByRoomId(env.DB, roomId);
+					return withCors(new Response(JSON.stringify(roomTech), {
+						headers: { 'content-type': 'application/json' },
+					}));
+				}
 				const roomId = url.searchParams.get('room_id');
 				if (roomId) {
 					const roomTech = await getRoomTechnologyByRoomId(env.DB, roomId);

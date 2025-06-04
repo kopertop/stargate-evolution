@@ -34,7 +34,7 @@ export const RoomExploration: React.FC<RoomExplorationProps> = ({
 	onClose,
 	onExplorationStart,
 }) => {
-	const { isPaused: gameStatePaused } = useGameState();
+	const { isPaused: gameStatePaused, gameTime } = useGameState();
 	const [selectedCrew, setSelectedCrew] = useState<string[]>([]);
 	const [isManagingExploration, setIsManagingExploration] = useState(false);
 	const [explorationData, setExplorationData] = useState<ExplorationProgress | null>(null);
@@ -85,9 +85,12 @@ export const RoomExploration: React.FC<RoomExplorationProps> = ({
 		if (!room.exploration_data) return;
 		const baseTime = room.base_exploration_time || 2;
 		const crewMultiplier = Math.max(0.5, 1 / Math.max(1, newCrewIds.length));
-		const newTimeRemaining = baseTime * crewMultiplier;
+
 		try {
-			const oldCrewIds = JSON.parse(room.exploration_data).crewAssigned;
+			const explorationData = JSON.parse(room.exploration_data);
+			const oldCrewIds = explorationData.crewAssigned || explorationData.crew_assigned || [];
+
+			// Update crew assignments
 			for (const crewId of oldCrewIds) {
 				if (!newCrewIds.includes(crewId)) {
 					await gameService.assignCrewToRoom(crewId, null);
@@ -98,10 +101,19 @@ export const RoomExploration: React.FC<RoomExplorationProps> = ({
 					await gameService.assignCrewToRoom(crewId, room.id);
 				}
 			}
+
+			// Recalculate time remaining based on current progress
+			const currentProgress = explorationData.progress || 0;
+			const remainingProgressPercent = (100 - currentProgress) / 100;
+			const newTimeRemaining = baseTime * crewMultiplier * remainingProgressPercent;
+
 			const updatedExploration = {
-				...JSON.parse(room.exploration_data),
-				crewAssigned: newCrewIds,
-				timeRemaining: newTimeRemaining,
+				...explorationData,
+				crew_assigned: newCrewIds,
+				crewAssigned: newCrewIds, // camelCase version for backward compatibility
+				time_remaining: newTimeRemaining,
+				timeRemaining: newTimeRemaining, // camelCase version for backward compatibility
+				timeToComplete: baseTime * crewMultiplier, // Update total time for new crew size
 			};
 			await gameService.updateRoom(room.id, { exploration_data: JSON.stringify(updatedExploration) });
 			onClose();
@@ -125,11 +137,16 @@ export const RoomExploration: React.FC<RoomExplorationProps> = ({
 			for (const crewId of assignedCrewIds) {
 				await gameService.assignCrewToRoom(crewId, room.id);
 			}
-			const newExploration: ExplorationProgress = {
+
+			const newExploration = {
 				room_id: room.id,
 				progress: 0,
 				crew_assigned: assignedCrewIds,
 				time_remaining: explorationTime,
+				// Fields needed by game loop
+				startTime: gameTime,
+				timeToComplete: explorationTime,
+				crewAssigned: assignedCrewIds, // camelCase version for backward compatibility
 			};
 			await gameService.updateRoom(room.id, { exploration_data: JSON.stringify(newExploration) });
 			onExplorationStart(room.id, assignedCrewIds);
@@ -143,14 +160,18 @@ export const RoomExploration: React.FC<RoomExplorationProps> = ({
 	const calculateTimeRemaining = (room: RoomTemplate, crewCount: number): number => {
 		const baseTime = room.base_exploration_time || 2;
 		const crewMultiplier = Math.max(0.5, 1 / Math.max(1, crewCount));
-		const pctTimeRemaining = 100 - (JSON.parse(room.exploration_data || '{}').progress || 0);
+		const explorationData = JSON.parse(room.exploration_data || '{}');
+		const pctTimeRemaining = 100 - (explorationData.progress || 0);
 		return (baseTime * crewMultiplier) * (pctTimeRemaining / 100);
 	};
 
 	const cancelExploration = async (room: RoomTemplate) => {
 		if (!room.exploration_data) return;
 		try {
-			for (const crewId of JSON.parse(room.exploration_data).crewAssigned) {
+			const explorationData = JSON.parse(room.exploration_data);
+			const crewIds = explorationData.crewAssigned || explorationData.crew_assigned || [];
+
+			for (const crewId of crewIds) {
 				await gameService.assignCrewToRoom(crewId, null);
 			}
 			await gameService.clearExplorationProgress(room.id);
@@ -160,10 +181,22 @@ export const RoomExploration: React.FC<RoomExplorationProps> = ({
 		}
 	};
 
-	const availableCrewMembers = availableCrew;
-	const assignedCrewMembers = assignedCrew.filter((crew) =>
-		JSON.parse(selectedRoom?.exploration_data || '{}').crewAssigned?.includes(crew.id),
-	);
+	const availableCrewMembers = availableCrew || [];
+	const assignedCrewMembers = (assignedCrew || []).filter((crew) => {
+		if (!selectedRoom?.exploration_data) return false;
+		try {
+			const explorationData = JSON.parse(selectedRoom.exploration_data);
+			const crewAssigned = explorationData.crewAssigned || explorationData.crew_assigned || [];
+			return crewAssigned.includes(crew.id);
+		} catch {
+			return false;
+		}
+	});
+
+	// Early return if modal is not supposed to be shown
+	if (!showModal) {
+		return null;
+	}
 
 	return (
 		<>
