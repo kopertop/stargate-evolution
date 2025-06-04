@@ -365,6 +365,7 @@ describe('getConnectionSide and areRoomsAdjacent', () => {
 		const south = rooms[2];
 		const east = rooms[3];
 		const west = rooms[4];
+
 		expect(areRoomsAdjacent(center, north)).toBe(true);
 		expect(areRoomsAdjacent(center, south)).toBe(true);
 		expect(areRoomsAdjacent(center, east)).toBe(true);

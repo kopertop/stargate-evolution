@@ -61,14 +61,38 @@ export function calculateRoomPositions(
 		if (!room || !pos) continue;
 
 		for (const dirObj of directions) {
-			// Gather all children for this edge
+			// Gather all children for this edge (both forward and reverse connections)
 			const children: Array<{ connId: string; connRoom: RoomTemplate }> = [];
+
+			// Forward connections (room -> other)
 			for (const other of rooms) {
 				if (visited.has(other.id)) continue;
 				if (room[dirObj.key] === other.id) {
 					children.push({ connId: other.id, connRoom: other });
 				}
 			}
+
+			// Reverse connections (other -> room) - position them in the opposite direction
+			const reverseDirection = {
+				'north': 'south',
+				'south': 'north',
+				'east': 'west',
+				'west': 'east',
+			}[dirObj.dir];
+
+			if (reverseDirection) {
+				const reverseKey = `connection_${reverseDirection}` as keyof RoomTemplate;
+				for (const other of rooms) {
+					if (visited.has(other.id)) continue;
+					if (other[reverseKey] === room.id) {
+						// Only add if not already found in forward connections
+						if (!children.find(c => c.connId === other.id)) {
+							children.push({ connId: other.id, connRoom: other });
+						}
+					}
+				}
+			}
+
 			if (children.length === 0) continue;
 
 			// Assign each child a unique slot
@@ -225,28 +249,35 @@ export function getRoomScreenBounds(room: RoomTemplate, positions: Record<string
 }
 
 /**
- * Check if two rooms are adjacent (share a border)
+ * Check if two rooms are adjacent (have a connection to each other)
  */
-export function areRoomsAdjacent(room1: RoomTemplate, room2: RoomTemplate): boolean {
+export function areRoomsAdjacent(
+	room1: RoomTemplate,
+	room2: RoomTemplate,
+): boolean {
 	// Must be on the same floor
 	if (room1.floor !== room2.floor) return false;
 
-	const bounds1 = getRoomGridBounds(room1, {});
-	const bounds2 = getRoomGridBounds(room2, {});
+	// Can't be adjacent to itself
+	if (room1.id === room2.id) return false;
 
-	// Check for horizontal adjacency (sharing vertical border)
-	const horizontallyAdjacent = (
-		(bounds1.right === bounds2.left || bounds1.left === bounds2.right) &&
-		(bounds1.top > bounds2.bottom && bounds1.bottom < bounds2.top) // Check for Y overlap
-	);
+	// Check if room1 connects to room2
+	if (room1.connection_north === room2.id ||
+		room1.connection_south === room2.id ||
+		room1.connection_east === room2.id ||
+		room1.connection_west === room2.id) {
+		return true;
+	}
 
-	// Check for vertical adjacency (sharing horizontal border)
-	const verticallyAdjacent = (
-		(bounds1.top === bounds2.bottom || bounds1.bottom === bounds2.top) &&
-		(bounds1.right > bounds2.left && bounds1.left < bounds2.right) // Check for X overlap
-	);
+	// Check if room2 connects to room1
+	if (room2.connection_north === room1.id ||
+		room2.connection_south === room1.id ||
+		room2.connection_east === room1.id ||
+		room2.connection_west === room1.id) {
+		return true;
+	}
 
-	return horizontallyAdjacent || verticallyAdjacent;
+	return false;
 }
 
 /**
@@ -274,7 +305,10 @@ export function getConnectionSide(
 /**
  * Find all rooms that are adjacent to the given room
  */
-export function findAdjacentRooms(room: RoomTemplate, allRooms: RoomTemplate[]): RoomTemplate[] {
+export function findAdjacentRooms(
+	room: RoomTemplate,
+	allRooms: RoomTemplate[],
+): RoomTemplate[] {
 	return allRooms.filter(otherRoom =>
 		otherRoom.id !== room.id && areRoomsAdjacent(room, otherRoom),
 	);
