@@ -1,3 +1,4 @@
+import { roomTemplateToEvent, nullToUndefined } from '@stargate/common';
 import { SELF } from 'cloudflare:test';
 import { describe, it, expect, beforeAll } from 'vitest';
 
@@ -85,5 +86,67 @@ describe('createNewGame integration', () => {
 				}
 			});
 		}
+	});
+
+	describe('template event mapping', () => {
+		it('roomTemplateToEvent copies fields', async () => {
+			const res = await SELF.fetch('https://example.com/api/templates/rooms');
+			const room = (await res.json())[0];
+			const event = roomTemplateToEvent(room);
+			for (const key of Object.keys(event)) {
+				if (key === 'template_id') continue;
+				expect((event as any)[key]).toEqual(nullToUndefined(room)[key]);
+			}
+		});
+
+		it('person template maps directly', async () => {
+			const res = await SELF.fetch('https://example.com/api/templates/people');
+			const person = (await res.json())[0];
+			const event = { ...nullToUndefined(person), id: 'new', game_id: 'game' };
+			for (const key of Object.keys(person)) {
+				if (key === 'id' || key === 'created_at' || key === 'updated_at') continue;
+				expect(event[key as keyof typeof event]).toEqual((nullToUndefined(person) as any)[key]);
+			}
+		});
+
+		it('race template maps directly', async () => {
+			const res = await SELF.fetch('https://example.com/api/templates/races');
+			const race = (await res.json())[0];
+			const event = { ...nullToUndefined(race), id: 'new', game_id: 'game' };
+			for (const key of Object.keys(race)) {
+				if (key === 'id' || key === 'created_at' || key === 'updated_at') continue;
+				expect(event[key as keyof typeof event]).toEqual((nullToUndefined(race) as any)[key]);
+			}
+		});
+
+		it('galaxy template maps directly', async () => {
+			const res = await SELF.fetch('https://example.com/api/templates/galaxies');
+			const galaxy = (await res.json())[0];
+			const event = { ...nullToUndefined(galaxy), id: 'new', game_id: 'game' };
+			for (const key of Object.keys(galaxy)) {
+				if (key === 'id' || key === 'created_at' || key === 'updated_at') continue;
+				expect(event[key as keyof typeof event]).toEqual((nullToUndefined(galaxy) as any)[key]);
+			}
+		});
+
+		it('star system template maps directly', async () => {
+			const res = await SELF.fetch('https://example.com/api/templates/star-systems');
+			const system = (await res.json())[0];
+			const event = { ...nullToUndefined(system), id: 'new', game_id: 'game', created_at: new Date(), updated_at: new Date() };
+			for (const key of Object.keys(system)) {
+				if (key === 'id' || key === 'created_at' || key === 'updated_at') continue;
+				expect(event[key as keyof typeof event]).toEqual((nullToUndefined(system) as any)[key]);
+			}
+		});
+
+		it('inventory template maps directly', async () => {
+			const res = await SELF.fetch('https://example.com/api/templates/starting-inventory');
+			const item = (await res.json())[0];
+			const event = { ...nullToUndefined(item), id: 'new', game_id: 'game' };
+			for (const key of Object.keys(item)) {
+				if (key === 'id' || key === 'created_at' || key === 'updated_at') continue;
+				expect(event[key as keyof typeof event]).toEqual((nullToUndefined(item) as any)[key]);
+			}
+		});
 	});
 });
