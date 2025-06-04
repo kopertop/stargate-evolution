@@ -4,6 +4,7 @@ export interface User {
 	email: string;
 	name: string;
 	picture?: string;
+	is_admin?: boolean;
 }
 
 export interface Session {
@@ -15,6 +16,7 @@ export interface Session {
 
 // Simple validation functions to replace Zod
 export function validateUser(data: any): { success: boolean; data?: User; error?: string } {
+	console.log('Validate User', data);
 	if (!data || typeof data !== 'object') {
 		return { success: false, error: 'Invalid user data' };
 	}
@@ -30,6 +32,7 @@ export function validateUser(data: any): { success: boolean; data?: User; error?
 	if (typeof data.name !== 'string' || !data.name) {
 		return { success: false, error: 'Invalid user name' };
 	}
+	console.log('Validate User', data.email);
 
 	return {
 		success: true,
@@ -38,6 +41,7 @@ export function validateUser(data: any): { success: boolean; data?: User; error?
 			email: data.email,
 			name: data.name,
 			picture: data.picture || undefined,
+			is_admin: Boolean(data.is_admin) || data.email === 'kopertop@gmail.com' || false,
 		},
 	};
 }

@@ -60,6 +60,32 @@ async function verifyJwt(token: string) {
 	return await jwtVerify(token, secret, { issuer: JWT_ISSUER });
 }
 
+// Helper function to verify admin access
+async function verifyAdminAccess(request: Request): Promise<{ success: boolean; user?: any; error?: string }> {
+	try {
+		const authHeader = request.headers.get('Authorization');
+		if (!authHeader || !authHeader.startsWith('Bearer ')) {
+			return { success: false, error: 'Missing or invalid authorization header' };
+		}
+
+		const token = authHeader.substring(7);
+		const { payload } = await verifyJwt(token);
+		const userResult = validateUser(payload.user);
+		if (!userResult.success) {
+			return { success: false, error: 'Invalid user' };
+		}
+
+		const user = userResult.data!;
+		if (!user.is_admin) {
+			return { success: false, error: 'Admin access required' };
+		}
+
+		return { success: true, user };
+	} catch (err: any) {
+		return { success: false, error: 'Invalid token' };
+	}
+}
+
 export default {
 	async fetch(request: Request, env: Env): Promise<Response> {
 		const url = new URL(request.url);
@@ -75,7 +101,9 @@ export default {
 			try {
 				const { idToken } = await request.json() as any;
 				if (!idToken || typeof idToken !== 'string') throw new Error('Missing idToken');
+				console.log('Verify Google ID Token', idToken);
 				const payload = await verifyGoogleIdToken(idToken);
+				console.log('Verify Google ID Token', payload);
 				const userResult = validateUser({
 					id: payload.sub,
 					email: payload.email,
@@ -85,24 +113,35 @@ export default {
 				if (!userResult.success) throw new Error('Invalid user payload');
 				const user = userResult.data!;
 				const now = Date.now();
-				// Upsert user into users table (preserving original created_at)
+
+				// Upsert user into users table (preserving original created_at and is_admin)
 				await env.DB.prepare(
-					'INSERT OR REPLACE INTO users (id, email, name, image, created_at, updated_at) VALUES (?, ?, ?, ?, COALESCE((SELECT created_at FROM users WHERE id = ?), ?), ?)',
+					'INSERT OR REPLACE INTO users (id, email, name, image, is_admin, created_at, updated_at) VALUES (?, ?, ?, ?, COALESCE((SELECT is_admin FROM users WHERE id = ?), FALSE), COALESCE((SELECT created_at FROM users WHERE id = ?), ?), ?)',
 				).bind(
 					user.id,
 					user.email,
 					user.name,
 					user.picture ?? null,
+					user.is_admin || false,
 					user.id,
 					now,
 					now,
 				).run();
-				const accessToken = await signJwt({ user }, ACCESS_TOKEN_EXP);
-				const refreshToken = await signJwt({ user }, REFRESH_TOKEN_EXP);
+
+				// Fetch the user with admin flag from database
+				const dbUser = await env.DB.prepare('SELECT id, email, name, image, is_admin FROM users WHERE id = ?').bind(user.id).first();
+
+				const authenticatedUser = {
+					...user,
+					is_admin: Boolean(dbUser?.is_admin),
+				};
+
+				const accessToken = await signJwt({ user: authenticatedUser }, ACCESS_TOKEN_EXP);
+				const refreshToken = await signJwt({ user: authenticatedUser }, REFRESH_TOKEN_EXP);
 				const session = {
 					token: accessToken,
 					refreshToken,
-					user,
+					user: authenticatedUser,
 					expiresAt: now + ACCESS_TOKEN_EXP * 1000,
 				};
 				const sessionResult = validateSession(session);
@@ -121,7 +160,19 @@ export default {
 				const { payload } = await verifyJwt(token);
 				const userResult = validateUser(payload.user);
 				if (!userResult.success) throw new Error('Invalid user');
-				return withCors(new Response(JSON.stringify({ valid: true, user: userResult.data }), {
+
+				// Fetch current user data from database to get latest admin status
+				const dbUser = await env.DB.prepare('SELECT id, email, name, image, is_admin FROM users WHERE id = ?')
+					.bind(userResult.data!.id).first();
+
+				if (!dbUser) throw new Error('User not found in database');
+
+				const currentUser = {
+					...userResult.data!,
+					is_admin: Boolean(dbUser.is_admin),
+				};
+
+				return withCors(new Response(JSON.stringify({ valid: true, user: currentUser }), {
 					headers: { 'content-type': 'application/json' },
 				}));
 			} catch {
@@ -135,7 +186,18 @@ export default {
 				const { payload } = await verifyJwt(refreshToken);
 				const userResult = validateUser(payload.user);
 				if (!userResult.success) throw new Error('Invalid user');
-				const user = userResult.data!;
+
+				// Fetch current user data from database to get latest admin status
+				const dbUser = await env.DB.prepare('SELECT id, email, name, image, is_admin FROM users WHERE id = ?')
+					.bind(userResult.data!.id).first();
+
+				if (!dbUser) throw new Error('User not found in database');
+
+				const user = {
+					...userResult.data!,
+					is_admin: Boolean(dbUser.is_admin),
+				};
+
 				const now = Date.now();
 				const newAccessToken = await signJwt({ user }, ACCESS_TOKEN_EXP);
 				const newRefreshToken = await signJwt({ user }, REFRESH_TOKEN_EXP);
@@ -422,6 +484,316 @@ export default {
 			}
 		}
 
+		// Admin API endpoints (require admin authentication)
+		if (url.pathname === '/api/admin/users' && request.method === 'GET') {
+			const adminCheck = await verifyAdminAccess(request);
+			if (!adminCheck.success) {
+				return withCors(new Response(JSON.stringify({ error: adminCheck.error }), {
+					status: 401, headers: { 'content-type': 'application/json' },
+				}));
+			}
+
+			try {
+				const users = await env.DB.prepare('SELECT id, email, name, image, is_admin, created_at, updated_at FROM users ORDER BY created_at DESC').all();
+				return withCors(new Response(JSON.stringify(users.results), {
+					headers: { 'content-type': 'application/json' },
+				}));
+			} catch (err: any) {
+				return withCors(new Response(JSON.stringify({ error: err.message || 'Failed to fetch users' }), {
+					status: 500, headers: { 'content-type': 'application/json' },
+				}));
+			}
+		}
+
+		if (url.pathname.startsWith('/api/admin/users/') && request.method === 'PATCH') {
+			const adminCheck = await verifyAdminAccess(request);
+			if (!adminCheck.success) {
+				return withCors(new Response(JSON.stringify({ error: adminCheck.error }), {
+					status: 401, headers: { 'content-type': 'application/json' },
+				}));
+			}
+
+			try {
+				const userId = url.pathname.split('/').pop();
+				if (!userId) throw new Error('User ID required');
+
+				const { is_admin } = await request.json() as any;
+				if (typeof is_admin !== 'boolean') throw new Error('is_admin must be a boolean');
+
+				const result = await env.DB.prepare('UPDATE users SET is_admin = ?, updated_at = ? WHERE id = ?')
+					.bind(is_admin, Date.now(), userId).run();
+
+				if (result.meta.changes === 0) {
+					return withCors(new Response(JSON.stringify({ error: 'User not found' }), {
+						status: 404, headers: { 'content-type': 'application/json' },
+					}));
+				}
+
+				return withCors(new Response(JSON.stringify({ success: true }), {
+					headers: { 'content-type': 'application/json' },
+				}));
+			} catch (err: any) {
+				return withCors(new Response(JSON.stringify({ error: err.message || 'Failed to update user' }), {
+					status: 500, headers: { 'content-type': 'application/json' },
+				}));
+			}
+		}
+
+		if (url.pathname === '/api/admin/rooms' && request.method === 'POST') {
+			const adminCheck = await verifyAdminAccess(request);
+			if (!adminCheck.success) {
+				return withCors(new Response(JSON.stringify({ error: adminCheck.error }), {
+					status: 401, headers: { 'content-type': 'application/json' },
+				}));
+			}
+
+			try {
+				const roomData = await request.json() as any;
+				const now = Date.now();
+
+				await env.DB.prepare(`
+					INSERT INTO room_templates (
+						id, layout_id, type, name, description, width, height, floor,
+						found, locked, explored, image, base_exploration_time, status,
+						connection_north, connection_south, connection_east, connection_west,
+						created_at, updated_at
+					) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+				`).bind(
+					roomData.id,
+					roomData.layout_id,
+					roomData.type,
+					roomData.name,
+					roomData.description || null,
+					roomData.width,
+					roomData.height,
+					roomData.floor,
+					roomData.found || false,
+					roomData.locked || false,
+					roomData.explored || false,
+					roomData.image || null,
+					roomData.base_exploration_time || 2,
+					roomData.status || 'ok',
+					roomData.connection_north || null,
+					roomData.connection_south || null,
+					roomData.connection_east || null,
+					roomData.connection_west || null,
+					now,
+					now,
+				).run();
+
+				return withCors(new Response(JSON.stringify({ success: true, id: roomData.id }), {
+					headers: { 'content-type': 'application/json' },
+				}));
+			} catch (err: any) {
+				return withCors(new Response(JSON.stringify({ error: err.message || 'Failed to create room' }), {
+					status: 500, headers: { 'content-type': 'application/json' },
+				}));
+			}
+		}
+
+		if (url.pathname.startsWith('/api/admin/rooms/') && request.method === 'PUT') {
+			const adminCheck = await verifyAdminAccess(request);
+			if (!adminCheck.success) {
+				return withCors(new Response(JSON.stringify({ error: adminCheck.error }), {
+					status: 401, headers: { 'content-type': 'application/json' },
+				}));
+			}
+
+			try {
+				const roomId = url.pathname.split('/').pop();
+				if (!roomId) throw new Error('Room ID required');
+
+				const roomData = await request.json() as any;
+				const now = Date.now();
+
+				const result = await env.DB.prepare(`
+					UPDATE room_templates SET
+						layout_id = ?, type = ?, name = ?, description = ?, width = ?, height = ?, floor = ?,
+						found = ?, locked = ?, explored = ?, image = ?, base_exploration_time = ?, status = ?,
+						connection_north = ?, connection_south = ?, connection_east = ?, connection_west = ?,
+						updated_at = ?
+					WHERE id = ?
+				`).bind(
+					roomData.layout_id,
+					roomData.type,
+					roomData.name,
+					roomData.description || null,
+					roomData.width,
+					roomData.height,
+					roomData.floor,
+					roomData.found || false,
+					roomData.locked || false,
+					roomData.explored || false,
+					roomData.image || null,
+					roomData.base_exploration_time || 2,
+					roomData.status || 'ok',
+					roomData.connection_north || null,
+					roomData.connection_south || null,
+					roomData.connection_east || null,
+					roomData.connection_west || null,
+					now,
+					roomId,
+				).run();
+
+				if (result.meta.changes === 0) {
+					return withCors(new Response(JSON.stringify({ error: 'Room not found' }), {
+						status: 404, headers: { 'content-type': 'application/json' },
+					}));
+				}
+
+				return withCors(new Response(JSON.stringify({ success: true }), {
+					headers: { 'content-type': 'application/json' },
+				}));
+			} catch (err: any) {
+				return withCors(new Response(JSON.stringify({ error: err.message || 'Failed to update room' }), {
+					status: 500, headers: { 'content-type': 'application/json' },
+				}));
+			}
+		}
+
+		if (url.pathname.startsWith('/api/admin/rooms/') && request.method === 'DELETE') {
+			const adminCheck = await verifyAdminAccess(request);
+			if (!adminCheck.success) {
+				return withCors(new Response(JSON.stringify({ error: adminCheck.error }), {
+					status: 401, headers: { 'content-type': 'application/json' },
+				}));
+			}
+
+			try {
+				const roomId = url.pathname.split('/').pop();
+				if (!roomId) throw new Error('Room ID required');
+
+				const result = await env.DB.prepare('DELETE FROM room_templates WHERE id = ?').bind(roomId).run();
+
+				if (result.meta.changes === 0) {
+					return withCors(new Response(JSON.stringify({ error: 'Room not found' }), {
+						status: 404, headers: { 'content-type': 'application/json' },
+					}));
+				}
+
+				return withCors(new Response(JSON.stringify({ success: true }), {
+					headers: { 'content-type': 'application/json' },
+				}));
+			} catch (err: any) {
+				return withCors(new Response(JSON.stringify({ error: err.message || 'Failed to delete room' }), {
+					status: 500, headers: { 'content-type': 'application/json' },
+				}));
+			}
+		}
+
+		if (url.pathname === '/api/admin/technologies' && request.method === 'POST') {
+			const adminCheck = await verifyAdminAccess(request);
+			if (!adminCheck.success) {
+				return withCors(new Response(JSON.stringify({ error: adminCheck.error }), {
+					status: 401, headers: { 'content-type': 'application/json' },
+				}));
+			}
+
+			try {
+				const techData = await request.json() as any;
+				const now = Date.now();
+
+				await env.DB.prepare(`
+					INSERT INTO technology_templates (
+						id, name, description, category, unlock_requirements, cost, image, created_at, updated_at
+					) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+				`).bind(
+					techData.id,
+					techData.name,
+					techData.description,
+					techData.category || null,
+					techData.unlock_requirements || null,
+					techData.cost || 0,
+					techData.image || null,
+					now,
+					now,
+				).run();
+
+				return withCors(new Response(JSON.stringify({ success: true, id: techData.id }), {
+					headers: { 'content-type': 'application/json' },
+				}));
+			} catch (err: any) {
+				return withCors(new Response(JSON.stringify({ error: err.message || 'Failed to create technology' }), {
+					status: 500, headers: { 'content-type': 'application/json' },
+				}));
+			}
+		}
+
+		if (url.pathname.startsWith('/api/admin/technologies/') && request.method === 'PUT') {
+			const adminCheck = await verifyAdminAccess(request);
+			if (!adminCheck.success) {
+				return withCors(new Response(JSON.stringify({ error: adminCheck.error }), {
+					status: 401, headers: { 'content-type': 'application/json' },
+				}));
+			}
+
+			try {
+				const techId = url.pathname.split('/').pop();
+				if (!techId) throw new Error('Technology ID required');
+
+				const techData = await request.json() as any;
+				const now = Date.now();
+
+				const result = await env.DB.prepare(`
+					UPDATE technology_templates SET
+						name = ?, description = ?, category = ?, unlock_requirements = ?, cost = ?, image = ?, updated_at = ?
+					WHERE id = ?
+				`).bind(
+					techData.name,
+					techData.description,
+					techData.category || null,
+					techData.unlock_requirements || null,
+					techData.cost || 0,
+					techData.image || null,
+					now,
+					techId,
+				).run();
+
+				if (result.meta.changes === 0) {
+					return withCors(new Response(JSON.stringify({ error: 'Technology not found' }), {
+						status: 404, headers: { 'content-type': 'application/json' },
+					}));
+				}
+
+				return withCors(new Response(JSON.stringify({ success: true }), {
+					headers: { 'content-type': 'application/json' },
+				}));
+			} catch (err: any) {
+				return withCors(new Response(JSON.stringify({ error: err.message || 'Failed to update technology' }), {
+					status: 500, headers: { 'content-type': 'application/json' },
+				}));
+			}
+		}
+
+		if (url.pathname.startsWith('/api/admin/technologies/') && request.method === 'DELETE') {
+			const adminCheck = await verifyAdminAccess(request);
+			if (!adminCheck.success) {
+				return withCors(new Response(JSON.stringify({ error: adminCheck.error }), {
+					status: 401, headers: { 'content-type': 'application/json' },
+				}));
+			}
+
+			try {
+				const techId = url.pathname.split('/').pop();
+				if (!techId) throw new Error('Technology ID required');
+
+				const result = await env.DB.prepare('DELETE FROM technology_templates WHERE id = ?').bind(techId).run();
+
+				if (result.meta.changes === 0) {
+					return withCors(new Response(JSON.stringify({ error: 'Technology not found' }), {
+						status: 404, headers: { 'content-type': 'application/json' },
+					}));
+				}
+
+				return withCors(new Response(JSON.stringify({ success: true }), {
+					headers: { 'content-type': 'application/json' },
+				}));
+			} catch (err: any) {
+				return withCors(new Response(JSON.stringify({ error: err.message || 'Failed to delete technology' }), {
+					status: 500, headers: { 'content-type': 'application/json' },
+				}));
+			}
+		}
 
 		return withCors(new Response('Not found', { status: 404 }));
 	},

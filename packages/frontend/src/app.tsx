@@ -10,6 +10,7 @@ import 'react-toastify/dist/ReactToastify.css';
 
 import LiveStoreWorker from './livestore/livestore.worker?worker';
 import { schema } from './livestore/schema';
+import { AdminPage } from './pages/admin-page';
 import { GamePage } from './pages/game-page';
 import { MenuPage } from './pages/menu-page';
 
@@ -66,6 +67,7 @@ export const App: React.FC = () => {
 			<Router>
 				<Routes>
 					<Route path="/game/:game_id" element={<GamePage />} />
+					<Route path="/admin" element={<AdminPage />} />
 					<Route path="/" element={<MenuPage />} />
 				</Routes>
 				<ToastContainer

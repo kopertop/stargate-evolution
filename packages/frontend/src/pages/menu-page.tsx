@@ -7,7 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 
 import { renderGoogleSignInButton } from '../auth/google-auth';
-import { getSession, setSession } from '../auth/session';
+import { getSession, setSession, validateOrRefreshSession, clearSession } from '../auth/session';
 import { apiService } from '../services/api-service';
 import { useGameService } from '../services/game-service';
 
@@ -53,8 +53,12 @@ export const MenuPage: React.FC = () => {
 	}, []);
 
 	const checkAuthAndLoadGames = async () => {
-		const session = getSession();
-		if (!session || !session.user) {
+		const API_URL = import.meta.env.VITE_PUBLIC_API_URL || '';
+
+		// Validate/refresh session to get latest admin status
+		const validSession = await validateOrRefreshSession(API_URL);
+
+		if (!validSession || !validSession.user) {
 			setIsAuthenticated(false);
 			setCurrentView('main');
 			return;
@@ -75,7 +79,16 @@ export const MenuPage: React.FC = () => {
 			const data = await res.json();
 			if (!res.ok) throw new Error(data.error || 'Auth failed');
 
-			toast.success(`Welcome, ${data.user.name || data.user.email}!`, {
+			// Store the initial session
+			setSession(data);
+
+			// Validate the session to get the latest user data (including admin status)
+			const validatedSession = await validateOrRefreshSession(API_URL);
+			if (!validatedSession) {
+				throw new Error('Failed to validate session after login');
+			}
+
+			toast.success(`Welcome, ${validatedSession.user.name || validatedSession.user.email}!`, {
 				position: 'top-right',
 				autoClose: 3500,
 				hideProgressBar: false,
@@ -84,7 +97,7 @@ export const MenuPage: React.FC = () => {
 				draggable: true,
 				progress: undefined,
 			});
-			setSession(data);
+
 			setIsAuthenticated(true);
 			setCurrentView('main');
 		} catch (err: any) {
@@ -193,6 +206,20 @@ export const MenuPage: React.FC = () => {
 		setGameToDelete(null);
 	};
 
+	const handleLogout = () => {
+		clearSession();
+		setIsAuthenticated(false);
+		toast.success('Logged out successfully', {
+			position: 'top-right',
+			autoClose: 2000,
+			hideProgressBar: false,
+			closeOnClick: true,
+			pauseOnHover: true,
+			draggable: true,
+			progress: undefined,
+		});
+	};
+
 	const GoogleSignInButton: React.FC = () => {
 		useEffect(() => {
 			renderGoogleSignInButton('google-signin-button', handleGoogleSignIn);
@@ -264,6 +291,8 @@ export const MenuPage: React.FC = () => {
 
 	const renderMainView = () => {
 		const hasCurrentGame = gameSummaries.some(g => g.current);
+		const session = getSession();
+		const isAdmin = session?.user?.is_admin;
 
 		return (
 			<div className="card mx-auto" style={{ maxWidth: '400px' }}>
@@ -300,11 +329,31 @@ export const MenuPage: React.FC = () => {
 							</Button>
 						)}
 
-						{/* Sign in section */}
-						{!isAuthenticated && (
+						{/* Admin Panel - only show for admin users */}
+						{isAdmin && (
+							<Button
+								size="lg"
+								variant="danger"
+								onClick={() => navigate('/admin')}
+							>
+								Admin Panel
+							</Button>
+						)}
+
+						{/* Authentication section */}
+						{!isAuthenticated ? (
 							<div className="mt-4 text-center">
 								<p className="mb-2">Sign in for cloud saves:</p>
 								<GoogleSignInButton />
+							</div>
+						) : (
+							<div className="mt-4 text-center">
+								<p className="mb-2 text-muted">
+									Signed in as: {session?.user?.name || session?.user?.email}
+								</p>
+								<Button variant="outline-secondary" onClick={handleLogout}>
+									Logout
+								</Button>
 							</div>
 						)}
 					</div>

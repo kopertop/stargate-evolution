@@ -29,7 +29,19 @@ export async function validateOrRefreshSession(apiUrl: string): Promise<Session 
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify({ token: session.token }),
 	});
-	if (res.ok) return session;
+	if (res.ok) {
+		// Update session with latest user data (including admin status)
+		const validationData = await res.json();
+		if (validationData.valid && validationData.user) {
+			const updatedSession = {
+				...session,
+				user: validationData.user,
+			};
+			setSession(updatedSession);
+			return updatedSession;
+		}
+		return session;
+	}
 	// If validation fails and we have a refresh token, try to refresh
 	if (session.refreshToken) {
 		const refreshRes = await fetch(`${apiUrl}/api/auth/refresh`, {
