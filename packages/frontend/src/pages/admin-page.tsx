@@ -1,7 +1,8 @@
 import { RoomTemplate, TechnologyTemplate } from '@stargate/common';
-import React, { useState, useEffect } from 'react';
-import { Button, Card, Nav, Tab, Table, Modal, Form, Alert } from 'react-bootstrap';
-import { FaEdit, FaTrash, FaPlus, FaArrowLeft } from 'react-icons/fa';
+import Fuse from 'fuse.js';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Button, Card, Nav, Tab, Table, Modal, Form, Alert, InputGroup } from 'react-bootstrap';
+import { FaEdit, FaTrash, FaPlus, FaArrowLeft, FaSearch } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 
@@ -28,6 +29,11 @@ export const AdminPage: React.FC = () => {
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 
+	// Search states
+	const [userSearch, setUserSearch] = useState('');
+	const [roomSearch, setRoomSearch] = useState('');
+	const [techSearch, setTechSearch] = useState('');
+
 	// Modal states
 	const [showUserModal, setShowUserModal] = useState(false);
 	const [showRoomModal, setShowRoomModal] = useState(false);
@@ -37,6 +43,50 @@ export const AdminPage: React.FC = () => {
 	// Form states
 	const [roomForm, setRoomForm] = useState<Partial<RoomTemplate>>({});
 	const [techForm, setTechForm] = useState<Partial<TechnologyTemplate>>({});
+
+	// Fuse.js instances - only create when data exists
+	const userFuse = useMemo(() => {
+		if (users.length === 0) return null;
+		return new Fuse(users, {
+			keys: ['name', 'email'],
+			threshold: 0.3,
+		});
+	}, [users]);
+
+	const roomFuse = useMemo(() => {
+		if (rooms.length === 0) return null;
+		return new Fuse(rooms, {
+			keys: ['id', 'name', 'type', 'layout_id'],
+			threshold: 0.3,
+		});
+	}, [rooms]);
+
+	const techFuse = useMemo(() => {
+		if (technologies.length === 0) return null;
+		return new Fuse(technologies, {
+			keys: ['id', 'name', 'category', 'description'],
+			threshold: 0.3,
+		});
+	}, [technologies]);
+
+	// Filtered data based on search - always return arrays
+	const filteredUsers = useMemo(() => {
+		if (!userSearch.trim()) return users;
+		if (!userFuse) return users;
+		return userFuse.search(userSearch).map(result => result.item);
+	}, [users, userSearch, userFuse]);
+
+	const filteredRooms = useMemo(() => {
+		if (!roomSearch.trim()) return rooms;
+		if (!roomFuse) return rooms;
+		return roomFuse.search(roomSearch).map(result => result.item);
+	}, [rooms, roomSearch, roomFuse]);
+
+	const filteredTechnologies = useMemo(() => {
+		if (!techSearch.trim()) return technologies;
+		if (!techFuse) return technologies;
+		return techFuse.search(techSearch).map(result => result.item);
+	}, [technologies, techSearch, techFuse]);
 
 	useEffect(() => {
 		// Check if user is admin
@@ -202,7 +252,7 @@ export const AdminPage: React.FC = () => {
 
 	if (loading) {
 		return (
-			<div className="container-fluid vh-100 d-flex align-items-center justify-content-center bg-dark text-light">
+			<div className="container-fluid d-flex align-items-center justify-content-center bg-dark text-light" style={{ minHeight: '100vh' }}>
 				<div className="text-center">
 					<div className="spinner-border text-primary" role="status">
 						<span className="visually-hidden">Loading...</span>
@@ -214,7 +264,7 @@ export const AdminPage: React.FC = () => {
 	}
 
 	return (
-		<div className="container-fluid vh-100 bg-dark text-light">
+		<div className="bg-dark text-light" style={{ minHeight: '100vh' }}>
 			<div className="container py-4">
 				<div className="d-flex justify-content-between align-items-center mb-4">
 					<h1>Admin Panel</h1>
@@ -250,36 +300,54 @@ export const AdminPage: React.FC = () => {
 									<h4>User Management</h4>
 								</Card.Header>
 								<Card.Body>
-									<Table striped bordered hover variant="dark">
-										<thead>
-											<tr>
-												<th>Name</th>
-												<th>Email</th>
-												<th>Admin</th>
-												<th>Created</th>
-												<th>Actions</th>
-											</tr>
-										</thead>
-										<tbody>
-											{users.map((user) => (
-												<tr key={user.id}>
-													<td>{user.name}</td>
-													<td>{user.email}</td>
-													<td>
-														<Form.Check
-															type="switch"
-															checked={user.is_admin}
-															onChange={(e) => handleUserAdminToggle(user.id, e.target.checked)}
-														/>
-													</td>
-													<td>{new Date(user.created_at).toLocaleDateString()}</td>
-													<td>
-														<small className="text-muted">ID: {user.id}</small>
-													</td>
+									<InputGroup className="mb-3">
+										<InputGroup.Text>
+											<FaSearch />
+										</InputGroup.Text>
+										<Form.Control
+											type="text"
+											value={userSearch}
+											onChange={(e) => setUserSearch(e.target.value)}
+											placeholder="Search users by name or email"
+										/>
+									</InputGroup>
+									<div style={{ maxHeight: '600px', overflowY: 'auto' }}>
+										<Table striped bordered hover variant="dark">
+											<thead style={{ position: 'sticky', top: 0, zIndex: 10 }}>
+												<tr>
+													<th>Name</th>
+													<th>Email</th>
+													<th>Admin</th>
+													<th>Created</th>
+													<th>Actions</th>
 												</tr>
-											))}
-										</tbody>
-									</Table>
+											</thead>
+											<tbody>
+												{filteredUsers?.map((user) => (
+													<tr key={user.id}>
+														<td>{user.name}</td>
+														<td>{user.email}</td>
+														<td>
+															<Form.Check
+																type="switch"
+																checked={user.is_admin}
+																onChange={(e) => handleUserAdminToggle(user.id, e.target.checked)}
+															/>
+														</td>
+														<td>{new Date(user.created_at).toLocaleDateString()}</td>
+														<td>
+															<small className="text-muted">ID: {user.id}</small>
+														</td>
+													</tr>
+												))}
+											</tbody>
+										</Table>
+									</div>
+									{filteredUsers?.length === 0 && userSearch && (
+										<div className="text-center text-muted py-3">
+											No users found matching &ldquo;{userSearch}&rdquo;
+										</div>
+									)}
 								</Card.Body>
 							</Card>
 						</Tab.Pane>
@@ -294,48 +362,66 @@ export const AdminPage: React.FC = () => {
 									</Button>
 								</Card.Header>
 								<Card.Body>
-									<Table striped bordered hover variant="dark">
-										<thead>
-											<tr>
-												<th>ID</th>
-												<th>Name</th>
-												<th>Type</th>
-												<th>Layout</th>
-												<th>Size</th>
-												<th>Floor</th>
-												<th>Actions</th>
-											</tr>
-										</thead>
-										<tbody>
-											{rooms.map((room) => (
-												<tr key={room.id}>
-													<td><code>{room.id}</code></td>
-													<td>{room.name}</td>
-													<td>{room.type}</td>
-													<td>{room.layout_id}</td>
-													<td>{room.width}x{room.height}</td>
-													<td>{room.floor}</td>
-													<td>
-														<Button
-															size="sm"
-															variant="outline-warning"
-															className="me-2"
-															onClick={() => handleEditRoom(room)}
-														>
-															<FaEdit />
-														</Button>
-														<Button
-															size="sm"
-															variant="outline-danger"
-															onClick={() => handleDeleteRoom(room.id)}
-														>
-															<FaTrash />
-														</Button>
-													</td>
+									<InputGroup className="mb-3">
+										<InputGroup.Text>
+											<FaSearch />
+										</InputGroup.Text>
+										<Form.Control
+											type="text"
+											value={roomSearch}
+											onChange={(e) => setRoomSearch(e.target.value)}
+											placeholder="Search rooms by ID, name, type, or layout"
+										/>
+									</InputGroup>
+									<div style={{ maxHeight: '600px', overflowY: 'auto' }}>
+										<Table striped bordered hover variant="dark">
+											<thead style={{ position: 'sticky', top: 0, zIndex: 10 }}>
+												<tr>
+													<th>ID</th>
+													<th>Name</th>
+													<th>Type</th>
+													<th>Layout</th>
+													<th>Size</th>
+													<th>Floor</th>
+													<th>Actions</th>
 												</tr>
-											))}
-										</tbody>
-									</Table>
+											</thead>
+											<tbody>
+												{filteredRooms.map((room) => (
+													<tr key={room.id}>
+														<td><code>{room.id}</code></td>
+														<td>{room.name}</td>
+														<td>{room.type}</td>
+														<td>{room.layout_id}</td>
+														<td>{room.width}x{room.height}</td>
+														<td>{room.floor}</td>
+														<td>
+															<Button
+																size="sm"
+																variant="outline-warning"
+																className="me-2"
+																onClick={() => handleEditRoom(room)}
+															>
+																<FaEdit />
+															</Button>
+															<Button
+																size="sm"
+																variant="outline-danger"
+																onClick={() => handleDeleteRoom(room.id)}
+															>
+																<FaTrash />
+															</Button>
+														</td>
+													</tr>
+												))}
+											</tbody>
+										</Table>
+									</div>
+									{filteredRooms.length === 0 && roomSearch && (
+										<div className="text-center text-muted py-3">
+											No rooms found matching &ldquo;{roomSearch}&rdquo;
+										</div>
+									)}
 								</Card.Body>
 							</Card>
 						</Tab.Pane>
@@ -350,46 +436,64 @@ export const AdminPage: React.FC = () => {
 									</Button>
 								</Card.Header>
 								<Card.Body>
-									<Table striped bordered hover variant="dark">
-										<thead>
-											<tr>
-												<th>ID</th>
-												<th>Name</th>
-												<th>Category</th>
-												<th>Cost</th>
-												<th>Description</th>
-												<th>Actions</th>
-											</tr>
-										</thead>
-										<tbody>
-											{technologies.map((tech) => (
-												<tr key={tech.id}>
-													<td><code>{tech.id}</code></td>
-													<td>{tech.name}</td>
-													<td>{tech.category || 'N/A'}</td>
-													<td>{tech.cost}</td>
-													<td>{tech.description.substring(0, 50)}...</td>
-													<td>
-														<Button
-															size="sm"
-															variant="outline-warning"
-															className="me-2"
-															onClick={() => handleEditTechnology(tech)}
-														>
-															<FaEdit />
-														</Button>
-														<Button
-															size="sm"
-															variant="outline-danger"
-															onClick={() => handleDeleteTechnology(tech.id)}
-														>
-															<FaTrash />
-														</Button>
-													</td>
+									<InputGroup className="mb-3">
+										<InputGroup.Text>
+											<FaSearch />
+										</InputGroup.Text>
+										<Form.Control
+											type="text"
+											value={techSearch}
+											onChange={(e) => setTechSearch(e.target.value)}
+											placeholder="Search technologies by ID, name, category, or description"
+										/>
+									</InputGroup>
+									<div style={{ maxHeight: '600px', overflowY: 'auto' }}>
+										<Table striped bordered hover variant="dark">
+											<thead style={{ position: 'sticky', top: 0, zIndex: 10 }}>
+												<tr>
+													<th>ID</th>
+													<th>Name</th>
+													<th>Category</th>
+													<th>Cost</th>
+													<th>Description</th>
+													<th>Actions</th>
 												</tr>
-											))}
-										</tbody>
-									</Table>
+											</thead>
+											<tbody>
+												{filteredTechnologies.map((tech) => (
+													<tr key={tech.id}>
+														<td><code>{tech.id}</code></td>
+														<td>{tech.name}</td>
+														<td>{tech.category || 'N/A'}</td>
+														<td>{tech.cost}</td>
+														<td>{tech.description.substring(0, 50)}...</td>
+														<td>
+															<Button
+																size="sm"
+																variant="outline-warning"
+																className="me-2"
+																onClick={() => handleEditTechnology(tech)}
+															>
+																<FaEdit />
+															</Button>
+															<Button
+																size="sm"
+																variant="outline-danger"
+																onClick={() => handleDeleteTechnology(tech.id)}
+															>
+																<FaTrash />
+															</Button>
+														</td>
+													</tr>
+												))}
+											</tbody>
+										</Table>
+									</div>
+									{filteredTechnologies.length === 0 && techSearch && (
+										<div className="text-center text-muted py-3">
+											No technologies found matching &ldquo;{techSearch}&rdquo;
+										</div>
+									)}
 								</Card.Body>
 							</Card>
 						</Tab.Pane>

@@ -144,6 +144,9 @@ importers:
       case:
         specifier: ^1.6.3
         version: 1.6.3
+      fuse.js:
+        specifier: ^7.1.0
+        version: 7.1.0
       object.omit:
         specifier: ^3.0.0
         version: 3.0.0
@@ -245,12 +248,6 @@ importers:
       '@cloudflare/vitest-pool-workers':
         specifier: ^0.8.34
         version: 0.8.34(@cloudflare/workers-types@4.20250529.0)(@vitest/runner@3.1.4)(@vitest/snapshot@3.1.4)(vitest@3.1.4)
-      '@livestore/adapter-node':
-        specifier: ^0.3.0
-        version: 0.3.0(da6c724b782567f8719fb04f53fd8389)
-      '@livestore/livestore':
-        specifier: ^0.3.0
-        version: 0.3.0(ee6330b471f0c954ad00c7c6f10cc2a7)
       vite-tsconfig-paths:
         specifier: ^5.1.4
         version: 5.1.4(typescript@5.8.3)(vite@6.3.5(@types/node@22.15.24)(jiti@1.21.7)(sass@1.89.0)(terser@5.39.2)(tsx@4.19.4)(yaml@2.8.0))
@@ -2525,6 +2522,10 @@ packages:
 
   functions-have-names@1.2.3:
     resolution: {integrity: sha512-xckBUXyTIqT97tq2x2AMb+g163b5JFysYk0x4qxNFwbfQkmNZoiRHb6sPzI9/QV33WeuvVYBUIiD4NzNIyqaRQ==}
+
+  fuse.js@7.1.0:
+    resolution: {integrity: sha512-trLf4SzuuUxfusZADLINj+dE8clK1frKdmqiJNb1Es75fmI5oY6X2mxLVUciLLjxqw/xr72Dhy+lER6dGd02FQ==}
+    engines: {node: '>=10'}
 
   gensync@1.0.0-beta.2:
     resolution: {integrity: sha512-3hN7NaskYvMDLQY55gnW3NQ+mesEAepTqlg+VEbj7zzqEMBVNhzcGYYeqFo/TlYz6eQiFcp1HcsCZO+nGgS8zg==}
@@ -6409,6 +6410,8 @@ snapshots:
       is-callable: 1.2.7
 
   functions-have-names@1.2.3: {}
+
+  fuse.js@7.1.0: {}
 
   gensync@1.0.0-beta.2: {}
 
