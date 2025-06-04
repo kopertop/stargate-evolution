@@ -63,21 +63,12 @@ export const RoomExploration: React.FC<RoomExplorationProps> = ({
 
 	// Check if room can be explored
 	const canExploreRoom = (room: RoomTemplate): boolean => {
+
 		if (!room.found) return false;
 		if (room.explored) return false;
 		if (gameStatePaused) return false;
 		if (room.exploration_data) return false;
-		if (room.connection_north || room.connection_south || room.connection_east || room.connection_west) return false;
-		const isAdjacentToUnlocked = [
-			room.connection_north,
-			room.connection_south,
-			room.connection_east,
-			room.connection_west,
-		].filter(Boolean).some((connectedId: string | null) => {
-			const connectedRoom = rooms.find(r => r.id === connectedId);
-			return !connectedRoom?.locked;
-		});
-		return isAdjacentToUnlocked;
+		return true;
 	};
 
 	// Toggle crew selection
@@ -121,6 +112,11 @@ export const RoomExploration: React.FC<RoomExplorationProps> = ({
 
 	// Start room exploration
 	const startExploration = async (room: RoomTemplate, assignedCrewIds: string[]) => {
+		console.log('startExploration', {
+			canExploreRoom: canExploreRoom(room),
+			room,
+			assignedCrewIds,
+		});
 		if (!canExploreRoom(room) || assignedCrewIds.length === 0) return;
 		const baseTime = room.base_exploration_time || 2;
 		const crewMultiplier = Math.max(0.5, 1 / assignedCrewIds.length);
@@ -166,7 +162,7 @@ export const RoomExploration: React.FC<RoomExplorationProps> = ({
 
 	const availableCrewMembers = availableCrew;
 	const assignedCrewMembers = assignedCrew.filter((crew) =>
-		JSON.parse(selectedRoom?.exploration_data || '{}').crewAssigned.includes(crew.id),
+		JSON.parse(selectedRoom?.exploration_data || '{}').crewAssigned?.includes(crew.id),
 	);
 
 	return (
