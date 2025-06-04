@@ -24,6 +24,13 @@ export const CountdownClock: React.FC = () => {
 	const { timeUntilNextTransition, isInFTL, destinyStatus } = useDestinyStatus();
 	const [showSpeedDropdown, setShowSpeedDropdown] = useState(false);
 
+	// Handle speed change
+	const handleSpeedChange = useCallback((newSpeed: number) => {
+		setTimeSpeed(newSpeed);
+		setShowSpeedDropdown(false);
+	}, [setTimeSpeed]);
+
+
 	// Keyboard controls
 	useEffect(() => {
 		const handleKeyPress = (event: KeyboardEvent) => {
@@ -31,17 +38,18 @@ export const CountdownClock: React.FC = () => {
 				event.preventDefault();
 				togglePause();
 			}
+			for (const [key, value] of Object.entries(SPEED_OPTIONS)) {
+				if (event.code === `Digit${+key + 1}`) {
+					event.preventDefault();
+					handleSpeedChange(value.value);
+				}
+			}
 		};
 
 		window.addEventListener('keydown', handleKeyPress);
 		return () => window.removeEventListener('keydown', handleKeyPress);
-	}, [togglePause]);
+	}, [togglePause, handleSpeedChange]);
 
-	// Handle speed change
-	const handleSpeedChange = useCallback((newSpeed: number) => {
-		setTimeSpeed(newSpeed);
-		setShowSpeedDropdown(false);
-	}, [setTimeSpeed]);
 
 	// Convert hours to display format
 	const totalMinutes = Math.max(0, Math.floor(timeUntilNextTransition / 60));
