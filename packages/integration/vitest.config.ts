@@ -3,25 +3,26 @@ import { defineWorkersConfig, readD1Migrations } from '@cloudflare/vitest-pool-w
 import tsconfigPaths from 'vite-tsconfig-paths';
 
 export default defineWorkersConfig(async () => {
-const migrationsPath = path.join(__dirname, '../backend/migrations');
-const migrations = await readD1Migrations(migrationsPath);
+	const migrationsPath = path.join(__dirname, '../backend/migrations');
+	const migrations = await readD1Migrations(migrationsPath);
 
-return {
-plugins: [tsconfigPaths()],
-test: {
-include: ['test/**/*.spec.ts'],
-setupFiles: ['./test/apply-migrations.ts'],
-poolOptions: {
-workers: {
-miniflare: {
-bindings: { TEST_MIGRATIONS: migrations },
-},
-wrangler: {
-configPath: '../backend/wrangler.toml',
-environment: 'test',
-},
-},
-},
-},
-};
+	return {
+		plugins: [tsconfigPaths()],
+		test: {
+			include: ['test/**/*.spec.ts'],
+			setupFiles: ['./test/apply-migrations.ts'],
+			poolOptions: {
+				workers: {
+					miniflare: {
+						bindings: { TEST_MIGRATIONS: migrations },
+						compatibilityFlags: ['nodejs_compat'],
+					},
+					wrangler: {
+						configPath: '../backend/wrangler.toml',
+						environment: 'test',
+					},
+				},
+			},
+		},
+	};
 });

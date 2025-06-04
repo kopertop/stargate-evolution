@@ -6,12 +6,11 @@
 "test": "pnpm exec vitest run"
 },
   "dependencies": {
-    "@stargate/common": "workspace:*"
+    "@stargate/common": "workspace:*",
+    "@stargate/frontend": "workspace:*"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.8.34",
-    "@livestore/adapter-node": "^0.3.0",
-    "@livestore/livestore": "^0.3.0",
     "vitest": "^3.1.4",
     "vite-tsconfig-paths": "^5.1.4"
   }

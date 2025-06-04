@@ -124,7 +124,7 @@ INSERT INTO room_templates (
 		4,                              -- height
 		0,                              -- floor
 		false,                          -- found
-		NULL,                           -- connection_north
+		'crew_corridor_1',              -- connection_north
 		'observation_deck_corridor',    -- connection_south
 		'kino_room',                    -- connection_east
 		'east_corridor',                -- connection_west
@@ -197,10 +197,10 @@ INSERT INTO room_templates (
 		2,                    -- height
 		0,                    -- floor
 		false,                -- found
-		NULL,                    -- connection_north
+		'medical_bay',        -- connection_north
 		'hydroponics_corridor',  -- connection_south
 		'bridge',             -- connection_east
-		NULL,                 -- connection_west
+		'kino_room',          -- connection_west
 		0,                    -- base_exploration_time
 		false,                -- locked
 		'damaged'             -- status
@@ -234,9 +234,9 @@ INSERT INTO room_templates (
 		0,                  -- floor
 		false,              -- found
 		NULL,               -- connection_north
-		NULL,               -- connection_south
+		'bridge_corridor',  -- connection_south
 		NULL,               -- connection_east
-		'kino_room',        -- connection_west
+		NULL,               -- connection_west
 		4,                  -- base_exploration_time
 		false,              -- locked
 		'ok'                 -- status
@@ -260,21 +260,20 @@ INSERT INTO room_templates (
 		'ok'                 -- status
 	),
 
-	-- Above the Control Interface Room is a corridor connecting to multiple other corridors going to
-	-- the right. Each corridor is south of a small crew quarters room.
+	-- Crew corridors extending north from control interface in a chain
 	(
 		'crew_corridor_1',      -- id
 		'destiny',              -- layout_id
 		'corridor_basic',       -- type
 		'Crew Corridor 1',      -- name
-		'Corridor to the right of the control interface', -- description
+		'Corridor north of the control interface', -- description
 		2,                      -- width
 		2,                      -- height
 		0,                      -- floor
 		false,                  -- found
 		'crew_quarters_1',      -- connection_north
 		'control_interface',    -- connection_south
-		'control_interface',    -- connection_east
+		'crew_corridor_2',      -- connection_east
 		NULL,                   -- connection_west
 		2,                      -- base_exploration_time
 		false,                  -- locked
@@ -303,15 +302,15 @@ INSERT INTO room_templates (
 		'destiny',              -- layout_id
 		'corridor_basic',       -- type
 		'Crew Corridor 2',      -- name
-		'Corridor to the right of the control interface', -- description
+		'Corridor east of crew corridor 1', -- description
 		2,                      -- width
 		2,                      -- height
 		0,                      -- floor
 		false,                  -- found
 		'crew_quarters_2',      -- connection_north
-		'crew_corridor_1',      -- connection_south
-		'crew_corridor_1',      -- connection_east
-		NULL,                   -- connection_west
+		NULL,                   -- connection_south
+		'crew_corridor_3',      -- connection_east
+		'crew_corridor_1',      -- connection_west
 		6,                      -- base_exploration_time
 		false,                  -- locked
 		'ok'                     -- status
@@ -339,15 +338,15 @@ INSERT INTO room_templates (
 		'destiny',              -- layout_id
 		'corridor_basic',       -- type
 		'Crew Corridor 3',      -- name
-		'Corridor to the right of the control interface', -- description
+		'Corridor east of crew corridor 2', -- description
 		2,                      -- width
 		2,                      -- height
 		0,                      -- floor
 		false,                  -- found
 		'crew_quarters_3',      -- connection_north
-		'crew_corridor_2',      -- connection_south
-		'crew_corridor_2',      -- connection_east
-		NULL,                   -- connection_west
+		NULL,                   -- connection_south
+		'crew_corridor_4',      -- connection_east
+		'crew_corridor_2',      -- connection_west
 		10,                     -- base_exploration_time
 		false,                  -- locked
 		'ok'                     -- status
@@ -375,15 +374,15 @@ INSERT INTO room_templates (
 		'destiny',              -- layout_id
 		'corridor_basic',       -- type
 		'Crew Corridor 4',      -- name
-		'Corridor to the right of the control interface', -- description
+		'Corridor east of crew corridor 3', -- description
 		2,                      -- width
 		2,                      -- height
 		0,                      -- floor
 		false,                  -- found
 		'crew_quarters_4',      -- connection_north
-		'crew_corridor_3',      -- connection_south
-		'crew_corridor_3',      -- connection_east
-		NULL,                   -- connection_west
+		NULL,                   -- connection_south
+		NULL,                   -- connection_east
+		'crew_corridor_3',      -- connection_west
 		14,                     -- base_exploration_time
 		false,                  -- locked
 		'ok'                     -- status
@@ -418,9 +417,9 @@ INSERT INTO room_templates (
 		4,                      -- height
 		0,                      -- floor
 		false,                  -- found
-		NULL,                   -- connection_north
+		'south_corridor',       -- connection_north
 		NULL,                   -- connection_south
-		'west_corridor',        -- connection_east
+		NULL,                   -- connection_east
 		NULL,                   -- connection_west
 		12,                     -- base_exploration_time
 		true,                  -- locked

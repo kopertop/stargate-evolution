@@ -32,6 +32,12 @@
       ],
       "@stargate/db": [
         "packages/db/src"
+      ],
+      "@stargate/frontend/*": [
+        "packages/frontend/src/*"
+      ],
+      "@stargate/frontend": [
+        "packages/frontend/src"
       ]
     }
   }
