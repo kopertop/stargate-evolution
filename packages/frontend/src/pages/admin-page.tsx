@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 
 import { getSession, validateOrRefreshSession } from '../auth/session';
+import { RoomEditVisualization } from '../components/room-edit-visualization';
 import { adminService } from '../services/admin-service';
 import { apiService } from '../services/api-service';
 
@@ -149,7 +150,7 @@ export const AdminPage: React.FC = () => {
 			description: '',
 			width: 1,
 			height: 1,
-			floor: 1,
+			floor: 0,
 			found: false,
 			locked: false,
 			explored: false,
@@ -164,6 +165,14 @@ export const AdminPage: React.FC = () => {
 		setRoomForm(room);
 		setShowRoomModal(true);
 	};
+
+	const handleSwitchToRoom = (room: RoomTemplate) => {
+		setEditingItem(room);
+		setRoomForm(room);
+		// Keep the modal open, just switch to editing the new room
+	};
+
+
 
 	const handleSaveRoom = async () => {
 		try {
@@ -501,95 +510,123 @@ export const AdminPage: React.FC = () => {
 				</Tab.Container>
 
 				{/* Room Modal */}
-				<Modal show={showRoomModal} onHide={() => setShowRoomModal(false)} size="lg">
+				<Modal
+					show={showRoomModal}
+					onHide={() => setShowRoomModal(false)}
+					fullscreen={true}
+				>
 					<Modal.Header closeButton>
 						<Modal.Title>{editingItem ? 'Edit Room' : 'Create Room'}</Modal.Title>
 					</Modal.Header>
-					<Modal.Body>
-						<Form>
-							<Form.Group className="mb-3">
-								<Form.Label>Room ID</Form.Label>
-								<Form.Control
-									type="text"
-									value={roomForm.id || ''}
-									onChange={(e) => setRoomForm({ ...roomForm, id: e.target.value })}
-									disabled={!!editingItem}
-								/>
-							</Form.Group>
-							<Form.Group className="mb-3">
-								<Form.Label>Name</Form.Label>
-								<Form.Control
-									type="text"
-									value={roomForm.name || ''}
-									onChange={(e) => setRoomForm({ ...roomForm, name: e.target.value })}
-								/>
-							</Form.Group>
-							<Form.Group className="mb-3">
-								<Form.Label>Description</Form.Label>
-								<Form.Control
-									as="textarea"
-									rows={3}
-									value={roomForm.description || ''}
-									onChange={(e) => setRoomForm({ ...roomForm, description: e.target.value })}
-								/>
-							</Form.Group>
-							<div className="row">
-								<div className="col-md-6">
+					<Modal.Body className="p-0" style={{ height: 'calc(100vh - 120px)' }}>
+						<div className="d-flex h-100">
+							{/* Left Side - Edit Form */}
+							<div className="flex-shrink-0 p-4" style={{ width: '400px', overflowY: 'auto' }}>
+								<Form>
 									<Form.Group className="mb-3">
-										<Form.Label>Layout ID</Form.Label>
-										<Form.Select
-											value={roomForm.layout_id || ''}
-											onChange={(e) => setRoomForm({ ...roomForm, layout_id: e.target.value })}
-										>
-											<option value="destiny">Destiny</option>
-											<option value="atlantis">Atlantis</option>
-										</Form.Select>
-									</Form.Group>
-								</div>
-								<div className="col-md-6">
-									<Form.Group className="mb-3">
-										<Form.Label>Type</Form.Label>
+										<Form.Label>Room ID</Form.Label>
 										<Form.Control
 											type="text"
-											value={roomForm.type || ''}
-											onChange={(e) => setRoomForm({ ...roomForm, type: e.target.value })}
+											value={roomForm.id || ''}
+											onChange={(e) => setRoomForm({ ...roomForm, id: e.target.value })}
+											disabled={!!editingItem}
 										/>
 									</Form.Group>
-								</div>
+									<Form.Group className="mb-3">
+										<Form.Label>Name</Form.Label>
+										<Form.Control
+											type="text"
+											value={roomForm.name || ''}
+											onChange={(e) => setRoomForm({ ...roomForm, name: e.target.value })}
+										/>
+									</Form.Group>
+									<Form.Group className="mb-3">
+										<Form.Label>Description</Form.Label>
+										<Form.Control
+											as="textarea"
+											rows={3}
+											value={roomForm.description || ''}
+											onChange={(e) => setRoomForm({ ...roomForm, description: e.target.value })}
+										/>
+									</Form.Group>
+									<div className="row">
+										<div className="col-md-6">
+											<Form.Group className="mb-3">
+												<Form.Label>Layout ID</Form.Label>
+												<Form.Select
+													value={roomForm.layout_id || ''}
+													onChange={(e) => setRoomForm({ ...roomForm, layout_id: e.target.value })}
+												>
+													<option value="destiny">Destiny</option>
+													<option value="atlantis">Atlantis</option>
+												</Form.Select>
+											</Form.Group>
+										</div>
+										<div className="col-md-6">
+											<Form.Group className="mb-3">
+												<Form.Label>Type</Form.Label>
+												<Form.Control
+													type="text"
+													value={roomForm.type || ''}
+													onChange={(e) => setRoomForm({ ...roomForm, type: e.target.value })}
+												/>
+											</Form.Group>
+										</div>
+									</div>
+									<div className="row">
+										<div className="col-md-4">
+											<Form.Group className="mb-3">
+												<Form.Label>Width</Form.Label>
+												<Form.Control
+													type="number"
+													value={roomForm.width || 1}
+													onChange={(e) => setRoomForm({ ...roomForm, width: parseInt(e.target.value) })}
+												/>
+											</Form.Group>
+										</div>
+										<div className="col-md-4">
+											<Form.Group className="mb-3">
+												<Form.Label>Height</Form.Label>
+												<Form.Control
+													type="number"
+													value={roomForm.height || 1}
+													onChange={(e) => setRoomForm({ ...roomForm, height: parseInt(e.target.value) })}
+												/>
+											</Form.Group>
+										</div>
+										<div className="col-md-4">
+											<Form.Group className="mb-3">
+												<Form.Label>Floor</Form.Label>
+												<Form.Control
+													type="number"
+													min="0"
+													value={roomForm.floor || 0}
+													onChange={(e) => setRoomForm({ ...roomForm, floor: parseInt(e.target.value) })}
+												/>
+											</Form.Group>
+										</div>
+									</div>
+								</Form>
 							</div>
-							<div className="row">
-								<div className="col-md-4">
-									<Form.Group className="mb-3">
-										<Form.Label>Width</Form.Label>
-										<Form.Control
-											type="number"
-											value={roomForm.width || 1}
-											onChange={(e) => setRoomForm({ ...roomForm, width: parseInt(e.target.value) })}
-										/>
-									</Form.Group>
-								</div>
-								<div className="col-md-4">
-									<Form.Group className="mb-3">
-										<Form.Label>Height</Form.Label>
-										<Form.Control
-											type="number"
-											value={roomForm.height || 1}
-											onChange={(e) => setRoomForm({ ...roomForm, height: parseInt(e.target.value) })}
-										/>
-									</Form.Group>
-								</div>
-								<div className="col-md-4">
-									<Form.Group className="mb-3">
-										<Form.Label>Floor</Form.Label>
-										<Form.Control
-											type="number"
-											value={roomForm.floor || 1}
-											onChange={(e) => setRoomForm({ ...roomForm, floor: parseInt(e.target.value) })}
-										/>
-									</Form.Group>
-								</div>
+
+							{/* Right Side - Room Visualization */}
+							<div className="flex-grow-1" style={{ backgroundColor: '#000' }}>
+								{editingItem ? (
+									<RoomEditVisualization
+										room={editingItem}
+										allRooms={rooms}
+										onRoomClick={handleSwitchToRoom}
+									/>
+								) : (
+									<div className="d-flex align-items-center justify-content-center h-100 text-muted">
+										<div className="text-center">
+											<h5>Room Visualization</h5>
+											<p>Visualization will appear here when editing an existing room.</p>
+										</div>
+									</div>
+								)}
 							</div>
-						</Form>
+						</div>
 					</Modal.Body>
 					<Modal.Footer>
 						<Button variant="secondary" onClick={() => setShowRoomModal(false)}>
