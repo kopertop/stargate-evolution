@@ -867,7 +867,7 @@ export const AdminPage: React.FC = () => {
 										<Card.Header>Add Technology</Card.Header>
 										<Card.Body>
 											<div className="row">
-												<div className="col-md-10">
+												<div className="col">
 													<Typeahead
 														id="technology-selector"
 														options={availableTechnologies}
@@ -912,15 +912,6 @@ export const AdminPage: React.FC = () => {
 														clearButton
 														highlightOnlyResult
 													/>
-												</div>
-												<div className="col-md-2">
-													<Button
-														variant="outline-secondary"
-														onClick={() => setSelectedTechForAdd([])}
-														disabled={selectedTechForAdd.length === 0}
-													>
-														Clear
-													</Button>
 												</div>
 											</div>
 										</Card.Body>
