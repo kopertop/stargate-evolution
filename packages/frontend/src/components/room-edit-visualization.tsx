@@ -33,6 +33,14 @@ export const RoomEditVisualization: React.FC<RoomEditVisualizationProps> = ({
 	// Calculate positions for all rooms on the floor, centering on the selected room
 	const roomPositions = useMemo(() => {
 		if (!room || !floorRooms.length) return {};
+
+		// Safety check: ensure the room exists in floorRooms before calculating positions
+		const roomExistsInFloor = floorRooms.some(r => r.id === room.id);
+		if (!roomExistsInFloor) {
+			console.warn(`Room ${room.id} not found in floor rooms, skipping position calculation`);
+			return {};
+		}
+
 		return calculateRoomPositions(floorRooms, room.id);
 	}, [room, floorRooms]);
 
@@ -154,7 +162,10 @@ export const RoomEditVisualization: React.FC<RoomEditVisualizationProps> = ({
 		const padding = 30;
 
 		// Center on the focused room position, not the overall content bounds
-		const focusedRoomPosition = getRoomScreenPosition(room, roomPositions);
+		// Safety check: if roomPositions is empty, default to center
+		const focusedRoomPosition = Object.keys(roomPositions).length > 0
+			? getRoomScreenPosition(room, roomPositions)
+			: { x: 400, y: 200 }; // Default center position
 		const centerX = focusedRoomPosition.x + panOffset.x;
 		const centerY = focusedRoomPosition.y + panOffset.y;
 

@@ -20,6 +20,13 @@ export function calculateRoomPositions(
 	const visited = new Set<string>();
 	const roomMap = Object.fromEntries(rooms.map(r => [r.id, r]));
 
+	// Safety check: if rootRoom doesn't exist in rooms array, return empty positions
+	const rootRoom = roomMap[rootRoomId];
+	if (!rootRoom) {
+		console.warn(`Root room ${rootRoomId} not found in rooms array`);
+		return {};
+	}
+
 	function markOccupied(room: RoomTemplate, gridX: number, gridY: number) {
 		const halfW = Math.floor(room.width / 2);
 		const halfH = Math.floor(room.height / 2);
@@ -43,7 +50,7 @@ export function calculateRoomPositions(
 
 	const queue: Array<string> = [];
 	positions[rootRoomId] = { gridX: 0, gridY: 0 };
-	markOccupied(roomMap[rootRoomId], 0, 0);
+	markOccupied(rootRoom, 0, 0);
 	visited.add(rootRoomId);
 	queue.push(rootRoomId);
 
