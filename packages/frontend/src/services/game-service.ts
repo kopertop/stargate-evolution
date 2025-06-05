@@ -345,6 +345,164 @@ export const useGameService = () => {
 		);
 	};
 
+	const addRoomToGame = async (gameId: string, templateId: string, roomConfig?: {
+		name?: string;
+		description?: string;
+		found?: boolean;
+		locked?: boolean;
+		explored?: boolean;
+		status?: string;
+		connections?: Record<string, string>;
+	}) => {
+		try {
+			// Call backend API to get room instance data from template
+			const response = await fetch(`${import.meta.env.VITE_PUBLIC_API_URL || 'http://localhost:8787'}/api/games/${gameId}/rooms`, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify({
+					template_id: templateId,
+					...roomConfig,
+				}),
+			});
+
+			if (!response.ok) {
+				const error = await response.json();
+				throw new Error(error.error || 'Failed to add room to game');
+			}
+
+			const result = await response.json();
+			const roomInstance = result.roomInstance;
+
+			// Create room in LiveStore
+			store.commit(events.roomCreated(roomInstance));
+
+			// Handle bidirectional connections if any were specified
+			if (roomConfig?.connections) {
+				await updateRoomConnections(gameId, roomInstance.id, roomConfig.connections);
+			}
+
+			console.log(`[addRoomToGame] Added room ${roomInstance.id} from template ${templateId} to game ${gameId}`);
+			return roomInstance;
+
+		} catch (err) {
+			console.error('[addRoomToGame] Error:', err);
+			throw err;
+		}
+	};
+
+	const updateRoomConnections = async (gameId: string, roomId: string, connections: Record<string, string | null>) => {
+		try {
+			// Get connection update instructions from backend
+			const response = await fetch(`${import.meta.env.VITE_PUBLIC_API_URL || 'http://localhost:8787'}/api/games/${gameId}/rooms/connections`, {
+				method: 'PUT',
+				headers: {
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify({
+					roomId,
+					connections,
+				}),
+			});
+
+			if (!response.ok) {
+				const error = await response.json();
+				throw new Error(error.error || 'Failed to update room connections');
+			}
+
+			const result = await response.json();
+
+			// Apply the connection updates via LiveStore events
+			// Update the target room
+			store.commit(events.roomUpdated({
+				id: roomId,
+				...result.connectionUpdates,
+			}));
+
+			// Apply reverse connections to maintain bidirectional consistency
+			for (const reverseUpdate of result.reverseUpdates) {
+				const reverseConnectionField = `connection_${reverseUpdate.direction}`;
+				store.commit(events.roomUpdated({
+					id: reverseUpdate.roomId,
+					[reverseConnectionField]: reverseUpdate.connectedTo,
+				}));
+			}
+
+			console.log(`[updateRoomConnections] Updated connections for room ${roomId} in game ${gameId}`);
+			return result;
+
+		} catch (err) {
+			console.error('[updateRoomConnections] Error:', err);
+			throw err;
+		}
+	};
+
+	const getAvailableRoomTemplates = async (gameId: string) => {
+		try {
+			const response = await fetch(`${import.meta.env.VITE_PUBLIC_API_URL || 'http://localhost:8787'}/api/games/${gameId}/available-rooms`);
+
+			if (!response.ok) {
+				const error = await response.json();
+				throw new Error(error.error || 'Failed to fetch available room templates');
+			}
+
+			const templates = await response.json();
+			console.log(`[getAvailableRoomTemplates] Found ${templates.length} available templates for game ${gameId}`);
+			return templates;
+
+		} catch (err) {
+			console.error('[getAvailableRoomTemplates] Error:', err);
+			throw err;
+		}
+	};
+
+	const syncRoomFromTemplate = async (gameId: string, roomId: string, templateId?: string) => {
+		try {
+			// Get current room data
+			const currentRooms = await store.query(roomsBygame_id$(gameId));
+			const room = currentRooms.find(r => r.id === roomId);
+
+			if (!room) throw new Error(`Room ${roomId} not found in game ${gameId}`);
+
+			// Use provided templateId or fall back to room's current template_id
+			const targetTemplateId = templateId || room.template_id;
+			if (!targetTemplateId) throw new Error('No template ID available for sync');
+
+			// Fetch latest template data
+			const template = await apiService.getRoomTemplateById(targetTemplateId);
+			if (!template) throw new Error(`Template ${targetTemplateId} not found`);
+
+			// Prepare update that preserves game state but syncs template properties
+			const updates: Partial<NullToUndefined<RoomTemplate>> = {
+				name: template.name,
+				description: template.description || undefined,
+				width: template.width,
+				height: template.height,
+				floor: template.floor,
+				image: template.image || undefined,
+				base_exploration_time: template.base_exploration_time || undefined,
+				type: template.type,
+				layout_id: template.layout_id,
+				// Preserve game-specific state
+				// found, locked, explored, status, exploration_data, connections stay as-is
+			};
+
+			// Apply updates via LiveStore
+			store.commit(events.roomUpdated({
+				id: roomId,
+				...updates,
+			}));
+
+			console.log(`[syncRoomFromTemplate] Synced room ${roomId} with template ${targetTemplateId}`);
+			return { success: true, updatedFields: Object.keys(updates) };
+
+		} catch (err) {
+			console.error('[syncRoomFromTemplate] Error:', err);
+			throw err;
+		}
+	};
+
 	// Query functions - these return the query objects for use with useQuery
 	const queries = {
 		allGames: () => allGames$,
@@ -381,6 +539,10 @@ export const useGameService = () => {
 		assignCrewToRoom,
 		clearExplorationProgress,
 		openDoor,
+		addRoomToGame,
+		updateRoomConnections,
+		getAvailableRoomTemplates,
+		syncRoomFromTemplate,
 		// Queries
 		queries,
 		// Raw store

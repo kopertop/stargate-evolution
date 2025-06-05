@@ -22,6 +22,19 @@ interface GameStateContextType {
 	setTimeSpeed: (speed: number) => void;
 	resumeGame: () => void;
 	pauseGame: () => void;
+	// Dynamic room management
+	addRoomToGame: (templateId: string, roomConfig?: {
+		name?: string;
+		description?: string;
+		found?: boolean;
+		locked?: boolean;
+		explored?: boolean;
+		status?: string;
+		connections?: Record<string, string>;
+	}) => Promise<any>;
+	updateRoomConnections: (roomId: string, connections: Record<string, string | null>) => Promise<any>;
+	getAvailableRoomTemplates: () => Promise<any[]>;
+	syncRoomFromTemplate: (roomId: string, templateId?: string) => Promise<any>;
 }
 
 const GameStateContext = createContext<GameStateContextType | undefined>(undefined);
@@ -241,6 +254,19 @@ export const GameStateProvider: React.FC<GameStateProviderProps> = ({ game_id, c
 		setTimeSpeed: handleSetTimeSpeed,
 		resumeGame,
 		pauseGame,
+		// Dynamic room management
+		addRoomToGame: async (templateId, roomConfig) => {
+			return await gameService.addRoomToGame(game_id, templateId, roomConfig);
+		},
+		updateRoomConnections: async (roomId, connections) => {
+			return await gameService.updateRoomConnections(game_id, roomId, connections);
+		},
+		getAvailableRoomTemplates: async () => {
+			return await gameService.getAvailableRoomTemplates(game_id);
+		},
+		syncRoomFromTemplate: async (roomId, templateId) => {
+			return await gameService.syncRoomFromTemplate(game_id, roomId, templateId);
+		},
 	};
 
 	return (

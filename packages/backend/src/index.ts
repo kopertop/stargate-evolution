@@ -906,6 +906,185 @@ export default {
 			}
 		}
 
+		// Game-specific room management endpoints
+		if (url.pathname.startsWith('/api/games/') && url.pathname.includes('/rooms') && request.method === 'POST') {
+			try {
+				const pathParts = url.pathname.split('/');
+				const gameId = pathParts[3]; // /api/games/{gameId}/rooms
+
+				if (!gameId) throw new Error('Game ID required');
+
+				const roomData = await request.json() as any;
+				const now = Date.now();
+
+				// Get room template to create instance from
+				const templateId = roomData.template_id;
+				if (!templateId) throw new Error('Template ID required');
+
+				const template = await getRoomTemplateById(env.DB, templateId);
+				if (!template) throw new Error(`Room template ${templateId} not found`);
+
+				// Generate new room instance ID
+				const roomInstanceId = crypto.randomUUID();
+
+				// Create room instance based on template with game-specific overrides
+				const roomInstance = {
+					id: roomInstanceId,
+					game_id: gameId,
+					template_id: templateId,
+					layout_id: template.layout_id,
+					type: template.type,
+					name: roomData.name || template.name,
+					description: roomData.description || template.description,
+					width: template.width,
+					height: template.height,
+					floor: template.floor,
+					image: template.image,
+					base_exploration_time: template.base_exploration_time,
+					// Game-specific runtime state
+					found: roomData.found || false,
+					locked: roomData.locked || false,
+					explored: roomData.explored || false,
+					status: roomData.status || 'ok',
+					exploration_data: null,
+					// Connections will be set by connection manager
+					connection_north: null,
+					connection_south: null,
+					connection_east: null,
+					connection_west: null,
+					created_at: now,
+					updated_at: now,
+				};
+
+				// Handle connections if specified
+				const connectionData = roomData.connections || {};
+				const connections = [];
+
+				// Process each connection direction
+				for (const [direction, connectedRoomId] of Object.entries(connectionData)) {
+					if (connectedRoomId && typeof connectedRoomId === 'string') {
+						// Type-safe connection setting
+						const connectionField = `connection_${direction}` as keyof typeof roomInstance;
+						if (connectionField in roomInstance) {
+							(roomInstance as any)[connectionField] = connectedRoomId;
+							connections.push({
+								direction,
+								connectedRoomId,
+								reverseDirection: {
+									north: 'south',
+									south: 'north',
+									east: 'west',
+									west: 'east',
+								}[direction],
+							});
+						}
+					}
+				}
+
+				return withCors(new Response(JSON.stringify({
+					success: true,
+					roomInstance,
+					connections: connections.length,
+					message: `Room instance created from template ${templateId}`,
+				}), {
+					headers: { 'content-type': 'application/json' },
+				}));
+
+			} catch (err: any) {
+				return withCors(new Response(JSON.stringify({ error: err.message || 'Failed to add room to game' }), {
+					status: 500, headers: { 'content-type': 'application/json' },
+				}));
+			}
+		}
+
+		// Update room connections for a specific game
+		if (url.pathname.startsWith('/api/games/') && url.pathname.includes('/rooms') && url.pathname.includes('/connections') && request.method === 'PUT') {
+			try {
+				const pathParts = url.pathname.split('/');
+				const gameId = pathParts[3]; // /api/games/{gameId}/rooms/connections
+
+				if (!gameId) throw new Error('Game ID required');
+
+				const { roomId, connections } = await request.json() as { roomId: string; connections: Record<string, string | null> };
+				const now = Date.now();
+
+				if (!roomId) throw new Error('Room ID required');
+
+				// Update the target room's connections
+				const updates = [];
+				const reverseUpdates = [];
+
+				for (const [direction, connectedRoomId] of Object.entries(connections)) {
+					if (['north', 'south', 'east', 'west'].includes(direction)) {
+						updates.push(`connection_${direction} = ?`);
+
+						// Prepare reverse connection updates
+						const reverseDirection = {
+							north: 'south',
+							south: 'north',
+							east: 'west',
+							west: 'east',
+						}[direction];
+
+						if (connectedRoomId && reverseDirection) {
+							reverseUpdates.push({
+								roomId: connectedRoomId,
+								direction: reverseDirection,
+								connectedTo: roomId,
+							});
+						}
+					}
+				}
+
+				if (updates.length === 0) throw new Error('No valid connections to update');
+
+				// This endpoint returns connection update instructions for LiveStore
+				// The actual game state updates happen on the frontend via LiveStore events
+				return withCors(new Response(JSON.stringify({
+					success: true,
+					roomId,
+					connectionUpdates: connections,
+					reverseUpdates,
+					message: 'Connection update instructions generated',
+				}), {
+					headers: { 'content-type': 'application/json' },
+				}));
+
+			} catch (err: any) {
+				return withCors(new Response(JSON.stringify({ error: err.message || 'Failed to update room connections' }), {
+					status: 500, headers: { 'content-type': 'application/json' },
+				}));
+			}
+		}
+
+		// Get available room templates for adding to games
+		if (url.pathname.startsWith('/api/games/') && url.pathname.includes('/available-rooms') && request.method === 'GET') {
+			try {
+				const pathParts = url.pathname.split('/');
+				const gameId = pathParts[3]; // /api/games/{gameId}/available-rooms
+
+				if (!gameId) throw new Error('Game ID required');
+
+				// Get all room templates
+				const templates = await getAllRoomTemplates(env.DB);
+
+				// Filter templates that make sense to add dynamically
+				// (exclude essential rooms like gate_room that should only exist once)
+				const availableTemplates = templates.filter(template => {
+					return !['gate_room', 'bridge'].includes(template.type);
+				});
+
+				return withCors(new Response(JSON.stringify(availableTemplates), {
+					headers: { 'content-type': 'application/json' },
+				}));
+
+			} catch (err: any) {
+				return withCors(new Response(JSON.stringify({ error: err.message || 'Failed to fetch available room templates' }), {
+					status: 500, headers: { 'content-type': 'application/json' },
+				}));
+			}
+		}
+
 		return withCors(new Response('Not found', { status: 404 }));
 	},
 };

@@ -48,6 +48,130 @@ export function calculateRoomPositions(
 		return false;
 	}
 
+	/**
+	 * Calculate proper position for a connected room considering edge alignment
+	 */
+	function calculateConnectedPosition(
+		parentRoom: RoomTemplate,
+		parentPos: { gridX: number; gridY: number },
+		childRoom: RoomTemplate,
+		direction: string,
+	): { gridX: number; gridY: number } {
+		let baseX = parentPos.gridX;
+		let baseY = parentPos.gridY;
+
+		// Calculate the distance from parent center to its edge, plus distance from child edge to its center
+		// Use proper half calculations without Math.floor to handle 1x1 rooms correctly
+		const parentHalfWidth = parentRoom.width / 2;
+		const parentHalfHeight = parentRoom.height / 2;
+		const childHalfWidth = childRoom.width / 2;
+		const childHalfHeight = childRoom.height / 2;
+
+		switch (direction) {
+		case 'north':
+			// Place child so its bottom edge touches parent's top edge
+			baseY = parentPos.gridY + parentHalfHeight + childHalfHeight;
+			break;
+		case 'south':
+			// Place child so its top edge touches parent's bottom edge
+			baseY = parentPos.gridY - parentHalfHeight - childHalfHeight;
+			break;
+		case 'east':
+			// Place child so its left edge touches parent's right edge
+			baseX = parentPos.gridX + parentHalfWidth + childHalfWidth;
+			break;
+		case 'west':
+			// Place child so its right edge touches parent's left edge
+			baseX = parentPos.gridX - parentHalfWidth - childHalfWidth;
+			break;
+		}
+
+		return { gridX: baseX, gridY: baseY };
+	}
+
+	/**
+	 * Find the best position for a child room, trying multiple alignment points
+	 */
+	function findBestPosition(
+		parentRoom: RoomTemplate,
+		parentPos: { gridX: number; gridY: number },
+		childRoom: RoomTemplate,
+		direction: string,
+	): { gridX: number; gridY: number } | null {
+		// Start with center-to-center alignment
+		const basePos = calculateConnectedPosition(parentRoom, parentPos, childRoom, direction);
+
+		if (!isOccupied(childRoom, basePos.gridX, basePos.gridY)) {
+			return basePos;
+		}
+
+		// Try alternative alignments for different sized rooms
+		const parentHalfWidth = parentRoom.width / 2;
+		const parentHalfHeight = parentRoom.height / 2;
+		const childHalfWidth = childRoom.width / 2;
+		const childHalfHeight = childRoom.height / 2;
+
+		// For horizontal connections (east/west), try aligning along the vertical axis
+		if (direction === 'east' || direction === 'west') {
+			const maxParentY = parentHalfHeight;
+			const maxChildY = childHalfHeight;
+			const maxOffset = Math.min(maxParentY, maxChildY);
+
+			for (let offset = -maxOffset; offset <= maxOffset; offset++) {
+				const testPos = {
+					gridX: basePos.gridX,
+					gridY: basePos.gridY + offset,
+				};
+				if (!isOccupied(childRoom, testPos.gridX, testPos.gridY)) {
+					return testPos;
+				}
+			}
+		}
+
+		// For vertical connections (north/south), try aligning along the horizontal axis
+		if (direction === 'north' || direction === 'south') {
+			const maxParentX = parentHalfWidth;
+			const maxChildX = childHalfWidth;
+			const maxOffset = Math.min(maxParentX, maxChildX);
+
+			for (let offset = -maxOffset; offset <= maxOffset; offset++) {
+				const testPos = {
+					gridX: basePos.gridX + offset,
+					gridY: basePos.gridY,
+				};
+				if (!isOccupied(childRoom, testPos.gridX, testPos.gridY)) {
+					return testPos;
+				}
+			}
+		}
+
+		// If still no position found, try pushing further out
+		for (let pushOut = 1; pushOut <= 5; pushOut++) {
+			const testPos = { ...basePos };
+
+			switch (direction) {
+			case 'north':
+				testPos.gridY += pushOut;
+				break;
+			case 'south':
+				testPos.gridY -= pushOut;
+				break;
+			case 'east':
+				testPos.gridX += pushOut;
+				break;
+			case 'west':
+				testPos.gridX -= pushOut;
+				break;
+			}
+
+			if (!isOccupied(childRoom, testPos.gridX, testPos.gridY)) {
+				return testPos;
+			}
+		}
+
+		return null; // Could not find a position
+	}
+
 	const queue: Array<string> = [];
 	positions[rootRoomId] = { gridX: 0, gridY: 0 };
 	markOccupied(rootRoom, 0, 0);
@@ -102,67 +226,17 @@ export function calculateRoomPositions(
 
 			if (children.length === 0) continue;
 
-			// Assign each child a unique slot
-			let parentSlots = 1;
-			if (dirObj.dir === 'north' || dirObj.dir === 'south') {
-				parentSlots = room.width;
-			}
-			if (dirObj.dir === 'east' || dirObj.dir === 'west') {
-				parentSlots = room.height;
-			}
-			for (let i = 0; i < children.length; i++) {
-				const { connId, connRoom } = children[i];
-				let placed = false;
-				for (let slot = 0; slot < parentSlots; slot++) {
-					let nextX = pos.gridX;
-					let nextY = pos.gridY;
-					if (dirObj.dir === 'north') {
-						// Center child on parent's top wall
-						nextY += Math.ceil(room.height / 2) + Math.ceil(connRoom.height / 2);
-						nextX += 0;
-					}
-					if (dirObj.dir === 'south') {
-						nextY -= Math.ceil(room.height / 2) + Math.ceil(connRoom.height / 2);
-						nextX += 0;
-					}
-					if (dirObj.dir === 'east') {
-						nextX += Math.ceil(room.width / 2) + Math.ceil(connRoom.width / 2);
-						nextY += 0;
-					}
-					if (dirObj.dir === 'west') {
-						nextX -= Math.ceil(room.width / 2) + Math.ceil(connRoom.width / 2);
-						nextY += 0;
-					}
+			// Process each child room
+			for (const { connId, connRoom } of children) {
+				const bestPos = findBestPosition(room, pos, connRoom, dirObj.dir);
 
-					if (!isOccupied(connRoom, nextX, nextY)) {
-						positions[connId] = { gridX: nextX, gridY: nextY };
-						markOccupied(connRoom, nextX, nextY);
-						visited.add(connId);
-						queue.push(connId);
-						placed = true;
-						break;
-					}
-				}
-				// If not placed, try sliding further out in the intended direction
-				if (!placed) {
-					let tryX = pos.gridX;
-					let tryY = pos.gridY;
-					let attempts = 0;
-					if (dirObj.dir === 'north') tryY += Math.ceil(room.height / 2) + Math.ceil(connRoom.height / 2);
-					if (dirObj.dir === 'south') tryY -= Math.ceil(room.height / 2) + Math.ceil(connRoom.height / 2);
-					if (dirObj.dir === 'east') tryX += Math.ceil(room.width / 2) + Math.ceil(connRoom.width / 2);
-					if (dirObj.dir === 'west') tryX -= Math.ceil(room.width / 2) + Math.ceil(connRoom.width / 2);
-					while (isOccupied(connRoom, tryX, tryY) && attempts < 10) {
-						if (dirObj.dir === 'north') tryY++;
-						if (dirObj.dir === 'south') tryY--;
-						if (dirObj.dir === 'east') tryX++;
-						if (dirObj.dir === 'west') tryX--;
-						attempts++;
-					}
-					positions[connId] = { gridX: tryX, gridY: tryY };
-					markOccupied(connRoom, tryX, tryY);
+				if (bestPos) {
+					positions[connId] = bestPos;
+					markOccupied(connRoom, bestPos.gridX, bestPos.gridY);
 					visited.add(connId);
 					queue.push(connId);
+				} else {
+					console.warn(`Could not find position for room ${connId} connected to ${room.id} in direction ${dirObj.dir}`);
 				}
 			}
 		}
@@ -346,31 +420,42 @@ export function getDoorPosition(
 
 	switch (side) {
 	case 'right': {
-		// Center door along the shared wall segment
-		const fromCenterY = (fromBounds.top + fromBounds.bottom) / 2;
-		const toCenterY = (toBounds.top + toBounds.bottom) / 2;
+		// Find the shared wall segment along Y axis
+		const sharedTop = Math.min(fromBounds.top, toBounds.top);
+		const sharedBottom = Math.max(fromBounds.bottom, toBounds.bottom);
+		const sharedCenter = (sharedTop + sharedBottom) / 2;
+
+		// Clamp to actual room bounds to ensure door is on the wall
+		gridY = Math.max(fromBounds.bottom, Math.min(fromBounds.top, sharedCenter));
 		gridX = fromBounds.right;
-		gridY = (fromCenterY + toCenterY) / 2;
 		break;
 	}
 	case 'left': {
-		const fromCenterY = (fromBounds.top + fromBounds.bottom) / 2;
-		const toCenterY = (toBounds.top + toBounds.bottom) / 2;
+		const sharedTop = Math.min(fromBounds.top, toBounds.top);
+		const sharedBottom = Math.max(fromBounds.bottom, toBounds.bottom);
+		const sharedCenter = (sharedTop + sharedBottom) / 2;
+
+		gridY = Math.max(fromBounds.bottom, Math.min(fromBounds.top, sharedCenter));
 		gridX = fromBounds.left;
-		gridY = (fromCenterY + toCenterY) / 2;
 		break;
 	}
 	case 'top': {
-		const fromCenterX = (fromBounds.left + fromBounds.right) / 2;
-		const toCenterX = (toBounds.left + toBounds.right) / 2;
-		gridX = (fromCenterX + toCenterX) / 2;
+		// Find the shared wall segment along X axis
+		const sharedLeft = Math.max(fromBounds.left, toBounds.left);
+		const sharedRight = Math.min(fromBounds.right, toBounds.right);
+		const sharedCenter = (sharedLeft + sharedRight) / 2;
+
+		// Clamp to actual room bounds to ensure door is on the wall
+		gridX = Math.max(fromBounds.left, Math.min(fromBounds.right, sharedCenter));
 		gridY = fromBounds.top;
 		break;
 	}
 	case 'bottom': {
-		const fromCenterX = (fromBounds.left + fromBounds.right) / 2;
-		const toCenterX = (toBounds.left + toBounds.right) / 2;
-		gridX = (fromCenterX + toCenterX) / 2;
+		const sharedLeft = Math.max(fromBounds.left, toBounds.left);
+		const sharedRight = Math.min(fromBounds.right, toBounds.right);
+		const sharedCenter = (sharedLeft + sharedRight) / 2;
+
+		gridX = Math.max(fromBounds.left, Math.min(fromBounds.right, sharedCenter));
 		gridY = fromBounds.bottom;
 		break;
 	}
