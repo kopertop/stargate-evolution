@@ -172,7 +172,58 @@ export const AdminPage: React.FC = () => {
 		// Keep the modal open, just switch to editing the new room
 	};
 
+	const handleAddConnectingRoom = (direction: 'north' | 'south' | 'east' | 'west') => {
+		if (!editingItem) return;
 
+		// Generate a new room ID based on the current room and direction
+		const newRoomId = `${editingItem.id}_${direction}`;
+
+		// Create a new room template with reverse connection
+		const reverseDirection = {
+			north: 'south',
+			south: 'north',
+			east: 'west',
+			west: 'east',
+		} as const;
+
+		const newRoom: RoomTemplate = {
+			id: newRoomId,
+			name: `New Room (${direction})`,
+			description: `Connected room ${direction} of ${editingItem.name}`,
+			layout_id: editingItem.layout_id,
+			type: 'basic',
+			width: editingItem.width,
+			height: editingItem.height,
+			floor: editingItem.floor,
+			found: false,
+			locked: false,
+			explored: false,
+			image: null,
+			connection_north: null,
+			connection_south: null,
+			connection_east: null,
+			connection_west: null,
+			[`connection_${reverseDirection[direction]}`]: editingItem.id,
+			created_at: Date.now(),
+			updated_at: Date.now(),
+		};
+
+		// Update the current room to connect to the new room
+		const updatedCurrentRoom = {
+			...editingItem,
+			[`connection_${direction}`]: newRoomId,
+		};
+
+		// Update the rooms list to include the new room and update the current room
+		setRooms(prevRooms => [
+			...prevRooms.map(r => r.id === editingItem.id ? updatedCurrentRoom : r),
+			newRoom,
+		]);
+
+		// Switch to editing the new room
+		setEditingItem(newRoom);
+		setRoomForm(newRoom);
+	};
 
 	const handleSaveRoom = async () => {
 		try {
@@ -616,6 +667,7 @@ export const AdminPage: React.FC = () => {
 										room={editingItem}
 										allRooms={rooms}
 										onRoomClick={handleSwitchToRoom}
+										onAddConnectingRoom={handleAddConnectingRoom}
 									/>
 								) : (
 									<div className="d-flex align-items-center justify-content-center h-100 text-muted">

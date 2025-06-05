@@ -1,5 +1,7 @@
 import { type RoomTemplate } from '@stargate/common';
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
+import { Button, ButtonGroup } from 'react-bootstrap';
+import { FaPlus, FaMinus, FaExpand } from 'react-icons/fa';
 
 import { calculateRoomPositions, getRoomScreenPosition, GRID_UNIT, WALL_THICKNESS, DOOR_SIZE } from '../utils/grid-system';
 
@@ -7,13 +9,21 @@ interface RoomEditVisualizationProps {
 	room: RoomTemplate | null;
 	allRooms: RoomTemplate[];
 	onRoomClick: (room: RoomTemplate) => void;
+	onAddConnectingRoom?: (direction: 'north' | 'south' | 'east' | 'west') => void;
 }
 
 export const RoomEditVisualization: React.FC<RoomEditVisualizationProps> = ({
 	room,
 	allRooms,
 	onRoomClick,
+	onAddConnectingRoom,
 }) => {
+	// Zoom and pan state
+	const [zoomLevel, setZoomLevel] = useState(1);
+	const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
+	const [isPanning, setIsPanning] = useState(false);
+	const [lastPanPoint, setLastPanPoint] = useState({ x: 0, y: 0 });
+
 	// Calculate positions for all rooms, centering on the selected room
 	const roomPositions = useMemo(() => {
 		if (!room || !allRooms.length) return {};
@@ -57,9 +67,9 @@ export const RoomEditVisualization: React.FC<RoomEditVisualizationProps> = ({
 		return [room, ...connectedRooms];
 	}, [room, connectedRooms]);
 
-	// Calculate view bounds to center the visualization
-	const viewBounds = useMemo(() => {
-		if (!roomsToDisplay.length) return { minX: 0, maxX: 0, minY: 0, maxY: 0 };
+	// Calculate content bounds (including potential connections)
+	const contentBounds = useMemo(() => {
+		if (!roomsToDisplay.length) return { minX: 0, maxX: 0, minY: 0, maxY: 0, width: 0, height: 0 };
 
 		let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
 
@@ -74,8 +84,83 @@ export const RoomEditVisualization: React.FC<RoomEditVisualizationProps> = ({
 			maxY = Math.max(maxY, position.y + roomHeight / 2);
 		}
 
-		return { minX, maxX, minY, maxY };
-	}, [roomsToDisplay, roomPositions]);
+		// Include potential connection areas in the bounds
+		if (room && onAddConnectingRoom) {
+			const roomPosition = getRoomScreenPosition(room, roomPositions);
+			const roomWidth = room.width * GRID_UNIT;
+			const roomHeight = room.height * GRID_UNIT;
+			const spacing = GRID_UNIT * 0.5;
+
+			// Check bounds for potential connections
+			const potentialBounds = [
+				{ x: roomPosition.x, y: roomPosition.y - roomHeight / 2 - spacing - roomHeight / 2 }, // north
+				{ x: roomPosition.x, y: roomPosition.y + roomHeight / 2 + spacing + roomHeight / 2 }, // south
+				{ x: roomPosition.x + roomWidth / 2 + spacing + roomWidth / 2, y: roomPosition.y }, // east
+				{ x: roomPosition.x - roomWidth / 2 - spacing - roomWidth / 2, y: roomPosition.y }, // west
+			];
+
+			for (const bound of potentialBounds) {
+				minX = Math.min(minX, bound.x - roomWidth / 2);
+				maxX = Math.max(maxX, bound.x + roomWidth / 2);
+				minY = Math.min(minY, bound.y - roomHeight / 2);
+				maxY = Math.max(maxY, bound.y + roomHeight / 2);
+			}
+		}
+
+		const width = maxX - minX;
+		const height = maxY - minY;
+
+		return { minX, maxX, minY, maxY, width, height };
+	}, [roomsToDisplay, roomPositions, room, onAddConnectingRoom]);
+
+	// Calculate zoom-to-fit level
+	const zoomToFitLevel = useMemo(() => {
+		if (contentBounds.width === 0 || contentBounds.height === 0) return 1;
+
+		// Target container size for zoom-to-fit calculation
+		const containerWidth = 800;
+		const containerHeight = 500;
+		const padding = 80; // Extra padding around content
+
+		const scaleX = (containerWidth - padding * 2) / contentBounds.width;
+		const scaleY = (containerHeight - padding * 2) / contentBounds.height;
+
+		// Use the smaller scale to ensure content fits in both dimensions
+		const scale = Math.min(scaleX, scaleY, 2); // Cap at 2x zoom for readability
+		return Math.max(scale, 0.2); // Minimum 0.2x zoom
+	}, [contentBounds]);
+
+	// Auto zoom-to-fit when room changes
+	React.useEffect(() => {
+		setZoomLevel(zoomToFitLevel);
+		setPanOffset({ x: 0, y: 0 });
+	}, [room?.id, zoomToFitLevel]);
+
+	// Calculate current view bounds based on zoom and pan, centered on focused room
+	const viewBounds = useMemo(() => {
+		if (!room) return { x: 0, y: 0, width: 800, height: 400 };
+
+		const padding = 30;
+
+		// Center on the focused room position, not the overall content bounds
+		const focusedRoomPosition = getRoomScreenPosition(room, roomPositions);
+		const centerX = focusedRoomPosition.x + panOffset.x;
+		const centerY = focusedRoomPosition.y + panOffset.y;
+
+		// Use a fixed viewport size that will be responsive
+		const baseViewWidth = 800;
+		const baseViewHeight = 500;
+
+		const viewWidth = baseViewWidth / zoomLevel;
+		const viewHeight = baseViewHeight / zoomLevel;
+
+		return {
+			x: centerX - viewWidth / 2,
+			y: centerY - viewHeight / 2,
+			width: viewWidth,
+			height: viewHeight,
+		};
+	}, [room, roomPositions, zoomLevel, panOffset]);
 
 	// Render a single room
 	const renderRoom = (displayRoom: RoomTemplate, isSelected: boolean) => {
@@ -374,55 +459,264 @@ export const RoomEditVisualization: React.FC<RoomEditVisualizationProps> = ({
 		return connections;
 	};
 
-	if (!room) return null;
+	// Render potential connection spots where new rooms can be added
+	const renderPotentialConnections = () => {
+		if (!room || !onAddConnectingRoom) return null;
 
-	const padding = 30;
-	const viewWidth = viewBounds.maxX - viewBounds.minX + (padding * 2);
-	const viewHeight = viewBounds.maxY - viewBounds.minY + (padding * 2);
-	const viewBoxX = viewBounds.minX - padding;
-	const viewBoxY = viewBounds.minY - padding;
+		const potentialConnections = [];
+		const roomPosition = getRoomScreenPosition(room, roomPositions);
+		const roomWidth = room.width * GRID_UNIT;
+		const roomHeight = room.height * GRID_UNIT;
+		const spacing = GRID_UNIT * 0.5; // Gap between rooms
+
+		// Check each direction for potential connections
+		const directions = [
+			{
+				key: 'north',
+				connection: room.connection_north,
+				x: roomPosition.x,
+				y: roomPosition.y - roomHeight / 2 - spacing - roomHeight / 2,
+			},
+			{
+				key: 'south',
+				connection: room.connection_south,
+				x: roomPosition.x,
+				y: roomPosition.y + roomHeight / 2 + spacing + roomHeight / 2,
+			},
+			{
+				key: 'east',
+				connection: room.connection_east,
+				x: roomPosition.x + roomWidth / 2 + spacing + roomWidth / 2,
+				y: roomPosition.y,
+			},
+			{
+				key: 'west',
+				connection: room.connection_west,
+				x: roomPosition.x - roomWidth / 2 - spacing - roomWidth / 2,
+				y: roomPosition.y,
+			},
+		] as const;
+
+		for (const direction of directions) {
+			// Only show potential connection if there's no existing connection
+			if (!direction.connection) {
+				const potentialWidth = roomWidth;
+				const potentialHeight = roomHeight;
+
+				potentialConnections.push(
+					<g
+						key={`potential-${direction.key}`}
+						style={{ cursor: 'pointer' }}
+						onClick={() => onAddConnectingRoom(direction.key)}
+					>
+						{/* Dotted outline */}
+						<rect
+							x={direction.x - potentialWidth / 2}
+							y={direction.y - potentialHeight / 2}
+							width={potentialWidth}
+							height={potentialHeight}
+							fill="none"
+							stroke="#6b7280"
+							strokeWidth="2"
+							strokeDasharray="8,4"
+							rx="4"
+							opacity="0.6"
+						/>
+
+						{/* Hover effect */}
+						<rect
+							x={direction.x - potentialWidth / 2}
+							y={direction.y - potentialHeight / 2}
+							width={potentialWidth}
+							height={potentialHeight}
+							fill="#374151"
+							opacity="0"
+							rx="4"
+							className="potential-connection-hover"
+							style={{
+								transition: 'opacity 0.2s',
+							}}
+							onMouseEnter={(e) => {
+								e.currentTarget.style.opacity = '0.3';
+							}}
+							onMouseLeave={(e) => {
+								e.currentTarget.style.opacity = '0';
+							}}
+						/>
+
+						{/* Plus icon */}
+						<g opacity="0.8">
+							<line
+								x1={direction.x - 8}
+								y1={direction.y}
+								x2={direction.x + 8}
+								y2={direction.y}
+								stroke="#6b7280"
+								strokeWidth="2"
+							/>
+							<line
+								x1={direction.x}
+								y1={direction.y - 8}
+								x2={direction.x}
+								y2={direction.y + 8}
+								stroke="#6b7280"
+								strokeWidth="2"
+							/>
+						</g>
+
+						{/* Label */}
+						<text
+							x={direction.x}
+							y={direction.y + 20}
+							textAnchor="middle"
+							fill="#6b7280"
+							fontSize="9"
+							opacity="0.8"
+						>
+							Add Room
+						</text>
+					</g>,
+				);
+			}
+		}
+
+		return potentialConnections;
+	};
+
+	// Zoom control functions
+	const handleZoomIn = () => {
+		setZoomLevel(prev => Math.min(prev * 1.5, 10));
+	};
+
+	const handleZoomOut = () => {
+		setZoomLevel(prev => Math.max(prev / 1.5, 0.2));
+	};
+
+	const handleZoomToFit = () => {
+		setZoomLevel(zoomToFitLevel);
+		setPanOffset({ x: 0, y: 0 });
+	};
+
+	// Pan/drag event handlers
+	const handleMouseDown = (e: React.MouseEvent) => {
+		// Only start panning if not clicking on an interactive element
+		if ((e.target as Element).closest('g[style*="cursor: pointer"]')) {
+			return;
+		}
+
+		setIsPanning(true);
+		setLastPanPoint({ x: e.clientX, y: e.clientY });
+		e.preventDefault();
+	};
+
+	const handleMouseMove = (e: React.MouseEvent) => {
+		if (!isPanning) return;
+
+		const deltaX = e.clientX - lastPanPoint.x;
+		const deltaY = e.clientY - lastPanPoint.y;
+
+		// Convert screen coordinates to SVG coordinates
+		const scale = 1 / zoomLevel;
+		setPanOffset(prev => ({
+			x: prev.x - deltaX * scale,
+			y: prev.y - deltaY * scale,
+		}));
+
+		setLastPanPoint({ x: e.clientX, y: e.clientY });
+	};
+
+	const handleMouseUp = () => {
+		setIsPanning(false);
+	};
+
+	// Global mouse up handler for when mouse leaves SVG area
+	React.useEffect(() => {
+		const handleGlobalMouseUp = () => setIsPanning(false);
+		document.addEventListener('mouseup', handleGlobalMouseUp);
+		return () => document.removeEventListener('mouseup', handleGlobalMouseUp);
+	}, []);
+
+	if (!room) return null;
 
 	return (
 		<div className="h-100 d-flex flex-column" style={{ background: '#000', borderRadius: '8px', padding: '15px' }}>
 			<div className="d-flex justify-content-between align-items-center mb-3">
 				<h5 className="mb-0" style={{ color: 'white' }}>Room Layout & Connections</h5>
-				<small style={{ color: '#9ca3af' }}>
-					{connectedRooms.length} connected room{connectedRooms.length !== 1 ? 's' : ''}
-				</small>
+				<div className="d-flex align-items-center gap-3">
+					<small style={{ color: '#9ca3af' }}>
+						{connectedRooms.length} connected room{connectedRooms.length !== 1 ? 's' : ''}
+					</small>
+					<ButtonGroup size="sm">
+						<Button
+							variant="outline-secondary"
+							onClick={handleZoomOut}
+							disabled={zoomLevel <= 0.2}
+							title="Zoom Out"
+						>
+							<FaMinus />
+						</Button>
+						<Button
+							variant="outline-secondary"
+							onClick={handleZoomToFit}
+							title="Zoom to Fit"
+						>
+							<FaExpand />
+						</Button>
+						<Button
+							variant="outline-secondary"
+							onClick={handleZoomIn}
+							disabled={zoomLevel >= 10}
+							title="Zoom In"
+						>
+							<FaPlus />
+						</Button>
+					</ButtonGroup>
+				</div>
 			</div>
-			<div className="flex-grow-1 d-flex flex-column">
+			<div className="flex-grow-1 d-flex flex-column" style={{ minHeight: 0 }}>
 				<svg
 					width="100%"
+					height="100%"
 					style={{
-						flexGrow: 1,
-						minHeight: '400px',
 						border: '1px solid #374151',
 						borderRadius: '4px',
+						cursor: isPanning ? 'grabbing' : 'grab',
 					}}
-					viewBox={`${viewBoxX} ${viewBoxY} ${viewWidth} ${viewHeight}`}
+					viewBox={`${viewBounds.x} ${viewBounds.y} ${viewBounds.width} ${viewBounds.height}`}
 					preserveAspectRatio="xMidYMid meet"
+					onMouseDown={handleMouseDown}
+					onMouseMove={handleMouseMove}
+					onMouseUp={handleMouseUp}
+					onMouseLeave={handleMouseUp}
 				>
 					{/* Background */}
 					<rect
-						x={viewBoxX}
-						y={viewBoxY}
-						width={viewWidth}
-						height={viewHeight}
+						x={viewBounds.x}
+						y={viewBounds.y}
+						width={viewBounds.width}
+						height={viewBounds.height}
 						fill="#111827"
 					/>
 
 					{/* Connection lines (render first so they appear behind rooms) */}
 					{renderConnections()}
 
+					{/* Potential connection spots */}
+					{renderPotentialConnections()}
+
 					{/* Render all rooms */}
 					{roomsToDisplay.map(displayRoom =>
 						renderRoom(displayRoom, displayRoom.id === room.id),
 					)}
 				</svg>
-				<div className="mt-3">
+				<div className="mt-3 d-flex justify-content-between align-items-center">
 					<small style={{ color: '#9ca3af' }}>
 						<span style={{ color: '#2563eb' }}>■</span> Current room •
-						<span style={{ color: '#10b981' }}> ■</span> Connected rooms (click to edit)
+						<span style={{ color: '#10b981' }}> ■</span> Connected rooms (click to edit) •
+						<span style={{ color: '#6b7280' }}> ⬜</span> Add connecting room
+					</small>
+					<small style={{ color: '#6b7280' }}>
+						Zoom: {Math.round(zoomLevel * 100)}%
 					</small>
 				</div>
 			</div>
