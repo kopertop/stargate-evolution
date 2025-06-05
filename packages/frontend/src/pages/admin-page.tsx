@@ -1,7 +1,10 @@
 import { RoomTemplate, TechnologyTemplate } from '@stargate/common';
+import { RoomTechnology } from '@stargate/common/models/room-technology';
 import Fuse from 'fuse.js';
 import React, { useState, useEffect, useMemo } from 'react';
-import { Button, Card, Nav, Tab, Table, Modal, Form, Alert, InputGroup } from 'react-bootstrap';
+import { Button, Card, Nav, Tab, Table, Modal, Form, Alert, InputGroup, OverlayTrigger, Tooltip } from 'react-bootstrap';
+import { Typeahead } from 'react-bootstrap-typeahead';
+import 'react-bootstrap-typeahead/css/Typeahead.css';
 import { FaEdit, FaTrash, FaPlus, FaArrowLeft, FaSearch, FaEye } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
@@ -23,6 +26,25 @@ type User = {
 
 export const AdminPage: React.FC = () => {
 	const navigate = useNavigate();
+
+	// Helper function to truncate text and show tooltip
+	const truncateWithTooltip = (text: string, maxLength: number = 25) => {
+		if (!text || text.length <= maxLength) {
+			return <span>{text}</span>;
+		}
+
+		const truncated = text.substring(0, maxLength) + '...';
+		return (
+			<OverlayTrigger
+				placement="top"
+				overlay={<Tooltip id={`tooltip-${Date.now()}`}>{text}</Tooltip>}
+			>
+				<span style={{ cursor: 'help', textDecoration: 'underline dotted' }}>
+					{truncated}
+				</span>
+			</OverlayTrigger>
+		);
+	};
 	const [activeTab, setActiveTab] = useState('users');
 	const [users, setUsers] = useState<User[]>([]);
 	const [rooms, setRooms] = useState<RoomTemplate[]>([]);
@@ -47,6 +69,9 @@ export const AdminPage: React.FC = () => {
 	// Form states
 	const [roomForm, setRoomForm] = useState<Partial<RoomTemplate>>({});
 	const [techForm, setTechForm] = useState<Partial<TechnologyTemplate>>({});
+	const [roomTechnology, setRoomTechnology] = useState<RoomTechnology[]>([]);
+	const [availableTechnologies, setAvailableTechnologies] = useState<TechnologyTemplate[]>([]);
+	const [selectedTechForAdd, setSelectedTechForAdd] = useState<any[]>([]);
 
 	// Fuse.js instances - only create when data exists
 	const userFuse = useMemo(() => {
@@ -131,6 +156,7 @@ export const AdminPage: React.FC = () => {
 			setUsers(usersData);
 			setRooms(roomsData);
 			setTechnologies(techData);
+			setAvailableTechnologies(techData); // Store for dropdown
 		} catch (err: any) {
 			setError(err.message || 'Failed to load admin data');
 			toast.error(err.message || 'Failed to load admin data');
@@ -149,9 +175,25 @@ export const AdminPage: React.FC = () => {
 		}
 	};
 
+	const loadRoomTechnology = async (roomId: string) => {
+		try {
+			const roomTech = await apiService.getTechnologyForRoom(roomId);
+			setRoomTechnology(roomTech);
+		} catch (err: any) {
+			console.warn('Failed to load room technology:', err);
+			setRoomTechnology([]); // Clear on error
+		}
+		// Clear any selected technology for add when loading room technology
+		setSelectedTechForAdd([]);
+	};
+
 	const handleCreateRoom = () => {
+		const gateRoom = rooms.find(r => r.type === 'gate_room');
+		if (gateRoom) {
+			return handleEditRoom(gateRoom);
+		}
 		setEditingItem(null);
-		setIsNewRoom(true);
+		setIsNewRoom(false);
 		setRoomForm({
 			layout_id: 'destiny',
 			type: 'corridor',
@@ -166,6 +208,8 @@ export const AdminPage: React.FC = () => {
 			base_exploration_time: 2,
 			status: 'ok',
 		});
+		setRoomTechnology([]); // Clear technology for new rooms
+		setSelectedTechForAdd([]); // Clear selected technology for add
 		setShowRoomModal(true);
 	};
 
@@ -173,6 +217,7 @@ export const AdminPage: React.FC = () => {
 		setEditingItem(room);
 		setIsNewRoom(false);
 		setRoomForm(room);
+		loadRoomTechnology(room.id);
 		setShowRoomModal(true);
 	};
 
@@ -180,6 +225,7 @@ export const AdminPage: React.FC = () => {
 		setEditingItem(room);
 		setIsNewRoom(false); // Switching to an existing room
 		setRoomForm(room);
+		loadRoomTechnology(room.id);
 		// Keep the modal open, just switch to editing the new room
 	};
 
@@ -245,7 +291,21 @@ export const AdminPage: React.FC = () => {
 				toast.success('Room updated successfully');
 			}
 
-			setShowRoomModal(false);
+			// Save room technology changes
+			if (roomTechnology.length > 0 || editingItem?.id) {
+				// Prepare technology data without timestamps (backend will set them)
+				const techData = roomTechnology.map(tech => ({
+					id: tech.id,
+					room_id: roomForm.id,
+					technology_template_id: tech.technology_template_id,
+					count: tech.count,
+					description: tech.description,
+				}));
+
+				await adminService.setRoomTechnology(roomForm.id!, techData);
+			}
+
+			// setShowRoomModal(false);
 			setIsNewRoom(false); // Reset state
 			loadData(true); // Clear cache to fetch fresh room data
 		} catch (err: any) {
@@ -254,9 +314,10 @@ export const AdminPage: React.FC = () => {
 	};
 
 	const handleDeleteRoom = async (roomId: string) => {
-		if (!confirm('Are you sure you want to delete this room?')) return;
+		if (!confirm('Are you sure you want to delete this room? This will also delete all associated technology.')) return;
 
 		try {
+			// Room deletion on backend will cascade delete room technology via room_id reference
 			await adminService.deleteRoom(roomId);
 			toast.success('Room deleted successfully');
 			loadData(true); // Clear cache to fetch fresh room data
@@ -660,6 +721,33 @@ export const AdminPage: React.FC = () => {
 										</div>
 									</div>
 									<div className="row">
+										<div className="col-md-6">
+											<Form.Group className="mb-3">
+												<Form.Label>Status</Form.Label>
+												<Form.Select
+													value={roomForm.status || 'ok'}
+													onChange={(e) => setRoomForm({ ...roomForm, status: e.target.value })}
+												>
+													<option value="ok">OK</option>
+													<option value="damaged">Damaged</option>
+													<option value="destroyed">Destroyed</option>
+													<option value="unknown">Unknown</option>
+												</Form.Select>
+											</Form.Group>
+										</div>
+										<div className="col-md-6">
+											<Form.Group className="mb-3">
+												<Form.Label>Base Exploration Time</Form.Label>
+												<Form.Control
+													type="number"
+													min="0"
+													value={roomForm.base_exploration_time || 2}
+													onChange={(e) => setRoomForm({ ...roomForm, base_exploration_time: parseInt(e.target.value) })}
+												/>
+											</Form.Group>
+										</div>
+									</div>
+									<div className="row">
 										<div className="col-md-4">
 											<Form.Group className="mb-3">
 												<Form.Label>Width</Form.Label>
@@ -692,6 +780,151 @@ export const AdminPage: React.FC = () => {
 											</Form.Group>
 										</div>
 									</div>
+
+									{/* Boolean flags */}
+									<div className="row">
+										<div className="col-md-4">
+											<Form.Check
+												type="checkbox"
+												label="Found"
+												checked={roomForm.found || false}
+												onChange={(e) => setRoomForm({ ...roomForm, found: e.target.checked })}
+											/>
+										</div>
+										<div className="col-md-4">
+											<Form.Check
+												type="checkbox"
+												label="Locked"
+												checked={roomForm.locked || false}
+												onChange={(e) => setRoomForm({ ...roomForm, locked: e.target.checked })}
+											/>
+										</div>
+										<div className="col-md-4">
+											<Form.Check
+												type="checkbox"
+												label="Explored"
+												checked={roomForm.explored || false}
+												onChange={(e) => setRoomForm({ ...roomForm, explored: e.target.checked })}
+											/>
+										</div>
+									</div>
+
+									{/* Technology Section */}
+									<hr className="my-4" />
+									<h5>Room Technology</h5>
+									{roomTechnology.length > 0 ? (
+										<div>
+											{roomTechnology.map((tech, index) => {
+												const techTemplate = availableTechnologies.find(t => t.id === tech.technology_template_id);
+												return (
+													<Card key={index} className="mb-2">
+														<Card.Body className="py-2">
+															<div className="d-flex justify-content-between align-items-center">
+																<div className="flex-grow-1">
+																	<strong>{techTemplate?.name || tech.technology_template_id}</strong>
+																	<div className="small text-muted mt-1">
+																		{truncateWithTooltip(tech.description || techTemplate?.description || 'No description')}
+																	</div>
+																</div>
+																<div className="d-flex align-items-center">
+																	<Form.Label className="me-2 mb-0 small">Count:</Form.Label>
+																	<Form.Control
+																		type="number"
+																		min="1"
+																		value={tech.count}
+																		onChange={(e) => {
+																			const newCount = parseInt(e.target.value) || 1;
+																			setRoomTechnology(prev =>
+																				prev.map((t, i) => i === index ? { ...t, count: newCount } : t),
+																			);
+																		}}
+																		style={{ width: '80px' }}
+																		size="sm"
+																		className="me-2"
+																	/>
+																	<Button
+																		size="sm"
+																		variant="outline-danger"
+																		onClick={() => {
+																			setRoomTechnology(prev => prev.filter((_, i) => i !== index));
+																		}}
+																	>
+																		Remove
+																	</Button>
+																</div>
+															</div>
+														</Card.Body>
+													</Card>
+												);
+											})}
+										</div>
+									) : (
+										<Alert variant="info">No technology found in this room.</Alert>
+									)}
+
+									{/* Add technology form */}
+									<Card className="mt-3">
+										<Card.Header>Add Technology</Card.Header>
+										<Card.Body>
+											<div className="row">
+												<div className="col-md-10">
+													<Typeahead
+														id="technology-selector"
+														options={availableTechnologies}
+														labelKey="name"
+														placeholder="Search and select technology to add..."
+														selected={selectedTechForAdd}
+														onChange={(selected: any[]) => {
+															if (selected.length > 0) {
+																const selectedTech = selected[0] as TechnologyTemplate;
+
+																// Check if technology is already added
+																const existingTech = roomTechnology.find(t => t.technology_template_id === selectedTech.id);
+																if (existingTech) {
+																	toast.warning(`${selectedTech.name} is already added to this room`);
+																	setSelectedTechForAdd([]);
+																	return;
+																}
+
+																const newTech: RoomTechnology = {
+																	id: `${roomForm.id}_${selectedTech.id}_${Date.now()}`,
+																	room_id: roomForm.id || '',
+																	technology_template_id: selectedTech.id,
+																	count: 1,
+																	description: selectedTech.description,
+																	created_at: Date.now(),
+																	updated_at: Date.now(),
+																};
+																setRoomTechnology(prev => [...prev, newTech]);
+																setSelectedTechForAdd([]); // Clear selection
+															}
+														}}
+														filterBy={['name', 'category', 'description']}
+														renderMenuItemChildren={(tech: any) => (
+															<div>
+																<div><strong>{tech.name}</strong></div>
+																<div className="text-muted small">
+																	{tech.category && <span className="badge bg-secondary me-2">{tech.category}</span>}
+																	{tech.description}
+																</div>
+															</div>
+														)}
+														clearButton
+														highlightOnlyResult
+													/>
+												</div>
+												<div className="col-md-2">
+													<Button
+														variant="outline-secondary"
+														onClick={() => setSelectedTechForAdd([])}
+														disabled={selectedTechForAdd.length === 0}
+													>
+														Clear
+													</Button>
+												</div>
+											</div>
+										</Card.Body>
+									</Card>
 								</Form>
 							</div>
 

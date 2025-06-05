@@ -711,6 +711,9 @@ export default {
 					WHERE connection_west = ?
 				`).bind(now, roomId).run();
 
+				// Delete all room technology for this room
+				await env.DB.prepare('DELETE FROM room_technology WHERE room_id = ?').bind(roomId).run();
+
 				// Delete the room itself
 				const result = await env.DB.prepare('DELETE FROM room_templates WHERE id = ?').bind(roomId).run();
 
@@ -839,6 +842,65 @@ export default {
 				}));
 			} catch (err: any) {
 				return withCors(new Response(JSON.stringify({ error: err.message || 'Failed to delete technology' }), {
+					status: 500, headers: { 'content-type': 'application/json' },
+				}));
+			}
+		}
+
+		// Room Technology Admin Endpoints
+		if (url.pathname === '/api/admin/room-technology' && request.method === 'POST') {
+			const adminCheck = await verifyAdminAccess(request);
+			if (!adminCheck.success) {
+				return withCors(new Response(JSON.stringify({ error: adminCheck.error }), {
+					status: 401, headers: { 'content-type': 'application/json' },
+				}));
+			}
+
+			try {
+				const { setRoomTechnology } = await import('./templates/technology-templates');
+				const { room_id, technologies } = await request.json() as { room_id: string; technologies: any[] };
+
+				if (!room_id) throw new Error('Room ID required');
+				if (!Array.isArray(technologies)) throw new Error('Technologies must be an array');
+
+				await setRoomTechnology(env.DB, room_id, technologies);
+
+				return withCors(new Response(JSON.stringify({ success: true }), {
+					headers: { 'content-type': 'application/json' },
+				}));
+			} catch (err: any) {
+				return withCors(new Response(JSON.stringify({ error: err.message || 'Failed to set room technology' }), {
+					status: 500, headers: { 'content-type': 'application/json' },
+				}));
+			}
+		}
+
+		if (url.pathname.startsWith('/api/admin/room-technology/') && request.method === 'DELETE') {
+			const adminCheck = await verifyAdminAccess(request);
+			if (!adminCheck.success) {
+				return withCors(new Response(JSON.stringify({ error: adminCheck.error }), {
+					status: 401, headers: { 'content-type': 'application/json' },
+				}));
+			}
+
+			try {
+				const { deleteRoomTechnology } = await import('./templates/technology-templates');
+				const techId = url.pathname.split('/').pop();
+				if (!techId) throw new Error('Technology ID required');
+
+				const deleted = await deleteRoomTechnology(env.DB, techId);
+
+				if (!deleted) {
+					return withCors(new Response(JSON.stringify({ error: 'Room technology not found' }), {
+						status: 404, headers: { 'content-type': 'application/json' },
+					}));
+				}
+
+				return withCors(new Response(JSON.stringify({ success: true }), {
+					headers: { 'content-type': 'application/json' },
+				}));
+			} catch (err: any) {
+				return withCors(new Response(JSON.stringify({ error: err.message || 'Failed to delete room technology' }), {
 					status: 500, headers: { 'content-type': 'application/json' },
 				}));
 			}

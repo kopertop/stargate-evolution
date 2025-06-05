@@ -118,6 +118,32 @@ class AdminService {
 		}
 		return response.json();
 	}
+
+	// Room Technology management
+	async setRoomTechnology(roomId: string, technologies: any[]) {
+		const response = await fetch(`${API_URL}/api/admin/room-technology`, {
+			method: 'POST',
+			headers: this.getAuthHeaders(),
+			body: JSON.stringify({ room_id: roomId, technologies }),
+		});
+		if (!response.ok) {
+			const error = await response.json();
+			throw new Error(error.error || 'Failed to set room technology');
+		}
+		return response.json();
+	}
+
+	async deleteRoomTechnology(techId: string) {
+		const response = await fetch(`${API_URL}/api/admin/room-technology/${techId}`, {
+			method: 'DELETE',
+			headers: this.getAuthHeaders(),
+		});
+		if (!response.ok) {
+			const error = await response.json();
+			throw new Error(error.error || 'Failed to delete room technology');
+		}
+		return response.json();
+	}
 }
 
 export const adminService = new AdminService();
