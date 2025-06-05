@@ -24,11 +24,17 @@ export const RoomEditVisualization: React.FC<RoomEditVisualizationProps> = ({
 	const [isPanning, setIsPanning] = useState(false);
 	const [lastPanPoint, setLastPanPoint] = useState({ x: 0, y: 0 });
 
-	// Calculate positions for all rooms, centering on the selected room
-	const roomPositions = useMemo(() => {
-		if (!room || !allRooms.length) return {};
-		return calculateRoomPositions(allRooms, room.id);
+	// Get all rooms on the same floor as the selected room
+	const floorRooms = useMemo(() => {
+		if (!room) return [];
+		return allRooms.filter(r => r.floor === room.floor);
 	}, [room, allRooms]);
+
+	// Calculate positions for all rooms on the floor, centering on the selected room
+	const roomPositions = useMemo(() => {
+		if (!room || !floorRooms.length) return {};
+		return calculateRoomPositions(floorRooms, room.id);
+	}, [room, floorRooms]);
 
 	// Get connected rooms for the selected room
 	const connectedRooms = useMemo(() => {
@@ -40,7 +46,7 @@ export const RoomEditVisualization: React.FC<RoomEditVisualizationProps> = ({
 		for (const field of connectionFields) {
 			const connectedRoomId = room[field];
 			if (connectedRoomId) {
-				const connectedRoom = allRooms.find(r => r.id === connectedRoomId);
+				const connectedRoom = floorRooms.find(r => r.id === connectedRoomId);
 				if (connectedRoom) {
 					connections.push(connectedRoom);
 				}
@@ -48,7 +54,7 @@ export const RoomEditVisualization: React.FC<RoomEditVisualizationProps> = ({
 		}
 
 		// Also check for reverse connections (other rooms connecting to this one)
-		for (const otherRoom of allRooms) {
+		for (const otherRoom of floorRooms) {
 			if (otherRoom.id === room.id) continue;
 
 			for (const field of connectionFields) {
@@ -59,13 +65,13 @@ export const RoomEditVisualization: React.FC<RoomEditVisualizationProps> = ({
 		}
 
 		return connections;
-	}, [room, allRooms]);
+	}, [room, floorRooms]);
 
-	// Get all rooms to display (selected + connected)
+	// Get all rooms to display (all rooms on the same floor)
 	const roomsToDisplay = useMemo(() => {
 		if (!room) return [];
-		return [room, ...connectedRooms];
-	}, [room, connectedRooms]);
+		return floorRooms;
+	}, [floorRooms]);
 
 	// Calculate content bounds (including potential connections)
 	const contentBounds = useMemo(() => {
@@ -134,7 +140,7 @@ export const RoomEditVisualization: React.FC<RoomEditVisualizationProps> = ({
 	React.useEffect(() => {
 		setZoomLevel(zoomToFitLevel);
 		setPanOffset({ x: 0, y: 0 });
-	}, [room?.id, zoomToFitLevel]);
+	}, [room?.id, room?.floor, zoomToFitLevel]);
 
 	// Calculate current view bounds based on zoom and pan, centered on focused room
 	const viewBounds = useMemo(() => {
@@ -167,7 +173,20 @@ export const RoomEditVisualization: React.FC<RoomEditVisualizationProps> = ({
 		const position = getRoomScreenPosition(displayRoom, roomPositions);
 		const roomWidth = displayRoom.width * GRID_UNIT;
 		const roomHeight = displayRoom.height * GRID_UNIT;
-		const isClickable = !isSelected && connectedRooms.some(cr => cr.id === displayRoom.id);
+		const isConnected = connectedRooms.some(cr => cr.id === displayRoom.id);
+		const isClickable = !isSelected; // All rooms except selected are clickable
+
+		// Determine room color based on status
+		let fillColor = '#374151'; // Default (unconnected)
+		let strokeColor = '#6b7280';
+
+		if (isSelected) {
+			fillColor = '#2563eb'; // Blue for selected
+			strokeColor = '#3b82f6';
+		} else if (isConnected) {
+			fillColor = '#059669'; // Green for connected
+			strokeColor = '#10b981';
+		}
 
 		return (
 			<g
@@ -181,11 +200,11 @@ export const RoomEditVisualization: React.FC<RoomEditVisualizationProps> = ({
 					y={position.y - roomHeight / 2}
 					width={roomWidth}
 					height={roomHeight}
-					fill={isSelected ? '#2563eb' : (isClickable ? '#059669' : '#374151')}
-					stroke={isSelected ? '#3b82f6' : (isClickable ? '#10b981' : '#6b7280')}
+					fill={fillColor}
+					stroke={strokeColor}
 					strokeWidth="2"
 					rx="4"
-					opacity={isClickable ? 0.8 : 1}
+					opacity={isConnected || isSelected ? 1 : 0.6}
 				/>
 
 				{/* Hover effect for clickable rooms */}
@@ -629,6 +648,40 @@ export const RoomEditVisualization: React.FC<RoomEditVisualizationProps> = ({
 		setIsPanning(false);
 	};
 
+	// Mouse wheel zoom handler
+	const handleWheel = (e: React.WheelEvent) => {
+		e.preventDefault();
+
+		// Get mouse position relative to SVG
+		const svgRect = e.currentTarget.getBoundingClientRect();
+		const mouseX = e.clientX - svgRect.left;
+		const mouseY = e.clientY - svgRect.top;
+
+		// Convert mouse position to SVG coordinates
+		const svgMouseX = viewBounds.x + (mouseX / svgRect.width) * viewBounds.width;
+		const svgMouseY = viewBounds.y + (mouseY / svgRect.height) * viewBounds.height;
+
+		// Determine zoom direction and factor
+		const zoomDirection = e.deltaY > 0 ? -1 : 1; // Negative deltaY = zoom in
+		const zoomFactor = 1.05;
+		const newZoomLevel = zoomDirection > 0
+			? Math.min(zoomLevel * zoomFactor, 10)
+			: Math.max(zoomLevel / zoomFactor, 0.2);
+
+		if (newZoomLevel !== zoomLevel && room) {
+			// Calculate the zoom center offset to zoom towards mouse cursor
+			const zoomRatio = newZoomLevel / zoomLevel;
+			const focusedRoomPosition = getRoomScreenPosition(room, roomPositions);
+
+			// Calculate new pan offset to keep mouse position fixed
+			const newPanOffsetX = panOffset.x + (svgMouseX - focusedRoomPosition.x) * (1 - 1/zoomRatio);
+			const newPanOffsetY = panOffset.y + (svgMouseY - focusedRoomPosition.y) * (1 - 1/zoomRatio);
+
+			setZoomLevel(newZoomLevel);
+			setPanOffset({ x: newPanOffsetX, y: newPanOffsetY });
+		}
+	};
+
 	// Global mouse up handler for when mouse leaves SVG area
 	React.useEffect(() => {
 		const handleGlobalMouseUp = () => setIsPanning(false);
@@ -644,7 +697,7 @@ export const RoomEditVisualization: React.FC<RoomEditVisualizationProps> = ({
 				<h5 className="mb-0" style={{ color: 'white' }}>Room Layout & Connections</h5>
 				<div className="d-flex align-items-center gap-3">
 					<small style={{ color: '#9ca3af' }}>
-						{connectedRooms.length} connected room{connectedRooms.length !== 1 ? 's' : ''}
+						Floor {room?.floor || 0} • {floorRooms.length} room{floorRooms.length !== 1 ? 's' : ''} • {connectedRooms.length} connected
 					</small>
 					<ButtonGroup size="sm">
 						<Button
@@ -688,6 +741,7 @@ export const RoomEditVisualization: React.FC<RoomEditVisualizationProps> = ({
 					onMouseMove={handleMouseMove}
 					onMouseUp={handleMouseUp}
 					onMouseLeave={handleMouseUp}
+					onWheel={handleWheel}
 				>
 					{/* Background */}
 					<rect
@@ -712,7 +766,8 @@ export const RoomEditVisualization: React.FC<RoomEditVisualizationProps> = ({
 				<div className="mt-3 d-flex justify-content-between align-items-center">
 					<small style={{ color: '#9ca3af' }}>
 						<span style={{ color: '#2563eb' }}>■</span> Current room •
-						<span style={{ color: '#10b981' }}> ■</span> Connected rooms (click to edit) •
+						<span style={{ color: '#10b981' }}> ■</span> Connected rooms •
+						<span style={{ color: '#374151' }}> ■</span> Other floor rooms (click to edit) •
 						<span style={{ color: '#6b7280' }}> ⬜</span> Add connecting room
 					</small>
 					<small style={{ color: '#6b7280' }}>
