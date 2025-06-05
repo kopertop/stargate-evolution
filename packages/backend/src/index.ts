@@ -12,7 +12,7 @@ import { Env } from './types';
 
 const corsHeaders = {
 	'access-control-allow-origin': '*',
-	'access-control-allow-methods': 'GET, POST, OPTIONS',
+	'access-control-allow-methods': 'GET, POST, PUT, DELETE, PATCH, OPTIONS',
 	'access-control-allow-headers': 'Content-Type, Authorization',
 };
 
@@ -88,6 +88,7 @@ async function verifyAdminAccess(request: Request): Promise<{ success: boolean; 
 
 export default {
 	async fetch(request: Request, env: Env): Promise<Response> {
+		console.log('Request', request);
 		const url = new URL(request.url);
 		if (request.method === 'OPTIONS') {
 			return new Response(null, { status: 204, headers: corsHeaders });
@@ -551,6 +552,7 @@ export default {
 				const roomData = await request.json() as any;
 				const now = Date.now();
 
+				// Create the new room
 				await env.DB.prepare(`
 					INSERT INTO room_templates (
 						id, layout_id, type, name, description, width, height, floor,
@@ -580,6 +582,25 @@ export default {
 					now,
 					now,
 				).run();
+
+				// Handle bidirectional connections - update connected rooms to point back to this new room
+				const connections = [
+					{ direction: 'north', reverseDirection: 'south', connectedRoomId: roomData.connection_north },
+					{ direction: 'south', reverseDirection: 'north', connectedRoomId: roomData.connection_south },
+					{ direction: 'east', reverseDirection: 'west', connectedRoomId: roomData.connection_east },
+					{ direction: 'west', reverseDirection: 'east', connectedRoomId: roomData.connection_west },
+				];
+
+				for (const conn of connections) {
+					if (conn.connectedRoomId) {
+						// Update the connected room to point back to this new room
+						await env.DB.prepare(`
+							UPDATE room_templates
+							SET connection_${conn.reverseDirection} = ?, updated_at = ?
+							WHERE id = ?
+						`).bind(roomData.id, now, conn.connectedRoomId).run();
+					}
+				}
 
 				return withCors(new Response(JSON.stringify({ success: true, id: roomData.id }), {
 					headers: { 'content-type': 'application/json' },
@@ -663,6 +684,34 @@ export default {
 				const roomId = url.pathname.split('/').pop();
 				if (!roomId) throw new Error('Room ID required');
 
+				const now = Date.now();
+
+				// Remove reverse connections - update any rooms that connect to this room
+				await env.DB.prepare(`
+					UPDATE room_templates
+					SET connection_north = NULL, updated_at = ?
+					WHERE connection_north = ?
+				`).bind(now, roomId).run();
+
+				await env.DB.prepare(`
+					UPDATE room_templates
+					SET connection_south = NULL, updated_at = ?
+					WHERE connection_south = ?
+				`).bind(now, roomId).run();
+
+				await env.DB.prepare(`
+					UPDATE room_templates
+					SET connection_east = NULL, updated_at = ?
+					WHERE connection_east = ?
+				`).bind(now, roomId).run();
+
+				await env.DB.prepare(`
+					UPDATE room_templates
+					SET connection_west = NULL, updated_at = ?
+					WHERE connection_west = ?
+				`).bind(now, roomId).run();
+
+				// Delete the room itself
 				const result = await env.DB.prepare('DELETE FROM room_templates WHERE id = ?').bind(roomId).run();
 
 				if (result.meta.changes === 0) {

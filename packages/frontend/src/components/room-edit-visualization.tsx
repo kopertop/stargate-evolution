@@ -136,11 +136,16 @@ export const RoomEditVisualization: React.FC<RoomEditVisualizationProps> = ({
 		return Math.max(scale, 0.2); // Minimum 0.2x zoom
 	}, [contentBounds]);
 
-	// Auto zoom-to-fit when room changes
+	// Auto zoom-to-fit when room changes (only on initial load)
 	React.useEffect(() => {
 		setZoomLevel(zoomToFitLevel);
 		setPanOffset({ x: 0, y: 0 });
-	}, [room?.id, room?.floor, zoomToFitLevel]);
+	}, [zoomToFitLevel]); // Only zoom to fit when zoom calculation changes, not when room changes
+
+	// Re-center when room changes but keep current zoom
+	React.useEffect(() => {
+		setPanOffset({ x: 0, y: 0 });
+	}, [room?.id, room?.floor]);
 
 	// Calculate current view bounds based on zoom and pan, centered on focused room
 	const viewBounds = useMemo(() => {

@@ -2,7 +2,7 @@ import { RoomTemplate, TechnologyTemplate } from '@stargate/common';
 import Fuse from 'fuse.js';
 import React, { useState, useEffect, useMemo } from 'react';
 import { Button, Card, Nav, Tab, Table, Modal, Form, Alert, InputGroup } from 'react-bootstrap';
-import { FaEdit, FaTrash, FaPlus, FaArrowLeft, FaSearch } from 'react-icons/fa';
+import { FaEdit, FaTrash, FaPlus, FaArrowLeft, FaSearch, FaEye } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 
@@ -39,7 +39,10 @@ export const AdminPage: React.FC = () => {
 	const [showUserModal, setShowUserModal] = useState(false);
 	const [showRoomModal, setShowRoomModal] = useState(false);
 	const [showTechModal, setShowTechModal] = useState(false);
+	const [showRawDataModal, setShowRawDataModal] = useState(false);
 	const [editingItem, setEditingItem] = useState<any>(null);
+	const [rawDataItem, setRawDataItem] = useState<any>(null); // Item to show raw data for
+	const [isNewRoom, setIsNewRoom] = useState(false); // Track if we're creating a new room
 
 	// Form states
 	const [roomForm, setRoomForm] = useState<Partial<RoomTemplate>>({});
@@ -109,10 +112,15 @@ export const AdminPage: React.FC = () => {
 		checkAdminAccess();
 	}, [navigate]);
 
-	const loadData = async () => {
+	const loadData = async (clearCache = false) => {
 		try {
 			setLoading(true);
 			setError(null);
+
+			// Clear cache if requested to ensure fresh data
+			if (clearCache) {
+				apiService.clearCache();
+			}
 
 			const [usersData, roomsData, techData] = await Promise.all([
 				adminService.getUsers(),
@@ -135,7 +143,7 @@ export const AdminPage: React.FC = () => {
 		try {
 			await adminService.updateUserAdmin(userId, isAdmin);
 			toast.success('User admin status updated');
-			loadData(); // Reload to get fresh data
+			loadData(true); // Clear cache to fetch fresh user data
 		} catch (err: any) {
 			toast.error(err.message || 'Failed to update user');
 		}
@@ -143,6 +151,7 @@ export const AdminPage: React.FC = () => {
 
 	const handleCreateRoom = () => {
 		setEditingItem(null);
+		setIsNewRoom(true);
 		setRoomForm({
 			layout_id: 'destiny',
 			type: 'corridor',
@@ -162,12 +171,14 @@ export const AdminPage: React.FC = () => {
 
 	const handleEditRoom = (room: RoomTemplate) => {
 		setEditingItem(room);
+		setIsNewRoom(false);
 		setRoomForm(room);
 		setShowRoomModal(true);
 	};
 
 	const handleSwitchToRoom = (room: RoomTemplate) => {
 		setEditingItem(room);
+		setIsNewRoom(false); // Switching to an existing room
 		setRoomForm(room);
 		// Keep the modal open, just switch to editing the new room
 	};
@@ -208,20 +219,12 @@ export const AdminPage: React.FC = () => {
 			updated_at: Date.now(),
 		};
 
-		// Update the current room to connect to the new room
-		const updatedCurrentRoom = {
-			...editingItem,
-			[`connection_${direction}`]: newRoomId,
-		};
-
-		// Update the rooms list to include the new room and update the current room
-		setRooms(prevRooms => [
-			...prevRooms.map(r => r.id === editingItem.id ? updatedCurrentRoom : r),
-			newRoom,
-		]);
+		// Add the new room to the local state (bidirectional connection will be handled by backend)
+		setRooms(prevRooms => [...prevRooms, newRoom]);
 
 		// Switch to editing the new room
 		setEditingItem(newRoom);
+		setIsNewRoom(true); // This is a new room, allow ID editing
 		setRoomForm(newRoom);
 	};
 
@@ -232,16 +235,19 @@ export const AdminPage: React.FC = () => {
 				return;
 			}
 
-			if (editingItem) {
-				await adminService.updateRoom(editingItem.id, roomForm);
-				toast.success('Room updated successfully');
-			} else {
+			if (isNewRoom) {
+				// Creating a new room (including connecting rooms)
 				await adminService.createRoom(roomForm);
 				toast.success('Room created successfully');
+			} else {
+				// Updating an existing room
+				await adminService.updateRoom(editingItem.id, roomForm);
+				toast.success('Room updated successfully');
 			}
 
 			setShowRoomModal(false);
-			loadData();
+			setIsNewRoom(false); // Reset state
+			loadData(true); // Clear cache to fetch fresh room data
 		} catch (err: any) {
 			toast.error(err.message || 'Failed to save room');
 		}
@@ -253,7 +259,7 @@ export const AdminPage: React.FC = () => {
 		try {
 			await adminService.deleteRoom(roomId);
 			toast.success('Room deleted successfully');
-			loadData();
+			loadData(true); // Clear cache to fetch fresh room data
 		} catch (err: any) {
 			toast.error(err.message || 'Failed to delete room');
 		}
@@ -292,7 +298,7 @@ export const AdminPage: React.FC = () => {
 			}
 
 			setShowTechModal(false);
-			loadData();
+			loadData(true); // Clear cache to fetch fresh technology data
 		} catch (err: any) {
 			toast.error(err.message || 'Failed to save technology');
 		}
@@ -304,10 +310,15 @@ export const AdminPage: React.FC = () => {
 		try {
 			await adminService.deleteTechnology(techId);
 			toast.success('Technology deleted successfully');
-			loadData();
+			loadData(true); // Clear cache to fetch fresh technology data
 		} catch (err: any) {
 			toast.error(err.message || 'Failed to delete technology');
 		}
+	};
+
+	const handleViewRawData = (item: any) => {
+		setRawDataItem(item);
+		setShowRawDataModal(true);
 	};
 
 	if (loading) {
@@ -458,6 +469,15 @@ export const AdminPage: React.FC = () => {
 														<td>
 															<Button
 																size="sm"
+																variant="outline-info"
+																className="me-2"
+																onClick={() => handleViewRawData(room)}
+																title="View Raw Data"
+															>
+																<FaEye />
+															</Button>
+															<Button
+																size="sm"
 																variant="outline-warning"
 																className="me-2"
 																onClick={() => handleEditRoom(room)}
@@ -530,6 +550,15 @@ export const AdminPage: React.FC = () => {
 														<td>
 															<Button
 																size="sm"
+																variant="outline-info"
+																className="me-2"
+																onClick={() => handleViewRawData(tech)}
+																title="View Raw Data"
+															>
+																<FaEye />
+															</Button>
+															<Button
+																size="sm"
 																variant="outline-warning"
 																className="me-2"
 																onClick={() => handleEditTechnology(tech)}
@@ -563,11 +592,14 @@ export const AdminPage: React.FC = () => {
 				{/* Room Modal */}
 				<Modal
 					show={showRoomModal}
-					onHide={() => setShowRoomModal(false)}
+					onHide={() => {
+						setShowRoomModal(false);
+						setIsNewRoom(false); // Reset state when closing modal
+					}}
 					fullscreen={true}
 				>
 					<Modal.Header closeButton>
-						<Modal.Title>{editingItem ? 'Edit Room' : 'Create Room'}</Modal.Title>
+						<Modal.Title>{isNewRoom ? 'Create Room' : 'Edit Room'}</Modal.Title>
 					</Modal.Header>
 					<Modal.Body className="p-0" style={{ height: 'calc(100vh - 120px)' }}>
 						<div className="d-flex h-100">
@@ -580,8 +612,11 @@ export const AdminPage: React.FC = () => {
 											type="text"
 											value={roomForm.id || ''}
 											onChange={(e) => setRoomForm({ ...roomForm, id: e.target.value })}
-											disabled={!!editingItem}
+											disabled={!isNewRoom}
 										/>
+										<Form.Text className="text-muted">
+											{isNewRoom ? 'Enter a unique room ID' : 'Room ID cannot be changed for existing rooms'}
+										</Form.Text>
 									</Form.Group>
 									<Form.Group className="mb-3">
 										<Form.Label>Name</Form.Label>
@@ -681,11 +716,14 @@ export const AdminPage: React.FC = () => {
 						</div>
 					</Modal.Body>
 					<Modal.Footer>
-						<Button variant="secondary" onClick={() => setShowRoomModal(false)}>
+						<Button variant="secondary" onClick={() => {
+							setShowRoomModal(false);
+							setIsNewRoom(false); // Reset state when canceling
+						}}>
 							Cancel
 						</Button>
 						<Button variant="primary" onClick={handleSaveRoom}>
-							{editingItem ? 'Update' : 'Create'}
+							{isNewRoom ? 'Create' : 'Update'}
 						</Button>
 					</Modal.Footer>
 				</Modal>
@@ -762,6 +800,45 @@ export const AdminPage: React.FC = () => {
 						</Button>
 						<Button variant="primary" onClick={handleSaveTechnology}>
 							{editingItem ? 'Update' : 'Create'}
+						</Button>
+					</Modal.Footer>
+				</Modal>
+
+				{/* Raw Data Modal */}
+				<Modal show={showRawDataModal} onHide={() => setShowRawDataModal(false)} size="lg">
+					<Modal.Header closeButton>
+						<Modal.Title>Raw Data - {rawDataItem?.id || rawDataItem?.name || 'Item'}</Modal.Title>
+					</Modal.Header>
+					<Modal.Body>
+						<pre style={{
+							backgroundColor: '#1e1e1e',
+							color: '#d4d4d4',
+							padding: '1rem',
+							borderRadius: '4px',
+							overflow: 'auto',
+							maxHeight: '60vh',
+							fontSize: '0.875rem',
+							lineHeight: '1.4',
+						}}>
+							<code>
+								{rawDataItem ? JSON.stringify(rawDataItem, null, 2) : 'No data'}
+							</code>
+						</pre>
+					</Modal.Body>
+					<Modal.Footer>
+						<Button variant="secondary" onClick={() => setShowRawDataModal(false)}>
+							Close
+						</Button>
+						<Button
+							variant="primary"
+							onClick={() => {
+								if (rawDataItem) {
+									navigator.clipboard.writeText(JSON.stringify(rawDataItem, null, 2));
+									toast.success('JSON data copied to clipboard');
+								}
+							}}
+						>
+							Copy to Clipboard
 						</Button>
 					</Modal.Footer>
 				</Modal>
