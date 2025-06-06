@@ -4,7 +4,6 @@
 	"private": true,
 	"scripts": {
 		"dev": "wrangler dev",
-		"build": "wrangler publish",
 		"typecheck": "tsc --noEmit",
 		"db:up": "wrangler d1 migrations apply stargate-game",
 		"db:down": "npx tsx bin/reset-database.ts",
@@ -13,7 +12,9 @@
 		"db:generate": "npx tsx bin/generate-d1-from-models.ts",
 		"db:create-schema": "pnpm run db:generate && pnpm run db:init",
 		"migration:generate": "npx tsx bin/generate-migration.ts",
-		"test": "vitest run"
+		"test": "vitest run",
+		"deploy": "npx wrangler deploy",
+		"postdeploy": "pnpm run db:up --remote"
 	},
 	"devDependencies": {
 		"@cloudflare/vitest-pool-workers": "^0.8.30",
@@ -23,7 +24,7 @@
 		"typescript": "^5.8.3",
 		"vite-tsconfig-paths": "^5.1.4",
 		"vitest": "^3.1.3",
-		"wrangler": "^4.15.2"
+		"wrangler": "^4.19.1"
 	},
 	"dependencies": {
 		"@stargate/common": "workspace:*",
