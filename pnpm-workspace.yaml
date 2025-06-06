@@ -1,2 +1,9 @@
 packages:
-  - 'packages/*'
+  - packages/*
+ignoredBuiltDependencies:
+  - '@parcel/watcher'
+  - better-sqlite3
+  - esbuild
+  - msgpackr-extract
+  - sharp
+  - workerd

@@ -14,3 +14,6 @@ migrations_dir = 'migrations'
 d1_databases = [
 	{ binding = 'DB', database_name = 'stargate-game-test', database_id = 'test' }
 ]
+
+[observability]
+enabled = true
