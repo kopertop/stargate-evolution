@@ -6,9 +6,9 @@ import { GiReturnArrow } from 'react-icons/gi';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 
+import './google-login.css';
 import { renderGoogleSignInButton } from '../auth/google-auth';
 import { getSession, setSession, validateOrRefreshSession, clearSession } from '../auth/session';
-import { apiService } from '../services/api-service';
 import { useGameService } from '../services/game-service';
 
 type GameSummary = {
@@ -225,7 +225,7 @@ export const MenuPage: React.FC = () => {
 			renderGoogleSignInButton('google-signin-button', handleGoogleSignIn);
 		}, []);
 
-		return <div id="google-signin-button" />;
+		return <div id="google-signin-button" className="d-flex justify-content-center"/>;
 	};
 
 	const renderLoadGamesView = () => (
