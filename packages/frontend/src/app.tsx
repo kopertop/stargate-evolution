@@ -55,6 +55,7 @@ const renderLoadingView = (_: BootStatus) => (
 );
 
 export const App: React.FC = () => {
+	console.log('API URL', import.meta.env.VITE_PUBLIC_API_URL);
 	return (
 		<LiveStoreProvider
 			schema={schema}
