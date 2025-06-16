@@ -1,0 +1,17 @@
+{
+  "name": "integration",
+  "version": "0.1.0",
+  "private": true,
+"scripts": {
+"test": "pnpm exec vitest run"
+},
+  "dependencies": {
+    "@stargate/common": "workspace:*",
+    "@stargate/frontend": "workspace:*"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.8.34",
+    "vitest": "^3.1.4",
+    "vite-tsconfig-paths": "^5.1.4"
+  }
+}

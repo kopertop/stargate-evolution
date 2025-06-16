@@ -1,8 +1,13 @@
 {
 	"extends": "../../tsconfig.json",
-"compilerOptions": {
-"jsx": "preserve",
-"experimentalDecorators": true
-},
+	"compilerOptions": {
+		"jsx": "react-jsx",
+		"experimentalDecorators": true,
+		"allowSyntheticDefaultImports": true,
+		"esModuleInterop": true,
+		"lib": ["DOM", "DOM.Iterable", "ES2017", "ES2020"],
+		"moduleResolution": "bundler",
+		"types": ["vite/client", "node"]
+	},
 	"include": ["src"]
 }

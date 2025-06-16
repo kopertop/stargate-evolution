@@ -13,19 +13,31 @@
     "forceConsistentCasingInFileNames": true,
     "noFallthroughCasesInSwitch": true,
     "module": "esnext",
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
     "baseUrl": ".",
     "paths": {
+      "@stargate/common/models/*": [
+        "packages/common/src/models/*"
+      ],
       "@stargate/common/*": [
-        "packages/common/*"
+        "packages/common/src/*"
+      ],
+      "@stargate/common": [
+        "packages/common/src"
       ],
       "@stargate/db/*": [
         "packages/db/src/*"
       ],
       "@stargate/db": [
         "packages/db/src"
+      ],
+      "@stargate/frontend/*": [
+        "packages/frontend/src/*"
+      ],
+      "@stargate/frontend": [
+        "packages/frontend/src"
       ]
     }
   }

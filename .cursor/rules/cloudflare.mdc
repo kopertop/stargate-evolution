@@ -1,0 +1,25 @@
+---
+description: Rules for Cloudflare Worker & Backend code in the WorkOrder App
+globs: packages/backend/**/*.ts
+alwaysApply: false
+---
+# Cloudflare Worker & Backend Rules
+
+## Sync API & Protocol
+- Implement `/sync/pull` and `/sync/push` endpoints using WatermelonDB sync protocol (pull-then-push, delta-based, per-collection changes)
+- Use server-side timestamps (`Date.now()`) for `last_modified` and `deleted_at`; ignore client-provided timestamps for these fields
+- Scope all sync queries and mutations to the authenticated user's `org_id`
+- On push, if any record's `last_modified > lastPulledAt`, abort the push and return 409 Conflict
+- Use transactions or batch operations for atomicity when applying push changes
+
+## Real-Time Sync (WebSockets & Durable Objects)
+- Use Durable Objects to coordinate WebSocket connections per org for real-time sync notifications
+- Authenticate WebSocket connections using JWT (via query param or initial message)
+- After successful push, notify the org's Durable Object to broadcast a sync event to all connected clients
+- WebSocket channel is only a trigger; all data sync must go through the standard sync API
+
+## General
+- Prefer TypeScript for all backend code
+- Use kebab-case for filenames
+- Keep backend files focused: separate routing, auth, sync logic, and D1 access
+- Document any deviations from the protocol or schema in DEVELOPMENT.md

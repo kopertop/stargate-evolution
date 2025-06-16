@@ -4,34 +4,31 @@
 	"private": true,
 	"scripts": {
 		"dev": "wrangler dev",
-		"build": "wrangler publish",
-		"lint": "eslint . --fix",
 		"typecheck": "tsc --noEmit",
 		"db:up": "wrangler d1 migrations apply stargate-game",
 		"db:down": "npx tsx bin/reset-database.ts",
 		"db:init": "npx tsx bin/init-db.ts",
 		"db:reset": "npx tsx bin/reset-db.ts",
 		"db:generate": "npx tsx bin/generate-d1-from-models.ts",
-		"db:create-schema": "npm run db:generate && npm run db:init",
-		"test": "vitest run"
+		"db:create-schema": "pnpm run db:generate && pnpm run db:init",
+		"migration:generate": "npx tsx bin/generate-migration.ts",
+		"test": "vitest run",
+		"deploy": "npx wrangler deploy",
+		"postdeploy": "pnpm run db:up --remote"
 	},
 	"devDependencies": {
 		"@cloudflare/vitest-pool-workers": "^0.8.30",
 		"@cloudflare/workers-types": "^4.20250517.0",
 		"@vitest/ui": "^3.1.3",
-		"sequelize-cli": "^6.6.3",
 		"tsx": "^4.19.1",
-		"typescript": "^4.9.5",
+		"typescript": "^5.8.3",
+		"vite-tsconfig-paths": "^5.1.4",
 		"vitest": "^3.1.3",
-		"wrangler": "^4.15.2"
+		"wrangler": "^4.19.1"
 	},
 	"dependencies": {
 		"@stargate/common": "workspace:*",
-		"@types/sequelize": "^4.28.20",
-		"jose": "^6.0.11",
-		"sequelize": "^6.37.7",
-		"sequelize-typescript": "^2.1.6",
-		"sqlite3": "^5.1.7",
-		"ulid": "^3.0.0"
+		"commander": "^14.0.0",
+		"jose": "^6.0.11"
 	}
 }

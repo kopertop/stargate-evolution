@@ -1,6 +1,6 @@
 import path from 'node:path';
-
 import { defineWorkersConfig, readD1Migrations } from '@cloudflare/vitest-pool-workers/config';
+import tsconfigPaths from 'vite-tsconfig-paths';
 
 export default defineWorkersConfig(async () => {
 	// Read all migrations in the migrations directory
@@ -8,8 +8,10 @@ export default defineWorkersConfig(async () => {
 	const migrations = await readD1Migrations(migrationsPath);
 
 	return {
+		plugins: [tsconfigPaths()],
 		test: {
-			include: ['src/**/*.spec.ts'],
+			include: ['test/**/*.spec.ts'],
+			setupFiles: ['./test/apply-migrations.ts'],
 			poolOptions: {
 				workers: {
 					miniflare: {

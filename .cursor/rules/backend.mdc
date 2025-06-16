@@ -1,0 +1,101 @@
+---
+description:
+globs: packages/backend/**/*
+alwaysApply: false
+---
+# Backend Development Rules
+
+## Cloudflare Worker & D1 Database Patterns
+
+### API Structure
+- Follow existing patterns in `packages/backend/src/index.ts`
+- Use single fetch handler with URL pathname routing
+- Always use `withCors()` wrapper for responses
+- Handle OPTIONS requests for CORS preflight
+- Use consistent error handling with JSON error responses
+
+### Authentication & Authorization
+- Use existing JWT patterns from `auth-types.ts`
+- Validate tokens with `verifyJwt()` function
+- Extract user from JWT payload for authenticated endpoints
+- Return 401 for invalid/missing tokens
+- Use `validateUser()` and `validateSession()` helpers
+
+### Database Operations
+- Use D1 prepared statements: `env.DB.prepare(sql).bind(...params).run()`
+- Use server-side timestamps: `Date.now()` for `created_at`, `updated_at`
+- Use TEXT PRIMARY KEY with ULIDs for new records
+- Use transactions for multi-table operations when needed
+- Follow existing migration patterns in `bin/init-db.ts`
+
+### Template System Architecture
+- Template tables store definitions without `game_id` (backend D1)
+- Game instances reference templates but store in frontend (WatermelonDB)
+- Templates are immutable reference data
+- Use JSON fields for complex data structures
+- Index foreign key relationships
+
+### API Endpoint Patterns
+```typescript
+// Template endpoints (no auth required - public reference data)
+if (url.pathname === '/api/templates/rooms' && request.method === 'GET') {
+  // Return all room templates
+}
+
+// Game endpoints (auth required)
+if (url.pathname === '/api/games/initialize' && request.method === 'POST') {
+  // Validate JWT, create game from templates
+}
+```
+
+### Migration System
+- Use numbered SQL files: `001_create_tables.sql`, `002_seed_data.sql`
+- Store in `migrations/` directory
+- Use `bin/init-db.ts` script to apply migrations
+- Include both schema and seed data migrations
+- Use `strftime('%s','now')` for SQLite timestamps
+
+### File Organization
+```
+packages/backend/
+├── src/
+│   ├── index.ts (main router)
+│   ├── types.ts (environment & interfaces)
+│   ├── auth-types.ts (auth validation)
+│   └── templates/ (template-related logic)
+│       ├── room-templates.ts
+│       ├── person-templates.ts
+│       └── game-initialization.ts
+├── migrations/
+│   ├── 001_create_users.sql
+│   ├── 002_create_template_tables.sql
+│   └── 003_seed_room_templates.sql
+└── bin/ (database management scripts)
+```
+
+### Error Handling
+- Use try/catch blocks for database operations
+- Return consistent JSON error format: `{ error: "message" }`
+- Use appropriate HTTP status codes (400, 401, 404, 500)
+- Log errors for debugging but don't expose internals
+
+### TypeScript Patterns
+- Use kebab-case for filenames
+- Define interfaces for request/response types
+- Use `Env` interface for Cloudflare bindings
+- Prefer explicit types over `any`
+- Use validation functions like existing auth patterns
+
+### Template Data Patterns
+- Store JSON as TEXT in D1, parse in application
+- Use consistent naming: `template_id`, `layout_data`, etc.
+- Include audit fields: `created_at`, `updated_at`
+- Use foreign keys for relationships between templates
+- Design for immutability - templates don't change after creation
+
+### Performance Considerations
+- Use prepared statements for repeated queries
+- Index foreign key columns
+- Consider caching for frequently accessed templates
+- Batch operations when possible
+- Use efficient JSON parsing/stringification

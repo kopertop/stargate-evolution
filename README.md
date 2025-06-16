@@ -2,6 +2,8 @@
 
 A web-based, top-down, turn-based game based on the Stargate universe, focusing on exploration, resource management, and base building, powered by React Three Fiber.
 
+This repository uses **pnpm** workspaces for dependency management. Install packages with `pnpm install` and rely on the committed `pnpm-lock.yaml` for reproducible installs.
+
 ## Game Features
 
 - **Planetary Exploration**: Discover new planets through the Stargate network
@@ -35,4 +37,15 @@ A web-based, top-down, turn-based game based on the Stargate universe, focusing 
 4. **Start the dev server:**
    ```sh
    pnpm start
+   ```
+
+## \ud83d\ude80 Deploying the Frontend to Cloudflare Pages
+
+1. Build the frontend:
+   ```sh
+   pnpm --filter frontend run build
+   ```
+2. Deploy with Wrangler:
+   ```sh
+   pnpm --filter frontend run deploy
    ```

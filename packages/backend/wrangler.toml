@@ -1,4 +1,4 @@
-name = 'destiny-backend'
+name = 'stargate-evolution-backend'
 main = 'src/index.ts'
 compatibility_date = '2025-05-08'
 
@@ -6,7 +6,7 @@ compatibility_date = '2025-05-08'
 binding = 'DB'
 database_name = 'stargate-game'
 # Fill this in after creating the DB with wrangler d1 create
-database_id = '9b6d1e5c-369b-4131-bb9b-076e9abb5f14'
+database_id = '3a8b2474-999f-4a5f-90fa-e43ef815c0aa'
 migrations_dir = 'migrations'
 
 # Test environment configuration
@@ -14,3 +14,6 @@ migrations_dir = 'migrations'
 d1_databases = [
 	{ binding = 'DB', database_name = 'stargate-game-test', database_id = 'test' }
 ]
+
+[observability]
+enabled = true

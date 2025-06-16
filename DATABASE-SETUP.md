@@ -47,10 +47,10 @@ pnpm db:init
 
 | Command | Description |
 |---------|-------------|
-| `npm run db:generate` | Auto-generate D1 SQL from models |
-| `npm run db:init [db-name]` | Apply migrations (default: stargate-game) |
-| `npm run db:reset [db-name]` | Reset database with confirmation prompt |
-| `npm run db:create-schema` | Generate and apply in one command |
+| `pnpm run db:generate` | Auto-generate D1 SQL from models |
+| `pnpm run db:init [db-name]` | Apply migrations (default: stargate-game) |
+| `pnpm run db:reset [db-name]` | Reset database with confirmation prompt |
+| `pnpm run db:create-schema` | Generate and apply in one command |
 
 ## 🔄 Development Workflow
 

@@ -1,82 +1,109 @@
 #!/usr/bin/env tsx
-
 import { execSync } from 'child_process';
-import readline from 'readline';
 
-function createReadlineInterface() {
-	return readline.createInterface({
-		input: process.stdin,
-		output: process.stdout,
-	});
-}
+import { Command } from 'commander';
 
-function askQuestion(rl: readline.Interface, question: string): Promise<string> {
-	return new Promise(resolve => {
-		rl.question(question, answer => {
-			resolve(answer);
-		});
-	});
-}
+const program = new Command();
 
-async function confirmReset(database: string): Promise<boolean> {
-	const rl = createReadlineInterface();
+program
+	.description('Reset database by dropping all tables and clearing migration history')
+	.option('--remote', 'Reset the production database instead of local')
+	.parse(process.argv);
 
-	console.log(`⚠️  WARNING: This will completely destroy and recreate the database: ${database}`);
-	console.log('   All data will be permanently lost!');
-	console.log('');
+const options = program.opts();
+const isRemote = options.remote ?? false;
+const databaseBinding = 'DB'; // Assumed binding name from wrangler.toml
 
-	const answer = await askQuestion(rl, 'Are you sure you want to continue? (yes/no): ');
-	rl.close();
-
-	return answer.toLowerCase() === 'yes';
-}
-
-function resetDatabase(database: string) {
-	console.log(`Resetting database: ${database}`);
+async function resetDatabase() {
+	console.log(`Starting database reset ${isRemote ? 'in production' : 'locally'}...`);
 
 	try {
-		// First, try to delete the database
-		console.log('🗑️  Deleting existing database...');
-		try {
-			execSync(`wrangler d1 delete ${database} --force`, { stdio: 'inherit' });
-		} catch (error) {
-			console.log('   (Database may not exist yet - continuing...)');
+		// Base command for wrangler
+		const wranglerBaseCommand = `npx wrangler d1 execute ${databaseBinding}${isRemote ? ' --remote' : ''}`;
+
+		// 1. Get all table names except d1_migrations
+		console.log('Fetching table names...');
+		const tablesOutput = execSync(
+			`${wranglerBaseCommand} --command "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' AND name != 'd1_migrations';" --json`,
+			{ encoding: 'utf-8' },
+		);
+		const tablesResult = JSON.parse(tablesOutput);
+
+		// Ensure the structure is as expected
+		if (!tablesResult || !Array.isArray(tablesResult) || !tablesResult[0]?.results) {
+			console.error('Unexpected format for table names:', tablesResult);
+			throw new Error('Failed to parse table names from wrangler output.');
 		}
 
-		// Create a new database
-		console.log('🔨 Creating new database...');
-		execSync(`wrangler d1 create ${database}`, { stdio: 'inherit' });
+		const retryTables: Set<string> = new Set();
+		const tableNames = tablesResult[0].results.map((row: { name: string }) => row.name);
 
-		console.log('');
-		console.log('✅ Database reset complete!');
-		console.log('');
-		console.log('🔧 Next steps:');
-		console.log('1. Update your wrangler.toml with the new database_id');
-		console.log('2. Run: pnpm db:init to apply migrations');
+		if (tableNames.length === 0) {
+			console.log('No tables found to drop (excluding d1_migrations).');
+		} else {
+			console.log(`Found tables to drop: ${tableNames.join(', ')}`);
+
+			// 2. Drop each table
+			for (const tableName of tableNames) {
+				console.log(`Dropping table: ${tableName}...`);
+				try {
+					execSync(
+						`${wranglerBaseCommand} --command "DROP TABLE IF EXISTS ${tableName};"`,
+						{ encoding: 'utf-8' },
+					);
+					console.log(` -> Table ${tableName} dropped successfully.`);
+				} catch (error) {
+					console.error(`Error dropping table ${tableName}:`, error);
+					// Continue with other tables even if one fails
+					retryTables.add(tableName);
+				}
+			}
+			while (retryTables.size > 0) {
+				console.log(`Retrying to drop tables: ${Array.from(retryTables).join(', ')}...`);
+				for (const tableName of Array.from(retryTables)) {
+					console.log(`Dropping table: ${tableName}...`);
+					try {
+						execSync(
+							`${wranglerBaseCommand} --command "DROP TABLE IF EXISTS ${tableName};"`,
+							{ encoding: 'utf-8' },
+						);
+						console.log(` -> Table ${tableName} dropped successfully.`);
+						retryTables.delete(tableName);
+					} catch (error) {
+						console.error(`Error dropping table ${tableName}:`, error);
+					}
+				}
+			}
+		}
+
+		// 3. Clear migration history (delete all rows from d1_migrations)
+		console.log('Clearing migration history...');
+		try {
+			execSync(
+				`${wranglerBaseCommand} --command "DELETE FROM d1_migrations;"`,
+				{ encoding: 'utf-8' },
+			);
+			console.log(' -> Migration history cleared successfully.');
+		} catch (error) {
+			console.error('Error clearing migration history:', error);
+			throw error;
+		}
+
+		console.log('Database reset completed successfully!');
+		console.log('You can now run migrations to recreate the database schema.');
 
 	} catch (error) {
-		console.error('❌ Failed to reset database');
-		console.error(error);
-		process.exit(1);
-	}
-}
-
-async function main() {
-	const args = process.argv.slice(2);
-	const database = args[0] || 'stargate-game';
-	const force = args.includes('--force');
-
-	if (!force) {
-		const confirmed = await confirmReset(database);
-		if (!confirmed) {
-			console.log('Reset cancelled.');
-			return;
+		console.error('Database reset failed:');
+		if (error instanceof Error) {
+			console.error(error.message);
+			// If the error contains stdout/stderr from execSync, print it
+			if ('stdout' in error) console.error('STDOUT:', (error as any).stdout?.toString());
+			if ('stderr' in error) console.error('STDERR:', (error as any).stderr?.toString());
+		} else {
+			console.error(error);
 		}
+		process.exit(1); // Exit with error code
 	}
-
-	resetDatabase(database);
 }
 
-if (require.main === module) {
-	main();
-}
+resetDatabase();

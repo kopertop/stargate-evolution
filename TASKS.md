@@ -12,10 +12,14 @@
 - [x] Core Game Loop: Implement `Game` class, update/render cycle, and state management
 - [x] Ship Controls: WASD/arrow keys to move ship, basic camera/viewport
 - [x] Starfield/Background: Simple procedural or static starfield
+- [x] Dynamic space background component with star system visuals
 - [x] Backend API: `/hello` endpoint, test frontend-backend connectivity
 - [x] Google Chrome-aware "Continue with Google" login (detects logged-in Google account and offers one-click login with visible email, session persistence, backend validation/refresh)
 - [x] Auto-Generated D1 Migration System: Complete migration from Sequelize to CloudFlare D1 with auto-generated schema from TypeScript models, full test coverage, and working create/get game endpoints
 - [x] **Frontend-First Database Architecture**: Created `packages/db` with WatermelonDB schema, models, and GameService for offline-first game creation
+- [x] Frontend deployment configured with Wrangler for Cloudflare Pages
+- [x] Fixed room creation null handling bug in `use-game-service`
+- [x] Refactored room creation with `roomTemplateToEvent` utility
 
 ## 🚧 In Progress / Next Up
 - [ ] **Convert Frontend to React + PixiJS**: Migrate from vanilla JS to React components with PixiJS integration
