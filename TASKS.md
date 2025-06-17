@@ -20,6 +20,7 @@
 - [x] Frontend deployment configured with Wrangler for Cloudflare Pages
 - [x] Fixed room creation null handling bug in `use-game-service`
 - [x] Refactored room creation with `roomTemplateToEvent` utility
+- [x] Admin portal supports multiple floors with dropdown and elevator room type
 
 ## 🚧 In Progress / Next Up
 - [ ] **Convert Frontend to React + PixiJS**: Migrate from vanilla JS to React components with PixiJS integration
