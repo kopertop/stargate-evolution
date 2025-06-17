@@ -1,7 +1,7 @@
 import type { RoomTechnology } from '@stargate/common/models/room-technology';
 import type { TechnologyTemplate } from '@stargate/common/models/technology-template';
 
-const API_BASE_URL = 'http://localhost:8787';
+const API_BASE_URL = import.meta.env.VITE_PUBLIC_API_URL || 'http://localhost:8787';
 
 export class ApiService {
 	/**
