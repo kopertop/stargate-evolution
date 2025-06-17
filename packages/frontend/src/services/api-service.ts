@@ -12,6 +12,7 @@ class APIService {
 	constructor() {
 		// Use environment variable if available, otherwise default to localhost
 		this.baseUrl = import.meta.env.VITE_PUBLIC_API_URL || 'http://localhost:8787';
+		console.log('[apiService] API URL', this.baseUrl);
 	}
 
 	private async fetchWithCache<T>(endpoint: string): Promise<T> {
