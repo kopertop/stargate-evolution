@@ -107,9 +107,17 @@ export const AdminPage: React.FC = () => {
 	}, [users, userSearch, userFuse]);
 
 	const floors = useMemo(() => {
-		const maxFloor = rooms.reduce((max, r) => Math.max(max, r.floor), 0);
-		return Array.from({ length: maxFloor + 2 }, (_, i) => i);
+		// Get only floors that actually have rooms
+		const existingFloors = Array.from(new Set(rooms.map(r => r.floor))).sort((a, b) => a - b);
+		// If no floors exist, show Floor 0 as default
+		return existingFloors.length > 0 ? existingFloors : [0];
 	}, [rooms]);
+
+	// Get the next available floor number for new floors
+	const nextFloorNumber = useMemo(() => {
+		if (floors.length === 0) return 0;
+		return Math.max(...floors) + 1;
+	}, [floors]);
 
 	const roomTypes = useMemo(() => {
 		const types = Array.from(new Set(rooms.map(r => r.type)));
@@ -129,6 +137,13 @@ export const AdminPage: React.FC = () => {
 		if (!techFuse) return technologies;
 		return techFuse.search(techSearch).map(result => result.item);
 	}, [technologies, techSearch, techFuse]);
+
+	// Update selectedFloor if it's not valid anymore
+	React.useEffect(() => {
+		if (floors.length > 0 && !floors.includes(selectedFloor)) {
+			setSelectedFloor(floors[0]);
+		}
+	}, [floors, selectedFloor]);
 
 	useEffect(() => {
 		// Check if user is admin
@@ -200,10 +215,45 @@ export const AdminPage: React.FC = () => {
 		setSelectedTechForAdd([]);
 	};
 
+	const handleCreateNewFloor = () => {
+		const newFloor = nextFloorNumber;
+		setSelectedFloor(newFloor);
+
+		// Automatically create an elevator room for the new floor
+		const elevatorId = `elevator_floor_${newFloor}`;
+		setEditingItem(null);
+		setIsNewRoom(true);
+		setRoomForm({
+			id: elevatorId,
+			layout_id: 'destiny',
+			type: 'elevator',
+			name: `Elevator Floor ${newFloor}`,
+			description: `Elevator connecting to floor ${newFloor}`,
+			width: 1,
+			height: 1,
+			floor: newFloor,
+			found: false,
+			locked: false,
+			explored: false,
+			base_exploration_time: 2,
+			status: 'ok',
+		});
+		setRoomTechnology([]); // Clear technology for new rooms
+		setSelectedTechForAdd([]); // Clear selected technology for add
+		setShowRoomModal(true);
+	};
+
 	const handleCreateRoom = () => {
-		const gateRoom = rooms.find(r => r.type === 'gate_room');
-		if (gateRoom) {
-			return handleEditRoom(gateRoom);
+		console.log('handleCreateRoom', selectedFloor);
+		if (selectedFloor === 0) {
+			const gateRoom = rooms.find(r => r.type === 'gate_room');
+			if (gateRoom) {
+				return handleEditRoom(gateRoom);
+			}
+		}
+		const editRoom = rooms.find(r => r.floor === selectedFloor);
+		if (editRoom) {
+			return handleEditRoom(editRoom);
 		}
 		setEditingItem(null);
 		setIsNewRoom(false);
@@ -505,16 +555,24 @@ export const AdminPage: React.FC = () => {
 									<div className="d-flex align-items-center">
 										<Form.Select
 											className="me-2"
-											style={{ width: '120px' }}
+											style={{ width: '150px' }}
 											value={selectedFloor}
-											onChange={(e) => setSelectedFloor(parseInt(e.target.value))}
+											onChange={(e) => {
+												const value = e.target.value;
+												if (value === 'new') {
+													handleCreateNewFloor();
+												} else {
+													setSelectedFloor(parseInt(value));
+												}
+											}}
 										>
 											{floors.map((f) => (
 												<option key={f} value={f}>Floor {f}</option>
 											))}
+											<option value="new">+ New Floor</option>
 										</Form.Select>
 										<Button variant="primary" onClick={handleCreateRoom}>
-											<FaPlus /> Add Room
+											Visual Editor
 										</Button>
 									</div>
 								</Card.Header>
@@ -806,6 +864,10 @@ export const AdminPage: React.FC = () => {
 													{floors.map(f => (
 														<option key={f} value={f}>Floor {f}</option>
 													))}
+													{/* Allow creating rooms on the next floor number */}
+													{!floors.includes(nextFloorNumber) && (
+														<option value={nextFloorNumber}>Floor {nextFloorNumber} (New)</option>
+													)}
 												</Form.Select>
 											</Form.Group>
 										</div>
