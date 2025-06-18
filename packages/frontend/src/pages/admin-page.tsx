@@ -56,6 +56,7 @@ export const AdminPage: React.FC = () => {
 	const [userSearch, setUserSearch] = useState('');
 	const [roomSearch, setRoomSearch] = useState('');
 	const [techSearch, setTechSearch] = useState('');
+	const [selectedFloor, setSelectedFloor] = useState(0);
 
 	// Modal states
 	const [showUserModal, setShowUserModal] = useState(false);
@@ -105,17 +106,44 @@ export const AdminPage: React.FC = () => {
 		return userFuse.search(userSearch).map(result => result.item);
 	}, [users, userSearch, userFuse]);
 
+	const floors = useMemo(() => {
+		// Get only floors that actually have rooms
+		const existingFloors = Array.from(new Set(rooms.map(r => r.floor))).sort((a, b) => a - b);
+		// If no floors exist, show Floor 0 as default
+		return existingFloors.length > 0 ? existingFloors : [0];
+	}, [rooms]);
+
+	// Get the next available floor number for new floors
+	const nextFloorNumber = useMemo(() => {
+		if (floors.length === 0) return 0;
+		return Math.max(...floors) + 1;
+	}, [floors]);
+
+	const roomTypes = useMemo(() => {
+		const types = Array.from(new Set(rooms.map(r => r.type)));
+		if (!types.includes('elevator')) types.push('elevator');
+		return types;
+	}, [rooms]);
+
 	const filteredRooms = useMemo(() => {
-		if (!roomSearch.trim()) return rooms;
-		if (!roomFuse) return rooms;
-		return roomFuse.search(roomSearch).map(result => result.item);
-	}, [rooms, roomSearch, roomFuse]);
+		const result = rooms.filter(r => r.floor === selectedFloor);
+		if (!roomSearch.trim()) return result;
+		if (!roomFuse) return result;
+		return roomFuse.search(roomSearch).map(result => result.item).filter(r => r.floor === selectedFloor);
+	}, [rooms, roomSearch, roomFuse, selectedFloor]);
 
 	const filteredTechnologies = useMemo(() => {
 		if (!techSearch.trim()) return technologies;
 		if (!techFuse) return technologies;
 		return techFuse.search(techSearch).map(result => result.item);
 	}, [technologies, techSearch, techFuse]);
+
+	// Update selectedFloor if it's not valid anymore
+	React.useEffect(() => {
+		if (floors.length > 0 && !floors.includes(selectedFloor)) {
+			setSelectedFloor(floors[0]);
+		}
+	}, [floors, selectedFloor]);
 
 	useEffect(() => {
 		// Check if user is admin
@@ -187,10 +215,45 @@ export const AdminPage: React.FC = () => {
 		setSelectedTechForAdd([]);
 	};
 
+	const handleCreateNewFloor = () => {
+		const newFloor = nextFloorNumber;
+		setSelectedFloor(newFloor);
+
+		// Automatically create an elevator room for the new floor
+		const elevatorId = `elevator_floor_${newFloor}`;
+		setEditingItem(null);
+		setIsNewRoom(true);
+		setRoomForm({
+			id: elevatorId,
+			layout_id: 'destiny',
+			type: 'elevator',
+			name: `Elevator Floor ${newFloor}`,
+			description: `Elevator connecting to floor ${newFloor}`,
+			width: 1,
+			height: 1,
+			floor: newFloor,
+			found: false,
+			locked: false,
+			explored: false,
+			base_exploration_time: 2,
+			status: 'ok',
+		});
+		setRoomTechnology([]); // Clear technology for new rooms
+		setSelectedTechForAdd([]); // Clear selected technology for add
+		setShowRoomModal(true);
+	};
+
 	const handleCreateRoom = () => {
-		const gateRoom = rooms.find(r => r.type === 'gate_room');
-		if (gateRoom) {
-			return handleEditRoom(gateRoom);
+		console.log('handleCreateRoom', selectedFloor);
+		if (selectedFloor === 0) {
+			const gateRoom = rooms.find(r => r.type === 'gate_room');
+			if (gateRoom) {
+				return handleEditRoom(gateRoom);
+			}
+		}
+		const editRoom = rooms.find(r => r.floor === selectedFloor);
+		if (editRoom) {
+			return handleEditRoom(editRoom);
 		}
 		setEditingItem(null);
 		setIsNewRoom(false);
@@ -201,7 +264,7 @@ export const AdminPage: React.FC = () => {
 			description: '',
 			width: 1,
 			height: 1,
-			floor: 0,
+			floor: selectedFloor,
 			found: false,
 			locked: false,
 			explored: false,
@@ -489,9 +552,29 @@ export const AdminPage: React.FC = () => {
 							<Card bg="dark" text="light">
 								<Card.Header className="d-flex justify-content-between align-items-center">
 									<h4>Room Templates</h4>
-									<Button variant="primary" onClick={handleCreateRoom}>
-										<FaPlus /> Add Room
-									</Button>
+									<div className="d-flex align-items-center">
+										<Form.Select
+											className="me-2"
+											style={{ width: '150px' }}
+											value={selectedFloor}
+											onChange={(e) => {
+												const value = e.target.value;
+												if (value === 'new') {
+													handleCreateNewFloor();
+												} else {
+													setSelectedFloor(parseInt(value));
+												}
+											}}
+										>
+											{floors.map((f) => (
+												<option key={f} value={f}>Floor {f}</option>
+											))}
+											<option value="new">+ New Floor</option>
+										</Form.Select>
+										<Button variant="primary" onClick={handleCreateRoom}>
+											Visual Editor
+										</Button>
+									</div>
 								</Card.Header>
 								<Card.Body>
 									<InputGroup className="mb-3">
@@ -712,11 +795,14 @@ export const AdminPage: React.FC = () => {
 										<div className="col-md-6">
 											<Form.Group className="mb-3">
 												<Form.Label>Type</Form.Label>
-												<Form.Control
-													type="text"
-													value={roomForm.type || ''}
+												<Form.Select
+													value={roomForm.type || 'basic'}
 													onChange={(e) => setRoomForm({ ...roomForm, type: e.target.value })}
-												/>
+												>
+													{roomTypes.map(type => (
+														<option key={type} value={type}>{type}</option>
+													))}
+												</Form.Select>
 											</Form.Group>
 										</div>
 									</div>
@@ -771,12 +857,18 @@ export const AdminPage: React.FC = () => {
 										<div className="col-md-4">
 											<Form.Group className="mb-3">
 												<Form.Label>Floor</Form.Label>
-												<Form.Control
-													type="number"
-													min="0"
-													value={roomForm.floor || 0}
+												<Form.Select
+													value={roomForm.floor ?? selectedFloor}
 													onChange={(e) => setRoomForm({ ...roomForm, floor: parseInt(e.target.value) })}
-												/>
+												>
+													{floors.map(f => (
+														<option key={f} value={f}>Floor {f}</option>
+													))}
+													{/* Allow creating rooms on the next floor number */}
+													{!floors.includes(nextFloorNumber) && (
+														<option value={nextFloorNumber}>Floor {nextFloorNumber} (New)</option>
+													)}
+												</Form.Select>
 											</Form.Group>
 										</div>
 									</div>
