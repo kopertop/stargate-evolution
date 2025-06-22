@@ -1,7 +1,7 @@
-import { RoomTemplate, DoorTemplate, RoomFurniture, roomToWorldCoordinates } from '@stargate/common';
+import { RoomTemplate, DoorTemplate, RoomFurniture, roomToWorldCoordinates, worldToRoomCoordinates } from '@stargate/common';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Button, Card, Form, Modal, Table } from 'react-bootstrap';
-import { FaPlus, FaEdit, FaTrash } from 'react-icons/fa';
+import { Button, Card, Form, Modal, Table, Nav, Tab, Alert, InputGroup, OverlayTrigger, Tooltip, Dropdown } from 'react-bootstrap';
+import { FaPlus, FaEdit, FaTrash, FaEye } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 
 import { adminService } from '../services/admin-service';
@@ -21,6 +21,16 @@ type DragState = {
 	currentY: number;
 };
 
+type ContextMenu = {
+	visible: boolean;
+	x: number;
+	y: number;
+	type: 'empty' | 'room' | 'door' | 'furniture';
+	targetId?: string;
+	worldX: number;
+	worldY: number;
+};
+
 type Camera = {
 	x: number; // Camera position in world coordinates
 	y: number; // Camera position in world coordinates
@@ -37,6 +47,8 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 	const [selectedFurniture, setSelectedFurniture] = useState<RoomFurniture | null>(null);
 	const [showRoomModal, setShowRoomModal] = useState(false);
 	const [showDoorModal, setShowDoorModal] = useState(false);
+	const [showFurnitureModal, setShowFurnitureModal] = useState(false);
+	const [showInspectorModal, setShowInspectorModal] = useState(false);
 	const [editingRoom, setEditingRoom] = useState<Partial<RoomTemplate>>({});
 	const [editingDoor, setEditingDoor] = useState<Partial<DoorTemplate>>({});
 	const [dragState, setDragState] = useState<DragState>({
@@ -49,6 +61,19 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 		currentY: 0,
 	});
 	const [isMouseDown, setIsMouseDown] = useState(false);
+	const [contextMenu, setContextMenu] = useState<ContextMenu>({
+		visible: false,
+		x: 0,
+		y: 0,
+		type: 'empty',
+		worldX: 0,
+		worldY: 0,
+	});
+	const [editingFurniture, setEditingFurniture] = useState<Partial<RoomFurniture>>({});
+	const [inspectorTarget, setInspectorTarget] = useState<{
+		type: 'room' | 'door' | 'furniture';
+		data: any;
+	} | null>(null);
 
 	// Camera state for pan/zoom
 	const [camera, setCamera] = useState<Camera>({
@@ -151,15 +176,39 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 				setCamera({ x: 0, y: 0, zoom: 1.0 });
 				break;
 			}
+
+			// Inspector shortcut (Cmd+I or Ctrl+I)
+			if ((event.metaKey || event.ctrlKey) && event.key === 'i') {
+				event.preventDefault();
+				handleOpenInspector();
+			}
+
+			// Escape to close context menu and modals
+			if (event.key === 'Escape') {
+				setContextMenu(prev => ({ ...prev, visible: false }));
+				setShowInspectorModal(false);
+			}
 		};
 
 		window.addEventListener('keydown', handleKeyDown);
 		return () => window.removeEventListener('keydown', handleKeyDown);
-	}, []);
+	}, [camera, selectedRoom, selectedDoor, selectedFurniture]);
 
 	useEffect(() => {
 		drawCanvas();
 	}, [floorRooms, floorDoors, floorFurniture, selectedRoom, selectedDoor, selectedFurniture, dragState, camera]);
+
+	// Hide context menu when clicking elsewhere
+	useEffect(() => {
+		const handleClickOutside = () => {
+			setContextMenu(prev => ({ ...prev, visible: false }));
+		};
+
+		if (contextMenu.visible) {
+			document.addEventListener('click', handleClickOutside);
+			return () => document.removeEventListener('click', handleClickOutside);
+		}
+	}, [contextMenu.visible]);
 
 	const loadData = async () => {
 		try {
@@ -408,8 +457,6 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 			screenPos.y < -maxSize || screenPos.y > CANVAS_HEIGHT + maxSize) {
 			return;
 		}
-
-
 
 		const screenWidth = item.width * camera.zoom;
 		const screenHeight = item.height * camera.zoom;
@@ -946,6 +993,280 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 		return floorRooms.filter(room => room.id !== editingDoor.from_room_id);
 	}, [floorRooms, editingDoor.from_room_id]);
 
+	const handleOpenInspector = () => {
+		if (selectedRoom) {
+			setInspectorTarget({ type: 'room', data: selectedRoom });
+			setShowInspectorModal(true);
+		} else if (selectedDoor) {
+			setInspectorTarget({ type: 'door', data: selectedDoor });
+			setShowInspectorModal(true);
+		} else if (selectedFurniture) {
+			setInspectorTarget({ type: 'furniture', data: selectedFurniture });
+			setShowInspectorModal(true);
+		} else {
+			toast.info('Select an item first to open the inspector');
+		}
+	};
+
+	const handleContextMenu = (event: React.MouseEvent<HTMLCanvasElement>) => {
+		event.preventDefault();
+
+		const canvas = canvasRef.current;
+		if (!canvas) return;
+
+		const rect = canvas.getBoundingClientRect();
+		const scaleX = CANVAS_WIDTH / rect.width;
+		const scaleY = CANVAS_HEIGHT / rect.height;
+		const screenX = (event.clientX - rect.left) * scaleX;
+		const screenY = (event.clientY - rect.top) * scaleY;
+
+		// Convert screen coordinates to world coordinates
+		const worldPos = screenToWorld(screenX, screenY);
+
+		// Determine context menu type and target
+		let menuType: 'empty' | 'room' | 'door' | 'furniture' = 'empty';
+		let targetId: string | undefined;
+
+		// Check if right-clicked on furniture first (highest priority)
+		const clickedFurniture = floorFurniture.find(item => {
+			const room = floorRooms.find(r => r.id === item.room_id);
+			if (!room) return false;
+
+			const worldCoords = roomToWorldCoordinates(item, room);
+			const halfWidth = item.width / 2;
+			const halfHeight = item.height / 2;
+
+			return worldPos.x >= worldCoords.worldX - halfWidth &&
+				   worldPos.x <= worldCoords.worldX + halfWidth &&
+				   worldPos.y >= worldCoords.worldY - halfHeight &&
+				   worldPos.y <= worldCoords.worldY + halfHeight;
+		});
+
+		if (clickedFurniture) {
+			menuType = 'furniture';
+			targetId = clickedFurniture.id;
+			setSelectedFurniture(clickedFurniture);
+			setSelectedDoor(null);
+			setSelectedRoom(null);
+		} else {
+			// Check if right-clicked on a door
+			const clickedDoor = floorDoors.find(door => {
+				const halfWidth = door.width / 2;
+				const halfHeight = door.height / 2;
+				return worldPos.x >= door.x - halfWidth && worldPos.x <= door.x + halfWidth &&
+					   worldPos.y >= door.y - halfHeight && worldPos.y <= door.y + halfHeight;
+			});
+
+			if (clickedDoor) {
+				menuType = 'door';
+				targetId = clickedDoor.id;
+				setSelectedDoor(clickedDoor);
+				setSelectedRoom(null);
+				setSelectedFurniture(null);
+			} else {
+				// Check if right-clicked on a room
+				const clickedRoom = floorRooms.find(room => {
+					return worldPos.x >= room.startX && worldPos.x <= room.endX &&
+						   worldPos.y >= room.startY && worldPos.y <= room.endY;
+				});
+
+				if (clickedRoom) {
+					menuType = 'room';
+					targetId = clickedRoom.id;
+					setSelectedRoom(clickedRoom);
+					setSelectedDoor(null);
+					setSelectedFurniture(null);
+				} else {
+					// Clear selections if clicking on empty space
+					setSelectedRoom(null);
+					setSelectedDoor(null);
+					setSelectedFurniture(null);
+				}
+			}
+		}
+
+		// Show context menu at cursor position
+		setContextMenu({
+			visible: true,
+			x: event.clientX,
+			y: event.clientY,
+			type: menuType,
+			targetId,
+			worldX: worldPos.x,
+			worldY: worldPos.y,
+		});
+	};
+
+	const handleContextMenuAction = (action: string) => {
+		setContextMenu(prev => ({ ...prev, visible: false }));
+
+		switch (action) {
+		case 'add-room':
+			handleCreateRoomAtPosition(contextMenu.worldX, contextMenu.worldY);
+			break;
+		case 'add-furniture':
+			handleCreateFurnitureAtPosition(contextMenu.worldX, contextMenu.worldY);
+			break;
+		case 'add-door':
+			handleCreateDoorAtPosition(contextMenu.worldX, contextMenu.worldY);
+			break;
+		case 'modify-room':
+			if (selectedRoom) {
+				setEditingRoom({ ...selectedRoom });
+				setShowRoomModal(true);
+			}
+			break;
+		case 'modify-door':
+			if (selectedDoor) {
+				setEditingDoor({ ...selectedDoor });
+				setShowDoorModal(true);
+			}
+			break;
+		case 'modify-furniture':
+			if (selectedFurniture) {
+				setEditingFurniture({ ...selectedFurniture });
+				setShowFurnitureModal(true);
+			}
+			break;
+		case 'remove-furniture':
+			handleRemoveFurniture();
+			break;
+		case 'remove-door':
+			handleRemoveDoor();
+			break;
+		case 'inspector':
+			handleOpenInspector();
+			break;
+		}
+	};
+
+	const handleCreateRoomAtPosition = (worldX: number, worldY: number) => {
+		// Snap to grid
+		const snappedX = Math.round(worldX / 32) * 32;
+		const snappedY = Math.round(worldY / 32) * 32;
+
+		setEditingRoom({
+			id: `room_${Date.now()}`,
+			layout_id: 'destiny',
+			type: 'corridor',
+			name: 'New Room',
+			description: '',
+			startX: snappedX - 64,
+			endX: snappedX + 64,
+			startY: snappedY - 64,
+			endY: snappedY + 64,
+			floor: selectedFloor,
+			width: 128,
+			height: 128,
+			found: false,
+			locked: false,
+			explored: false,
+			base_exploration_time: 2,
+			status: 'ok',
+			connection_north: null,
+			connection_south: null,
+			connection_east: null,
+			connection_west: null,
+			created_at: Date.now(),
+			updated_at: Date.now(),
+		});
+		setShowRoomModal(true);
+	};
+
+	const handleCreateFurnitureAtPosition = (worldX: number, worldY: number) => {
+		if (!selectedRoom) {
+			toast.error('Please select a room first');
+			return;
+		}
+
+		// Convert world coordinates to room-relative coordinates
+		const roomCoords = worldToRoomCoordinates(worldX, worldY, selectedRoom);
+
+		// Snap to furniture grid (8-point)
+		const snappedX = Math.round(roomCoords.x / 8) * 8;
+		const snappedY = Math.round(roomCoords.y / 8) * 8;
+
+		setEditingFurniture({
+			id: `furniture_${Date.now()}`,
+			room_id: selectedRoom.id,
+			furniture_type: 'console',
+			name: 'New Furniture',
+			description: '',
+			x: snappedX,
+			y: snappedY,
+			width: 32,
+			height: 32,
+			rotation: 0,
+			interactive: true,
+			active: true,
+			discovered: false,
+			power_required: 0,
+			created_at: Date.now(),
+			updated_at: Date.now(),
+		});
+		setShowFurnitureModal(true);
+	};
+
+	const handleCreateDoorAtPosition = (worldX: number, worldY: number) => {
+		if (!selectedRoom) {
+			toast.error('Please select a room first');
+			return;
+		}
+
+		// Snap to door grid (16-point)
+		const snappedX = Math.round(worldX / 16) * 16;
+		const snappedY = Math.round(worldY / 16) * 16;
+
+		setEditingDoor({
+			id: `door_${Date.now()}`,
+			from_room_id: selectedRoom.id,
+			to_room_id: '',
+			x: snappedX,
+			y: snappedY,
+			width: 32,
+			height: 8,
+			rotation: 0,
+			state: 'closed',
+			is_automatic: false,
+			open_direction: 'inward',
+			style: 'standard',
+			power_required: 0,
+			created_at: Date.now(),
+			updated_at: Date.now(),
+		});
+		setShowDoorModal(true);
+	};
+
+	const handleRemoveFurniture = async () => {
+		if (!selectedFurniture) return;
+
+		if (!confirm(`Are you sure you want to remove ${selectedFurniture.name}?`)) return;
+
+		try {
+			await adminService.deleteFurniture(selectedFurniture.id);
+			toast.success('Furniture removed successfully');
+			setSelectedFurniture(null);
+			loadData();
+		} catch (err: any) {
+			toast.error(`Failed to remove furniture: ${err.message}`);
+		}
+	};
+
+	const handleRemoveDoor = async () => {
+		if (!selectedDoor) return;
+
+		if (!confirm('Are you sure you want to remove this door?')) return;
+
+		try {
+			await adminService.deleteDoor(selectedDoor.id);
+			toast.success('Door removed successfully');
+			setSelectedDoor(null);
+			loadData();
+		} catch (err: any) {
+			toast.error(`Failed to remove door: ${err.message}`);
+		}
+	};
+
 	return (
 		<div className="room-builder">
 			<div className="d-flex">
@@ -1132,7 +1453,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 				</div>
 
 				{/* Right Panel - Canvas */}
-				<div className="flex-grow-1" style={{ padding: '1rem' }}>
+				<div className="flex-grow-1 position-relative">
 					{/* Camera Controls */}
 					<div className="mb-2 d-flex align-items-center gap-2">
 						<small className="text-muted">
@@ -1178,172 +1499,122 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 						onMouseDown={handleCanvasMouseDown}
 						onMouseMove={handleCanvasMouseMove}
 						onMouseUp={handleCanvasMouseUp}
-						onContextMenu={(e) => e.preventDefault()} // Prevent right-click menu
+						onContextMenu={handleContextMenu}
 					/>
 					<small className="text-muted d-block mt-1">
 						<strong>Controls:</strong> Mouse wheel to zoom, click and drag to pan<br/>
 						<strong>Moving Items:</strong> Select an item, then drag to move it (snaps to grid)<br/>
+						<strong>Context Menu:</strong> Right-click for options, Cmd+I for inspector<br/>
 						<strong>Keyboard:</strong> WASD/Arrow keys to move, +/- to zoom, 0 to reset view
 					</small>
+
+					{/* Context Menu */}
+					{contextMenu.visible && (
+						<div
+							className="position-fixed bg-dark border rounded shadow-lg"
+							style={{
+								left: contextMenu.x,
+								top: contextMenu.y,
+								zIndex: 1000,
+								minWidth: '180px',
+							}}
+							onClick={(e) => e.stopPropagation()}
+						>
+							<div className="py-1">
+								{contextMenu.type === 'empty' && (
+									<>
+										<button
+											className="dropdown-item text-light bg-transparent border-0 w-100 text-start px-3 py-2"
+											onClick={() => handleContextMenuAction('add-room')}
+										>
+											<FaPlus className="me-2" />Add Room
+										</button>
+									</>
+								)}
+
+								{contextMenu.type === 'room' && (
+									<>
+										<button
+											className="dropdown-item text-light bg-transparent border-0 w-100 text-start px-3 py-2"
+											onClick={() => handleContextMenuAction('add-furniture')}
+										>
+											<FaPlus className="me-2" />Add Furniture
+										</button>
+										<button
+											className="dropdown-item text-light bg-transparent border-0 w-100 text-start px-3 py-2"
+											onClick={() => handleContextMenuAction('add-door')}
+										>
+											<FaPlus className="me-2" />Add Door
+										</button>
+										<hr className="dropdown-divider bg-secondary" />
+										<button
+											className="dropdown-item text-light bg-transparent border-0 w-100 text-start px-3 py-2"
+											onClick={() => handleContextMenuAction('modify-room')}
+										>
+											<FaEdit className="me-2" />Modify Properties
+										</button>
+										<button
+											className="dropdown-item text-light bg-transparent border-0 w-100 text-start px-3 py-2"
+											onClick={() => handleContextMenuAction('inspector')}
+										>
+											<FaEye className="me-2" />Inspector (Cmd+I)
+										</button>
+									</>
+								)}
+
+								{contextMenu.type === 'door' && (
+									<>
+										<button
+											className="dropdown-item text-light bg-transparent border-0 w-100 text-start px-3 py-2"
+											onClick={() => handleContextMenuAction('modify-door')}
+										>
+											<FaEdit className="me-2" />Modify Properties
+										</button>
+										<button
+											className="dropdown-item text-light bg-transparent border-0 w-100 text-start px-3 py-2"
+											onClick={() => handleContextMenuAction('inspector')}
+										>
+											<FaEye className="me-2" />Inspector (Cmd+I)
+										</button>
+										<hr className="dropdown-divider bg-secondary" />
+										<button
+											className="dropdown-item text-danger bg-transparent border-0 w-100 text-start px-3 py-2"
+											onClick={() => handleContextMenuAction('remove-door')}
+										>
+											<FaTrash className="me-2" />Remove Door
+										</button>
+									</>
+								)}
+
+								{contextMenu.type === 'furniture' && (
+									<>
+										<button
+											className="dropdown-item text-light bg-transparent border-0 w-100 text-start px-3 py-2"
+											onClick={() => handleContextMenuAction('modify-furniture')}
+										>
+											<FaEdit className="me-2" />Modify Properties
+										</button>
+										<button
+											className="dropdown-item text-light bg-transparent border-0 w-100 text-start px-3 py-2"
+											onClick={() => handleContextMenuAction('inspector')}
+										>
+											<FaEye className="me-2" />Inspector (Cmd+I)
+										</button>
+										<hr className="dropdown-divider bg-secondary" />
+										<button
+											className="dropdown-item text-danger bg-transparent border-0 w-100 text-start px-3 py-2"
+											onClick={() => handleContextMenuAction('remove-furniture')}
+										>
+											<FaTrash className="me-2" />Remove Furniture
+										</button>
+									</>
+								)}
+							</div>
+						</div>
+					)}
 				</div>
 			</div>
 
-			{/* Room Modal */}
-			<Modal show={showRoomModal} onHide={() => setShowRoomModal(false)} size="lg">
-				<Modal.Header closeButton>
-					<Modal.Title>Room Properties</Modal.Title>
-				</Modal.Header>
-				<Modal.Body>
-					<Form>
-						<div className="row">
-							<div className="col-md-6">
-								<Form.Group className="mb-3">
-									<Form.Label>Room ID</Form.Label>
-									<Form.Control
-										type="text"
-										value={editingRoom.id || ''}
-										onChange={(e) => setEditingRoom({...editingRoom, id: e.target.value})}
-									/>
-								</Form.Group>
-							</div>
-							<div className="col-md-6">
-								<Form.Group className="mb-3">
-									<Form.Label>Name</Form.Label>
-									<Form.Control
-										type="text"
-										value={editingRoom.name || ''}
-										onChange={(e) => setEditingRoom({...editingRoom, name: e.target.value})}
-									/>
-								</Form.Group>
-							</div>
-						</div>
-
-						<Form.Group className="mb-3">
-							<Form.Label>Description</Form.Label>
-							<Form.Control
-								as="textarea"
-								rows={2}
-								value={editingRoom.description || ''}
-								onChange={(e) => setEditingRoom({...editingRoom, description: e.target.value})}
-							/>
-						</Form.Group>
-
-						<div className="row">
-							<div className="col-md-3">
-								<Form.Group className="mb-3">
-									<Form.Label>Start X</Form.Label>
-									<Form.Control
-										type="number"
-										value={editingRoom.startX || 0}
-										onChange={(e) => setEditingRoom({...editingRoom, startX: parseInt(e.target.value)})}
-									/>
-								</Form.Group>
-							</div>
-							<div className="col-md-3">
-								<Form.Group className="mb-3">
-									<Form.Label>End X</Form.Label>
-									<Form.Control
-										type="number"
-										value={editingRoom.endX || 0}
-										onChange={(e) => setEditingRoom({...editingRoom, endX: parseInt(e.target.value)})}
-									/>
-								</Form.Group>
-							</div>
-							<div className="col-md-3">
-								<Form.Group className="mb-3">
-									<Form.Label>Start Y</Form.Label>
-									<Form.Control
-										type="number"
-										value={editingRoom.startY || 0}
-										onChange={(e) => setEditingRoom({...editingRoom, startY: parseInt(e.target.value)})}
-									/>
-								</Form.Group>
-							</div>
-							<div className="col-md-3">
-								<Form.Group className="mb-3">
-									<Form.Label>End Y</Form.Label>
-									<Form.Control
-										type="number"
-										value={editingRoom.endY || 0}
-										onChange={(e) => setEditingRoom({...editingRoom, endY: parseInt(e.target.value)})}
-									/>
-								</Form.Group>
-							</div>
-						</div>
-
-						<div className="row">
-							<div className="col-md-4">
-								<Form.Group className="mb-3">
-									<Form.Label>Type</Form.Label>
-									<Form.Select
-										value={editingRoom.type || 'corridor'}
-										onChange={(e) => setEditingRoom({...editingRoom, type: e.target.value})}
-									>
-										<option value="corridor">Corridor</option>
-										<option value="bridge">Bridge</option>
-										<option value="quarters">Quarters</option>
-										<option value="hydroponics">Hydroponics</option>
-										<option value="gate_room">Gate Room</option>
-										<option value="elevator">Elevator</option>
-									</Form.Select>
-								</Form.Group>
-							</div>
-							<div className="col-md-4">
-								<Form.Group className="mb-3">
-									<Form.Label>Floor</Form.Label>
-									<Form.Control
-										type="number"
-										value={editingRoom.floor || 0}
-										onChange={(e) => setEditingRoom({...editingRoom, floor: parseInt(e.target.value)})}
-									/>
-								</Form.Group>
-							</div>
-							<div className="col-md-4">
-								<Form.Group className="mb-3">
-									<Form.Label>Status</Form.Label>
-									<Form.Select
-										value={editingRoom.status || 'ok'}
-										onChange={(e) => setEditingRoom({...editingRoom, status: e.target.value})}
-									>
-										<option value="ok">OK</option>
-										<option value="damaged">Damaged</option>
-										<option value="destroyed">Destroyed</option>
-									</Form.Select>
-								</Form.Group>
-							</div>
-						</div>
-					</Form>
-				</Modal.Body>
-				<Modal.Footer>
-					<Button variant="secondary" onClick={() => setShowRoomModal(false)}>
-						Cancel
-					</Button>
-					<Button variant="primary" onClick={async () => {
-						try {
-							// Calculate legacy width/height for compatibility
-							const roomData = {
-								...editingRoom,
-								width: (editingRoom.endX || 0) - (editingRoom.startX || 0),
-								height: (editingRoom.endY || 0) - (editingRoom.startY || 0),
-							};
-
-							if (selectedRoom?.id === editingRoom.id) {
-								await adminService.updateRoom(editingRoom.id!, roomData);
-								toast.success('Room updated successfully');
-							} else {
-								await adminService.createRoom(roomData);
-								toast.success('Room created successfully');
-							}
-							setShowRoomModal(false);
-							loadData();
-						} catch (err: any) {
-							toast.error(err.message || 'Failed to save room');
-						}
-					}}>
-						Save Room
-					</Button>
-				</Modal.Footer>
-			</Modal>
 
 			{/* Door Modal */}
 			<Modal show={showDoorModal} onHide={() => setShowDoorModal(false)}>
@@ -1454,7 +1725,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 									<Form.Label>State</Form.Label>
 									<Form.Select
 										value={editingDoor.state || 'closed'}
-										onChange={(e) => setEditingDoor({...editingDoor, state: e.target.value as any})}
+										onChange={(e) => setEditingDoor({...editingDoor, state: e.target.value as 'opened' | 'closed' | 'locked'})}
 									>
 										<option value="closed">Closed</option>
 										<option value="opened">Opened</option>
@@ -1480,7 +1751,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 									<Form.Label>Direction</Form.Label>
 									<Form.Select
 										value={editingDoor.open_direction || 'inward'}
-										onChange={(e) => setEditingDoor({...editingDoor, open_direction: e.target.value as any})}
+										onChange={(e) => setEditingDoor({...editingDoor, open_direction: e.target.value as 'inward' | 'outward' | 'sliding'})}
 									>
 										<option value="inward">Inward</option>
 										<option value="outward">Outward</option>
@@ -1518,6 +1789,1110 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 						}
 					}}>
 						Save Door
+					</Button>
+				</Modal.Footer>
+			</Modal>
+
+			{/* Furniture Modal */}
+			<Modal show={showFurnitureModal} onHide={() => setShowFurnitureModal(false)}>
+				<Modal.Header closeButton>
+					<Modal.Title>Furniture Properties</Modal.Title>
+				</Modal.Header>
+				<Modal.Body>
+					<Form>
+						<div className="row">
+							<div className="col-md-6">
+								<Form.Group className="mb-3">
+									<Form.Label>Furniture ID</Form.Label>
+									<Form.Control
+										type="text"
+										value={editingFurniture.id || ''}
+										onChange={(e) => setEditingFurniture({...editingFurniture, id: e.target.value})}
+									/>
+								</Form.Group>
+							</div>
+							<div className="col-md-6">
+								<Form.Group className="mb-3">
+									<Form.Label>Name</Form.Label>
+									<Form.Control
+										type="text"
+										value={editingFurniture.name || ''}
+										onChange={(e) => setEditingFurniture({...editingFurniture, name: e.target.value})}
+									/>
+								</Form.Group>
+							</div>
+						</div>
+
+						<Form.Group className="mb-3">
+							<Form.Label>Description</Form.Label>
+							<Form.Control
+								as="textarea"
+								rows={2}
+								value={editingFurniture.description || ''}
+								onChange={(e) => setEditingFurniture({...editingFurniture, description: e.target.value})}
+							/>
+						</Form.Group>
+
+						<div className="row">
+							<div className="col-md-6">
+								<Form.Group className="mb-3">
+									<Form.Label>Type</Form.Label>
+									<Form.Select
+										value={editingFurniture.furniture_type || 'console'}
+										onChange={(e) => setEditingFurniture({...editingFurniture, furniture_type: e.target.value})}
+									>
+										<option value="console">Console</option>
+										<option value="stargate_dialer">Stargate Dialer</option>
+										<option value="bed">Bed</option>
+										<option value="table">Table</option>
+										<option value="chair">Chair</option>
+										<option value="storage">Storage</option>
+										<option value="workstation">Workstation</option>
+									</Form.Select>
+								</Form.Group>
+							</div>
+							<div className="col-md-6">
+								<Form.Group className="mb-3">
+									<Form.Label>Room</Form.Label>
+									<Form.Select
+										value={editingFurniture.room_id || ''}
+										onChange={(e) => setEditingFurniture({...editingFurniture, room_id: e.target.value})}
+									>
+										{floorRooms.map(room => (
+											<option key={room.id} value={room.id}>{room.name}</option>
+										))}
+									</Form.Select>
+								</Form.Group>
+							</div>
+						</div>
+
+						<div className="row">
+							<div className="col-md-3">
+								<Form.Group className="mb-3">
+									<Form.Label>X Position</Form.Label>
+									<Form.Control
+										type="number"
+										step="8"
+										value={editingFurniture.x || 0}
+										onChange={(e) => setEditingFurniture({...editingFurniture, x: parseInt(e.target.value)})}
+									/>
+								</Form.Group>
+							</div>
+							<div className="col-md-3">
+								<Form.Group className="mb-3">
+									<Form.Label>Y Position</Form.Label>
+									<Form.Control
+										type="number"
+										step="8"
+										value={editingFurniture.y || 0}
+										onChange={(e) => setEditingFurniture({...editingFurniture, y: parseInt(e.target.value)})}
+									/>
+								</Form.Group>
+							</div>
+							<div className="col-md-3">
+								<Form.Group className="mb-3">
+									<Form.Label>Width</Form.Label>
+									<Form.Control
+										type="number"
+										step="8"
+										value={editingFurniture.width || 32}
+										onChange={(e) => setEditingFurniture({...editingFurniture, width: parseInt(e.target.value)})}
+									/>
+								</Form.Group>
+							</div>
+							<div className="col-md-3">
+								<Form.Group className="mb-3">
+									<Form.Label>Height</Form.Label>
+									<Form.Control
+										type="number"
+										step="8"
+										value={editingFurniture.height || 32}
+										onChange={(e) => setEditingFurniture({...editingFurniture, height: parseInt(e.target.value)})}
+									/>
+								</Form.Group>
+							</div>
+						</div>
+
+						<div className="row">
+							<div className="col-md-4">
+								<Form.Group className="mb-3">
+									<Form.Label>Rotation</Form.Label>
+									<Form.Select
+										value={editingFurniture.rotation || 0}
+										onChange={(e) => setEditingFurniture({...editingFurniture, rotation: parseInt(e.target.value)})}
+									>
+										<option value={0}>0° (North)</option>
+										<option value={90}>90° (East)</option>
+										<option value={180}>180° (South)</option>
+										<option value={270}>270° (West)</option>
+									</Form.Select>
+								</Form.Group>
+							</div>
+							<div className="col-md-4">
+								<Form.Group className="mb-3">
+									<Form.Label>Power Required</Form.Label>
+									<Form.Control
+										type="number"
+										value={editingFurniture.power_required || 0}
+										onChange={(e) => setEditingFurniture({...editingFurniture, power_required: parseInt(e.target.value)})}
+									/>
+								</Form.Group>
+							</div>
+							<div className="col-md-4">
+								<Form.Group className="mb-3">
+									<Form.Label>Color</Form.Label>
+									<Form.Control
+										type="color"
+										value={editingFurniture.color || '#ffffff'}
+										onChange={(e) => setEditingFurniture({...editingFurniture, color: e.target.value})}
+									/>
+								</Form.Group>
+							</div>
+						</div>
+
+						<div className="row">
+							<div className="col-md-4">
+								<Form.Group className="mb-3">
+									<Form.Check
+										type="checkbox"
+										label="Interactive"
+										checked={editingFurniture.interactive || false}
+										onChange={(e) => setEditingFurniture({...editingFurniture, interactive: e.target.checked})}
+									/>
+								</Form.Group>
+							</div>
+							<div className="col-md-4">
+								<Form.Check
+									type="checkbox"
+									label="Active"
+									checked={editingFurniture.active || false}
+									onChange={(e) => setEditingFurniture({...editingFurniture, active: e.target.checked})}
+								/>
+							</div>
+							<div className="col-md-4">
+								<Form.Check
+									type="checkbox"
+									label="Discovered"
+									checked={editingFurniture.discovered || false}
+									onChange={(e) => setEditingFurniture({...editingFurniture, discovered: e.target.checked})}
+								/>
+							</div>
+						</div>
+					</Form>
+				</Modal.Body>
+				<Modal.Footer>
+					<Button variant="secondary" onClick={() => setShowFurnitureModal(false)}>
+						Cancel
+					</Button>
+					<Button variant="primary" onClick={async () => {
+						try {
+							if (selectedFurniture?.id === editingFurniture.id) {
+								await adminService.updateFurniture(editingFurniture.id!, editingFurniture);
+								toast.success('Furniture updated successfully');
+							} else {
+								await adminService.createFurniture(editingFurniture);
+								toast.success('Furniture created successfully');
+							}
+							setShowFurnitureModal(false);
+							loadData();
+						} catch (err: any) {
+							toast.error(err.message || 'Failed to save furniture');
+						}
+					}}>
+						Save Furniture
+					</Button>
+				</Modal.Footer>
+			</Modal>
+
+			{/* Room Modal */}
+			<Modal show={showRoomModal} onHide={() => setShowRoomModal(false)}>
+				<Modal.Header closeButton>
+					<Modal.Title>Room Properties</Modal.Title>
+				</Modal.Header>
+				<Modal.Body>
+					<Form>
+						<div className="row">
+							<div className="col-md-6">
+								<Form.Group className="mb-3">
+									<Form.Label>Room ID</Form.Label>
+									<Form.Control
+										type="text"
+										value={editingRoom.id || ''}
+										onChange={(e) => setEditingRoom({...editingRoom, id: e.target.value})}
+									/>
+								</Form.Group>
+							</div>
+							<div className="col-md-6">
+								<Form.Group className="mb-3">
+									<Form.Label>Name</Form.Label>
+									<Form.Control
+										type="text"
+										value={editingRoom.name || ''}
+										onChange={(e) => setEditingRoom({...editingRoom, name: e.target.value})}
+									/>
+								</Form.Group>
+							</div>
+						</div>
+
+						<Form.Group className="mb-3">
+							<Form.Label>Description</Form.Label>
+							<Form.Control
+								as="textarea"
+								rows={2}
+								value={editingRoom.description || ''}
+								onChange={(e) => setEditingRoom({...editingRoom, description: e.target.value})}
+							/>
+						</Form.Group>
+
+						<div className="row">
+							<div className="col-md-4">
+								<Form.Group className="mb-3">
+									<Form.Label>Layout ID</Form.Label>
+									<Form.Select
+										value={editingRoom.layout_id || 'destiny'}
+										onChange={(e) => setEditingRoom({...editingRoom, layout_id: e.target.value})}
+									>
+										<option value="destiny">Destiny</option>
+										<option value="atlantis">Atlantis</option>
+									</Form.Select>
+								</Form.Group>
+							</div>
+							<div className="col-md-4">
+								<Form.Group className="mb-3">
+									<Form.Label>Type</Form.Label>
+									<Form.Select
+										value={editingRoom.type || 'corridor'}
+										onChange={(e) => setEditingRoom({...editingRoom, type: e.target.value})}
+									>
+										<option value="corridor">Corridor</option>
+										<option value="gate_room">Gate Room</option>
+										<option value="quarters">Quarters</option>
+										<option value="bridge">Bridge</option>
+										<option value="hydroponics">Hydroponics</option>
+										<option value="medical">Medical</option>
+										<option value="storage">Storage</option>
+										<option value="elevator">Elevator</option>
+									</Form.Select>
+								</Form.Group>
+							</div>
+							<div className="col-md-4">
+								<Form.Group className="mb-3">
+									<Form.Label>Floor</Form.Label>
+									<Form.Control
+										type="number"
+										value={editingRoom.floor || selectedFloor}
+										onChange={(e) => setEditingRoom({...editingRoom, floor: parseInt(e.target.value)})}
+									/>
+								</Form.Group>
+							</div>
+						</div>
+
+						<h6>Coordinates (SpriteKit - Center Origin)</h6>
+						<div className="row">
+							<div className="col-md-3">
+								<Form.Group className="mb-3">
+									<Form.Label>Start X</Form.Label>
+									<Form.Control
+										type="number"
+										step="32"
+										value={editingRoom.startX || 0}
+										onChange={(e) => {
+											const startX = parseInt(e.target.value);
+											const width = (editingRoom.endX || 0) - startX;
+											setEditingRoom({...editingRoom, startX, width});
+										}}
+									/>
+								</Form.Group>
+							</div>
+							<div className="col-md-3">
+								<Form.Group className="mb-3">
+									<Form.Label>End X</Form.Label>
+									<Form.Control
+										type="number"
+										step="32"
+										value={editingRoom.endX || 0}
+										onChange={(e) => {
+											const endX = parseInt(e.target.value);
+											const width = endX - (editingRoom.startX || 0);
+											setEditingRoom({...editingRoom, endX, width});
+										}}
+									/>
+								</Form.Group>
+							</div>
+							<div className="col-md-3">
+								<Form.Group className="mb-3">
+									<Form.Label>Start Y</Form.Label>
+									<Form.Control
+										type="number"
+										step="32"
+										value={editingRoom.startY || 0}
+										onChange={(e) => {
+											const startY = parseInt(e.target.value);
+											const height = (editingRoom.endY || 0) - startY;
+											setEditingRoom({...editingRoom, startY, height});
+										}}
+									/>
+								</Form.Group>
+							</div>
+							<div className="col-md-3">
+								<Form.Group className="mb-3">
+									<Form.Label>End Y</Form.Label>
+									<Form.Control
+										type="number"
+										step="32"
+										value={editingRoom.endY || 0}
+										onChange={(e) => {
+											const endY = parseInt(e.target.value);
+											const height = endY - (editingRoom.startY || 0);
+											setEditingRoom({...editingRoom, endY, height});
+										}}
+									/>
+								</Form.Group>
+							</div>
+						</div>
+
+						<div className="row">
+							<div className="col-md-6">
+								<Form.Group className="mb-3">
+									<Form.Label>Width (calculated)</Form.Label>
+									<Form.Control
+										type="number"
+										value={(editingRoom.endX || 0) - (editingRoom.startX || 0)}
+										disabled
+									/>
+								</Form.Group>
+							</div>
+							<div className="col-md-6">
+								<Form.Group className="mb-3">
+									<Form.Label>Height (calculated)</Form.Label>
+									<Form.Control
+										type="number"
+										value={(editingRoom.endY || 0) - (editingRoom.startY || 0)}
+										disabled
+									/>
+								</Form.Group>
+							</div>
+						</div>
+
+						<div className="row">
+							<div className="col-md-6">
+								<Form.Group className="mb-3">
+									<Form.Label>Status</Form.Label>
+									<Form.Select
+										value={editingRoom.status || 'ok'}
+										onChange={(e) => setEditingRoom({...editingRoom, status: e.target.value})}
+									>
+										<option value="ok">OK</option>
+										<option value="damaged">Damaged</option>
+										<option value="destroyed">Destroyed</option>
+										<option value="unknown">Unknown</option>
+									</Form.Select>
+								</Form.Group>
+							</div>
+							<div className="col-md-6">
+								<Form.Group className="mb-3">
+									<Form.Label>Base Exploration Time</Form.Label>
+									<Form.Control
+										type="number"
+										min="0"
+										value={editingRoom.base_exploration_time || 2}
+										onChange={(e) => setEditingRoom({...editingRoom, base_exploration_time: parseInt(e.target.value)})}
+									/>
+								</Form.Group>
+							</div>
+						</div>
+
+						<div className="row">
+							<div className="col-md-4">
+								<Form.Check
+									type="checkbox"
+									label="Found"
+									checked={editingRoom.found || false}
+									onChange={(e) => setEditingRoom({...editingRoom, found: e.target.checked})}
+								/>
+							</div>
+							<div className="col-md-4">
+								<Form.Check
+									type="checkbox"
+									label="Locked"
+									checked={editingRoom.locked || false}
+									onChange={(e) => setEditingRoom({...editingRoom, locked: e.target.checked})}
+								/>
+							</div>
+							<div className="col-md-4">
+								<Form.Check
+									type="checkbox"
+									label="Explored"
+									checked={editingRoom.explored || false}
+									onChange={(e) => setEditingRoom({...editingRoom, explored: e.target.checked})}
+								/>
+							</div>
+						</div>
+					</Form>
+				</Modal.Body>
+				<Modal.Footer>
+					<Button variant="secondary" onClick={() => setShowRoomModal(false)}>
+						Cancel
+					</Button>
+					<Button variant="primary" onClick={async () => {
+						try {
+							// Prepare room data - remove calculated fields and clean up undefined values
+							const { width, height, ...rawRoomData } = editingRoom;
+
+							// Clean up the data to avoid sending undefined values
+							const roomData = {
+								id: rawRoomData.id || `room_${Date.now()}`,
+								layout_id: rawRoomData.layout_id || 'destiny',
+								type: rawRoomData.type || 'corridor',
+								name: rawRoomData.name || 'New Room',
+								description: rawRoomData.description || '',
+								startX: rawRoomData.startX || 0,
+								endX: rawRoomData.endX || 100,
+								startY: rawRoomData.startY || 0,
+								endY: rawRoomData.endY || 100,
+								floor: rawRoomData.floor ?? selectedFloor,
+								found: rawRoomData.found || false,
+								locked: rawRoomData.locked || false,
+								explored: rawRoomData.explored || false,
+								base_exploration_time: rawRoomData.base_exploration_time || 2,
+								status: rawRoomData.status || 'ok',
+								image: rawRoomData.image || null,
+								exploration_data: rawRoomData.exploration_data || null,
+								connection_north: rawRoomData.connection_north || null,
+								connection_south: rawRoomData.connection_south || null,
+								connection_east: rawRoomData.connection_east || null,
+								connection_west: rawRoomData.connection_west || null,
+								created_at: rawRoomData.created_at || Date.now(),
+								updated_at: Date.now(), // Always update the timestamp
+							};
+
+							console.log('Sending room data:', roomData);
+
+							if (selectedRoom?.id === editingRoom.id) {
+								await adminService.updateRoom(editingRoom.id!, roomData);
+								toast.success('Room updated successfully');
+							} else {
+								await adminService.createRoom(roomData);
+								toast.success('Room created successfully');
+							}
+
+							// Only close modal and reload data on success
+							setShowRoomModal(false);
+							loadData();
+						} catch (err: any) {
+							console.error('Room save error:', err);
+
+							// The admin service already extracts the error message
+							const errorMessage = err?.message || 'Failed to save room';
+
+							toast.error(errorMessage);
+							// Don't close modal on error - let user see the error and try again
+						}
+					}}>
+						Save Room
+					</Button>
+				</Modal.Footer>
+			</Modal>
+
+			{/* Door Modal */}
+			<Modal show={showDoorModal} onHide={() => setShowDoorModal(false)}>
+				<Modal.Header closeButton>
+					<Modal.Title>Door Properties</Modal.Title>
+				</Modal.Header>
+				<Modal.Body>
+					<Form>
+						<div className="row">
+							<div className="col-md-6">
+								<Form.Group className="mb-3">
+									<Form.Label>Door ID</Form.Label>
+									<Form.Control
+										type="text"
+										value={editingDoor.id || ''}
+										onChange={(e) => setEditingDoor({...editingDoor, id: e.target.value})}
+									/>
+								</Form.Group>
+							</div>
+							<div className="col-md-6">
+								<Form.Group className="mb-3">
+									<Form.Label>Name</Form.Label>
+									<Form.Control
+										type="text"
+										value={editingDoor.name || ''}
+										onChange={(e) => setEditingDoor({...editingDoor, name: e.target.value})}
+									/>
+								</Form.Group>
+							</div>
+						</div>
+
+						<div className="row">
+							<div className="col-md-6">
+								<Form.Group className="mb-3">
+									<Form.Label>From Room</Form.Label>
+									<Form.Select
+										value={editingDoor.from_room_id || ''}
+										onChange={(e) => setEditingDoor({...editingDoor, from_room_id: e.target.value})}
+									>
+										<option value="">Select Room</option>
+										{floorRooms.map(room => (
+											<option key={room.id} value={room.id}>{room.name || room.id}</option>
+										))}
+									</Form.Select>
+								</Form.Group>
+							</div>
+							<div className="col-md-6">
+								<Form.Group className="mb-3">
+									<Form.Label>To Room</Form.Label>
+									<Form.Select
+										value={editingDoor.to_room_id || ''}
+										onChange={(e) => setEditingDoor({...editingDoor, to_room_id: e.target.value})}
+									>
+										<option value="">Select Room</option>
+										{floorRooms.map(room => (
+											<option key={room.id} value={room.id}>{room.name || room.id}</option>
+										))}
+									</Form.Select>
+								</Form.Group>
+							</div>
+						</div>
+
+						<div className="row">
+							<div className="col-md-6">
+								<Form.Group className="mb-3">
+									<Form.Label>Style</Form.Label>
+									<Form.Select
+										value={editingDoor.style || 'standard'}
+										onChange={(e) => setEditingDoor({...editingDoor, style: e.target.value})}
+									>
+										<option value="standard">Standard</option>
+										<option value="blast_door">Blast Door</option>
+										<option value="airlock">Airlock</option>
+									</Form.Select>
+								</Form.Group>
+							</div>
+							<div className="col-md-6">
+								<Form.Group className="mb-3">
+									<Form.Label>Open Direction</Form.Label>
+									<Form.Select
+										value={editingDoor.open_direction || 'inward'}
+										onChange={(e) => setEditingDoor({...editingDoor, open_direction: e.target.value})}
+									>
+										<option value="inward">Inward</option>
+										<option value="outward">Outward</option>
+										<option value="sliding">Sliding</option>
+									</Form.Select>
+								</Form.Group>
+							</div>
+						</div>
+
+						<h6>Position & Size</h6>
+						<div className="row">
+							<div className="col-md-3">
+								<Form.Group className="mb-3">
+									<Form.Label>X Position</Form.Label>
+									<Form.Control
+										type="number"
+										step="16"
+										value={editingDoor.x || 0}
+										onChange={(e) => setEditingDoor({...editingDoor, x: parseInt(e.target.value)})}
+									/>
+								</Form.Group>
+							</div>
+							<div className="col-md-3">
+								<Form.Group className="mb-3">
+									<Form.Label>Y Position</Form.Label>
+									<Form.Control
+										type="number"
+										step="16"
+										value={editingDoor.y || 0}
+										onChange={(e) => setEditingDoor({...editingDoor, y: parseInt(e.target.value)})}
+									/>
+								</Form.Group>
+							</div>
+							<div className="col-md-3">
+								<Form.Group className="mb-3">
+									<Form.Label>Width</Form.Label>
+									<Form.Control
+										type="number"
+										min="16"
+										step="16"
+										value={editingDoor.width || 32}
+										onChange={(e) => setEditingDoor({...editingDoor, width: parseInt(e.target.value)})}
+									/>
+								</Form.Group>
+							</div>
+							<div className="col-md-3">
+								<Form.Group className="mb-3">
+									<Form.Label>Height</Form.Label>
+									<Form.Control
+										type="number"
+										min="16"
+										step="16"
+										value={editingDoor.height || 64}
+										onChange={(e) => setEditingDoor({...editingDoor, height: parseInt(e.target.value)})}
+									/>
+								</Form.Group>
+							</div>
+						</div>
+
+						<div className="row">
+							<div className="col-md-6">
+								<Form.Group className="mb-3">
+									<Form.Label>Rotation</Form.Label>
+									<Form.Select
+										value={editingDoor.rotation || 0}
+										onChange={(e) => setEditingDoor({...editingDoor, rotation: parseInt(e.target.value)})}
+									>
+										<option value={0}>0° (Horizontal)</option>
+										<option value={90}>90° (Vertical)</option>
+										<option value={180}>180° (Horizontal Flipped)</option>
+										<option value={270}>270° (Vertical Flipped)</option>
+									</Form.Select>
+								</Form.Group>
+							</div>
+							<div className="col-md-6">
+								<Form.Group className="mb-3">
+									<Form.Label>State</Form.Label>
+									<Form.Select
+										value={editingDoor.state || 'closed'}
+										onChange={(e) => setEditingDoor({...editingDoor, state: e.target.value})}
+									>
+										<option value="opened">Opened</option>
+										<option value="closed">Closed</option>
+										<option value="locked">Locked</option>
+									</Form.Select>
+								</Form.Group>
+							</div>
+						</div>
+
+						<div className="row">
+							<div className="col-md-6">
+								<Form.Group className="mb-3">
+									<Form.Label>Power Required</Form.Label>
+									<Form.Control
+										type="number"
+										min="0"
+										value={editingDoor.power_required || 0}
+										onChange={(e) => setEditingDoor({...editingDoor, power_required: parseInt(e.target.value)})}
+									/>
+								</Form.Group>
+							</div>
+							<div className="col-md-6">
+								<Form.Group className="mb-3">
+									<Form.Label>Color (Hex)</Form.Label>
+									<Form.Control
+										type="text"
+										placeholder="#ffffff"
+										value={editingDoor.color || ''}
+										onChange={(e) => setEditingDoor({...editingDoor, color: e.target.value})}
+									/>
+								</Form.Group>
+							</div>
+						</div>
+
+						<div className="row">
+							<div className="col-md-6">
+								<Form.Check
+									type="checkbox"
+									label="Automatic Door"
+									checked={editingDoor.is_automatic || false}
+									onChange={(e) => setEditingDoor({...editingDoor, is_automatic: e.target.checked})}
+								/>
+							</div>
+							<div className="col-md-6">
+								<Form.Group className="mb-3">
+									<Form.Label>Sound Effect</Form.Label>
+									<Form.Control
+										type="text"
+										value={editingDoor.sound_effect || ''}
+										onChange={(e) => setEditingDoor({...editingDoor, sound_effect: e.target.value})}
+									/>
+								</Form.Group>
+							</div>
+						</div>
+					</Form>
+				</Modal.Body>
+				<Modal.Footer>
+					<Button variant="secondary" onClick={() => setShowDoorModal(false)}>
+						Cancel
+					</Button>
+					<Button variant="primary" onClick={async () => {
+						try {
+							if (selectedDoor?.id === editingDoor.id) {
+								await adminService.updateDoor(editingDoor.id!, editingDoor);
+								toast.success('Door updated successfully');
+							} else {
+								await adminService.createDoor(editingDoor);
+								toast.success('Door created successfully');
+							}
+							setShowDoorModal(false);
+							loadData();
+						} catch (err: any) {
+							toast.error(err.message || 'Failed to save door');
+						}
+					}}>
+						Save Door
+					</Button>
+				</Modal.Footer>
+			</Modal>
+
+			{/* Furniture Modal */}
+			<Modal show={showFurnitureModal} onHide={() => setShowFurnitureModal(false)}>
+				<Modal.Header closeButton>
+					<Modal.Title>Furniture Properties</Modal.Title>
+				</Modal.Header>
+				<Modal.Body>
+					<Form>
+						<div className="row">
+							<div className="col-md-6">
+								<Form.Group className="mb-3">
+									<Form.Label>Furniture ID</Form.Label>
+									<Form.Control
+										type="text"
+										value={editingFurniture.id || ''}
+										onChange={(e) => setEditingFurniture({...editingFurniture, id: e.target.value})}
+									/>
+								</Form.Group>
+							</div>
+							<div className="col-md-6">
+								<Form.Group className="mb-3">
+									<Form.Label>Name</Form.Label>
+									<Form.Control
+										type="text"
+										value={editingFurniture.name || ''}
+										onChange={(e) => setEditingFurniture({...editingFurniture, name: e.target.value})}
+									/>
+								</Form.Group>
+							</div>
+						</div>
+
+						<Form.Group className="mb-3">
+							<Form.Label>Description</Form.Label>
+							<Form.Control
+								as="textarea"
+								rows={2}
+								value={editingFurniture.description || ''}
+								onChange={(e) => setEditingFurniture({...editingFurniture, description: e.target.value})}
+							/>
+						</Form.Group>
+
+						<div className="row">
+							<div className="col-md-6">
+								<Form.Group className="mb-3">
+									<Form.Label>Room</Form.Label>
+									<Form.Select
+										value={editingFurniture.room_id || ''}
+										onChange={(e) => setEditingFurniture({...editingFurniture, room_id: e.target.value})}
+									>
+										<option value="">Select Room</option>
+										{floorRooms.map(room => (
+											<option key={room.id} value={room.id}>{room.name || room.id}</option>
+										))}
+									</Form.Select>
+								</Form.Group>
+							</div>
+							<div className="col-md-6">
+								<Form.Group className="mb-3">
+									<Form.Label>Type</Form.Label>
+									<Form.Select
+										value={editingFurniture.type || 'generic'}
+										onChange={(e) => setEditingFurniture({...editingFurniture, type: e.target.value})}
+									>
+										<option value="generic">Generic</option>
+										<option value="stargate">Stargate</option>
+										<option value="console">Console</option>
+										<option value="chair">Chair</option>
+										<option value="table">Table</option>
+										<option value="bed">Bed</option>
+										<option value="storage">Storage</option>
+									</Form.Select>
+								</Form.Group>
+							</div>
+						</div>
+
+						<h6>Position & Size (Room-Relative)</h6>
+						<div className="row">
+							<div className="col-md-3">
+								<Form.Group className="mb-3">
+									<Form.Label>X Position</Form.Label>
+									<Form.Control
+										type="number"
+										step="8"
+										value={editingFurniture.x || 0}
+										onChange={(e) => setEditingFurniture({...editingFurniture, x: parseInt(e.target.value)})}
+									/>
+								</Form.Group>
+							</div>
+							<div className="col-md-3">
+								<Form.Group className="mb-3">
+									<Form.Label>Y Position</Form.Label>
+									<Form.Control
+										type="number"
+										step="8"
+										value={editingFurniture.y || 0}
+										onChange={(e) => setEditingFurniture({...editingFurniture, y: parseInt(e.target.value)})}
+									/>
+								</Form.Group>
+							</div>
+							<div className="col-md-3">
+								<Form.Group className="mb-3">
+									<Form.Label>Width</Form.Label>
+									<Form.Control
+										type="number"
+										min="8"
+										step="8"
+										value={editingFurniture.width || 32}
+										onChange={(e) => setEditingFurniture({...editingFurniture, width: parseInt(e.target.value)})}
+									/>
+								</Form.Group>
+							</div>
+							<div className="col-md-3">
+								<Form.Group className="mb-3">
+									<Form.Label>Height</Form.Label>
+									<Form.Control
+										type="number"
+										min="8"
+										step="8"
+										value={editingFurniture.height || 32}
+										onChange={(e) => setEditingFurniture({...editingFurniture, height: parseInt(e.target.value)})}
+									/>
+								</Form.Group>
+							</div>
+						</div>
+
+						<div className="row">
+							<div className="col-md-6">
+								<Form.Group className="mb-3">
+									<Form.Label>Rotation</Form.Label>
+									<Form.Select
+										value={editingFurniture.rotation || 0}
+										onChange={(e) => setEditingFurniture({...editingFurniture, rotation: parseInt(e.target.value)})}
+									>
+										<option value={0}>0°</option>
+										<option value={90}>90°</option>
+										<option value={180}>180°</option>
+										<option value={270}>270°</option>
+									</Form.Select>
+								</Form.Group>
+							</div>
+							<div className="col-md-6">
+								<Form.Group className="mb-3">
+									<Form.Label>Z-Index</Form.Label>
+									<Form.Control
+										type="number"
+										value={editingFurniture.z_index || 0}
+										onChange={(e) => setEditingFurniture({...editingFurniture, z_index: parseInt(e.target.value)})}
+									/>
+								</Form.Group>
+							</div>
+						</div>
+
+						<div className="row">
+							<div className="col-md-4">
+								<Form.Check
+									type="checkbox"
+									label="Interactable"
+									checked={editingFurniture.interactable || false}
+									onChange={(e) => setEditingFurniture({...editingFurniture, interactable: e.target.checked})}
+								/>
+							</div>
+							<div className="col-md-4">
+								<Form.Check
+									type="checkbox"
+									label="Blocks Movement"
+									checked={editingFurniture.blocks_movement || false}
+									onChange={(e) => setEditingFurniture({...editingFurniture, blocks_movement: e.target.checked})}
+								/>
+							</div>
+							<div className="col-md-4">
+								<Form.Check
+									type="checkbox"
+									label="Requires Power"
+									checked={editingFurniture.requires_power || false}
+									onChange={(e) => setEditingFurniture({...editingFurniture, requires_power: e.target.checked})}
+								/>
+							</div>
+						</div>
+					</Form>
+				</Modal.Body>
+				<Modal.Footer>
+					<Button variant="secondary" onClick={() => setShowFurnitureModal(false)}>
+						Cancel
+					</Button>
+					<Button variant="primary" onClick={async () => {
+						try {
+							if (selectedFurniture?.id === editingFurniture.id) {
+								await adminService.updateFurniture(editingFurniture.id!, editingFurniture);
+								toast.success('Furniture updated successfully');
+							} else {
+								await adminService.createFurniture(editingFurniture);
+								toast.success('Furniture created successfully');
+							}
+							setShowFurnitureModal(false);
+							loadData();
+						} catch (err: any) {
+							toast.error(err.message || 'Failed to save furniture');
+						}
+					}}>
+						Save Furniture
+					</Button>
+				</Modal.Footer>
+			</Modal>
+
+			{/* Inspector Modal */}
+			<Modal show={showInspectorModal} onHide={() => setShowInspectorModal(false)} size="lg">
+				<Modal.Header closeButton>
+					<Modal.Title>Inspector - {selectedRoom ? 'Room' : selectedDoor ? 'Door' : selectedFurniture ? 'Furniture' : 'Nothing Selected'}</Modal.Title>
+				</Modal.Header>
+				<Modal.Body>
+					{selectedRoom && (
+						<div>
+							<h5>Room: {selectedRoom.name || selectedRoom.id}</h5>
+							<Table striped bordered hover size="sm">
+								<tbody>
+									<tr><td><strong>ID</strong></td><td>{selectedRoom.id}</td></tr>
+									<tr><td><strong>Name</strong></td><td>{selectedRoom.name}</td></tr>
+									<tr><td><strong>Description</strong></td><td>{selectedRoom.description}</td></tr>
+									<tr><td><strong>Type</strong></td><td>{selectedRoom.type}</td></tr>
+									<tr><td><strong>Layout</strong></td><td>{selectedRoom.layout_id}</td></tr>
+									<tr><td><strong>Floor</strong></td><td>{selectedRoom.floor}</td></tr>
+									<tr><td><strong>Status</strong></td><td>{selectedRoom.status}</td></tr>
+									<tr><td><strong>Coordinates</strong></td><td>({selectedRoom.startX}, {selectedRoom.startY}) to ({selectedRoom.endX}, {selectedRoom.endY})</td></tr>
+									<tr><td><strong>Size</strong></td><td>{selectedRoom.width} x {selectedRoom.height}</td></tr>
+									<tr><td><strong>Found</strong></td><td>{selectedRoom.found ? 'Yes' : 'No'}</td></tr>
+									<tr><td><strong>Locked</strong></td><td>{selectedRoom.locked ? 'Yes' : 'No'}</td></tr>
+									<tr><td><strong>Explored</strong></td><td>{selectedRoom.explored ? 'Yes' : 'No'}</td></tr>
+									<tr><td><strong>Exploration Time</strong></td><td>{selectedRoom.base_exploration_time} minutes</td></tr>
+								</tbody>
+							</Table>
+							<div className="d-flex gap-2">
+								<Button variant="primary" onClick={() => {
+									setEditingRoom({...selectedRoom});
+									setShowRoomModal(true);
+									setShowInspectorModal(false);
+								}}>
+									Edit Properties
+								</Button>
+								<Button variant="danger" onClick={async () => {
+									if (confirm(`Are you sure you want to delete room "${selectedRoom.name || selectedRoom.id}"?`)) {
+										try {
+											await adminService.deleteRoom(selectedRoom.id!);
+											toast.success('Room deleted successfully');
+											setSelectedRoom(null);
+											setShowInspectorModal(false);
+											loadData();
+										} catch (err: any) {
+											toast.error(err.message || 'Failed to delete room');
+										}
+									}
+								}}>
+									Delete Room
+								</Button>
+							</div>
+						</div>
+					)}
+
+					{selectedDoor && (
+						<div>
+							<h5>Door: {selectedDoor.name || selectedDoor.id}</h5>
+							<Table striped bordered hover size="sm">
+								<tbody>
+									<tr><td><strong>ID</strong></td><td>{selectedDoor.id}</td></tr>
+									<tr><td><strong>Name</strong></td><td>{selectedDoor.name}</td></tr>
+									<tr><td><strong>Description</strong></td><td>{selectedDoor.description}</td></tr>
+									<tr><td><strong>Layout</strong></td><td>{selectedDoor.layout_id}</td></tr>
+									<tr><td><strong>Floor</strong></td><td>{selectedDoor.floor}</td></tr>
+									<tr><td><strong>Style</strong></td><td>{selectedDoor.style}</td></tr>
+									<tr><td><strong>Position</strong></td><td>({selectedDoor.x}, {selectedDoor.y})</td></tr>
+									<tr><td><strong>Size</strong></td><td>{selectedDoor.width} x {selectedDoor.height}</td></tr>
+									<tr><td><strong>Rotation</strong></td><td>{selectedDoor.rotation}°</td></tr>
+									<tr><td><strong>State</strong></td><td>{selectedDoor.state}</td></tr>
+									<tr><td><strong>Automated</strong></td><td>{selectedDoor.automated ? 'Yes' : 'No'}</td></tr>
+									<tr><td><strong>Requires Power</strong></td><td>{selectedDoor.requires_power ? 'Yes' : 'No'}</td></tr>
+									<tr><td><strong>Force Field</strong></td><td>{selectedDoor.force_field ? 'Yes' : 'No'}</td></tr>
+								</tbody>
+							</Table>
+							<div className="d-flex gap-2">
+								<Button variant="primary" onClick={() => {
+									setEditingDoor({...selectedDoor});
+									setShowDoorModal(true);
+									setShowInspectorModal(false);
+								}}>
+									Edit Properties
+								</Button>
+								<Button variant="danger" onClick={async () => {
+									if (confirm(`Are you sure you want to delete door "${selectedDoor.name || selectedDoor.id}"?`)) {
+										try {
+											await adminService.deleteDoor(selectedDoor.id!);
+											toast.success('Door deleted successfully');
+											setSelectedDoor(null);
+											setShowInspectorModal(false);
+											loadData();
+										} catch (err: any) {
+											toast.error(err.message || 'Failed to delete door');
+										}
+									}
+								}}>
+									Delete Door
+								</Button>
+							</div>
+						</div>
+					)}
+
+					{selectedFurniture && (
+						<div>
+							<h5>Furniture: {selectedFurniture.name || selectedFurniture.id}</h5>
+							<Table striped bordered hover size="sm">
+								<tbody>
+									<tr><td><strong>ID</strong></td><td>{selectedFurniture.id}</td></tr>
+									<tr><td><strong>Name</strong></td><td>{selectedFurniture.name}</td></tr>
+									<tr><td><strong>Description</strong></td><td>{selectedFurniture.description}</td></tr>
+									<tr><td><strong>Type</strong></td><td>{selectedFurniture.type}</td></tr>
+									<tr><td><strong>Room</strong></td><td>{selectedFurniture.room_id}</td></tr>
+									<tr><td><strong>Position (Room)</strong></td><td>({selectedFurniture.x}, {selectedFurniture.y})</td></tr>
+									<tr><td><strong>Size</strong></td><td>{selectedFurniture.width} x {selectedFurniture.height}</td></tr>
+									<tr><td><strong>Rotation</strong></td><td>{selectedFurniture.rotation}°</td></tr>
+									<tr><td><strong>Z-Index</strong></td><td>{selectedFurniture.z_index}</td></tr>
+									<tr><td><strong>Interactable</strong></td><td>{selectedFurniture.interactable ? 'Yes' : 'No'}</td></tr>
+									<tr><td><strong>Blocks Movement</strong></td><td>{selectedFurniture.blocks_movement ? 'Yes' : 'No'}</td></tr>
+									<tr><td><strong>Requires Power</strong></td><td>{selectedFurniture.requires_power ? 'Yes' : 'No'}</td></tr>
+								</tbody>
+							</Table>
+							<div className="d-flex gap-2">
+								<Button variant="primary" onClick={() => {
+									setEditingFurniture({...selectedFurniture});
+									setShowFurnitureModal(true);
+									setShowInspectorModal(false);
+								}}>
+									Edit Properties
+								</Button>
+								<Button variant="danger" onClick={async () => {
+									if (confirm(`Are you sure you want to delete furniture "${selectedFurniture.name || selectedFurniture.id}"?`)) {
+										try {
+											await adminService.deleteFurniture(selectedFurniture.id!);
+											toast.success('Furniture deleted successfully');
+											setSelectedFurniture(null);
+											setShowInspectorModal(false);
+											loadData();
+										} catch (err: any) {
+											toast.error(err.message || 'Failed to delete furniture');
+										}
+									}
+								}}>
+									Delete Furniture
+								</Button>
+							</div>
+						</div>
+					)}
+
+					{!selectedRoom && !selectedDoor && !selectedFurniture && (
+						<Alert variant="info">
+							No item selected. Click on a room, door, or furniture item to inspect it, or press Cmd+I to open the inspector.
+						</Alert>
+					)}
+				</Modal.Body>
+				<Modal.Footer>
+					<Button variant="secondary" onClick={() => setShowInspectorModal(false)}>
+						Close
 					</Button>
 				</Modal.Footer>
 			</Modal>

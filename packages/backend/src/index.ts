@@ -21,7 +21,11 @@ const corsHeaders = {
 function withCors(res: Response): Response {
 	const newHeaders = new Headers(res.headers);
 	for (const [k, v] of Object.entries(corsHeaders)) newHeaders.set(k, v);
-	return new Response(res.body, { ...res, headers: newHeaders });
+	return new Response(res.body, {
+		status: res.status,
+		statusText: res.statusText,
+		headers: newHeaders,
+	});
 }
 
 const GOOGLE_ISSUERS = [
@@ -90,7 +94,6 @@ async function verifyAdminAccess(request: Request): Promise<{ success: boolean; 
 
 export default {
 	async fetch(request: Request, env: Env): Promise<Response> {
-		console.log('Request', request);
 		const url = new URL(request.url);
 		if (request.method === 'OPTIONS') {
 			return new Response(null, { status: 204, headers: corsHeaders });
@@ -104,9 +107,7 @@ export default {
 			try {
 				const { idToken } = await request.json() as any;
 				if (!idToken || typeof idToken !== 'string') throw new Error('Missing idToken');
-				console.log('Verify Google ID Token', idToken);
 				const payload = await verifyGoogleIdToken(idToken);
-				console.log('Verify Google ID Token', payload);
 				const userResult = validateUser({
 					id: payload.sub,
 					email: payload.email,
@@ -589,22 +590,25 @@ export default {
 				const roomData = await request.json() as any;
 				const now = Date.now();
 
-				// Create the new room
+				// Create the new room with coordinate-based positioning
 				await env.DB.prepare(`
 					INSERT INTO room_templates (
-						id, layout_id, type, name, description, width, height, floor,
+						id, layout_id, type, name, description,
+						startX, endX, startY, endY, floor,
 						found, locked, explored, image, base_exploration_time, status,
 						connection_north, connection_south, connection_east, connection_west,
 						created_at, updated_at
-					) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+					) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 				`).bind(
 					roomData.id,
 					roomData.layout_id,
 					roomData.type,
 					roomData.name,
 					roomData.description || null,
-					roomData.width,
-					roomData.height,
+					roomData.startX,
+					roomData.endX,
+					roomData.startY,
+					roomData.endY,
 					roomData.floor,
 					roomData.found || false,
 					roomData.locked || false,
@@ -666,7 +670,8 @@ export default {
 
 				const result = await env.DB.prepare(`
 					UPDATE room_templates SET
-						layout_id = ?, type = ?, name = ?, description = ?, width = ?, height = ?, floor = ?,
+						layout_id = ?, type = ?, name = ?, description = ?,
+						startX = ?, endX = ?, startY = ?, endY = ?, floor = ?,
 						found = ?, locked = ?, explored = ?, image = ?, base_exploration_time = ?, status = ?,
 						connection_north = ?, connection_south = ?, connection_east = ?, connection_west = ?,
 						updated_at = ?
@@ -676,8 +681,10 @@ export default {
 					roomData.type,
 					roomData.name,
 					roomData.description || null,
-					roomData.width,
-					roomData.height,
+					roomData.startX,
+					roomData.endX,
+					roomData.startY,
+					roomData.endY,
 					roomData.floor,
 					roomData.found || false,
 					roomData.locked || false,

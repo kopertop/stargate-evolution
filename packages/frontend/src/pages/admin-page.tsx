@@ -222,66 +222,13 @@ export const AdminPage: React.FC = () => {
 	const handleCreateNewFloor = () => {
 		const newFloor = nextFloorNumber;
 		setSelectedFloor(newFloor);
-
-		// Automatically create an elevator room for the new floor
-		const elevatorId = `elevator_floor_${newFloor}`;
-		setEditingItem(null);
-		setIsNewRoom(true);
-		setRoomForm({
-			id: elevatorId,
-			layout_id: 'destiny',
-			type: 'elevator',
-			name: `Elevator Floor ${newFloor}`,
-			description: `Elevator connecting to floor ${newFloor}`,
-			width: 1,
-			height: 1,
-			floor: newFloor,
-			found: false,
-			locked: false,
-			explored: false,
-			base_exploration_time: 2,
-			status: 'ok',
-		});
-		setRoomTechnology([]); // Clear technology for new rooms
-		setSelectedTechForAdd([]); // Clear selected technology for add
-		setShowRoomModal(true);
+		// Switch to Room Builder tab to create rooms on the new floor
+		setActiveTab('room-builder');
 	};
 
 	const handleCreateRoom = () => {
-		console.log('handleCreateRoom', selectedFloor);
-		if (selectedFloor === 0) {
-			const gateRoom = rooms.find(r => r.type === 'gate_room');
-			if (gateRoom) {
-				return handleEditRoom(gateRoom);
-			}
-		}
-		const editRoom = rooms.find(r => r.floor === selectedFloor);
-		if (editRoom) {
-			return handleEditRoom(editRoom);
-		}
-		setEditingItem(null);
-		setIsNewRoom(false);
-		setRoomForm({
-			layout_id: 'destiny',
-			type: 'corridor',
-			name: '',
-			description: '',
-			width: 1,
-			height: 1,
-			startX: 100,
-			endX: 200,
-			startY: 100,
-			endY: 200,
-			floor: selectedFloor,
-			found: false,
-			locked: false,
-			explored: false,
-			base_exploration_time: 2,
-			status: 'ok',
-		});
-		setRoomTechnology([]); // Clear technology for new rooms
-		setSelectedTechForAdd([]); // Clear selected technology for add
-		setShowRoomModal(true);
+		// Switch to Room Builder tab instead of opening legacy modal
+		setActiveTab('room-builder');
 	};
 
 	const handleEditRoom = (room: RoomTemplate) => {
@@ -597,7 +544,7 @@ export const AdminPage: React.FC = () => {
 											<option value="new">+ New Floor</option>
 										</Form.Select>
 										<Button variant="primary" onClick={handleCreateRoom}>
-											Visual Editor
+											<FaTools /> Room Builder
 										</Button>
 									</div>
 								</Card.Header>
