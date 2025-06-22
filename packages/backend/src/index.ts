@@ -2,6 +2,7 @@ import { jwtVerify, SignJWT } from 'jose';
 
 import { validateUser, validateSession } from './auth-types';
 import { getDefaultDestinyStatusTemplate, getStartingInventoryTemplate } from './templates/destiny-status-template';
+import { getAllDoorTemplates, getDoorTemplateById, getDoorsForRoom, createDoorTemplate, updateDoorTemplate, deleteDoorTemplate } from './templates/door-templates';
 import { getAllGalaxyTemplates, getGalaxyTemplateById } from './templates/galaxy-templates';
 import { getAllPersonTemplates, getAllRaceTemplates } from './templates/person-templates';
 import { getAllRoomTemplates, getRoomTemplateById } from './templates/room-templates';
@@ -115,19 +116,38 @@ export default {
 				const user = userResult.data!;
 				const now = Date.now();
 
-				// Upsert user into users table (preserving original created_at and is_admin)
-				await env.DB.prepare(
-					'INSERT OR REPLACE INTO users (id, email, name, image, is_admin, created_at, updated_at) VALUES (?, ?, ?, ?, COALESCE((SELECT is_admin FROM users WHERE id = ?), FALSE), COALESCE((SELECT created_at FROM users WHERE id = ?), ?), ?)',
-				).bind(
-					user.id,
-					user.email,
-					user.name,
-					user.picture ?? null,
-					user.is_admin || false,
-					user.id,
-					now,
-					now,
-				).run();
+				// Check if this is the admin user and should be automatically granted admin access
+				const isAutoAdmin = user.email === 'kopertop@gmail.com';
+
+				// Upsert user into users table (preserving original created_at, but setting admin for kopertop@gmail.com)
+				if (isAutoAdmin) {
+					// Force admin status for kopertop@gmail.com
+					await env.DB.prepare(
+						'INSERT OR REPLACE INTO users (id, email, name, image, is_admin, created_at, updated_at) VALUES (?, ?, ?, ?, TRUE, COALESCE((SELECT created_at FROM users WHERE id = ?), ?), ?)',
+					).bind(
+						user.id,
+						user.email,
+						user.name,
+						user.picture ?? null,
+						user.id,
+						now,
+						now,
+					).run();
+				} else {
+					// Preserve existing admin status for other users
+					await env.DB.prepare(
+						'INSERT OR REPLACE INTO users (id, email, name, image, is_admin, created_at, updated_at) VALUES (?, ?, ?, ?, COALESCE((SELECT is_admin FROM users WHERE id = ?), FALSE), COALESCE((SELECT created_at FROM users WHERE id = ?), ?), ?)',
+					).bind(
+						user.id,
+						user.email,
+						user.name,
+						user.picture ?? null,
+						user.id,
+						user.id,
+						now,
+						now,
+					).run();
+				}
 
 				// Fetch the user with admin flag from database
 				const dbUser = await env.DB.prepare('SELECT id, email, name, image, is_admin FROM users WHERE id = ?').bind(user.id).first();
@@ -168,9 +188,17 @@ export default {
 
 				if (!dbUser) throw new Error('User not found in database');
 
+				// Check if this user should be auto-admin and update if needed
+				const isAutoAdmin = dbUser.email === 'kopertop@gmail.com';
+				if (isAutoAdmin && !dbUser.is_admin) {
+					// Update admin status for kopertop@gmail.com
+					await env.DB.prepare('UPDATE users SET is_admin = TRUE, updated_at = ? WHERE id = ?')
+						.bind(Date.now(), userResult.data!.id).run();
+				}
+
 				const currentUser = {
 					...userResult.data!,
-					is_admin: Boolean(dbUser.is_admin),
+					is_admin: isAutoAdmin || Boolean(dbUser.is_admin),
 				};
 
 				return withCors(new Response(JSON.stringify({ valid: true, user: currentUser }), {
@@ -194,9 +222,17 @@ export default {
 
 				if (!dbUser) throw new Error('User not found in database');
 
+				// Check if this user should be auto-admin and update if needed
+				const isAutoAdmin = dbUser.email === 'kopertop@gmail.com';
+				if (isAutoAdmin && !dbUser.is_admin) {
+					// Update admin status for kopertop@gmail.com
+					await env.DB.prepare('UPDATE users SET is_admin = TRUE, updated_at = ? WHERE id = ?')
+						.bind(Date.now(), userResult.data!.id).run();
+				}
+
 				const user = {
 					...userResult.data!,
-					is_admin: Boolean(dbUser.is_admin),
+					is_admin: isAutoAdmin || Boolean(dbUser.is_admin),
 				};
 
 				const now = Date.now();
@@ -1038,8 +1074,8 @@ export default {
 
 				if (updates.length === 0) throw new Error('No valid connections to update');
 
-				// This endpoint returns connection update instructions for LiveStore
-				// The actual game state updates happen on the frontend via LiveStore events
+				// This endpoint returns connection update instructions
+				// The actual game state updates happen on the frontend
 				return withCors(new Response(JSON.stringify({
 					success: true,
 					roomId,
@@ -1080,6 +1116,155 @@ export default {
 
 			} catch (err: any) {
 				return withCors(new Response(JSON.stringify({ error: err.message || 'Failed to fetch available room templates' }), {
+					status: 500, headers: { 'content-type': 'application/json' },
+				}));
+			}
+		}
+
+		// Door Templates Endpoints
+
+		// GET /api/admin/doors - Get all door templates
+		if (url.pathname === '/api/admin/doors' && request.method === 'GET') {
+			const adminCheck = await verifyAdminAccess(request);
+			if (!adminCheck.success) {
+				return withCors(new Response(JSON.stringify({ error: adminCheck.error }), {
+					status: 401, headers: { 'content-type': 'application/json' },
+				}));
+			}
+
+			try {
+				const doors = await getAllDoorTemplates(env.DB);
+				return withCors(new Response(JSON.stringify(doors), {
+					headers: { 'content-type': 'application/json' },
+				}));
+			} catch (err: any) {
+				return withCors(new Response(JSON.stringify({ error: err.message || 'Failed to fetch doors' }), {
+					status: 500, headers: { 'content-type': 'application/json' },
+				}));
+			}
+		}
+
+		// GET /api/admin/doors/{doorId} - Get door by ID
+		if (url.pathname.startsWith('/api/admin/doors/') && request.method === 'GET') {
+			const adminCheck = await verifyAdminAccess(request);
+			if (!adminCheck.success) {
+				return withCors(new Response(JSON.stringify({ error: adminCheck.error }), {
+					status: 401, headers: { 'content-type': 'application/json' },
+				}));
+			}
+
+			try {
+				const doorId = url.pathname.split('/').pop();
+				if (!doorId) throw new Error('Door ID required');
+
+				const door = await getDoorTemplateById(env.DB, doorId);
+				if (!door) {
+					return withCors(new Response(JSON.stringify({ error: 'Door not found' }), {
+						status: 404, headers: { 'content-type': 'application/json' },
+					}));
+				}
+
+				return withCors(new Response(JSON.stringify(door), {
+					headers: { 'content-type': 'application/json' },
+				}));
+			} catch (err: any) {
+				return withCors(new Response(JSON.stringify({ error: err.message || 'Failed to fetch door' }), {
+					status: 500, headers: { 'content-type': 'application/json' },
+				}));
+			}
+		}
+
+		// GET /api/admin/rooms/{roomId}/doors - Get doors for a room
+		if (url.pathname.includes('/rooms/') && url.pathname.endsWith('/doors') && request.method === 'GET') {
+			const adminCheck = await verifyAdminAccess(request);
+			if (!adminCheck.success) {
+				return withCors(new Response(JSON.stringify({ error: adminCheck.error }), {
+					status: 401, headers: { 'content-type': 'application/json' },
+				}));
+			}
+
+			try {
+				const pathParts = url.pathname.split('/');
+				const roomId = pathParts[pathParts.length - 2]; // Get room ID from path
+				if (!roomId) throw new Error('Room ID required');
+
+				const doors = await getDoorsForRoom(env.DB, roomId);
+				return withCors(new Response(JSON.stringify(doors), {
+					headers: { 'content-type': 'application/json' },
+				}));
+			} catch (err: any) {
+				return withCors(new Response(JSON.stringify({ error: err.message || 'Failed to fetch doors for room' }), {
+					status: 500, headers: { 'content-type': 'application/json' },
+				}));
+			}
+		}
+
+		// POST /api/admin/doors - Create door template
+		if (url.pathname === '/api/admin/doors' && request.method === 'POST') {
+			const adminCheck = await verifyAdminAccess(request);
+			if (!adminCheck.success) {
+				return withCors(new Response(JSON.stringify({ error: adminCheck.error }), {
+					status: 401, headers: { 'content-type': 'application/json' },
+				}));
+			}
+
+			try {
+				const doorData = await request.json() as any;
+				const doorId = await createDoorTemplate(env.DB, doorData);
+				return withCors(new Response(JSON.stringify({ id: doorId, success: true }), {
+					headers: { 'content-type': 'application/json' },
+				}));
+			} catch (err: any) {
+				return withCors(new Response(JSON.stringify({ error: err.message || 'Failed to create door' }), {
+					status: 500, headers: { 'content-type': 'application/json' },
+				}));
+			}
+		}
+
+		// PUT /api/admin/doors/{doorId} - Update door template
+		if (url.pathname.startsWith('/api/admin/doors/') && request.method === 'PUT') {
+			const adminCheck = await verifyAdminAccess(request);
+			if (!adminCheck.success) {
+				return withCors(new Response(JSON.stringify({ error: adminCheck.error }), {
+					status: 401, headers: { 'content-type': 'application/json' },
+				}));
+			}
+
+			try {
+				const doorId = url.pathname.split('/').pop();
+				if (!doorId) throw new Error('Door ID required');
+
+				const doorData = await request.json() as any;
+				await updateDoorTemplate(env.DB, doorId, doorData);
+				return withCors(new Response(JSON.stringify({ success: true }), {
+					headers: { 'content-type': 'application/json' },
+				}));
+			} catch (err: any) {
+				return withCors(new Response(JSON.stringify({ error: err.message || 'Failed to update door' }), {
+					status: 500, headers: { 'content-type': 'application/json' },
+				}));
+			}
+		}
+
+		// DELETE /api/admin/doors/{doorId} - Delete door template
+		if (url.pathname.startsWith('/api/admin/doors/') && request.method === 'DELETE') {
+			const adminCheck = await verifyAdminAccess(request);
+			if (!adminCheck.success) {
+				return withCors(new Response(JSON.stringify({ error: adminCheck.error }), {
+					status: 401, headers: { 'content-type': 'application/json' },
+				}));
+			}
+
+			try {
+				const doorId = url.pathname.split('/').pop();
+				if (!doorId) throw new Error('Door ID required');
+
+				await deleteDoorTemplate(env.DB, doorId);
+				return withCors(new Response(JSON.stringify({ success: true }), {
+					headers: { 'content-type': 'application/json' },
+				}));
+			} catch (err: any) {
+				return withCors(new Response(JSON.stringify({ error: err.message || 'Failed to delete door' }), {
 					status: 500, headers: { 'content-type': 'application/json' },
 				}));
 			}

@@ -1,6 +1,5 @@
 /* eslint-disable unicorn/no-process-exit */
 // import { spawn } from 'node:child_process';
-import { livestoreDevtoolsPlugin } from '@livestore/devtools-vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 import path from 'path';
@@ -12,7 +11,6 @@ export default defineConfig({
 	worker: { format: 'es' },
 	plugins: [
 		react(),
-		livestoreDevtoolsPlugin({ schemaPath: './src/livestore/schema.ts' }),
 		// Running `wrangler dev` as part of `vite dev` needed for `@livestore/sync-cf`
 		// Temporarily disabled to test LiveStore without sync
 		/*
