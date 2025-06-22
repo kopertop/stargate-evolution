@@ -1,16 +1,16 @@
-import { RoomTemplate, TechnologyTemplate } from '@stargate/common';
+import { RoomTemplate, TechnologyTemplate, DoorTemplate } from '@stargate/common';
 import { RoomTechnology } from '@stargate/common/models/room-technology';
 import Fuse from 'fuse.js';
 import React, { useState, useEffect, useMemo } from 'react';
 import { Button, Card, Nav, Tab, Table, Modal, Form, Alert, InputGroup, OverlayTrigger, Tooltip } from 'react-bootstrap';
 import { Typeahead } from 'react-bootstrap-typeahead';
 import 'react-bootstrap-typeahead/css/Typeahead.css';
-import { FaEdit, FaTrash, FaPlus, FaArrowLeft, FaSearch, FaEye } from 'react-icons/fa';
+import { FaEdit, FaTrash, FaPlus, FaArrowLeft, FaSearch, FaEye, FaTools } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 
 import { getSession, validateOrRefreshSession } from '../auth/session';
-import { RoomEditVisualization } from '../components/room-edit-visualization';
+import { RoomBuilder } from '../components/room-builder';
 import { adminService } from '../services/admin-service';
 import { apiService } from '../services/api-service';
 
@@ -45,10 +45,11 @@ export const AdminPage: React.FC = () => {
 			</OverlayTrigger>
 		);
 	};
-	const [activeTab, setActiveTab] = useState('users');
+	const [activeTab, setActiveTab] = useState('room-builder');
 	const [users, setUsers] = useState<User[]>([]);
 	const [rooms, setRooms] = useState<RoomTemplate[]>([]);
 	const [technologies, setTechnologies] = useState<TechnologyTemplate[]>([]);
+	const [doors, setDoors] = useState<DoorTemplate[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 
@@ -56,6 +57,7 @@ export const AdminPage: React.FC = () => {
 	const [userSearch, setUserSearch] = useState('');
 	const [roomSearch, setRoomSearch] = useState('');
 	const [techSearch, setTechSearch] = useState('');
+	const [doorSearch, setDoorSearch] = useState('');
 	const [selectedFloor, setSelectedFloor] = useState(0);
 
 	// Modal states
@@ -175,15 +177,17 @@ export const AdminPage: React.FC = () => {
 				apiService.clearCache();
 			}
 
-			const [usersData, roomsData, techData] = await Promise.all([
+			const [usersData, roomsData, techData, doorsData] = await Promise.all([
 				adminService.getUsers(),
 				apiService.getAllRoomTemplates(),
 				apiService.getAllTechnologyTemplates(),
+				adminService.getAllDoors().catch(() => []), // Fallback to empty array if doors not available yet
 			]);
 
 			setUsers(usersData);
 			setRooms(roomsData);
 			setTechnologies(techData);
+			setDoors(doorsData);
 			setAvailableTechnologies(techData); // Store for dropdown
 		} catch (err: any) {
 			setError(err.message || 'Failed to load admin data');
@@ -264,6 +268,10 @@ export const AdminPage: React.FC = () => {
 			description: '',
 			width: 1,
 			height: 1,
+			startX: 100,
+			endX: 200,
+			startY: 100,
+			endY: 200,
 			floor: selectedFloor,
 			found: false,
 			locked: false,
@@ -312,8 +320,12 @@ export const AdminPage: React.FC = () => {
 			description: `Connected room ${direction} of ${editingItem.name}`,
 			layout_id: editingItem.layout_id,
 			type: 'basic',
-			width: editingItem.width,
-			height: editingItem.height,
+			startX: 100,
+			endX: 100 + (editingItem.width || 100),
+			startY: 100,
+			endY: 100 + (editingItem.height || 100),
+			width: editingItem.width || 100,
+			height: editingItem.height || 100,
 			floor: editingItem.floor,
 			found: false,
 			locked: false,
@@ -474,8 +486,13 @@ export const AdminPage: React.FC = () => {
 					</Alert>
 				)}
 
-				<Tab.Container activeKey={activeTab} onSelect={(k) => setActiveTab(k || 'users')}>
+				<Tab.Container activeKey={activeTab} onSelect={(k) => setActiveTab(k || 'room-builder')}>
 					<Nav variant="tabs" className="mb-4">
+						<Nav.Item>
+							<Nav.Link eventKey="room-builder">
+								<FaTools /> Room Builder
+							</Nav.Link>
+						</Nav.Item>
 						<Nav.Item>
 							<Nav.Link eventKey="users">Users</Nav.Link>
 						</Nav.Item>
@@ -488,6 +505,14 @@ export const AdminPage: React.FC = () => {
 					</Nav>
 
 					<Tab.Content>
+						{/* Room Builder Tab */}
+						<Tab.Pane eventKey="room-builder">
+							<RoomBuilder
+								selectedFloor={selectedFloor}
+								onFloorChange={setSelectedFloor}
+							/>
+						</Tab.Pane>
+
 						{/* Users Tab */}
 						<Tab.Pane eventKey="users">
 							<Card bg="dark" text="light">
@@ -1013,21 +1038,12 @@ export const AdminPage: React.FC = () => {
 
 							{/* Right Side - Room Visualization */}
 							<div className="flex-grow-1" style={{ backgroundColor: '#000' }}>
-								{editingItem ? (
-									<RoomEditVisualization
-										room={editingItem}
-										allRooms={rooms}
-										onRoomClick={handleSwitchToRoom}
-										onAddConnectingRoom={handleAddConnectingRoom}
-									/>
-								) : (
-									<div className="d-flex align-items-center justify-content-center h-100 text-muted">
-										<div className="text-center">
-											<h5>Room Visualization</h5>
-											<p>Visualization will appear here when editing an existing room.</p>
-										</div>
+								<div className="d-flex align-items-center justify-content-center h-100 text-muted">
+									<div className="text-center">
+										<h5>Legacy Room Editor</h5>
+										<p>This editor is deprecated. Please use the new Room Builder tab for coordinate-based room building.</p>
 									</div>
-								)}
+								</div>
 							</div>
 						</div>
 					</Modal.Body>

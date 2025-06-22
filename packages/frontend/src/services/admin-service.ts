@@ -42,6 +42,18 @@ class AdminService {
 	}
 
 	// Room management
+	async getAllRoomTemplates() {
+		const response = await fetch(`${API_URL}/api/rooms/templates`, {
+			headers: this.getAuthHeaders(),
+		});
+		if (!response.ok) {
+			const error = await response.json();
+			throw new Error(error.error || 'Failed to fetch room templates');
+		}
+		const data = await response.json();
+		return Array.isArray(data) ? data : [];
+	}
+
 	async createRoom(roomData: any) {
 		const response = await fetch(`${API_URL}/api/admin/rooms`, {
 			method: 'POST',
@@ -143,6 +155,69 @@ class AdminService {
 			throw new Error(error.error || 'Failed to delete room technology');
 		}
 		return response.json();
+	}
+
+	// Door management
+	async getAllDoors() {
+		const response = await fetch(`${API_URL}/api/admin/doors`, {
+			headers: this.getAuthHeaders(),
+		});
+		if (!response.ok) {
+			const error = await response.json();
+			throw new Error(error.error || 'Failed to fetch doors');
+		}
+		const data = await response.json();
+		return Array.isArray(data) ? data : [];
+	}
+
+	async createDoor(doorData: any) {
+		const response = await fetch(`${API_URL}/api/admin/doors`, {
+			method: 'POST',
+			headers: this.getAuthHeaders(),
+			body: JSON.stringify(doorData),
+		});
+		if (!response.ok) {
+			const error = await response.json();
+			throw new Error(error.error || 'Failed to create door');
+		}
+		return response.json();
+	}
+
+	async updateDoor(doorId: string, doorData: any) {
+		const response = await fetch(`${API_URL}/api/admin/doors/${doorId}`, {
+			method: 'PUT',
+			headers: this.getAuthHeaders(),
+			body: JSON.stringify(doorData),
+		});
+		if (!response.ok) {
+			const error = await response.json();
+			throw new Error(error.error || 'Failed to update door');
+		}
+		return response.json();
+	}
+
+	async deleteDoor(doorId: string) {
+		const response = await fetch(`${API_URL}/api/admin/doors/${doorId}`, {
+			method: 'DELETE',
+			headers: this.getAuthHeaders(),
+		});
+		if (!response.ok) {
+			const error = await response.json();
+			throw new Error(error.error || 'Failed to delete door');
+		}
+		return response.json();
+	}
+
+	async getDoorsForRoom(roomId: string) {
+		const response = await fetch(`${API_URL}/api/admin/doors/room/${roomId}`, {
+			headers: this.getAuthHeaders(),
+		});
+		if (!response.ok) {
+			const error = await response.json();
+			throw new Error(error.error || 'Failed to fetch doors for room');
+		}
+		const data = await response.json();
+		return Array.isArray(data) ? data : [];
 	}
 }
 
