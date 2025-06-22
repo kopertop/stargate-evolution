@@ -48,6 +48,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 		currentX: 0,
 		currentY: 0,
 	});
+	const [isMouseDown, setIsMouseDown] = useState(false);
 
 	// Camera state for pan/zoom
 	const [camera, setCamera] = useState<Camera>({
@@ -550,11 +551,12 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 		const screenX = (event.clientX - rect.left) * scaleX;
 		const screenY = (event.clientY - rect.top) * scaleY;
 
-		if (event.button === 1 || (event.button === 0 && event.ctrlKey)) {
-			// Middle mouse button or Ctrl+Left mouse button for panning
+		if (event.button === 1 || (event.button === 0 && event.ctrlKey) || event.button === 0) {
+			// Middle mouse button, Ctrl+Left mouse button, or regular left mouse button for panning
 			event.preventDefault();
+			setIsMouseDown(true);
 			setDragState({
-				isDragging: true,
+				isDragging: false, // Don't set to true immediately, wait for movement
 				dragType: 'camera',
 				dragId: null,
 				startX: screenX,
@@ -566,8 +568,6 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 	};
 
 	const handleCanvasMouseMove = (event: React.MouseEvent<HTMLCanvasElement>) => {
-		if (!dragState.isDragging) return;
-
 		const canvas = canvasRef.current;
 		if (!canvas) return;
 
@@ -578,7 +578,26 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 		const screenX = (event.clientX - rect.left) * scaleX;
 		const screenY = (event.clientY - rect.top) * scaleY;
 
-		if (dragState.dragType === 'camera') {
+		// If mouse is down but not yet dragging, check if we should start dragging
+		if (isMouseDown && !dragState.isDragging && dragState.dragType === 'camera') {
+			const deltaX = screenX - dragState.startX;
+			const deltaY = screenY - dragState.startY;
+			const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+
+			// Start dragging if mouse moved more than 3 pixels
+			if (distance > 3) {
+				setDragState(prev => ({
+					...prev,
+					isDragging: true,
+					currentX: screenX,
+					currentY: screenY,
+				}));
+			}
+			return;
+		}
+
+		// If actively dragging, update camera position
+		if (dragState.isDragging && dragState.dragType === 'camera') {
 			// Calculate pan delta in screen space
 			const deltaX = screenX - dragState.currentX;
 			const deltaY = screenY - dragState.currentY;
@@ -604,6 +623,8 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 	};
 
 	const handleCanvasMouseUp = (event: React.MouseEvent<HTMLCanvasElement>) => {
+		setIsMouseDown(false);
+
 		if (dragState.isDragging && dragState.dragType === 'camera') {
 			setDragState({
 				isDragging: false,
@@ -621,6 +642,17 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 		if (!dragState.isDragging) {
 			handleCanvasClick(event);
 		}
+
+		// Reset drag state
+		setDragState({
+			isDragging: false,
+			dragType: 'none',
+			dragId: null,
+			startX: 0,
+			startY: 0,
+			currentX: 0,
+			currentY: 0,
+		});
 	};
 
 	const handleCanvasClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
@@ -972,7 +1004,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 							border: '1px solid #ccc',
 							backgroundColor: '#1a202c',
 							cursor: dragState.isDragging && dragState.dragType === 'camera' ? 'grabbing' :
-								dragState.isDragging ? 'move' : 'crosshair',
+								isMouseDown ? 'grabbing' : 'grab',
 							maxWidth: '100%',
 							height: 'auto',
 						}}
@@ -983,7 +1015,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 						onContextMenu={(e) => e.preventDefault()} // Prevent right-click menu
 					/>
 					<small className="text-muted d-block mt-1">
-						<strong>Controls:</strong> Mouse wheel to zoom, middle-click or Ctrl+drag to pan<br/>
+						<strong>Controls:</strong> Mouse wheel to zoom, click and drag to pan<br/>
 						<strong>Keyboard:</strong> WASD/Arrow keys to move, +/- to zoom, 0 to reset view
 					</small>
 				</div>
