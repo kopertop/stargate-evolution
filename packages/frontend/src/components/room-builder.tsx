@@ -13,12 +13,18 @@ interface RoomBuilderProps {
 
 type DragState = {
 	isDragging: boolean;
-	dragType: 'room' | 'door' | 'none';
+	dragType: 'room' | 'door' | 'camera' | 'none';
 	dragId: string | null;
 	startX: number;
 	startY: number;
 	currentX: number;
 	currentY: number;
+};
+
+type Camera = {
+	x: number; // Camera position in world coordinates
+	y: number; // Camera position in world coordinates
+	zoom: number; // Zoom level (1.0 = normal, 2.0 = 2x zoom, 0.5 = 0.5x zoom)
 };
 
 export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloorChange }) => {
@@ -43,13 +49,32 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 		currentY: 0,
 	});
 
-	// Canvas settings for Swift SpriteKit coordinate system (0,0 at center)
+	// Camera state for pan/zoom
+	const [camera, setCamera] = useState<Camera>({
+		x: 0, // Start at world origin
+		y: 0, // Start at world origin
+		zoom: 1.0, // Start at 1x zoom
+	});
+
+	// Canvas settings - fixed viewport size
 	const CANVAS_WIDTH = 1200;
 	const CANVAS_HEIGHT = 800;
 	const GRID_SIZE = 32; // 32 points grid for SpriteKit
-	const ZOOM_LEVEL = 1.0;
-	const CENTER_X = CANVAS_WIDTH / 2;  // 600
-	const CENTER_Y = CANVAS_HEIGHT / 2; // 400
+	const MIN_ZOOM = 0.1;
+	const MAX_ZOOM = 5.0;
+
+	// Camera transformation functions
+	const worldToScreen = (worldX: number, worldY: number) => {
+		const screenX = (CANVAS_WIDTH / 2) + (worldX - camera.x) * camera.zoom;
+		const screenY = (CANVAS_HEIGHT / 2) + (worldY - camera.y) * camera.zoom;
+		return { x: screenX, y: screenY };
+	};
+
+	const screenToWorld = (screenX: number, screenY: number) => {
+		const worldX = camera.x + (screenX - CANVAS_WIDTH / 2) / camera.zoom;
+		const worldY = camera.y + (screenY - CANVAS_HEIGHT / 2) / camera.zoom;
+		return { x: worldX, y: worldY };
+	};
 
 	// Filter rooms by selected floor
 	const floorRooms = useMemo(() => {
@@ -74,9 +99,66 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 		loadData();
 	}, []);
 
+	// Keyboard shortcuts for camera control
+	useEffect(() => {
+		const handleKeyDown = (event: KeyboardEvent) => {
+			// Don't interfere with form inputs
+			if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
+				return;
+			}
+
+			const MOVE_SPEED = 50;
+			const ZOOM_SPEED = 0.1;
+
+			switch (event.key) {
+			case 'ArrowLeft':
+			case 'a':
+			case 'A':
+				event.preventDefault();
+				setCamera(prev => ({ ...prev, x: prev.x - MOVE_SPEED / prev.zoom }));
+				break;
+			case 'ArrowRight':
+			case 'd':
+			case 'D':
+				event.preventDefault();
+				setCamera(prev => ({ ...prev, x: prev.x + MOVE_SPEED / prev.zoom }));
+				break;
+			case 'ArrowUp':
+			case 'w':
+			case 'W':
+				event.preventDefault();
+				setCamera(prev => ({ ...prev, y: prev.y - MOVE_SPEED / prev.zoom }));
+				break;
+			case 'ArrowDown':
+			case 's':
+			case 'S':
+				event.preventDefault();
+				setCamera(prev => ({ ...prev, y: prev.y + MOVE_SPEED / prev.zoom }));
+				break;
+			case '=':
+			case '+':
+				event.preventDefault();
+				setCamera(prev => ({ ...prev, zoom: Math.min(MAX_ZOOM, prev.zoom + ZOOM_SPEED) }));
+				break;
+			case '-':
+			case '_':
+				event.preventDefault();
+				setCamera(prev => ({ ...prev, zoom: Math.max(MIN_ZOOM, prev.zoom - ZOOM_SPEED) }));
+				break;
+			case '0':
+				event.preventDefault();
+				setCamera({ x: 0, y: 0, zoom: 1.0 });
+				break;
+			}
+		};
+
+		window.addEventListener('keydown', handleKeyDown);
+		return () => window.removeEventListener('keydown', handleKeyDown);
+	}, []);
+
 	useEffect(() => {
 		drawCanvas();
-	}, [floorRooms, floorDoors, floorFurniture, selectedRoom, selectedDoor, selectedFurniture, dragState]);
+	}, [floorRooms, floorDoors, floorFurniture, selectedRoom, selectedDoor, selectedFurniture, dragState, camera]);
 
 	const loadData = async () => {
 		try {
@@ -85,10 +167,17 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 				adminService.getAllDoors?.() || [], // Add optional chaining
 				adminService.getAllFurniture?.() || [], // Add optional chaining
 			]);
+			console.log('Room Builder - Loaded data:', {
+				rooms: roomsData.length,
+				doors: doorsData.length,
+				furniture: furnitureData.length,
+				furnitureData,
+			});
 			setRooms(roomsData);
 			setDoors(doorsData);
 			setFurniture(furnitureData);
 		} catch (err: any) {
+			console.error('Room Builder - Failed to load data:', err);
 			toast.error(err.message || 'Failed to load room builder data');
 		}
 	};
@@ -110,12 +199,15 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 		drawCenterAxes(ctx);
 
 		// Draw rooms
+		console.log('Drawing rooms:', floorRooms.length);
 		floorRooms.forEach(room => drawRoom(ctx, room));
 
 		// Draw doors
+		console.log('Drawing doors:', floorDoors.length);
 		floorDoors.forEach(door => drawDoor(ctx, door));
 
 		// Draw furniture
+		console.log('Drawing furniture:', floorFurniture.length, floorFurniture);
 		floorFurniture.forEach(item => drawFurniture(ctx, item));
 
 		// Draw selection highlights
@@ -134,20 +226,43 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 		ctx.strokeStyle = '#333';
 		ctx.lineWidth = 0.5;
 
-		// Vertical lines
-		for (let x = 0; x <= CANVAS_WIDTH; x += GRID_SIZE) {
-			ctx.beginPath();
-			ctx.moveTo(x, 0);
-			ctx.lineTo(x, CANVAS_HEIGHT);
-			ctx.stroke();
+		// Calculate grid spacing in world coordinates
+		const worldGridSize = GRID_SIZE;
+		const screenGridSize = worldGridSize * camera.zoom;
+
+		// Only draw grid if it's not too dense or too sparse
+		if (screenGridSize < 4 || screenGridSize > 200) return;
+
+		// Calculate world bounds visible on screen
+		const topLeft = screenToWorld(0, 0);
+		const bottomRight = screenToWorld(CANVAS_WIDTH, CANVAS_HEIGHT);
+
+		// Calculate grid line positions in world coordinates
+		const startX = Math.floor(topLeft.x / worldGridSize) * worldGridSize;
+		const endX = Math.ceil(bottomRight.x / worldGridSize) * worldGridSize;
+		const startY = Math.floor(topLeft.y / worldGridSize) * worldGridSize;
+		const endY = Math.ceil(bottomRight.y / worldGridSize) * worldGridSize;
+
+		// Draw vertical grid lines
+		for (let worldX = startX; worldX <= endX; worldX += worldGridSize) {
+			const screenPos = worldToScreen(worldX, 0);
+			if (screenPos.x >= 0 && screenPos.x <= CANVAS_WIDTH) {
+				ctx.beginPath();
+				ctx.moveTo(screenPos.x, 0);
+				ctx.lineTo(screenPos.x, CANVAS_HEIGHT);
+				ctx.stroke();
+			}
 		}
 
-		// Horizontal lines
-		for (let y = 0; y <= CANVAS_HEIGHT; y += GRID_SIZE) {
-			ctx.beginPath();
-			ctx.moveTo(0, y);
-			ctx.lineTo(CANVAS_WIDTH, y);
-			ctx.stroke();
+		// Draw horizontal grid lines
+		for (let worldY = startY; worldY <= endY; worldY += worldGridSize) {
+			const screenPos = worldToScreen(0, worldY);
+			if (screenPos.y >= 0 && screenPos.y <= CANVAS_HEIGHT) {
+				ctx.beginPath();
+				ctx.moveTo(0, screenPos.y);
+				ctx.lineTo(CANVAS_WIDTH, screenPos.y);
+				ctx.stroke();
+			}
 		}
 	};
 
@@ -155,68 +270,95 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 		ctx.strokeStyle = '#ff6b6b';
 		ctx.lineWidth = 2;
 
-		// Vertical center line (X=0 in SpriteKit coordinates)
-		ctx.beginPath();
-		ctx.moveTo(CENTER_X, 0);
-		ctx.lineTo(CENTER_X, CANVAS_HEIGHT);
-		ctx.stroke();
+		// Get screen coordinates for world origin (0,0)
+		const origin = worldToScreen(0, 0);
 
-		// Horizontal center line (Y=0 in SpriteKit coordinates)
-		ctx.beginPath();
-		ctx.moveTo(0, CENTER_Y);
-		ctx.lineTo(CANVAS_WIDTH, CENTER_Y);
-		ctx.stroke();
+		// Only draw axes if they're visible on screen
+		if (origin.x >= 0 && origin.x <= CANVAS_WIDTH) {
+			// Vertical center line (X=0 in SpriteKit coordinates)
+			ctx.beginPath();
+			ctx.moveTo(origin.x, 0);
+			ctx.lineTo(origin.x, CANVAS_HEIGHT);
+			ctx.stroke();
+		}
 
-		// Center point marker
-		ctx.fillStyle = '#ff6b6b';
-		ctx.beginPath();
-		ctx.arc(CENTER_X, CENTER_Y, 4, 0, 2 * Math.PI);
-		ctx.fill();
+		if (origin.y >= 0 && origin.y <= CANVAS_HEIGHT) {
+			// Horizontal center line (Y=0 in SpriteKit coordinates)
+			ctx.beginPath();
+			ctx.moveTo(0, origin.y);
+			ctx.lineTo(CANVAS_WIDTH, origin.y);
+			ctx.stroke();
+		}
 
-		// Label the center point
-		ctx.fillStyle = '#ff6b6b';
-		ctx.font = '14px Arial';
-		ctx.textAlign = 'left';
-		ctx.fillText('(0,0)', CENTER_X + 8, CENTER_Y - 8);
+		// Center point marker (only if visible)
+		if (origin.x >= -10 && origin.x <= CANVAS_WIDTH + 10 &&
+			origin.y >= -10 && origin.y <= CANVAS_HEIGHT + 10) {
+			ctx.fillStyle = '#ff6b6b';
+			ctx.beginPath();
+			ctx.arc(origin.x, origin.y, 4 * camera.zoom, 0, 2 * Math.PI);
+			ctx.fill();
+
+			// Label the center point
+			ctx.fillStyle = '#ff6b6b';
+			ctx.font = `${14 * camera.zoom}px Arial`;
+			ctx.textAlign = 'left';
+			ctx.fillText('(0,0)', origin.x + 8 * camera.zoom, origin.y - 8 * camera.zoom);
+		}
 	};
 
 	const drawRoom = (ctx: CanvasRenderingContext2D, room: RoomTemplate) => {
-		const width = room.endX - room.startX;
-		const height = room.endY - room.startY;
+		// Convert room bounds to screen coordinates
+		const topLeft = worldToScreen(room.startX, room.startY);
+		const bottomRight = worldToScreen(room.endX, room.endY);
 
-		// Convert from SpriteKit coordinates (center origin) to canvas coordinates (top-left origin)
-		const canvasX = CENTER_X + room.startX;
-		const canvasY = CENTER_Y + room.startY;
+		const screenWidth = bottomRight.x - topLeft.x;
+		const screenHeight = bottomRight.y - topLeft.y;
+
+		// Skip drawing if room is not visible
+		if (topLeft.x > CANVAS_WIDTH || bottomRight.x < 0 ||
+			topLeft.y > CANVAS_HEIGHT || bottomRight.y < 0) {
+			return;
+		}
 
 		// Room background
 		ctx.fillStyle = room.type === 'corridor' ? '#4a5568' : '#2d3748';
-		ctx.fillRect(canvasX, canvasY, width, height);
+		ctx.fillRect(topLeft.x, topLeft.y, screenWidth, screenHeight);
 
 		// Room border
 		ctx.strokeStyle = room.locked ? '#e53e3e' : '#718096';
-		ctx.lineWidth = 2;
-		ctx.strokeRect(canvasX, canvasY, width, height);
+		ctx.lineWidth = Math.max(1, 2 * camera.zoom);
+		ctx.strokeRect(topLeft.x, topLeft.y, screenWidth, screenHeight);
 
-		// Room label
-		ctx.fillStyle = '#fff';
-		ctx.font = '12px Arial';
-		ctx.textAlign = 'center';
-		const centerX = canvasX + width / 2;
-		const centerY = canvasY + height / 2;
-		ctx.fillText(room.name, centerX, centerY);
-		ctx.fillText(`${room.id}`, centerX, centerY + 15);
+		// Room label (only if room is large enough on screen)
+		if (screenWidth > 50 && screenHeight > 20) {
+			ctx.fillStyle = '#fff';
+			ctx.font = `${Math.max(8, 12 * camera.zoom)}px Arial`;
+			ctx.textAlign = 'center';
+			const centerX = topLeft.x + screenWidth / 2;
+			const centerY = topLeft.y + screenHeight / 2;
+			ctx.fillText(room.name, centerX, centerY);
+			ctx.fillText(`${room.id}`, centerX, centerY + 15 * camera.zoom);
+		}
 	};
 
 	const drawDoor = (ctx: CanvasRenderingContext2D, door: DoorTemplate) => {
-		const halfWidth = door.width / 2;
-		const halfHeight = door.height / 2;
+		// Convert door position to screen coordinates
+		const screenPos = worldToScreen(door.x, door.y);
 
-		// Convert from SpriteKit coordinates (center origin) to canvas coordinates
-		const canvasX = CENTER_X + door.x;
-		const canvasY = CENTER_Y + door.y;
+		// Skip drawing if door is not visible
+		const maxSize = Math.max(door.width, door.height) * camera.zoom;
+		if (screenPos.x < -maxSize || screenPos.x > CANVAS_WIDTH + maxSize ||
+			screenPos.y < -maxSize || screenPos.y > CANVAS_HEIGHT + maxSize) {
+			return;
+		}
+
+		const screenWidth = door.width * camera.zoom;
+		const screenHeight = door.height * camera.zoom;
+		const halfWidth = screenWidth / 2;
+		const halfHeight = screenHeight / 2;
 
 		ctx.save();
-		ctx.translate(canvasX, canvasY);
+		ctx.translate(screenPos.x, screenPos.y);
 		ctx.rotate((door.rotation * Math.PI) / 180);
 
 		// Door color based on state
@@ -225,11 +367,11 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 		if (door.state === 'locked') doorColor = '#ef4444'; // red
 
 		ctx.fillStyle = doorColor;
-		ctx.fillRect(-halfWidth, -halfHeight, door.width, door.height);
+		ctx.fillRect(-halfWidth, -halfHeight, screenWidth, screenHeight);
 
 		ctx.strokeStyle = '#000';
-		ctx.lineWidth = 1;
-		ctx.strokeRect(-halfWidth, -halfHeight, door.width, door.height);
+		ctx.lineWidth = Math.max(1, 1 * camera.zoom);
+		ctx.strokeRect(-halfWidth, -halfHeight, screenWidth, screenHeight);
 
 		ctx.restore();
 	};
@@ -237,17 +379,39 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 	const drawFurniture = (ctx: CanvasRenderingContext2D, item: RoomFurniture) => {
 		// Get the room this furniture belongs to
 		const room = floorRooms.find(r => r.id === item.room_id);
-		if (!room) return;
+		if (!room) {
+			console.warn('Furniture room not found:', item.room_id, 'for furniture:', item.id);
+			return;
+		}
 
 		// Convert room-relative coordinates to world coordinates
 		const worldCoords = roomToWorldCoordinates(item, room);
 
-		// Convert from SpriteKit coordinates to canvas coordinates
-		const canvasX = CENTER_X + worldCoords.worldX - item.width / 2;
-		const canvasY = CENTER_Y + worldCoords.worldY - item.height / 2;
+		// Convert world coordinates to screen coordinates
+		const screenPos = worldToScreen(worldCoords.worldX, worldCoords.worldY);
+
+		// Skip drawing if furniture is not visible
+		const maxSize = Math.max(item.width, item.height) * camera.zoom;
+		if (screenPos.x < -maxSize || screenPos.x > CANVAS_WIDTH + maxSize ||
+			screenPos.y < -maxSize || screenPos.y > CANVAS_HEIGHT + maxSize) {
+			return;
+		}
+
+		console.log('Drawing furniture:', {
+			id: item.id,
+			type: item.furniture_type,
+			room: room.id,
+			roomCoords: { x: item.x, y: item.y },
+			worldCoords,
+			screenPos,
+			size: { width: item.width * camera.zoom, height: item.height * camera.zoom },
+		});
+
+		const screenWidth = item.width * camera.zoom;
+		const screenHeight = item.height * camera.zoom;
 
 		ctx.save();
-		ctx.translate(canvasX + item.width / 2, canvasY + item.height / 2);
+		ctx.translate(screenPos.x, screenPos.y);
 		ctx.rotate((item.rotation * Math.PI) / 180);
 
 		// Furniture color based on type
@@ -257,52 +421,56 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 		if (item.furniture_type === 'bed') furnitureColor = '#7c3aed'; // purple for bed
 
 		ctx.fillStyle = furnitureColor;
-		ctx.fillRect(-item.width / 2, -item.height / 2, item.width, item.height);
+		ctx.fillRect(-screenWidth / 2, -screenHeight / 2, screenWidth, screenHeight);
 
 		ctx.strokeStyle = '#000';
-		ctx.lineWidth = 1;
-		ctx.strokeRect(-item.width / 2, -item.height / 2, item.width, item.height);
+		ctx.lineWidth = Math.max(1, 1 * camera.zoom);
+		ctx.strokeRect(-screenWidth / 2, -screenHeight / 2, screenWidth, screenHeight);
 
-		// Add furniture label
-		ctx.fillStyle = '#fff';
-		ctx.font = '10px Arial';
-		ctx.textAlign = 'center';
-		ctx.fillText(item.furniture_type, 0, 4);
+		// Add furniture label (only if large enough)
+		if (screenWidth > 20 && screenHeight > 10) {
+			ctx.fillStyle = '#fff';
+			ctx.font = `${Math.max(8, 10 * camera.zoom)}px Arial`;
+			ctx.textAlign = 'center';
+			ctx.fillText(item.furniture_type, 0, 4 * camera.zoom);
+		}
 
 		ctx.restore();
 	};
 
 	const highlightRoom = (ctx: CanvasRenderingContext2D, room: RoomTemplate) => {
-		const width = room.endX - room.startX;
-		const height = room.endY - room.startY;
+		// Convert room bounds to screen coordinates
+		const topLeft = worldToScreen(room.startX, room.startY);
+		const bottomRight = worldToScreen(room.endX, room.endY);
 
-		// Convert from SpriteKit coordinates to canvas coordinates
-		const canvasX = CENTER_X + room.startX;
-		const canvasY = CENTER_Y + room.startY;
+		const screenWidth = bottomRight.x - topLeft.x;
+		const screenHeight = bottomRight.y - topLeft.y;
 
 		ctx.strokeStyle = '#fbbf24';
-		ctx.lineWidth = 3;
-		ctx.setLineDash([5, 5]);
-		ctx.strokeRect(canvasX - 2, canvasY - 2, width + 4, height + 4);
+		ctx.lineWidth = Math.max(2, 3 * camera.zoom);
+		ctx.setLineDash([5 * camera.zoom, 5 * camera.zoom]);
+		ctx.strokeRect(topLeft.x - 2 * camera.zoom, topLeft.y - 2 * camera.zoom,
+					   screenWidth + 4 * camera.zoom, screenHeight + 4 * camera.zoom);
 		ctx.setLineDash([]);
 	};
 
 	const highlightDoor = (ctx: CanvasRenderingContext2D, door: DoorTemplate) => {
-		const halfWidth = door.width / 2 + 2;
-		const halfHeight = door.height / 2 + 2;
+		// Convert door position to screen coordinates
+		const screenPos = worldToScreen(door.x, door.y);
 
-		// Convert from SpriteKit coordinates to canvas coordinates
-		const canvasX = CENTER_X + door.x;
-		const canvasY = CENTER_Y + door.y;
+		const screenWidth = door.width * camera.zoom;
+		const screenHeight = door.height * camera.zoom;
+		const halfWidth = screenWidth / 2 + 2 * camera.zoom;
+		const halfHeight = screenHeight / 2 + 2 * camera.zoom;
 
 		ctx.save();
-		ctx.translate(canvasX, canvasY);
+		ctx.translate(screenPos.x, screenPos.y);
 		ctx.rotate((door.rotation * Math.PI) / 180);
 
 		ctx.strokeStyle = '#fbbf24';
-		ctx.lineWidth = 2;
-		ctx.setLineDash([3, 3]);
-		ctx.strokeRect(-halfWidth, -halfHeight, door.width + 4, door.height + 4);
+		ctx.lineWidth = Math.max(1, 2 * camera.zoom);
+		ctx.setLineDash([3 * camera.zoom, 3 * camera.zoom]);
+		ctx.strokeRect(-halfWidth, -halfHeight, screenWidth + 4 * camera.zoom, screenHeight + 4 * camera.zoom);
 		ctx.setLineDash([]);
 
 		ctx.restore();
@@ -316,21 +484,143 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 		// Convert room-relative coordinates to world coordinates
 		const worldCoords = roomToWorldCoordinates(item, room);
 
-		// Convert from SpriteKit coordinates to canvas coordinates
-		const canvasX = CENTER_X + worldCoords.worldX - item.width / 2 - 2;
-		const canvasY = CENTER_Y + worldCoords.worldY - item.height / 2 - 2;
+		// Convert world coordinates to screen coordinates
+		const screenPos = worldToScreen(worldCoords.worldX, worldCoords.worldY);
+
+		const screenWidth = item.width * camera.zoom;
+		const screenHeight = item.height * camera.zoom;
+		const padding = 2 * camera.zoom;
 
 		ctx.save();
-		ctx.translate(canvasX + item.width / 2 + 2, canvasY + item.height / 2 + 2);
+		ctx.translate(screenPos.x, screenPos.y);
 		ctx.rotate((item.rotation * Math.PI) / 180);
 
 		ctx.strokeStyle = '#fbbf24';
-		ctx.lineWidth = 2;
-		ctx.setLineDash([3, 3]);
-		ctx.strokeRect(-(item.width / 2 + 2), -(item.height / 2 + 2), item.width + 4, item.height + 4);
+		ctx.lineWidth = Math.max(1, 2 * camera.zoom);
+		ctx.setLineDash([3 * camera.zoom, 3 * camera.zoom]);
+		ctx.strokeRect(-(screenWidth / 2 + padding), -(screenHeight / 2 + padding),
+					   screenWidth + 2 * padding, screenHeight + 2 * padding);
 		ctx.setLineDash([]);
 
 		ctx.restore();
+	};
+
+	const handleCanvasWheel = (event: React.WheelEvent<HTMLCanvasElement>) => {
+		event.preventDefault();
+
+		const canvas = canvasRef.current;
+		if (!canvas) return;
+
+		const rect = canvas.getBoundingClientRect();
+		// Scale mouse coordinates to match canvas internal coordinates
+		const scaleX = CANVAS_WIDTH / rect.width;
+		const scaleY = CANVAS_HEIGHT / rect.height;
+		const screenX = (event.clientX - rect.left) * scaleX;
+		const screenY = (event.clientY - rect.top) * scaleY;
+
+		// Get world position before zoom
+		const worldBeforeZoom = screenToWorld(screenX, screenY);
+
+		// Calculate zoom change
+		const zoomFactor = event.deltaY > 0 ? 0.9 : 1.1;
+		const newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, camera.zoom * zoomFactor));
+
+		// Calculate world position after zoom using the new zoom level
+		const worldAfterZoom = {
+			x: camera.x + (screenX - CANVAS_WIDTH / 2) / newZoom,
+			y: camera.y + (screenY - CANVAS_HEIGHT / 2) / newZoom,
+		};
+
+		// Update camera with new zoom and adjusted position in one call
+		setCamera({
+			x: camera.x + (worldBeforeZoom.x - worldAfterZoom.x),
+			y: camera.y + (worldBeforeZoom.y - worldAfterZoom.y),
+			zoom: newZoom,
+		});
+	};
+
+	const handleCanvasMouseDown = (event: React.MouseEvent<HTMLCanvasElement>) => {
+		const canvas = canvasRef.current;
+		if (!canvas) return;
+
+		const rect = canvas.getBoundingClientRect();
+		// Scale mouse coordinates to match canvas internal coordinates
+		const scaleX = CANVAS_WIDTH / rect.width;
+		const scaleY = CANVAS_HEIGHT / rect.height;
+		const screenX = (event.clientX - rect.left) * scaleX;
+		const screenY = (event.clientY - rect.top) * scaleY;
+
+		if (event.button === 1 || (event.button === 0 && event.ctrlKey)) {
+			// Middle mouse button or Ctrl+Left mouse button for panning
+			event.preventDefault();
+			setDragState({
+				isDragging: true,
+				dragType: 'camera',
+				dragId: null,
+				startX: screenX,
+				startY: screenY,
+				currentX: screenX,
+				currentY: screenY,
+			});
+		}
+	};
+
+	const handleCanvasMouseMove = (event: React.MouseEvent<HTMLCanvasElement>) => {
+		if (!dragState.isDragging) return;
+
+		const canvas = canvasRef.current;
+		if (!canvas) return;
+
+		const rect = canvas.getBoundingClientRect();
+		// Scale mouse coordinates to match canvas internal coordinates
+		const scaleX = CANVAS_WIDTH / rect.width;
+		const scaleY = CANVAS_HEIGHT / rect.height;
+		const screenX = (event.clientX - rect.left) * scaleX;
+		const screenY = (event.clientY - rect.top) * scaleY;
+
+		if (dragState.dragType === 'camera') {
+			// Calculate pan delta in screen space
+			const deltaX = screenX - dragState.currentX;
+			const deltaY = screenY - dragState.currentY;
+
+			// Convert to world space delta (inverse of zoom)
+			const worldDeltaX = -deltaX / camera.zoom;
+			const worldDeltaY = -deltaY / camera.zoom;
+
+			// Update camera position
+			setCamera(prev => ({
+				...prev,
+				x: prev.x + worldDeltaX,
+				y: prev.y + worldDeltaY,
+			}));
+
+			// Update drag state
+			setDragState(prev => ({
+				...prev,
+				currentX: screenX,
+				currentY: screenY,
+			}));
+		}
+	};
+
+	const handleCanvasMouseUp = (event: React.MouseEvent<HTMLCanvasElement>) => {
+		if (dragState.isDragging && dragState.dragType === 'camera') {
+			setDragState({
+				isDragging: false,
+				dragType: 'none',
+				dragId: null,
+				startX: 0,
+				startY: 0,
+				currentX: 0,
+				currentY: 0,
+			});
+			return;
+		}
+
+		// If not dragging the camera, handle as a click
+		if (!dragState.isDragging) {
+			handleCanvasClick(event);
+		}
 	};
 
 	const handleCanvasClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
@@ -338,35 +628,66 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 		if (!canvas) return;
 
 		const rect = canvas.getBoundingClientRect();
-		const x = event.clientX - rect.left;
-		const y = event.clientY - rect.top;
+		// Scale mouse coordinates to match canvas internal coordinates
+		const scaleX = CANVAS_WIDTH / rect.width;
+		const scaleY = CANVAS_HEIGHT / rect.height;
+		const screenX = (event.clientX - rect.left) * scaleX;
+		const screenY = (event.clientY - rect.top) * scaleY;
 
-		// Check if clicked on a door first (smaller hit targets)
+		// Convert screen coordinates to world coordinates
+		const worldPos = screenToWorld(screenX, screenY);
+
+		// Check if clicked on furniture first (highest priority)
+		const clickedFurniture = floorFurniture.find(item => {
+			const room = floorRooms.find(r => r.id === item.room_id);
+			if (!room) return false;
+
+			const worldCoords = roomToWorldCoordinates(item, room);
+			const halfWidth = item.width / 2;
+			const halfHeight = item.height / 2;
+
+			return worldPos.x >= worldCoords.worldX - halfWidth &&
+				   worldPos.x <= worldCoords.worldX + halfWidth &&
+				   worldPos.y >= worldCoords.worldY - halfHeight &&
+				   worldPos.y <= worldCoords.worldY + halfHeight;
+		});
+
+		if (clickedFurniture) {
+			setSelectedFurniture(clickedFurniture);
+			setSelectedDoor(null);
+			setSelectedRoom(null);
+			return;
+		}
+
+		// Check if clicked on a door (smaller hit targets)
 		const clickedDoor = floorDoors.find(door => {
 			const halfWidth = door.width / 2;
 			const halfHeight = door.height / 2;
-			return x >= door.x - halfWidth && x <= door.x + halfWidth &&
-				   y >= door.y - halfHeight && y <= door.y + halfHeight;
+			return worldPos.x >= door.x - halfWidth && worldPos.x <= door.x + halfWidth &&
+				   worldPos.y >= door.y - halfHeight && worldPos.y <= door.y + halfHeight;
 		});
 
 		if (clickedDoor) {
 			setSelectedDoor(clickedDoor);
 			setSelectedRoom(null);
+			setSelectedFurniture(null);
 			return;
 		}
 
 		// Check if clicked on a room
 		const clickedRoom = floorRooms.find(room => {
-			return x >= room.startX && x <= room.endX &&
-				   y >= room.startY && y <= room.endY;
+			return worldPos.x >= room.startX && worldPos.x <= room.endX &&
+				   worldPos.y >= room.startY && worldPos.y <= room.endY;
 		});
 
 		if (clickedRoom) {
 			setSelectedRoom(clickedRoom);
 			setSelectedDoor(null);
+			setSelectedFurniture(null);
 		} else {
 			setSelectedRoom(null);
 			setSelectedDoor(null);
+			setSelectedFurniture(null);
 		}
 	};
 
@@ -459,6 +780,20 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 						>
 							<FaPlus /> Add Door
 						</Button>
+						<Button
+							variant="success"
+							onClick={() => {
+								if (!selectedRoom) {
+									toast.error('Please select a room first');
+									return;
+								}
+								// TODO: Add furniture creation modal
+								toast.info('Furniture creation coming soon');
+							}}
+							disabled={!selectedRoom}
+						>
+							<FaPlus /> Add Furniture
+						</Button>
 					</div>
 
 					{/* Selected Room Properties */}
@@ -545,18 +880,90 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 						</Card>
 					)}
 
+					{/* Selected Furniture Properties */}
+					{selectedFurniture && (
+						<Card className="mb-3">
+							<Card.Header>Selected Furniture</Card.Header>
+							<Card.Body>
+								<p><strong>{selectedFurniture.name}</strong></p>
+								<p>ID: <code>{selectedFurniture.id}</code></p>
+								<p>Type: <span className="badge bg-info">{selectedFurniture.furniture_type}</span></p>
+								<p>Room Position: ({selectedFurniture.x}, {selectedFurniture.y})</p>
+								<p>Size: {selectedFurniture.width} × {selectedFurniture.height}</p>
+								<p>Active: <span className={`badge bg-${selectedFurniture.active ? 'success' : 'danger'}`}>{selectedFurniture.active ? 'Yes' : 'No'}</span></p>
+								<div className="d-grid gap-2">
+									<Button
+										size="sm"
+										variant="outline-warning"
+										onClick={() => {
+											// TODO: Add furniture editing modal
+											toast.info('Furniture editing coming soon');
+										}}
+									>
+										<FaEdit /> Edit
+									</Button>
+									<Button
+										size="sm"
+										variant="outline-danger"
+										onClick={async () => {
+											if (!confirm('Are you sure you want to delete this furniture?')) return;
+											try {
+												await adminService.deleteFurniture(selectedFurniture.id);
+												toast.success('Furniture deleted successfully');
+												setSelectedFurniture(null);
+												loadData();
+											} catch (err: any) {
+												toast.error(err.message || 'Failed to delete furniture');
+											}
+										}}
+									>
+										<FaTrash /> Delete
+									</Button>
+								</div>
+							</Card.Body>
+						</Card>
+					)}
+
 					{/* Floor Statistics */}
 					<Card>
 						<Card.Header>Floor Statistics</Card.Header>
 						<Card.Body>
 							<p>Rooms: {floorRooms.length}</p>
 							<p>Doors: {floorDoors.length}</p>
+							<p>Furniture: {floorFurniture.length}</p>
 						</Card.Body>
 					</Card>
 				</div>
 
 				{/* Right Panel - Canvas */}
 				<div className="flex-grow-1" style={{ padding: '1rem' }}>
+					{/* Camera Controls */}
+					<div className="mb-2 d-flex align-items-center gap-2">
+						<small className="text-muted">
+							Camera: ({camera.x.toFixed(0)}, {camera.y.toFixed(0)}) | Zoom: {(camera.zoom * 100).toFixed(0)}%
+						</small>
+						<Button
+							size="sm"
+							variant="outline-secondary"
+							onClick={() => setCamera({ x: 0, y: 0, zoom: 1.0 })}
+						>
+							Reset View
+						</Button>
+						<Button
+							size="sm"
+							variant="outline-secondary"
+							onClick={() => setCamera(prev => ({ ...prev, zoom: Math.min(MAX_ZOOM, prev.zoom * 1.5) }))}
+						>
+							Zoom In
+						</Button>
+						<Button
+							size="sm"
+							variant="outline-secondary"
+							onClick={() => setCamera(prev => ({ ...prev, zoom: Math.max(MIN_ZOOM, prev.zoom / 1.5) }))}
+						>
+							Zoom Out
+						</Button>
+					</div>
 					<canvas
 						ref={canvasRef}
 						width={CANVAS_WIDTH}
@@ -564,10 +971,21 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 						style={{
 							border: '1px solid #ccc',
 							backgroundColor: '#1a202c',
-							cursor: dragState.isDragging ? 'grabbing' : 'crosshair',
+							cursor: dragState.isDragging && dragState.dragType === 'camera' ? 'grabbing' :
+								dragState.isDragging ? 'move' : 'crosshair',
+							maxWidth: '100%',
+							height: 'auto',
 						}}
-						onClick={handleCanvasClick}
+						onWheel={handleCanvasWheel}
+						onMouseDown={handleCanvasMouseDown}
+						onMouseMove={handleCanvasMouseMove}
+						onMouseUp={handleCanvasMouseUp}
+						onContextMenu={(e) => e.preventDefault()} // Prevent right-click menu
 					/>
+					<small className="text-muted d-block mt-1">
+						<strong>Controls:</strong> Mouse wheel to zoom, middle-click or Ctrl+drag to pan<br/>
+						<strong>Keyboard:</strong> WASD/Arrow keys to move, +/- to zoom, 0 to reset view
+					</small>
 				</div>
 			</div>
 
