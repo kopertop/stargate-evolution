@@ -163,17 +163,31 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 
 	const loadData = async () => {
 		try {
-			const [roomsData, doorsData, furnitureData] = await Promise.all([
-				adminService.getAllRoomTemplates?.() || [], // Add optional chaining
-				adminService.getAllDoors?.() || [], // Add optional chaining
-				adminService.getAllFurniture?.() || [], // Add optional chaining
-			]);
-			console.log('Room Builder - Loaded data:', {
+			// Load each data source separately with individual error handling
+			const roomsData = await adminService.getAllRoomTemplates();
+
+			let doorsData: any[] = [];
+			try {
+				doorsData = await adminService.getAllDoors();
+			} catch (err: any) {
+				console.error('Room Builder - Failed to load doors:', err);
+				toast.warning('Failed to load doors: ' + err.message);
+			}
+
+			let furnitureData: any[] = [];
+			try {
+				furnitureData = await adminService.getAllFurniture();
+			} catch (err: any) {
+				console.error('Room Builder - Failed to load furniture:', err);
+				toast.warning('Failed to load furniture: ' + err.message);
+			}
+
+			console.log('Room Builder - Data loaded:', {
 				rooms: roomsData.length,
 				doors: doorsData.length,
 				furniture: furnitureData.length,
-				furnitureData,
 			});
+
 			setRooms(roomsData);
 			setDoors(doorsData);
 			setFurniture(furnitureData);
@@ -200,15 +214,12 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 		drawCenterAxes(ctx);
 
 		// Draw rooms
-		console.log('Drawing rooms:', floorRooms.length);
 		floorRooms.forEach(room => drawRoom(ctx, room));
 
 		// Draw doors
-		console.log('Drawing doors:', floorDoors.length);
 		floorDoors.forEach(door => drawDoor(ctx, door));
 
 		// Draw furniture
-		console.log('Drawing furniture:', floorFurniture.length, floorFurniture);
 		floorFurniture.forEach(item => drawFurniture(ctx, item));
 
 		// Draw selection highlights
@@ -398,15 +409,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 			return;
 		}
 
-		console.log('Drawing furniture:', {
-			id: item.id,
-			type: item.furniture_type,
-			room: room.id,
-			roomCoords: { x: item.x, y: item.y },
-			worldCoords,
-			screenPos,
-			size: { width: item.width * camera.zoom, height: item.height * camera.zoom },
-		});
+
 
 		const screenWidth = item.width * camera.zoom;
 		const screenHeight = item.height * camera.zoom;

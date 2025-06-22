@@ -5,7 +5,7 @@ export const RoomFurnitureSchema = z.object({
 	room_id: z.string(),
 	furniture_type: z.string(), // 'stargate', 'console', 'bed', 'table', etc.
 	name: z.string(),
-	description: z.string().optional(),
+	description: z.string().optional().nullable(),
 
 	// Room-relative positioning (0,0 at room center)
 	x: z.number(), // X offset from room center
@@ -15,18 +15,18 @@ export const RoomFurnitureSchema = z.object({
 	rotation: z.number().default(0), // Rotation in degrees (0, 90, 180, 270)
 
 	// Visual properties
-	image: z.string().optional(), // Image asset for rendering
-	color: z.string().optional(), // Hex color code for tinting
-	style: z.string().optional(), // Style variant ('ancient', 'modern', etc.)
+	image: z.string().optional().nullable(), // Image asset for rendering
+	color: z.string().optional().nullable(), // Hex color code for tinting
+	style: z.string().optional().nullable(), // Style variant ('ancient', 'modern', etc.)
 
-	// Functional properties
-	interactive: z.boolean().default(false), // Can player interact with this?
-	requirements: z.string().optional(), // JSON string of requirements to use
+	// Functional properties - SQLite stores booleans as numbers (0/1)
+	interactive: z.union([z.boolean(), z.number()]).transform((val) => val === true || val === 1), // Can player interact with this?
+	requirements: z.string().optional().nullable(), // JSON string of requirements to use
 	power_required: z.number().default(0), // Power needed to operate
 
-	// State
-	active: z.boolean().default(true), // Is this furniture active/functional?
-	discovered: z.boolean().default(true), // Has player discovered this?
+	// State - SQLite stores booleans as numbers (0/1)
+	active: z.union([z.boolean(), z.number()]).transform((val) => val === true || val === 1), // Is this furniture active/functional?
+	discovered: z.union([z.boolean(), z.number()]).transform((val) => val === true || val === 1), // Has player discovered this?
 
 	created_at: z.number(),
 	updated_at: z.number(),
