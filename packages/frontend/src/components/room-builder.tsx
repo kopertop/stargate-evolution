@@ -1134,6 +1134,9 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 		case 'remove-door':
 			handleRemoveDoor();
 			break;
+		case 'remove-room':
+			handleRemoveRoom();
+			break;
 		case 'inspector':
 			handleOpenInspector();
 			break;
@@ -1264,6 +1267,21 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 			loadData();
 		} catch (err: any) {
 			toast.error(`Failed to remove door: ${err.message}`);
+		}
+	};
+
+	const handleRemoveRoom = async () => {
+		if (!selectedRoom) return;
+
+		if (!confirm('Are you sure you want to remove this room? This will also delete all connected doors.')) return;
+
+		try {
+			await adminService.deleteRoom(selectedRoom.id);
+			toast.success('Room deleted successfully');
+			setSelectedRoom(null);
+			loadData();
+		} catch (err: any) {
+			toast.error(err.message || 'Failed to delete room');
 		}
 	};
 
@@ -1558,6 +1576,13 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 											onClick={() => handleContextMenuAction('inspector')}
 										>
 											<FaEye className="me-2" />Inspector (Cmd+I)
+										</button>
+										<hr className="dropdown-divider bg-secondary" />
+										<button
+											className="dropdown-item text-danger bg-transparent border-0 w-100 text-start px-3 py-2"
+											onClick={() => handleContextMenuAction('remove-room')}
+										>
+											<FaTrash className="me-2" />Delete Room
 										</button>
 									</>
 								)}

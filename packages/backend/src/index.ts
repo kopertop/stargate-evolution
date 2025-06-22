@@ -596,9 +596,8 @@ export default {
 						id, layout_id, type, name, description,
 						startX, endX, startY, endY, floor,
 						found, locked, explored, image, base_exploration_time, status,
-						connection_north, connection_south, connection_east, connection_west,
 						created_at, updated_at
-					) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+					) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 				`).bind(
 					roomData.id,
 					roomData.layout_id,
@@ -616,32 +615,12 @@ export default {
 					roomData.image || null,
 					roomData.base_exploration_time || 2,
 					roomData.status || 'ok',
-					roomData.connection_north || null,
-					roomData.connection_south || null,
-					roomData.connection_east || null,
-					roomData.connection_west || null,
 					now,
 					now,
 				).run();
 
-				// Handle bidirectional connections - update connected rooms to point back to this new room
-				const connections = [
-					{ direction: 'north', reverseDirection: 'south', connectedRoomId: roomData.connection_north },
-					{ direction: 'south', reverseDirection: 'north', connectedRoomId: roomData.connection_south },
-					{ direction: 'east', reverseDirection: 'west', connectedRoomId: roomData.connection_east },
-					{ direction: 'west', reverseDirection: 'east', connectedRoomId: roomData.connection_west },
-				];
-
-				for (const conn of connections) {
-					if (conn.connectedRoomId) {
-						// Update the connected room to point back to this new room
-						await env.DB.prepare(`
-							UPDATE room_templates
-							SET connection_${conn.reverseDirection} = ?, updated_at = ?
-							WHERE id = ?
-						`).bind(roomData.id, now, conn.connectedRoomId).run();
-					}
-				}
+				// Note: Room connections are now handled via the door_templates table
+				// Legacy bidirectional connection handling is no longer needed
 
 				return withCors(new Response(JSON.stringify({ success: true, id: roomData.id }), {
 					headers: { 'content-type': 'application/json' },
@@ -673,7 +652,6 @@ export default {
 						layout_id = ?, type = ?, name = ?, description = ?,
 						startX = ?, endX = ?, startY = ?, endY = ?, floor = ?,
 						found = ?, locked = ?, explored = ?, image = ?, base_exploration_time = ?, status = ?,
-						connection_north = ?, connection_south = ?, connection_east = ?, connection_west = ?,
 						updated_at = ?
 					WHERE id = ?
 				`).bind(
@@ -692,10 +670,6 @@ export default {
 					roomData.image || null,
 					roomData.base_exploration_time || 2,
 					roomData.status || 'ok',
-					roomData.connection_north || null,
-					roomData.connection_south || null,
-					roomData.connection_east || null,
-					roomData.connection_west || null,
 					now,
 					roomId,
 				).run();
@@ -730,30 +704,7 @@ export default {
 
 				const now = Date.now();
 
-				// Remove reverse connections - update any rooms that connect to this room
-				await env.DB.prepare(`
-					UPDATE room_templates
-					SET connection_north = NULL, updated_at = ?
-					WHERE connection_north = ?
-				`).bind(now, roomId).run();
-
-				await env.DB.prepare(`
-					UPDATE room_templates
-					SET connection_south = NULL, updated_at = ?
-					WHERE connection_south = ?
-				`).bind(now, roomId).run();
-
-				await env.DB.prepare(`
-					UPDATE room_templates
-					SET connection_east = NULL, updated_at = ?
-					WHERE connection_east = ?
-				`).bind(now, roomId).run();
-
-				await env.DB.prepare(`
-					UPDATE room_templates
-					SET connection_west = NULL, updated_at = ?
-					WHERE connection_west = ?
-				`).bind(now, roomId).run();
+				// Delete any doors connected to this room (handled by CASCADE DELETE)
 
 				// Delete all room technology for this room
 				await env.DB.prepare('DELETE FROM room_technology WHERE room_id = ?').bind(roomId).run();

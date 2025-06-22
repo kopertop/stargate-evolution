@@ -1,4 +1,4 @@
-import { getSession } from '../auth/session';
+import { getSession, validateOrRefreshSession } from '../auth/session';
 
 const API_URL = import.meta.env.VITE_PUBLIC_API_URL || '';
 
@@ -12,6 +12,37 @@ class AdminService {
 			'Content-Type': 'application/json',
 			'Authorization': `Bearer ${session.token}`,
 		};
+	}
+
+	private async makeAuthenticatedRequest(url: string, options: RequestInit = {}) {
+		const requestOptions = {
+			...options,
+			headers: {
+				...this.getAuthHeaders(),
+				...options.headers,
+			},
+		};
+
+		let response = await fetch(url, requestOptions);
+
+		// If we get a 401 (Unauthorized), try to refresh the token once
+		if (response.status === 401) {
+			console.log('Token expired, attempting refresh...');
+			const refreshedSession = await validateOrRefreshSession(API_URL);
+
+			if (!refreshedSession?.token) {
+				throw new Error('Authentication failed - please log in again');
+			}
+
+			// Retry the request with the new token
+			requestOptions.headers = {
+				...requestOptions.headers,
+				'Authorization': `Bearer ${refreshedSession.token}`,
+			};
+			response = await fetch(url, requestOptions);
+		}
+
+		return response;
 	}
 
 	// User management
@@ -55,9 +86,8 @@ class AdminService {
 	}
 
 	async createRoom(roomData: any) {
-		const response = await fetch(`${API_URL}/api/admin/rooms`, {
+		const response = await this.makeAuthenticatedRequest(`${API_URL}/api/admin/rooms`, {
 			method: 'POST',
-			headers: this.getAuthHeaders(),
 			body: JSON.stringify(roomData),
 		});
 		if (!response.ok) {
@@ -68,9 +98,8 @@ class AdminService {
 	}
 
 	async updateRoom(roomId: string, roomData: any) {
-		const response = await fetch(`${API_URL}/api/admin/rooms/${roomId}`, {
+		const response = await this.makeAuthenticatedRequest(`${API_URL}/api/admin/rooms/${roomId}`, {
 			method: 'PUT',
-			headers: this.getAuthHeaders(),
 			body: JSON.stringify(roomData),
 		});
 		if (!response.ok) {

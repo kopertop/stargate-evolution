@@ -2,11 +2,11 @@ import { z } from 'zod';
 
 export const RoomTemplateSchema = z.object({
 	id: z.string(),
-	template_id: z.string().optional(),
+	template_id: z.string().optional().nullable(),
 	layout_id: z.string(),
 	type: z.string(),
 	name: z.string(),
-	description: z.string().optional(),
+	description: z.string().optional().nullable(),
 
 	// Coordinate-based positioning for Swift SpriteKit (required - no legacy data)
 	startX: z.number(),
@@ -22,7 +22,7 @@ export const RoomTemplateSchema = z.object({
 	found: z.union([z.boolean(), z.number()]).optional().transform((val) => val === true || val === 1),
 	locked: z.union([z.boolean(), z.number()]).optional().transform((val) => val === true || val === 1),
 	explored: z.union([z.boolean(), z.number()]).optional().transform((val) => val === true || val === 1),
-	exploration_data: z.string().optional(),
+	exploration_data: z.string().optional().nullable(),
 	image: z.string().nullable(),
 	base_exploration_time: z.number().optional(),
 	status: z.string().optional(),
