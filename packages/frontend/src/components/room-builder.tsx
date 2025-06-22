@@ -13,7 +13,7 @@ interface RoomBuilderProps {
 
 type DragState = {
 	isDragging: boolean;
-	dragType: 'room' | 'door' | 'camera' | 'none';
+	dragType: 'room' | 'door' | 'furniture' | 'camera' | 'none';
 	dragId: string | null;
 	startX: number;
 	startY: number;
@@ -450,9 +450,11 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 		const screenWidth = bottomRight.x - topLeft.x;
 		const screenHeight = bottomRight.y - topLeft.y;
 
-		ctx.strokeStyle = '#fbbf24';
-		ctx.lineWidth = Math.max(2, 3 * camera.zoom);
-		ctx.setLineDash([5 * camera.zoom, 5 * camera.zoom]);
+		// Use different colors for different states
+		const isDragging = dragState.isDragging && dragState.dragType === 'room' && dragState.dragId === room.id;
+		ctx.strokeStyle = isDragging ? '#ff6b6b' : '#fbbf24'; // Red when dragging, gold when selected
+		ctx.lineWidth = Math.max(2, isDragging ? 4 * camera.zoom : 3 * camera.zoom);
+		ctx.setLineDash(isDragging ? [3 * camera.zoom, 3 * camera.zoom] : [5 * camera.zoom, 5 * camera.zoom]);
 		ctx.strokeRect(topLeft.x - 2 * camera.zoom, topLeft.y - 2 * camera.zoom,
 					   screenWidth + 4 * camera.zoom, screenHeight + 4 * camera.zoom);
 		ctx.setLineDash([]);
@@ -471,9 +473,11 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 		ctx.translate(screenPos.x, screenPos.y);
 		ctx.rotate((door.rotation * Math.PI) / 180);
 
-		ctx.strokeStyle = '#fbbf24';
-		ctx.lineWidth = Math.max(1, 2 * camera.zoom);
-		ctx.setLineDash([3 * camera.zoom, 3 * camera.zoom]);
+		// Use different colors for different states
+		const isDragging = dragState.isDragging && dragState.dragType === 'door' && dragState.dragId === door.id;
+		ctx.strokeStyle = isDragging ? '#ff6b6b' : '#fbbf24'; // Red when dragging, gold when selected
+		ctx.lineWidth = Math.max(1, isDragging ? 3 * camera.zoom : 2 * camera.zoom);
+		ctx.setLineDash(isDragging ? [2 * camera.zoom, 2 * camera.zoom] : [3 * camera.zoom, 3 * camera.zoom]);
 		ctx.strokeRect(-halfWidth, -halfHeight, screenWidth + 4 * camera.zoom, screenHeight + 4 * camera.zoom);
 		ctx.setLineDash([]);
 
@@ -499,9 +503,11 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 		ctx.translate(screenPos.x, screenPos.y);
 		ctx.rotate((item.rotation * Math.PI) / 180);
 
-		ctx.strokeStyle = '#fbbf24';
-		ctx.lineWidth = Math.max(1, 2 * camera.zoom);
-		ctx.setLineDash([3 * camera.zoom, 3 * camera.zoom]);
+		// Use different colors for different states
+		const isDragging = dragState.isDragging && dragState.dragType === 'furniture' && dragState.dragId === item.id;
+		ctx.strokeStyle = isDragging ? '#ff6b6b' : '#fbbf24'; // Red when dragging, gold when selected
+		ctx.lineWidth = Math.max(1, isDragging ? 3 * camera.zoom : 2 * camera.zoom);
+		ctx.setLineDash(isDragging ? [2 * camera.zoom, 2 * camera.zoom] : [3 * camera.zoom, 3 * camera.zoom]);
 		ctx.strokeRect(-(screenWidth / 2 + padding), -(screenHeight / 2 + padding),
 					   screenWidth + 2 * padding, screenHeight + 2 * padding);
 		ctx.setLineDash([]);
@@ -554,14 +560,59 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 		const screenX = (event.clientX - rect.left) * scaleX;
 		const screenY = (event.clientY - rect.top) * scaleY;
 
+		// Convert screen coordinates to world coordinates
+		const worldPos = screenToWorld(screenX, screenY);
+
+		// Check if we're clicking on a selected item to start dragging it
+		let dragType: 'room' | 'door' | 'furniture' | 'camera' = 'camera';
+		let dragId: string | null = null;
+
+		// Check if clicking on selected furniture (highest priority)
+		if (selectedFurniture) {
+			const room = floorRooms.find(r => r.id === selectedFurniture.room_id);
+			if (room) {
+				const worldCoords = roomToWorldCoordinates(selectedFurniture, room);
+				const halfWidth = selectedFurniture.width / 2;
+				const halfHeight = selectedFurniture.height / 2;
+
+				if (worldPos.x >= worldCoords.worldX - halfWidth &&
+					worldPos.x <= worldCoords.worldX + halfWidth &&
+					worldPos.y >= worldCoords.worldY - halfHeight &&
+					worldPos.y <= worldCoords.worldY + halfHeight) {
+					dragType = 'furniture';
+					dragId = selectedFurniture.id;
+				}
+			}
+		}
+
+		// Check if clicking on selected door
+		if (dragType === 'camera' && selectedDoor) {
+			const halfWidth = selectedDoor.width / 2;
+			const halfHeight = selectedDoor.height / 2;
+			if (worldPos.x >= selectedDoor.x - halfWidth && worldPos.x <= selectedDoor.x + halfWidth &&
+				worldPos.y >= selectedDoor.y - halfHeight && worldPos.y <= selectedDoor.y + halfHeight) {
+				dragType = 'door';
+				dragId = selectedDoor.id;
+			}
+		}
+
+		// Check if clicking on selected room
+		if (dragType === 'camera' && selectedRoom) {
+			if (worldPos.x >= selectedRoom.startX && worldPos.x <= selectedRoom.endX &&
+				worldPos.y >= selectedRoom.startY && worldPos.y <= selectedRoom.endY) {
+				dragType = 'room';
+				dragId = selectedRoom.id;
+			}
+		}
+
 		if (event.button === 1 || (event.button === 0 && event.ctrlKey) || event.button === 0) {
-			// Middle mouse button, Ctrl+Left mouse button, or regular left mouse button for panning
+			// Middle mouse button, Ctrl+Left mouse button, or regular left mouse button
 			event.preventDefault();
 			setIsMouseDown(true);
 			setDragState({
 				isDragging: false, // Don't set to true immediately, wait for movement
-				dragType: 'camera',
-				dragId: null,
+				dragType,
+				dragId,
 				startX: screenX,
 				startY: screenY,
 				currentX: screenX,
@@ -582,7 +633,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 		const screenY = (event.clientY - rect.top) * scaleY;
 
 		// If mouse is down but not yet dragging, check if we should start dragging
-		if (isMouseDown && !dragState.isDragging && dragState.dragType === 'camera') {
+		if (isMouseDown && !dragState.isDragging && dragState.dragType !== 'none') {
 			const deltaX = screenX - dragState.startX;
 			const deltaY = screenY - dragState.startY;
 			const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
@@ -599,24 +650,120 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 			return;
 		}
 
-		// If actively dragging, update camera position
-		if (dragState.isDragging && dragState.dragType === 'camera') {
-			// Calculate pan delta in screen space
-			const deltaX = screenX - dragState.currentX;
-			const deltaY = screenY - dragState.currentY;
+		// If actively dragging, handle different drag types
+		if (dragState.isDragging) {
+			if (dragState.dragType === 'camera') {
+				// Calculate pan delta in screen space
+				const deltaX = screenX - dragState.currentX;
+				const deltaY = screenY - dragState.currentY;
 
-			// Convert to world space delta (inverse of zoom)
-			const worldDeltaX = -deltaX / camera.zoom;
-			const worldDeltaY = -deltaY / camera.zoom;
+				// Convert to world space delta (inverse of zoom)
+				const worldDeltaX = -deltaX / camera.zoom;
+				const worldDeltaY = -deltaY / camera.zoom;
 
-			// Update camera position
-			setCamera(prev => ({
-				...prev,
-				x: prev.x + worldDeltaX,
-				y: prev.y + worldDeltaY,
-			}));
+				// Update camera position
+				setCamera(prev => ({
+					...prev,
+					x: prev.x + worldDeltaX,
+					y: prev.y + worldDeltaY,
+				}));
+			} else if (dragState.dragType === 'room' && selectedRoom && dragState.dragId === selectedRoom.id) {
+				// Move room - calculate world space delta
+				const worldStart = screenToWorld(dragState.startX, dragState.startY);
+				const worldCurrent = screenToWorld(screenX, screenY);
+				const worldDeltaX = worldCurrent.x - worldStart.x;
+				const worldDeltaY = worldCurrent.y - worldStart.y;
 
-			// Update drag state
+				// Snap to grid (32-point grid)
+				const snappedDeltaX = Math.round(worldDeltaX / 32) * 32;
+				const snappedDeltaY = Math.round(worldDeltaY / 32) * 32;
+
+				// Update room position
+				const updatedRoom = {
+					...selectedRoom,
+					startX: selectedRoom.startX + snappedDeltaX,
+					endX: selectedRoom.endX + snappedDeltaX,
+					startY: selectedRoom.startY + snappedDeltaY,
+					endY: selectedRoom.endY + snappedDeltaY,
+				};
+
+				setSelectedRoom(updatedRoom);
+				// Update in rooms array for immediate visual feedback
+				setRooms(prev => prev.map(r => r.id === selectedRoom.id ? updatedRoom : r));
+
+				// Update drag start position for next movement
+				setDragState(prev => ({
+					...prev,
+					startX: screenX,
+					startY: screenY,
+				}));
+			} else if (dragState.dragType === 'door' && selectedDoor && dragState.dragId === selectedDoor.id) {
+				// Move door - calculate world space delta
+				const worldStart = screenToWorld(dragState.startX, dragState.startY);
+				const worldCurrent = screenToWorld(screenX, screenY);
+				const worldDeltaX = worldCurrent.x - worldStart.x;
+				const worldDeltaY = worldCurrent.y - worldStart.y;
+
+				// Snap to grid (16-point grid for doors)
+				const snappedDeltaX = Math.round(worldDeltaX / 16) * 16;
+				const snappedDeltaY = Math.round(worldDeltaY / 16) * 16;
+
+				// Update door position
+				const updatedDoor = {
+					...selectedDoor,
+					x: selectedDoor.x + snappedDeltaX,
+					y: selectedDoor.y + snappedDeltaY,
+				};
+
+				setSelectedDoor(updatedDoor);
+				// Update in doors array for immediate visual feedback
+				setDoors(prev => prev.map(d => d.id === selectedDoor.id ? updatedDoor : d));
+
+				// Update drag start position for next movement
+				setDragState(prev => ({
+					...prev,
+					startX: screenX,
+					startY: screenY,
+				}));
+			} else if (dragState.dragType === 'furniture' && selectedFurniture && dragState.dragId === selectedFurniture.id) {
+				// Move furniture - calculate world space delta
+				const worldStart = screenToWorld(dragState.startX, dragState.startY);
+				const worldCurrent = screenToWorld(screenX, screenY);
+				const worldDeltaX = worldCurrent.x - worldStart.x;
+				const worldDeltaY = worldCurrent.y - worldStart.y;
+
+				// Find the room this furniture belongs to
+				const room = floorRooms.find(r => r.id === selectedFurniture.room_id);
+				if (room) {
+					// Convert world delta to room-relative delta
+					const roomRelativeDeltaX = worldDeltaX;
+					const roomRelativeDeltaY = worldDeltaY;
+
+					// Snap to grid (8-point grid for furniture)
+					const snappedDeltaX = Math.round(roomRelativeDeltaX / 8) * 8;
+					const snappedDeltaY = Math.round(roomRelativeDeltaY / 8) * 8;
+
+					// Update furniture position (room-relative)
+					const updatedFurniture = {
+						...selectedFurniture,
+						x: selectedFurniture.x + snappedDeltaX,
+						y: selectedFurniture.y + snappedDeltaY,
+					};
+
+					setSelectedFurniture(updatedFurniture);
+					// Update in furniture array for immediate visual feedback
+					setFurniture(prev => prev.map(f => f.id === selectedFurniture.id ? updatedFurniture : f));
+
+					// Update drag start position for next movement
+					setDragState(prev => ({
+						...prev,
+						startX: screenX,
+						startY: screenY,
+					}));
+				}
+			}
+
+			// Update current position for all drag types
 			setDragState(prev => ({
 				...prev,
 				currentX: screenX,
@@ -625,23 +772,37 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 		}
 	};
 
-	const handleCanvasMouseUp = (event: React.MouseEvent<HTMLCanvasElement>) => {
+	const handleCanvasMouseUp = async (event: React.MouseEvent<HTMLCanvasElement>) => {
 		setIsMouseDown(false);
 
-		if (dragState.isDragging && dragState.dragType === 'camera') {
-			setDragState({
-				isDragging: false,
-				dragType: 'none',
-				dragId: null,
-				startX: 0,
-				startY: 0,
-				currentX: 0,
-				currentY: 0,
-			});
-			return;
+		// If we were dragging an item, save the changes
+		if (dragState.isDragging && dragState.dragType !== 'camera') {
+			try {
+				if (dragState.dragType === 'room' && selectedRoom && dragState.dragId === selectedRoom.id) {
+					// Save room position changes
+					await adminService.updateRoom(selectedRoom.id, {
+						...selectedRoom,
+						width: selectedRoom.endX - selectedRoom.startX, // Update legacy width
+						height: selectedRoom.endY - selectedRoom.startY, // Update legacy height
+					});
+					toast.success('Room moved successfully');
+				} else if (dragState.dragType === 'door' && selectedDoor && dragState.dragId === selectedDoor.id) {
+					// Save door position changes
+					await adminService.updateDoor(selectedDoor.id, selectedDoor);
+					toast.success('Door moved successfully');
+				} else if (dragState.dragType === 'furniture' && selectedFurniture && dragState.dragId === selectedFurniture.id) {
+					// Save furniture position changes
+					await adminService.updateFurniture(selectedFurniture.id, selectedFurniture);
+					toast.success('Furniture moved successfully');
+				}
+			} catch (err: any) {
+				toast.error(`Failed to save changes: ${err.message}`);
+				// Reload data to revert changes
+				loadData();
+			}
 		}
 
-		// If not dragging the camera, handle as a click
+		// If not dragging, handle as a click
 		if (!dragState.isDragging) {
 			handleCanvasClick(event);
 		}
@@ -1006,8 +1167,10 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 						style={{
 							border: '1px solid #ccc',
 							backgroundColor: '#1a202c',
-							cursor: dragState.isDragging && dragState.dragType === 'camera' ? 'grabbing' :
-								isMouseDown ? 'grabbing' : 'grab',
+							cursor: dragState.isDragging ?
+								(dragState.dragType === 'camera' ? 'grabbing' : 'move') :
+								(selectedRoom || selectedDoor || selectedFurniture) ? 'move' :
+									isMouseDown ? 'grabbing' : 'grab',
 							maxWidth: '100%',
 							height: 'auto',
 						}}
@@ -1019,6 +1182,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 					/>
 					<small className="text-muted d-block mt-1">
 						<strong>Controls:</strong> Mouse wheel to zoom, click and drag to pan<br/>
+						<strong>Moving Items:</strong> Select an item, then drag to move it (snaps to grid)<br/>
 						<strong>Keyboard:</strong> WASD/Arrow keys to move, +/- to zoom, 0 to reset view
 					</small>
 				</div>
