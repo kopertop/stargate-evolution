@@ -5,6 +5,7 @@ import { getDefaultDestinyStatusTemplate, getStartingInventoryTemplate } from '.
 import { getAllDoorTemplates, getDoorTemplateById, getDoorsForRoom, createDoorTemplate, updateDoorTemplate, deleteDoorTemplate } from './templates/door-templates';
 import { getAllGalaxyTemplates, getGalaxyTemplateById } from './templates/galaxy-templates';
 import { getAllPersonTemplates, getAllRaceTemplates } from './templates/person-templates';
+import { getAllRoomFurniture, getRoomFurniture, getFurnitureByType, getRoomFurnitureById, createRoomFurniture, updateRoomFurniture, deleteRoomFurniture } from './templates/room-furniture-templates';
 import { getAllRoomTemplates, getRoomTemplateById } from './templates/room-templates';
 import { getAllLayoutIds, getShipLayoutById, getShipLayoutWithTechnology } from './templates/ship-layouts';
 import { getAllStarSystemTemplates, getStarSystemTemplateById, getStarSystemsByGalaxyId } from './templates/star-system-templates';
@@ -1265,6 +1266,161 @@ export default {
 				}));
 			} catch (err: any) {
 				return withCors(new Response(JSON.stringify({ error: err.message || 'Failed to delete door' }), {
+					status: 500, headers: { 'content-type': 'application/json' },
+				}));
+			}
+		}
+
+		// Room Furniture Endpoints
+
+		// GET /api/admin/furniture - Get all room furniture
+		if (url.pathname === '/api/admin/furniture' && request.method === 'GET') {
+			const adminCheck = await verifyAdminAccess(request);
+			if (!adminCheck.success) {
+				return withCors(new Response(JSON.stringify({ error: adminCheck.error }), {
+					status: 401, headers: { 'content-type': 'application/json' },
+				}));
+			}
+
+			try {
+				const furniture = await getAllRoomFurniture(env);
+				return withCors(new Response(JSON.stringify(furniture), {
+					headers: { 'content-type': 'application/json' },
+				}));
+			} catch (err: any) {
+				return withCors(new Response(JSON.stringify({ error: err.message || 'Failed to fetch furniture' }), {
+					status: 500, headers: { 'content-type': 'application/json' },
+				}));
+			}
+		}
+
+		// GET /api/admin/furniture/{furnitureId} - Get furniture by ID
+		if (url.pathname.startsWith('/api/admin/furniture/') && request.method === 'GET') {
+			const adminCheck = await verifyAdminAccess(request);
+			if (!adminCheck.success) {
+				return withCors(new Response(JSON.stringify({ error: adminCheck.error }), {
+					status: 401, headers: { 'content-type': 'application/json' },
+				}));
+			}
+
+			try {
+				const furnitureId = url.pathname.split('/').pop();
+				if (!furnitureId) throw new Error('Furniture ID required');
+
+				const furniture = await getRoomFurnitureById(env, furnitureId);
+				if (!furniture) {
+					return withCors(new Response(JSON.stringify({ error: 'Furniture not found' }), {
+						status: 404, headers: { 'content-type': 'application/json' },
+					}));
+				}
+
+				return withCors(new Response(JSON.stringify(furniture), {
+					headers: { 'content-type': 'application/json' },
+				}));
+			} catch (err: any) {
+				return withCors(new Response(JSON.stringify({ error: err.message || 'Failed to fetch furniture' }), {
+					status: 500, headers: { 'content-type': 'application/json' },
+				}));
+			}
+		}
+
+		// GET /api/admin/rooms/{roomId}/furniture - Get furniture for a room
+		if (url.pathname.includes('/rooms/') && url.pathname.endsWith('/furniture') && request.method === 'GET') {
+			const adminCheck = await verifyAdminAccess(request);
+			if (!adminCheck.success) {
+				return withCors(new Response(JSON.stringify({ error: adminCheck.error }), {
+					status: 401, headers: { 'content-type': 'application/json' },
+				}));
+			}
+
+			try {
+				const pathParts = url.pathname.split('/');
+				const roomId = pathParts[pathParts.length - 2]; // Get room ID from path
+				if (!roomId) throw new Error('Room ID required');
+
+				const furniture = await getRoomFurniture(env, roomId);
+				return withCors(new Response(JSON.stringify(furniture), {
+					headers: { 'content-type': 'application/json' },
+				}));
+			} catch (err: any) {
+				return withCors(new Response(JSON.stringify({ error: err.message || 'Failed to fetch furniture for room' }), {
+					status: 500, headers: { 'content-type': 'application/json' },
+				}));
+			}
+		}
+
+		// POST /api/admin/furniture - Create room furniture
+		if (url.pathname === '/api/admin/furniture' && request.method === 'POST') {
+			const adminCheck = await verifyAdminAccess(request);
+			if (!adminCheck.success) {
+				return withCors(new Response(JSON.stringify({ error: adminCheck.error }), {
+					status: 401, headers: { 'content-type': 'application/json' },
+				}));
+			}
+
+			try {
+				const furnitureData = await request.json() as any;
+				const furniture = await createRoomFurniture(env, furnitureData);
+				return withCors(new Response(JSON.stringify(furniture), {
+					headers: { 'content-type': 'application/json' },
+				}));
+			} catch (err: any) {
+				return withCors(new Response(JSON.stringify({ error: err.message || 'Failed to create furniture' }), {
+					status: 500, headers: { 'content-type': 'application/json' },
+				}));
+			}
+		}
+
+		// PUT /api/admin/furniture/{furnitureId} - Update room furniture
+		if (url.pathname.startsWith('/api/admin/furniture/') && request.method === 'PUT') {
+			const adminCheck = await verifyAdminAccess(request);
+			if (!adminCheck.success) {
+				return withCors(new Response(JSON.stringify({ error: adminCheck.error }), {
+					status: 401, headers: { 'content-type': 'application/json' },
+				}));
+			}
+
+			try {
+				const furnitureId = url.pathname.split('/').pop();
+				if (!furnitureId) throw new Error('Furniture ID required');
+
+				const furnitureData = await request.json() as any;
+				const furniture = await updateRoomFurniture(env, furnitureId, furnitureData);
+				return withCors(new Response(JSON.stringify(furniture), {
+					headers: { 'content-type': 'application/json' },
+				}));
+			} catch (err: any) {
+				return withCors(new Response(JSON.stringify({ error: err.message || 'Failed to update furniture' }), {
+					status: 500, headers: { 'content-type': 'application/json' },
+				}));
+			}
+		}
+
+		// DELETE /api/admin/furniture/{furnitureId} - Delete room furniture
+		if (url.pathname.startsWith('/api/admin/furniture/') && request.method === 'DELETE') {
+			const adminCheck = await verifyAdminAccess(request);
+			if (!adminCheck.success) {
+				return withCors(new Response(JSON.stringify({ error: adminCheck.error }), {
+					status: 401, headers: { 'content-type': 'application/json' },
+				}));
+			}
+
+			try {
+				const furnitureId = url.pathname.split('/').pop();
+				if (!furnitureId) throw new Error('Furniture ID required');
+
+				const deleted = await deleteRoomFurniture(env, furnitureId);
+				if (!deleted) {
+					return withCors(new Response(JSON.stringify({ error: 'Furniture not found' }), {
+						status: 404, headers: { 'content-type': 'application/json' },
+					}));
+				}
+
+				return withCors(new Response(JSON.stringify({ success: true }), {
+					headers: { 'content-type': 'application/json' },
+				}));
+			} catch (err: any) {
+				return withCors(new Response(JSON.stringify({ error: err.message || 'Failed to delete furniture' }), {
 					status: 500, headers: { 'content-type': 'application/json' },
 				}));
 			}

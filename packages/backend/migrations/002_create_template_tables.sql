@@ -163,6 +163,40 @@ CREATE TABLE IF NOT EXISTS room_technology (
 	FOREIGN KEY (technology_template_id) REFERENCES technology_templates(id)
 );
 
+-- Room furniture (furniture items within rooms using room-relative coordinates)
+CREATE TABLE IF NOT EXISTS room_furniture (
+	id TEXT PRIMARY KEY,
+	room_id TEXT NOT NULL,
+	furniture_type TEXT NOT NULL,
+	name TEXT NOT NULL,
+	description TEXT,
+
+	-- Room-relative positioning (0,0 at room center)
+	x REAL NOT NULL,
+	y REAL NOT NULL,
+	width REAL NOT NULL DEFAULT 32,
+	height REAL NOT NULL DEFAULT 32,
+	rotation REAL NOT NULL DEFAULT 0,
+
+	-- Visual properties
+	image TEXT,
+	color TEXT,
+	style TEXT,
+
+	-- Functional properties
+	interactive BOOLEAN NOT NULL DEFAULT 0,
+	requirements TEXT, -- JSON string
+	power_required REAL NOT NULL DEFAULT 0,
+
+	-- State
+	active BOOLEAN NOT NULL DEFAULT 1,
+	discovered BOOLEAN NOT NULL DEFAULT 1,
+
+	created_at INTEGER DEFAULT (strftime('%s','now')),
+	updated_at INTEGER DEFAULT (strftime('%s','now')),
+	FOREIGN KEY (room_id) REFERENCES room_templates(id) ON DELETE CASCADE
+);
+
 -- Create indexes for efficient lookups
 CREATE INDEX IF NOT EXISTS idx_room_templates_layout ON room_templates(layout_id);
 CREATE INDEX IF NOT EXISTS idx_room_templates_type ON room_templates(type);
@@ -175,6 +209,9 @@ CREATE INDEX IF NOT EXISTS idx_door_templates_state ON door_templates(state);
 
 CREATE INDEX IF NOT EXISTS idx_room_technology_room ON room_technology(room_id);
 CREATE INDEX IF NOT EXISTS idx_room_technology_tech ON room_technology(technology_template_id);
+
+CREATE INDEX IF NOT EXISTS idx_room_furniture_room ON room_furniture(room_id);
+CREATE INDEX IF NOT EXISTS idx_room_furniture_type ON room_furniture(furniture_type);
 
 CREATE INDEX IF NOT EXISTS idx_person_templates_race ON person_templates(race_template_id);
 CREATE INDEX IF NOT EXISTS idx_person_templates_role ON person_templates(role);

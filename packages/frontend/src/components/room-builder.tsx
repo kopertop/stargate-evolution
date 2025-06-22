@@ -1,4 +1,4 @@
-import { RoomTemplate, DoorTemplate } from '@stargate/common';
+import { RoomTemplate, DoorTemplate, RoomFurniture, roomToWorldCoordinates } from '@stargate/common';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Button, Card, Form, Modal, Table } from 'react-bootstrap';
 import { FaPlus, FaEdit, FaTrash } from 'react-icons/fa';
@@ -25,8 +25,10 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 	const canvasRef = useRef<HTMLCanvasElement>(null);
 	const [rooms, setRooms] = useState<RoomTemplate[]>([]);
 	const [doors, setDoors] = useState<DoorTemplate[]>([]);
+	const [furniture, setFurniture] = useState<RoomFurniture[]>([]);
 	const [selectedRoom, setSelectedRoom] = useState<RoomTemplate | null>(null);
 	const [selectedDoor, setSelectedDoor] = useState<DoorTemplate | null>(null);
+	const [selectedFurniture, setSelectedFurniture] = useState<RoomFurniture | null>(null);
 	const [showRoomModal, setShowRoomModal] = useState(false);
 	const [showDoorModal, setShowDoorModal] = useState(false);
 	const [editingRoom, setEditingRoom] = useState<Partial<RoomTemplate>>({});
@@ -41,11 +43,13 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 		currentY: 0,
 	});
 
-	// Canvas settings for Swift SpriteKit coordinate system
+	// Canvas settings for Swift SpriteKit coordinate system (0,0 at center)
 	const CANVAS_WIDTH = 1200;
 	const CANVAS_HEIGHT = 800;
 	const GRID_SIZE = 32; // 32 points grid for SpriteKit
 	const ZOOM_LEVEL = 1.0;
+	const CENTER_X = CANVAS_WIDTH / 2;  // 600
+	const CENTER_Y = CANVAS_HEIGHT / 2; // 400
 
 	// Filter rooms by selected floor
 	const floorRooms = useMemo(() => {
@@ -60,22 +64,30 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 		);
 	}, [doors, floorRooms]);
 
+	// Filter furniture by rooms on selected floor
+	const floorFurniture = useMemo(() => {
+		const floorRoomIds = new Set(floorRooms.map(r => r.id));
+		return furniture.filter(item => floorRoomIds.has(item.room_id));
+	}, [furniture, floorRooms]);
+
 	useEffect(() => {
 		loadData();
 	}, []);
 
 	useEffect(() => {
 		drawCanvas();
-	}, [floorRooms, floorDoors, selectedRoom, selectedDoor, dragState]);
+	}, [floorRooms, floorDoors, floorFurniture, selectedRoom, selectedDoor, selectedFurniture, dragState]);
 
 	const loadData = async () => {
 		try {
-			const [roomsData, doorsData] = await Promise.all([
+			const [roomsData, doorsData, furnitureData] = await Promise.all([
 				adminService.getAllRoomTemplates?.() || [], // Add optional chaining
 				adminService.getAllDoors?.() || [], // Add optional chaining
+				adminService.getAllFurniture?.() || [], // Add optional chaining
 			]);
 			setRooms(roomsData);
 			setDoors(doorsData);
+			setFurniture(furnitureData);
 		} catch (err: any) {
 			toast.error(err.message || 'Failed to load room builder data');
 		}
@@ -94,11 +106,17 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 		// Draw grid
 		drawGrid(ctx);
 
+		// Draw center axes
+		drawCenterAxes(ctx);
+
 		// Draw rooms
 		floorRooms.forEach(room => drawRoom(ctx, room));
 
 		// Draw doors
 		floorDoors.forEach(door => drawDoor(ctx, door));
+
+		// Draw furniture
+		floorFurniture.forEach(item => drawFurniture(ctx, item));
 
 		// Draw selection highlights
 		if (selectedRoom) {
@@ -106,6 +124,9 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 		}
 		if (selectedDoor) {
 			highlightDoor(ctx, selectedDoor);
+		}
+		if (selectedFurniture) {
+			highlightFurniture(ctx, selectedFurniture);
 		}
 	};
 
@@ -130,25 +151,58 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 		}
 	};
 
+	const drawCenterAxes = (ctx: CanvasRenderingContext2D) => {
+		ctx.strokeStyle = '#ff6b6b';
+		ctx.lineWidth = 2;
+
+		// Vertical center line (X=0 in SpriteKit coordinates)
+		ctx.beginPath();
+		ctx.moveTo(CENTER_X, 0);
+		ctx.lineTo(CENTER_X, CANVAS_HEIGHT);
+		ctx.stroke();
+
+		// Horizontal center line (Y=0 in SpriteKit coordinates)
+		ctx.beginPath();
+		ctx.moveTo(0, CENTER_Y);
+		ctx.lineTo(CANVAS_WIDTH, CENTER_Y);
+		ctx.stroke();
+
+		// Center point marker
+		ctx.fillStyle = '#ff6b6b';
+		ctx.beginPath();
+		ctx.arc(CENTER_X, CENTER_Y, 4, 0, 2 * Math.PI);
+		ctx.fill();
+
+		// Label the center point
+		ctx.fillStyle = '#ff6b6b';
+		ctx.font = '14px Arial';
+		ctx.textAlign = 'left';
+		ctx.fillText('(0,0)', CENTER_X + 8, CENTER_Y - 8);
+	};
+
 	const drawRoom = (ctx: CanvasRenderingContext2D, room: RoomTemplate) => {
 		const width = room.endX - room.startX;
 		const height = room.endY - room.startY;
 
+		// Convert from SpriteKit coordinates (center origin) to canvas coordinates (top-left origin)
+		const canvasX = CENTER_X + room.startX;
+		const canvasY = CENTER_Y + room.startY;
+
 		// Room background
 		ctx.fillStyle = room.type === 'corridor' ? '#4a5568' : '#2d3748';
-		ctx.fillRect(room.startX, room.startY, width, height);
+		ctx.fillRect(canvasX, canvasY, width, height);
 
 		// Room border
 		ctx.strokeStyle = room.locked ? '#e53e3e' : '#718096';
 		ctx.lineWidth = 2;
-		ctx.strokeRect(room.startX, room.startY, width, height);
+		ctx.strokeRect(canvasX, canvasY, width, height);
 
 		// Room label
 		ctx.fillStyle = '#fff';
 		ctx.font = '12px Arial';
 		ctx.textAlign = 'center';
-		const centerX = room.startX + width / 2;
-		const centerY = room.startY + height / 2;
+		const centerX = canvasX + width / 2;
+		const centerY = canvasY + height / 2;
 		ctx.fillText(room.name, centerX, centerY);
 		ctx.fillText(`${room.id}`, centerX, centerY + 15);
 	};
@@ -157,8 +211,12 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 		const halfWidth = door.width / 2;
 		const halfHeight = door.height / 2;
 
+		// Convert from SpriteKit coordinates (center origin) to canvas coordinates
+		const canvasX = CENTER_X + door.x;
+		const canvasY = CENTER_Y + door.y;
+
 		ctx.save();
-		ctx.translate(door.x, door.y);
+		ctx.translate(canvasX, canvasY);
 		ctx.rotate((door.rotation * Math.PI) / 180);
 
 		// Door color based on state
@@ -176,14 +234,56 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 		ctx.restore();
 	};
 
+	const drawFurniture = (ctx: CanvasRenderingContext2D, item: RoomFurniture) => {
+		// Get the room this furniture belongs to
+		const room = floorRooms.find(r => r.id === item.room_id);
+		if (!room) return;
+
+		// Convert room-relative coordinates to world coordinates
+		const worldCoords = roomToWorldCoordinates(item, room);
+
+		// Convert from SpriteKit coordinates to canvas coordinates
+		const canvasX = CENTER_X + worldCoords.worldX - item.width / 2;
+		const canvasY = CENTER_Y + worldCoords.worldY - item.height / 2;
+
+		ctx.save();
+		ctx.translate(canvasX + item.width / 2, canvasY + item.height / 2);
+		ctx.rotate((item.rotation * Math.PI) / 180);
+
+		// Furniture color based on type
+		let furnitureColor = '#9333ea'; // purple for general furniture
+		if (item.furniture_type === 'stargate') furnitureColor = '#059669'; // green for stargate
+		if (item.furniture_type === 'console') furnitureColor = '#dc2626'; // red for console
+		if (item.furniture_type === 'bed') furnitureColor = '#7c3aed'; // purple for bed
+
+		ctx.fillStyle = furnitureColor;
+		ctx.fillRect(-item.width / 2, -item.height / 2, item.width, item.height);
+
+		ctx.strokeStyle = '#000';
+		ctx.lineWidth = 1;
+		ctx.strokeRect(-item.width / 2, -item.height / 2, item.width, item.height);
+
+		// Add furniture label
+		ctx.fillStyle = '#fff';
+		ctx.font = '10px Arial';
+		ctx.textAlign = 'center';
+		ctx.fillText(item.furniture_type, 0, 4);
+
+		ctx.restore();
+	};
+
 	const highlightRoom = (ctx: CanvasRenderingContext2D, room: RoomTemplate) => {
 		const width = room.endX - room.startX;
 		const height = room.endY - room.startY;
 
+		// Convert from SpriteKit coordinates to canvas coordinates
+		const canvasX = CENTER_X + room.startX;
+		const canvasY = CENTER_Y + room.startY;
+
 		ctx.strokeStyle = '#fbbf24';
 		ctx.lineWidth = 3;
 		ctx.setLineDash([5, 5]);
-		ctx.strokeRect(room.startX - 2, room.startY - 2, width + 4, height + 4);
+		ctx.strokeRect(canvasX - 2, canvasY - 2, width + 4, height + 4);
 		ctx.setLineDash([]);
 	};
 
@@ -191,14 +291,43 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 		const halfWidth = door.width / 2 + 2;
 		const halfHeight = door.height / 2 + 2;
 
+		// Convert from SpriteKit coordinates to canvas coordinates
+		const canvasX = CENTER_X + door.x;
+		const canvasY = CENTER_Y + door.y;
+
 		ctx.save();
-		ctx.translate(door.x, door.y);
+		ctx.translate(canvasX, canvasY);
 		ctx.rotate((door.rotation * Math.PI) / 180);
 
 		ctx.strokeStyle = '#fbbf24';
 		ctx.lineWidth = 2;
 		ctx.setLineDash([3, 3]);
 		ctx.strokeRect(-halfWidth, -halfHeight, door.width + 4, door.height + 4);
+		ctx.setLineDash([]);
+
+		ctx.restore();
+	};
+
+	const highlightFurniture = (ctx: CanvasRenderingContext2D, item: RoomFurniture) => {
+		// Get the room this furniture belongs to
+		const room = floorRooms.find(r => r.id === item.room_id);
+		if (!room) return;
+
+		// Convert room-relative coordinates to world coordinates
+		const worldCoords = roomToWorldCoordinates(item, room);
+
+		// Convert from SpriteKit coordinates to canvas coordinates
+		const canvasX = CENTER_X + worldCoords.worldX - item.width / 2 - 2;
+		const canvasY = CENTER_Y + worldCoords.worldY - item.height / 2 - 2;
+
+		ctx.save();
+		ctx.translate(canvasX + item.width / 2 + 2, canvasY + item.height / 2 + 2);
+		ctx.rotate((item.rotation * Math.PI) / 180);
+
+		ctx.strokeStyle = '#fbbf24';
+		ctx.lineWidth = 2;
+		ctx.setLineDash([3, 3]);
+		ctx.strokeRect(-(item.width / 2 + 2), -(item.height / 2 + 2), item.width + 4, item.height + 4);
 		ctx.setLineDash([]);
 
 		ctx.restore();

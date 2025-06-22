@@ -18,6 +18,7 @@ export * from './models/planet';
 export * from './models/race-template';
 export * from './models/room-technology';
 export * from './models/room-template';
+export * from './models/room-furniture';
 export * from './models/session';
 export * from './models/ship-layout';
 export * from './models/star-system';

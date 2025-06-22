@@ -43,7 +43,7 @@ class AdminService {
 
 	// Room management
 	async getAllRoomTemplates() {
-		const response = await fetch(`${API_URL}/api/rooms/templates`, {
+		const response = await fetch(`${API_URL}/api/templates/rooms`, {
 			headers: this.getAuthHeaders(),
 		});
 		if (!response.ok) {
@@ -209,7 +209,7 @@ class AdminService {
 	}
 
 	async getDoorsForRoom(roomId: string) {
-		const response = await fetch(`${API_URL}/api/admin/doors/room/${roomId}`, {
+		const response = await fetch(`${API_URL}/api/admin/rooms/${roomId}/doors`, {
 			headers: this.getAuthHeaders(),
 		});
 		if (!response.ok) {
@@ -218,6 +218,69 @@ class AdminService {
 		}
 		const data = await response.json();
 		return Array.isArray(data) ? data : [];
+	}
+
+	// Room Furniture management
+	async getAllFurniture() {
+		const response = await fetch(`${API_URL}/api/admin/furniture`, {
+			headers: this.getAuthHeaders(),
+		});
+		if (!response.ok) {
+			const error = await response.json();
+			throw new Error(error.error || 'Failed to fetch furniture');
+		}
+		const data = await response.json();
+		return Array.isArray(data) ? data : [];
+	}
+
+	async getFurnitureForRoom(roomId: string) {
+		const response = await fetch(`${API_URL}/api/admin/rooms/${roomId}/furniture`, {
+			headers: this.getAuthHeaders(),
+		});
+		if (!response.ok) {
+			const error = await response.json();
+			throw new Error(error.error || 'Failed to fetch furniture for room');
+		}
+		const data = await response.json();
+		return Array.isArray(data) ? data : [];
+	}
+
+	async createFurniture(furnitureData: any) {
+		const response = await fetch(`${API_URL}/api/admin/furniture`, {
+			method: 'POST',
+			headers: this.getAuthHeaders(),
+			body: JSON.stringify(furnitureData),
+		});
+		if (!response.ok) {
+			const error = await response.json();
+			throw new Error(error.error || 'Failed to create furniture');
+		}
+		return response.json();
+	}
+
+	async updateFurniture(furnitureId: string, furnitureData: any) {
+		const response = await fetch(`${API_URL}/api/admin/furniture/${furnitureId}`, {
+			method: 'PUT',
+			headers: this.getAuthHeaders(),
+			body: JSON.stringify(furnitureData),
+		});
+		if (!response.ok) {
+			const error = await response.json();
+			throw new Error(error.error || 'Failed to update furniture');
+		}
+		return response.json();
+	}
+
+	async deleteFurniture(furnitureId: string) {
+		const response = await fetch(`${API_URL}/api/admin/furniture/${furnitureId}`, {
+			method: 'DELETE',
+			headers: this.getAuthHeaders(),
+		});
+		if (!response.ok) {
+			const error = await response.json();
+			throw new Error(error.error || 'Failed to delete furniture');
+		}
+		return response.json();
 	}
 }
 
