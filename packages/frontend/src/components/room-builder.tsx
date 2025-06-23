@@ -1417,10 +1417,12 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 			description: '',
 			x: snappedX,
 			y: snappedY,
+			z: 1, // Default z-index
 			width: 32,
 			height: 32,
 			rotation: 0,
 			interactive: true,
+			blocks_movement: false,
 			active: true,
 			discovered: false,
 			power_required: 0,

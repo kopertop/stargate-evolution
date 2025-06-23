@@ -59,12 +59,12 @@ export async function createRoomFurniture(env: Env, furniture: Omit<RoomFurnitur
 	await env.DB.prepare(`
 		INSERT INTO room_furniture (
 			id, room_id, furniture_type, name, description,
-			x, y, width, height, rotation,
+			x, y, z, width, height, rotation,
 			image, color, style,
-			interactive, requirements, power_required,
+			interactive, blocks_movement, requirements, power_required,
 			active, discovered,
 			created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`).bind(
 		validated.id,
 		validated.room_id,
@@ -73,6 +73,7 @@ export async function createRoomFurniture(env: Env, furniture: Omit<RoomFurnitur
 		validated.description || null,
 		validated.x,
 		validated.y,
+		validated.z,
 		validated.width,
 		validated.height,
 		validated.rotation,
@@ -80,6 +81,7 @@ export async function createRoomFurniture(env: Env, furniture: Omit<RoomFurnitur
 		validated.color || null,
 		validated.style || null,
 		validated.interactive ? 1 : 0,
+		validated.blocks_movement ? 1 : 0,
 		validated.requirements || null,
 		validated.power_required,
 		validated.active ? 1 : 0,
@@ -109,9 +111,9 @@ export async function updateRoomFurniture(env: Env, furnitureId: string, updates
 	await env.DB.prepare(`
 		UPDATE room_furniture SET
 			room_id = ?, furniture_type = ?, name = ?, description = ?,
-			x = ?, y = ?, width = ?, height = ?, rotation = ?,
+			x = ?, y = ?, z = ?, width = ?, height = ?, rotation = ?,
 			image = ?, color = ?, style = ?,
-			interactive = ?, requirements = ?, power_required = ?,
+			interactive = ?, blocks_movement = ?, requirements = ?, power_required = ?,
 			active = ?, discovered = ?, updated_at = ?
 		WHERE id = ?
 	`).bind(
@@ -121,6 +123,7 @@ export async function updateRoomFurniture(env: Env, furnitureId: string, updates
 		validated.description || null,
 		validated.x,
 		validated.y,
+		validated.z,
 		validated.width,
 		validated.height,
 		validated.rotation,
@@ -128,6 +131,7 @@ export async function updateRoomFurniture(env: Env, furnitureId: string, updates
 		validated.color || null,
 		validated.style || null,
 		validated.interactive ? 1 : 0,
+		validated.blocks_movement ? 1 : 0,
 		validated.requirements || null,
 		validated.power_required,
 		validated.active ? 1 : 0,
