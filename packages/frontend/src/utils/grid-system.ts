@@ -291,14 +291,25 @@ export function getRoomGridBounds(room: RoomTemplate, positions: Record<string, 
 	top: number;
 	bottom: number;
 } {
-	const center = positions[room.id] || { gridX: 0, gridY: 0 };
-	const halfWidth = room.width / 2;
-	const halfHeight = room.height / 2;
+	// If we have grid positions for this room, use them
+	const gridPos = positions[room.id];
+	if (gridPos) {
+		const halfWidth = room.width / 2;
+		const halfHeight = room.height / 2;
+		return {
+			left: gridPos.gridX - halfWidth,
+			right: gridPos.gridX + halfWidth,
+			top: gridPos.gridY + halfHeight,
+			bottom: gridPos.gridY - halfHeight,
+		};
+	}
+
+	// Fallback: for coordinate-based rooms, use the actual room coordinates
 	return {
-		left: center.gridX - halfWidth,
-		right: center.gridX + halfWidth,
-		top: center.gridY + halfHeight,
-		bottom: center.gridY - halfHeight,
+		left: room.startX,
+		right: room.endX,
+		top: room.endY,
+		bottom: room.startY,
 	};
 }
 
@@ -342,7 +353,7 @@ export function areRoomsAdjacent(
 	// Can't be adjacent to itself
 	if (room1.id === room2.id) return false;
 
-	// Check if room1 connects to room2
+	// Check if room1 connects to room2 via connection fields
 	if (room1.connection_north === room2.id ||
 		room1.connection_south === room2.id ||
 		room1.connection_east === room2.id ||
@@ -350,11 +361,33 @@ export function areRoomsAdjacent(
 		return true;
 	}
 
-	// Check if room2 connects to room1
+	// Check if room2 connects to room1 via connection fields
 	if (room2.connection_north === room1.id ||
 		room2.connection_south === room1.id ||
 		room2.connection_east === room1.id ||
 		room2.connection_west === room1.id) {
+		return true;
+	}
+
+	// Also check physical adjacency based on coordinates
+	// East side: right edge of room1 touches left edge of room2
+	if (room1.endX === room2.startX &&
+		!(room1.endY <= room2.startY || room1.startY >= room2.endY)) {
+		return true;
+	}
+	// West side: left edge of room1 touches right edge of room2
+	if (room1.startX === room2.endX &&
+		!(room1.endY <= room2.startY || room1.startY >= room2.endY)) {
+		return true;
+	}
+	// North side: top edge of room1 touches bottom edge of room2 (room2 is above room1)
+	if (room1.endY === room2.startY &&
+		!(room1.endX <= room2.startX || room1.startX >= room2.endX)) {
+		return true;
+	}
+	// South side: bottom edge of room1 touches top edge of room2 (room2 is below room1)
+	if (room1.startY === room2.endY &&
+		!(room1.endX <= room2.startX || room1.startX >= room2.endX)) {
 		return true;
 	}
 
@@ -379,6 +412,28 @@ export function getConnectionSide(
 	if (toRoom.connection_south === fromRoom.id) return 'top';
 	if (toRoom.connection_east === fromRoom.id) return 'left';
 	if (toRoom.connection_west === fromRoom.id) return 'right';
+
+	// Also check physical adjacency based on coordinates
+	// East side: right edge of fromRoom touches left edge of toRoom
+	if (fromRoom.endX === toRoom.startX &&
+		!(fromRoom.endY <= toRoom.startY || fromRoom.startY >= toRoom.endY)) {
+		return 'right';
+	}
+	// West side: left edge of fromRoom touches right edge of toRoom
+	if (fromRoom.startX === toRoom.endX &&
+		!(fromRoom.endY <= toRoom.startY || fromRoom.startY >= toRoom.endY)) {
+		return 'left';
+	}
+	// North side: top edge of fromRoom touches bottom edge of toRoom (toRoom is above fromRoom)
+	if (fromRoom.endY === toRoom.startY &&
+		!(fromRoom.endX <= toRoom.startX || fromRoom.startX >= toRoom.endX)) {
+		return 'top';
+	}
+	// South side: bottom edge of fromRoom touches top edge of toRoom (toRoom is below fromRoom)
+	if (fromRoom.startY === toRoom.endY &&
+		!(fromRoom.endX <= toRoom.startX || fromRoom.startX >= toRoom.endX)) {
+		return 'bottom';
+	}
 
 	return null;
 }

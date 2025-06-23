@@ -19,6 +19,10 @@ type DragState = {
 	startY: number;
 	currentX: number;
 	currentY: number;
+	// Store original positions when drag starts
+	originalRoomPosition?: { startX: number; endX: number; startY: number; endY: number };
+	originalDoorPosition?: { x: number; y: number };
+	originalFurniturePosition?: { x: number; y: number };
 };
 
 type ContextMenu = {
@@ -281,6 +285,26 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 		}
 		if (selectedFurniture) {
 			highlightFurniture(ctx, selectedFurniture);
+		}
+
+		// Show snap indicator when snapping is active
+		if (isSnapped && selectedRoom) {
+			ctx.strokeStyle = '#10b981'; // Green color for snap indicator
+			ctx.lineWidth = 3;
+			ctx.setLineDash([5, 5]); // Dashed line
+
+			const screen = worldToScreen(
+				(selectedRoom.startX + selectedRoom.endX) / 2,
+				(selectedRoom.startY + selectedRoom.endY) / 2,
+			);
+
+			// Draw a circle around the room to indicate snapping
+			ctx.beginPath();
+			ctx.arc(screen.x, screen.y, 80 * camera.zoom, 0, 2 * Math.PI);
+			ctx.stroke();
+
+			// Reset line dash
+			ctx.setLineDash([]);
 		}
 	};
 
@@ -657,6 +681,31 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 			// Middle mouse button, Ctrl+Left mouse button, or regular left mouse button
 			event.preventDefault();
 			setIsMouseDown(true);
+
+			// Store original positions based on drag type
+			let originalRoomPosition: { startX: number; endX: number; startY: number; endY: number } | undefined;
+			let originalDoorPosition: { x: number; y: number } | undefined;
+			let originalFurniturePosition: { x: number; y: number } | undefined;
+
+			if (dragType === 'room' && selectedRoom) {
+				originalRoomPosition = {
+					startX: selectedRoom.startX,
+					endX: selectedRoom.endX,
+					startY: selectedRoom.startY,
+					endY: selectedRoom.endY,
+				};
+			} else if (dragType === 'door' && selectedDoor) {
+				originalDoorPosition = {
+					x: selectedDoor.x,
+					y: selectedDoor.y,
+				};
+			} else if (dragType === 'furniture' && selectedFurniture) {
+				originalFurniturePosition = {
+					x: selectedFurniture.x,
+					y: selectedFurniture.y,
+				};
+			}
+
 			setDragState({
 				isDragging: false, // Don't set to true immediately, wait for movement
 				dragType,
@@ -665,6 +714,9 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 				startY: screenY,
 				currentX: screenX,
 				currentY: screenY,
+				originalRoomPosition,
+				originalDoorPosition,
+				originalFurniturePosition,
 			});
 		}
 	};
@@ -715,73 +767,71 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 					x: prev.x + worldDeltaX,
 					y: prev.y + worldDeltaY,
 				}));
-			} else if (dragState.dragType === 'room' && selectedRoom && dragState.dragId === selectedRoom.id) {
-				// Move room - calculate world space delta
+			} else if (dragState.dragType === 'room' && selectedRoom && dragState.dragId === selectedRoom.id && dragState.originalRoomPosition) {
+				// Move room - calculate world space delta from original drag start position
 				const worldStart = screenToWorld(dragState.startX, dragState.startY);
 				const worldCurrent = screenToWorld(screenX, screenY);
 				const worldDeltaX = worldCurrent.x - worldStart.x;
 				const worldDeltaY = worldCurrent.y - worldStart.y;
 
-				// Snap to grid (32-point grid)
-				const snappedDeltaX = Math.round(worldDeltaX / 32) * 32;
-				const snappedDeltaY = Math.round(worldDeltaY / 32) * 32;
-
-				// Calculate new room position
+				// Calculate new room position based on stored original position + delta
 				let updatedRoom = {
 					...selectedRoom,
-					startX: selectedRoom.startX + snappedDeltaX,
-					endX: selectedRoom.endX + snappedDeltaX,
-					startY: selectedRoom.startY + snappedDeltaY,
-					endY: selectedRoom.endY + snappedDeltaY,
+					startX: dragState.originalRoomPosition.startX + worldDeltaX,
+					endX: dragState.originalRoomPosition.endX + worldDeltaX,
+					startY: dragState.originalRoomPosition.startY + worldDeltaY,
+					endY: dragState.originalRoomPosition.endY + worldDeltaY,
 				};
 
-				// Apply room snapping to adjacent rooms
+				// Apply room-to-room snapping first
 				const otherRooms = floorRooms.filter(r => r.id !== selectedRoom.id);
 				const snapResult = findSnapPosition(updatedRoom, otherRooms);
 				if (snapResult.hasSnapped) {
 					updatedRoom = snapResult.snappedRoom;
+					setIsSnapped(true);
+				} else {
+					// If no room snapping, apply grid snapping as fallback
+					const gridSnappedStartX = Math.round(updatedRoom.startX / GRID_SIZE) * GRID_SIZE;
+					const gridSnappedStartY = Math.round(updatedRoom.startY / GRID_SIZE) * GRID_SIZE;
+					const roomWidth = updatedRoom.endX - updatedRoom.startX;
+					const roomHeight = updatedRoom.endY - updatedRoom.startY;
+
+					updatedRoom = {
+						...updatedRoom,
+						startX: gridSnappedStartX,
+						endX: gridSnappedStartX + roomWidth,
+						startY: gridSnappedStartY,
+						endY: gridSnappedStartY + roomHeight,
+					};
+					setIsSnapped(false);
 				}
-				setIsSnapped(snapResult.hasSnapped);
 
 				setSelectedRoom(updatedRoom);
 				// Update in rooms array for immediate visual feedback
 				setRooms(prev => prev.map(r => r.id === selectedRoom.id ? updatedRoom : r));
-
-				// Update drag start position for next movement
-				setDragState(prev => ({
-					...prev,
-					startX: screenX,
-					startY: screenY,
-				}));
-			} else if (dragState.dragType === 'door' && selectedDoor && dragState.dragId === selectedDoor.id) {
-				// Move door - calculate world space delta
+			} else if (dragState.dragType === 'door' && selectedDoor && dragState.dragId === selectedDoor.id && dragState.originalDoorPosition) {
+				// Move door - calculate world space delta from original drag start position
 				const worldStart = screenToWorld(dragState.startX, dragState.startY);
 				const worldCurrent = screenToWorld(screenX, screenY);
 				const worldDeltaX = worldCurrent.x - worldStart.x;
 				const worldDeltaY = worldCurrent.y - worldStart.y;
+
 				// Snap to grid (16-point grid for doors)
 				const snappedDeltaX = Math.round(worldDeltaX / 16) * 16;
 				const snappedDeltaY = Math.round(worldDeltaY / 16) * 16;
 
-				// Update door position
+				// Update door position based on stored original position + snapped delta
 				const updatedDoor = {
 					...selectedDoor,
-					x: selectedDoor.x + snappedDeltaX,
-					y: selectedDoor.y + snappedDeltaY,
+					x: dragState.originalDoorPosition.x + snappedDeltaX,
+					y: dragState.originalDoorPosition.y + snappedDeltaY,
 				};
 
 				setSelectedDoor(updatedDoor);
 				// Update in doors array for immediate visual feedback
 				setDoors(prev => prev.map(d => d.id === selectedDoor.id ? updatedDoor : d));
-
-				// Update drag start position for next movement
-				setDragState(prev => ({
-					...prev,
-					startX: screenX,
-					startY: screenY,
-				}));
-			} else if (dragState.dragType === 'furniture' && selectedFurniture && dragState.dragId === selectedFurniture.id) {
-				// Move furniture - calculate world space delta
+			} else if (dragState.dragType === 'furniture' && selectedFurniture && dragState.dragId === selectedFurniture.id && dragState.originalFurniturePosition) {
+				// Move furniture - calculate world space delta from original drag start position
 				const worldStart = screenToWorld(dragState.startX, dragState.startY);
 				const worldCurrent = screenToWorld(screenX, screenY);
 				const worldDeltaX = worldCurrent.x - worldStart.x;
@@ -798,27 +848,20 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 					const snappedDeltaX = Math.round(roomRelativeDeltaX / 8) * 8;
 					const snappedDeltaY = Math.round(roomRelativeDeltaY / 8) * 8;
 
-					// Update furniture position (room-relative)
+					// Update furniture position based on stored original position + snapped delta
 					const updatedFurniture = {
 						...selectedFurniture,
-						x: selectedFurniture.x + snappedDeltaX,
-						y: selectedFurniture.y + snappedDeltaY,
+						x: dragState.originalFurniturePosition.x + snappedDeltaX,
+						y: dragState.originalFurniturePosition.y + snappedDeltaY,
 					};
 
 					setSelectedFurniture(updatedFurniture);
 					// Update in furniture array for immediate visual feedback
 					setFurniture(prev => prev.map(f => f.id === selectedFurniture.id ? updatedFurniture : f));
-
-					// Update drag start position for next movement
-					setDragState(prev => ({
-						...prev,
-						startX: screenX,
-						startY: screenY,
-					}));
 				}
 			}
 
-			// Update current position for all drag types
+			// Update current position for tracking purposes only (not used in delta calculations)
 			setDragState(prev => ({
 				...prev,
 				currentX: screenX,
@@ -880,6 +923,9 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 			startY: 0,
 			currentX: 0,
 			currentY: 0,
+			originalRoomPosition: undefined,
+			originalDoorPosition: undefined,
+			originalFurniturePosition: undefined,
 		});
 		setIsSnapped(false);
 	};
@@ -1162,9 +1208,165 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 	};
 
 	const handleCreateRoomAtPosition = (worldX: number, worldY: number) => {
-		// Snap to grid
-		const snappedX = Math.round(worldX / 32) * 32;
-		const snappedY = Math.round(worldY / 32) * 32;
+		const newRoomWidth = 128;
+		const newRoomHeight = 128;
+		let finalX: number, finalY: number;
+
+		// Get existing rooms on the same floor
+		const existingRooms = floorRooms;
+
+		if (existingRooms.length > 0) {
+			// Find the closest existing room
+			const closestRoom = findClosestRoom(worldX, worldY, existingRooms);
+
+			if (closestRoom) {
+				// Find the best adjacent position relative to the closest room
+				const bestPosition = findBestAdjacentPosition(worldX, worldY, closestRoom, newRoomWidth, newRoomHeight);
+
+				// Snap to grid (ensure room aligns with 32-pixel grid)
+				finalX = Math.round(bestPosition.x / GRID_SIZE) * GRID_SIZE;
+				finalY = Math.round(bestPosition.y / GRID_SIZE) * GRID_SIZE;
+
+				// Double-check for overlaps after grid snapping
+				let finalRoom = {
+					startX: finalX,
+					endX: finalX + newRoomWidth,
+					startY: finalY,
+					endY: finalY + newRoomHeight,
+				};
+
+				// If the grid-snapped position causes overlap, try adjustments
+				if (checkRoomOverlap(finalRoom, existingRooms)) {
+					// Try various positions around the closest room in order of preference
+					const roomCenterX = (closestRoom.startX + closestRoom.endX) / 2;
+					const roomCenterY = (closestRoom.startY + closestRoom.endY) / 2;
+
+					// Calculate click position relative to closest room center to determine preferred direction
+					const clickDeltaX = worldX - roomCenterX;
+					const clickDeltaY = worldY - roomCenterY;
+
+					// Create list of potential positions, ordered by click preference
+					const potentialPositions = [];
+
+					// Determine primary direction based on larger delta
+					if (Math.abs(clickDeltaX) > Math.abs(clickDeltaY)) {
+						// Horizontal primary
+						if (clickDeltaX > 0) {
+							// Clicked to the right, prefer east
+							potentialPositions.push(
+								{ x: closestRoom.endX + 8, y: roomCenterY - newRoomHeight / 2, name: 'east' },
+								{ x: closestRoom.startX - 8 - newRoomWidth, y: roomCenterY - newRoomHeight / 2, name: 'west' },
+								{ x: roomCenterX - newRoomWidth / 2, y: closestRoom.endY + 8, name: 'south' },
+								{ x: roomCenterX - newRoomWidth / 2, y: closestRoom.startY - 8 - newRoomHeight, name: 'north' },
+							);
+						} else {
+							// Clicked to the left, prefer west
+							potentialPositions.push(
+								{ x: closestRoom.startX - 8 - newRoomWidth, y: roomCenterY - newRoomHeight / 2, name: 'west' },
+								{ x: closestRoom.endX + 8, y: roomCenterY - newRoomHeight / 2, name: 'east' },
+								{ x: roomCenterX - newRoomWidth / 2, y: closestRoom.endY + 8, name: 'south' },
+								{ x: roomCenterX - newRoomWidth / 2, y: closestRoom.startY - 8 - newRoomHeight, name: 'north' },
+							);
+						}
+					} else {
+						// Vertical primary
+						if (clickDeltaY > 0) {
+							// Clicked above, prefer north
+							potentialPositions.push(
+								{ x: roomCenterX - newRoomWidth / 2, y: closestRoom.endY + 8, name: 'south' },
+								{ x: roomCenterX - newRoomWidth / 2, y: closestRoom.startY - 8 - newRoomHeight, name: 'north' },
+								{ x: closestRoom.endX + 8, y: roomCenterY - newRoomHeight / 2, name: 'east' },
+								{ x: closestRoom.startX - 8 - newRoomWidth, y: roomCenterY - newRoomHeight / 2, name: 'west' },
+							);
+						} else {
+							// Clicked below, prefer south
+							potentialPositions.push(
+								{ x: roomCenterX - newRoomWidth / 2, y: closestRoom.startY - 8 - newRoomHeight, name: 'north' },
+								{ x: roomCenterX - newRoomWidth / 2, y: closestRoom.endY + 8, name: 'south' },
+								{ x: closestRoom.endX + 8, y: roomCenterY - newRoomHeight / 2, name: 'east' },
+								{ x: closestRoom.startX - 8 - newRoomWidth, y: roomCenterY - newRoomHeight / 2, name: 'west' },
+							);
+						}
+					}
+
+					// Try each position and use the first one that doesn't overlap
+					let foundPosition = false;
+					for (const pos of potentialPositions) {
+						const testX = Math.round(pos.x / GRID_SIZE) * GRID_SIZE;
+						const testY = Math.round(pos.y / GRID_SIZE) * GRID_SIZE;
+
+						const testRoom = {
+							startX: testX,
+							endX: testX + newRoomWidth,
+							startY: testY,
+							endY: testY + newRoomHeight,
+						};
+
+						if (!checkRoomOverlap(testRoom, existingRooms)) {
+							finalX = testX;
+							finalY = testY;
+							finalRoom = testRoom;
+							foundPosition = true;
+							break;
+						}
+					}
+
+					// If still no position found, try expanding search with grid increments
+					if (!foundPosition) {
+						for (let distance = 2; distance <= 8; distance += 2) {
+							for (const direction of ['east', 'west', 'south', 'north']) {
+								let testX: number, testY: number;
+
+								switch (direction) {
+								case 'east':
+									testX = Math.round((closestRoom.endX + distance * GRID_SIZE) / GRID_SIZE) * GRID_SIZE;
+									testY = Math.round((roomCenterY - newRoomHeight / 2) / GRID_SIZE) * GRID_SIZE;
+									break;
+								case 'west':
+									testX = Math.round((closestRoom.startX - distance * GRID_SIZE - newRoomWidth) / GRID_SIZE) * GRID_SIZE;
+									testY = Math.round((roomCenterY - newRoomHeight / 2) / GRID_SIZE) * GRID_SIZE;
+									break;
+								case 'south':
+									testX = Math.round((roomCenterX - newRoomWidth / 2) / GRID_SIZE) * GRID_SIZE;
+									testY = Math.round((closestRoom.endY + distance * GRID_SIZE) / GRID_SIZE) * GRID_SIZE;
+									break;
+								case 'north':
+									testX = Math.round((roomCenterX - newRoomWidth / 2) / GRID_SIZE) * GRID_SIZE;
+									testY = Math.round((closestRoom.startY - distance * GRID_SIZE - newRoomHeight) / GRID_SIZE) * GRID_SIZE;
+									break;
+								default:
+									continue;
+								}
+
+								const testRoom = {
+									startX: testX,
+									endX: testX + newRoomWidth,
+									startY: testY,
+									endY: testY + newRoomHeight,
+								};
+
+								if (!checkRoomOverlap(testRoom, existingRooms)) {
+									finalX = testX;
+									finalY = testY;
+									finalRoom = testRoom;
+									foundPosition = true;
+									break;
+								}
+							}
+							if (foundPosition) break;
+						}
+					}
+				}
+			} else {
+				// Fallback to basic grid snapping if no closest room found
+				finalX = Math.round((worldX - newRoomWidth / 2) / GRID_SIZE) * GRID_SIZE;
+				finalY = Math.round((worldY - newRoomHeight / 2) / GRID_SIZE) * GRID_SIZE;
+			}
+		} else {
+			// No existing rooms, just center on click position with grid snap
+			finalX = Math.round((worldX - newRoomWidth / 2) / GRID_SIZE) * GRID_SIZE;
+			finalY = Math.round((worldY - newRoomHeight / 2) / GRID_SIZE) * GRID_SIZE;
+		}
 
 		setEditingRoom({
 			id: `room_${Date.now()}`,
@@ -1172,13 +1374,13 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 			type: 'corridor',
 			name: 'New Room',
 			description: '',
-			startX: snappedX - 64,
-			endX: snappedX + 64,
-			startY: snappedY - 64,
-			endY: snappedY + 64,
+			startX: finalX,
+			endX: finalX + newRoomWidth,
+			startY: finalY,
+			endY: finalY + newRoomHeight,
 			floor: selectedFloor,
-			width: 128,
-			height: 128,
+			width: newRoomWidth,
+			height: newRoomHeight,
 			found: false,
 			locked: false,
 			explored: false,
@@ -1306,51 +1508,171 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 	// Room snapping and auto-door creation utilities
 	const SNAP_THRESHOLD = 16; // Distance threshold for snapping (in world units)
 
+	/**
+	 * Find the closest room to a given world position
+	 */
+	const findClosestRoom = (worldX: number, worldY: number, otherRooms: RoomTemplate[]) => {
+		if (otherRooms.length === 0) return null;
+
+		let closestRoom = otherRooms[0];
+		let closestDistance = Infinity;
+
+		for (const room of otherRooms) {
+			// Calculate distance to room's center
+			const roomCenterX = (room.startX + room.endX) / 2;
+			const roomCenterY = (room.startY + room.endY) / 2;
+			const distance = Math.sqrt(
+				Math.pow(worldX - roomCenterX, 2) + Math.pow(worldY - roomCenterY, 2),
+			);
+
+			if (distance < closestDistance) {
+				closestDistance = distance;
+				closestRoom = room;
+			}
+		}
+
+		return closestRoom;
+	};
+
+	/**
+	 * Check if a room would overlap with any existing rooms
+	 */
+	const checkRoomOverlap = (newRoom: { startX: number; endX: number; startY: number; endY: number }, existingRooms: RoomTemplate[], excludeId?: string) => {
+		for (const room of existingRooms) {
+			if (excludeId && room.id === excludeId) continue;
+
+			// Check if rooms overlap
+			if (!(newRoom.endX <= room.startX || newRoom.startX >= room.endX ||
+				  newRoom.endY <= room.startY || newRoom.startY >= room.endY)) {
+				return true; // Overlap detected
+			}
+		}
+		return false; // No overlap
+	};
+
+	/**
+	 * Find the best position to place a new room adjacent to an existing room
+	 */
+	const findBestAdjacentPosition = (clickX: number, clickY: number, targetRoom: RoomTemplate, newRoomWidth: number = 128, newRoomHeight: number = 128) => {
+		// Define potential positions around the target room
+		const spacing = 8; // Small gap between rooms
+		const positions = [
+			// North (above)
+			{
+				x: (targetRoom.startX + targetRoom.endX) / 2 - newRoomWidth / 2,
+				y: targetRoom.startY - spacing - newRoomHeight,
+				side: 'north' as const,
+			},
+			// South (below)
+			{
+				x: (targetRoom.startX + targetRoom.endX) / 2 - newRoomWidth / 2,
+				y: targetRoom.endY + spacing,
+				side: 'south' as const,
+			},
+			// East (right)
+			{
+				x: targetRoom.endX + spacing,
+				y: (targetRoom.startY + targetRoom.endY) / 2 - newRoomHeight / 2,
+				side: 'east' as const,
+			},
+			// West (left)
+			{
+				x: targetRoom.startX - spacing - newRoomWidth,
+				y: (targetRoom.startY + targetRoom.endY) / 2 - newRoomHeight / 2,
+				side: 'west' as const,
+			},
+		];
+
+		// Sort positions by distance to click point
+		const sortedPositions = positions.map(position => {
+			const centerX = position.x + newRoomWidth / 2;
+			const centerY = position.y + newRoomHeight / 2;
+			const distance = Math.sqrt(
+				Math.pow(clickX - centerX, 2) + Math.pow(clickY - centerY, 2),
+			);
+			return { ...position, distance };
+		}).sort((a, b) => a.distance - b.distance);
+
+		// Find the first position that doesn't overlap with existing rooms
+		for (const position of sortedPositions) {
+			const testRoom = {
+				startX: position.x,
+				endX: position.x + newRoomWidth,
+				startY: position.y,
+				endY: position.y + newRoomHeight,
+			};
+
+			if (!checkRoomOverlap(testRoom, floorRooms)) {
+				return position;
+			}
+		}
+
+		// If all positions overlap, return the closest one anyway
+		return sortedPositions[0];
+	};
+
 	const findSnapPosition = (room: RoomTemplate, otherRooms: RoomTemplate[]) => {
 		const snappedRoom = { ...room };
 		let hasSnapped = false;
+		let bestSnapDistance = SNAP_THRESHOLD;
+		let bestSnapDelta = { x: 0, y: 0 };
 
 		for (const otherRoom of otherRooms) {
 			if (otherRoom.id === room.id) continue; // Skip self
 
 			// Check for horizontal snapping (rooms side by side)
 			// Left edge of moving room to right edge of other room
-			if (Math.abs(room.startX - otherRoom.endX) <= SNAP_THRESHOLD &&
+			const leftToRightDistance = Math.abs(room.startX - otherRoom.endX);
+			if (leftToRightDistance <= SNAP_THRESHOLD &&
 				!(room.endY <= otherRoom.startY || room.startY >= otherRoom.endY)) {
-				const deltaX = otherRoom.endX - room.startX;
-				snappedRoom.startX += deltaX;
-				snappedRoom.endX += deltaX;
-				hasSnapped = true;
+				if (leftToRightDistance < bestSnapDistance) {
+					bestSnapDistance = leftToRightDistance;
+					bestSnapDelta = { x: otherRoom.endX - room.startX, y: 0 };
+					hasSnapped = true;
+				}
 			}
+
 			// Right edge of moving room to left edge of other room
-			else if (Math.abs(room.endX - otherRoom.startX) <= SNAP_THRESHOLD &&
+			const rightToLeftDistance = Math.abs(room.endX - otherRoom.startX);
+			if (rightToLeftDistance <= SNAP_THRESHOLD &&
 				!(room.endY <= otherRoom.startY || room.startY >= otherRoom.endY)) {
-				const deltaX = otherRoom.startX - room.endX;
-				snappedRoom.startX += deltaX;
-				snappedRoom.endX += deltaX;
-				hasSnapped = true;
+				if (rightToLeftDistance < bestSnapDistance) {
+					bestSnapDistance = rightToLeftDistance;
+					bestSnapDelta = { x: otherRoom.startX - room.endX, y: 0 };
+					hasSnapped = true;
+				}
 			}
 
 			// Check for vertical snapping (rooms above/below)
 			// Top edge of moving room to bottom edge of other room
-			if (Math.abs(room.startY - otherRoom.endY) <= SNAP_THRESHOLD &&
+			const topToBottomDistance = Math.abs(room.startY - otherRoom.endY);
+			if (topToBottomDistance <= SNAP_THRESHOLD &&
 				!(room.endX <= otherRoom.startX || room.startX >= otherRoom.endX)) {
-				const deltaY = otherRoom.endY - room.startY;
-				snappedRoom.startY += deltaY;
-				snappedRoom.endY += deltaY;
-				hasSnapped = true;
-			}
-			// Bottom edge of moving room to top edge of other room
-			else if (Math.abs(room.endY - otherRoom.startY) <= SNAP_THRESHOLD &&
-				!(room.endX <= otherRoom.startX || room.startX >= otherRoom.endX)) {
-				const deltaY = otherRoom.startY - room.endY;
-				snappedRoom.startY += deltaY;
-				snappedRoom.endY += deltaY;
-				hasSnapped = true;
+				if (topToBottomDistance < bestSnapDistance) {
+					bestSnapDistance = topToBottomDistance;
+					bestSnapDelta = { x: 0, y: otherRoom.endY - room.startY };
+					hasSnapped = true;
+				}
 			}
 
-			// If we snapped, break to avoid multiple snaps
-			if (hasSnapped) break;
+			// Bottom edge of moving room to top edge of other room
+			const bottomToTopDistance = Math.abs(room.endY - otherRoom.startY);
+			if (bottomToTopDistance <= SNAP_THRESHOLD &&
+				!(room.endX <= otherRoom.startX || room.startX >= otherRoom.endX)) {
+				if (bottomToTopDistance < bestSnapDistance) {
+					bestSnapDistance = bottomToTopDistance;
+					bestSnapDelta = { x: 0, y: otherRoom.startY - room.endY };
+					hasSnapped = true;
+				}
+			}
+		}
+
+		// Apply the best snap delta if we found one
+		if (hasSnapped) {
+			snappedRoom.startX += bestSnapDelta.x;
+			snappedRoom.endX += bestSnapDelta.x;
+			snappedRoom.startY += bestSnapDelta.y;
+			snappedRoom.endY += bestSnapDelta.y;
 		}
 
 		return { snappedRoom, hasSnapped };
