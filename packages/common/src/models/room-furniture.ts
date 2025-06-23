@@ -10,6 +10,7 @@ export const RoomFurnitureSchema = z.object({
 	// Room-relative positioning (0,0 at room center)
 	x: z.number(), // X offset from room center
 	y: z.number(), // Y offset from room center
+	z: z.number().default(1), // Z index
 	width: z.number().default(32), // Furniture width in points
 	height: z.number().default(32), // Furniture height in points
 	rotation: z.number().default(0), // Rotation in degrees (0, 90, 180, 270)
@@ -21,6 +22,7 @@ export const RoomFurnitureSchema = z.object({
 
 	// Functional properties - SQLite stores booleans as numbers (0/1)
 	interactive: z.union([z.boolean(), z.number()]).transform((val) => val === true || val === 1), // Can player interact with this?
+	blocks_movement: z.union([z.boolean(), z.number()]).transform((val) => val === true || val === 1), // Does this block player movement?
 	requirements: z.string().optional().nullable(), // JSON string of requirements to use
 	power_required: z.number().default(0), // Power needed to operate
 

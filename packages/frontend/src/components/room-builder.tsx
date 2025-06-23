@@ -759,7 +759,6 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 				const worldCurrent = screenToWorld(screenX, screenY);
 				const worldDeltaX = worldCurrent.x - worldStart.x;
 				const worldDeltaY = worldCurrent.y - worldStart.y;
-
 				// Snap to grid (16-point grid for doors)
 				const snappedDeltaX = Math.round(worldDeltaX / 16) * 16;
 				const snappedDeltaY = Math.round(worldDeltaY / 16) * 16;
@@ -2575,7 +2574,10 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 									<Form.Label>Open Direction</Form.Label>
 									<Form.Select
 										value={editingDoor.open_direction || 'inward'}
-										onChange={(e) => setEditingDoor({...editingDoor, open_direction: e.target.value})}
+										onChange={(e) => setEditingDoor({
+											...editingDoor,
+											open_direction: e.target.value as any,
+										})}
 									>
 										<option value="inward">Inward</option>
 										<option value="outward">Outward</option>
@@ -2655,7 +2657,10 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 									<Form.Label>State</Form.Label>
 									<Form.Select
 										value={editingDoor.state || 'closed'}
-										onChange={(e) => setEditingDoor({...editingDoor, state: e.target.value})}
+										onChange={(e) => setEditingDoor({
+											...editingDoor,
+											state: e.target.value as any,
+										})}
 									>
 										<option value="opened">Opened</option>
 										<option value="closed">Closed</option>
@@ -2795,8 +2800,11 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 								<Form.Group className="mb-3">
 									<Form.Label>Type</Form.Label>
 									<Form.Select
-										value={editingFurniture.type || 'generic'}
-										onChange={(e) => setEditingFurniture({...editingFurniture, type: e.target.value})}
+										value={editingFurniture.furniture_type || 'generic'}
+										onChange={(e) => setEditingFurniture({
+											...editingFurniture,
+											furniture_type: e.target.value as any,
+										})}
 									>
 										<option value="generic">Generic</option>
 										<option value="stargate">Stargate</option>
@@ -2880,8 +2888,11 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 									<Form.Label>Z-Index</Form.Label>
 									<Form.Control
 										type="number"
-										value={editingFurniture.z_index || 0}
-										onChange={(e) => setEditingFurniture({...editingFurniture, z_index: parseInt(e.target.value)})}
+										value={editingFurniture.z || 0}
+										onChange={(e) => setEditingFurniture({
+											...editingFurniture,
+											z: parseInt(e.target.value),
+										})}
 									/>
 								</Form.Group>
 							</div>
@@ -2892,8 +2903,11 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 								<Form.Check
 									type="checkbox"
 									label="Interactable"
-									checked={editingFurniture.interactable || false}
-									onChange={(e) => setEditingFurniture({...editingFurniture, interactable: e.target.checked})}
+									checked={editingFurniture.interactive || false}
+									onChange={(e) => setEditingFurniture({
+										...editingFurniture,
+										interactive: e.target.checked,
+									})}
 								/>
 							</div>
 							<div className="col-md-4">
@@ -2901,15 +2915,25 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 									type="checkbox"
 									label="Blocks Movement"
 									checked={editingFurniture.blocks_movement || false}
-									onChange={(e) => setEditingFurniture({...editingFurniture, blocks_movement: e.target.checked})}
+									onChange={(e) => setEditingFurniture({
+										...editingFurniture,
+										blocks_movement: e.target.checked,
+									})}
 								/>
 							</div>
 							<div className="col-md-4">
 								<Form.Check
 									type="checkbox"
 									label="Requires Power"
-									checked={editingFurniture.requires_power || false}
-									onChange={(e) => setEditingFurniture({...editingFurniture, requires_power: e.target.checked})}
+									checked={
+										(
+											editingFurniture.power_required
+											&& editingFurniture.power_required > 0
+										) || false}
+									onChange={(e) => setEditingFurniture({
+										...editingFurniture,
+										power_required: e.target.checked ? 1 : 0,
+									})}
 								/>
 							</div>
 						</div>
@@ -2997,19 +3021,42 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 							<h5>Door: {selectedDoor.name || selectedDoor.id}</h5>
 							<Table striped bordered hover size="sm">
 								<tbody>
-									<tr><td><strong>ID</strong></td><td>{selectedDoor.id}</td></tr>
-									<tr><td><strong>Name</strong></td><td>{selectedDoor.name}</td></tr>
-									<tr><td><strong>Description</strong></td><td>{selectedDoor.description}</td></tr>
-									<tr><td><strong>Layout</strong></td><td>{selectedDoor.layout_id}</td></tr>
-									<tr><td><strong>Floor</strong></td><td>{selectedDoor.floor}</td></tr>
-									<tr><td><strong>Style</strong></td><td>{selectedDoor.style}</td></tr>
-									<tr><td><strong>Position</strong></td><td>({selectedDoor.x}, {selectedDoor.y})</td></tr>
-									<tr><td><strong>Size</strong></td><td>{selectedDoor.width} x {selectedDoor.height}</td></tr>
-									<tr><td><strong>Rotation</strong></td><td>{selectedDoor.rotation}°</td></tr>
-									<tr><td><strong>State</strong></td><td>{selectedDoor.state}</td></tr>
-									<tr><td><strong>Automated</strong></td><td>{selectedDoor.automated ? 'Yes' : 'No'}</td></tr>
-									<tr><td><strong>Requires Power</strong></td><td>{selectedDoor.requires_power ? 'Yes' : 'No'}</td></tr>
-									<tr><td><strong>Force Field</strong></td><td>{selectedDoor.force_field ? 'Yes' : 'No'}</td></tr>
+									<tr>
+										<td><strong>ID</strong></td>
+										<td>{selectedDoor.id}</td>
+									</tr>
+									<tr>
+										<td><strong>Name</strong></td>
+										<td>{selectedDoor.name}</td>
+									</tr>
+									<tr>
+										<td><strong>Style</strong></td>
+										<td>{selectedDoor.style}</td>
+									</tr>
+									<tr>
+										<td><strong>Position</strong></td>
+										<td>({selectedDoor.x}, {selectedDoor.y})</td>
+									</tr>
+									<tr>
+										<td><strong>Size</strong></td>
+										<td>{selectedDoor.width} x {selectedDoor.height}</td>
+									</tr>
+									<tr>
+										<td><strong>Rotation</strong></td>
+										<td>{selectedDoor.rotation}°</td>
+									</tr>
+									<tr>
+										<td><strong>State</strong></td>
+										<td>{selectedDoor.state}</td>
+									</tr>
+									<tr>
+										<td><strong>Requires Power</strong></td>
+										<td>{(selectedDoor.power_required && selectedDoor.power_required > 0) ? 'Yes' : 'No'}</td>
+									</tr>
+									<tr>
+										<td><strong>Locked</strong></td>
+										<td>{selectedDoor.state === 'locked' ? 'Yes' : 'No'}</td>
+									</tr>
 								</tbody>
 							</Table>
 							<div className="d-flex gap-2">
@@ -3044,18 +3091,54 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 							<h5>Furniture: {selectedFurniture.name || selectedFurniture.id}</h5>
 							<Table striped bordered hover size="sm">
 								<tbody>
-									<tr><td><strong>ID</strong></td><td>{selectedFurniture.id}</td></tr>
-									<tr><td><strong>Name</strong></td><td>{selectedFurniture.name}</td></tr>
-									<tr><td><strong>Description</strong></td><td>{selectedFurniture.description}</td></tr>
-									<tr><td><strong>Type</strong></td><td>{selectedFurniture.type}</td></tr>
-									<tr><td><strong>Room</strong></td><td>{selectedFurniture.room_id}</td></tr>
-									<tr><td><strong>Position (Room)</strong></td><td>({selectedFurniture.x}, {selectedFurniture.y})</td></tr>
-									<tr><td><strong>Size</strong></td><td>{selectedFurniture.width} x {selectedFurniture.height}</td></tr>
-									<tr><td><strong>Rotation</strong></td><td>{selectedFurniture.rotation}°</td></tr>
-									<tr><td><strong>Z-Index</strong></td><td>{selectedFurniture.z_index}</td></tr>
-									<tr><td><strong>Interactable</strong></td><td>{selectedFurniture.interactable ? 'Yes' : 'No'}</td></tr>
-									<tr><td><strong>Blocks Movement</strong></td><td>{selectedFurniture.blocks_movement ? 'Yes' : 'No'}</td></tr>
-									<tr><td><strong>Requires Power</strong></td><td>{selectedFurniture.requires_power ? 'Yes' : 'No'}</td></tr>
+									<tr>
+										<td><strong>ID</strong></td>
+										<td>{selectedFurniture.id}</td>
+									</tr>
+									<tr>
+										<td><strong>Name</strong></td>
+										<td>{selectedFurniture.name}</td>
+									</tr>
+									<tr>
+										<td><strong>Description</strong></td>
+										<td>{selectedFurniture.description}</td>
+									</tr>
+									<tr>
+										<td><strong>Type</strong></td>
+										<td>{selectedFurniture.furniture_type}</td>
+									</tr>
+									<tr>
+										<td><strong>Room</strong></td>
+										<td>{selectedFurniture.room_id}</td>
+									</tr>
+									<tr>
+										<td><strong>Position (Room)</strong></td>
+										<td>({selectedFurniture.x}, {selectedFurniture.y})</td>
+									</tr>
+									<tr>
+										<td><strong>Size</strong></td>
+										<td>{selectedFurniture.width} x {selectedFurniture.height}</td>
+									</tr>
+									<tr>
+										<td><strong>Rotation</strong></td>
+										<td>{selectedFurniture.rotation}°</td>
+									</tr>
+									<tr>
+										<td><strong>Z-Index</strong></td>
+										<td>{selectedFurniture.z}</td>
+									</tr>
+									<tr>
+										<td><strong>Interactable</strong></td>
+										<td>{selectedFurniture.interactive ? 'Yes' : 'No'}</td>
+									</tr>
+									<tr>
+										<td><strong>Blocks Movement</strong></td>
+										<td>{selectedFurniture.blocks_movement ? 'Yes' : 'No'}</td>
+									</tr>
+									<tr>
+										<td><strong>Requires Power</strong></td>
+										<td>{selectedFurniture.power_required > 0 ? 'Yes' : 'No'}</td>
+									</tr>
 								</tbody>
 							</Table>
 							<div className="d-flex gap-2">
@@ -3100,3 +3183,4 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 		</div>
 	);
 };
+

@@ -174,6 +174,7 @@ CREATE TABLE IF NOT EXISTS room_furniture (
 	-- Room-relative positioning (0,0 at room center)
 	x REAL NOT NULL,
 	y REAL NOT NULL,
+	z REAL NOT NULL,
 	width REAL NOT NULL DEFAULT 32,
 	height REAL NOT NULL DEFAULT 32,
 	rotation REAL NOT NULL DEFAULT 0,
@@ -185,6 +186,7 @@ CREATE TABLE IF NOT EXISTS room_furniture (
 
 	-- Functional properties
 	interactive BOOLEAN NOT NULL DEFAULT 0,
+	blocks_movement BOOLEAN NOT NULL DEFAULT 0,
 	requirements TEXT, -- JSON string
 	power_required REAL NOT NULL DEFAULT 0,
 
