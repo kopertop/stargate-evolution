@@ -1,6 +1,7 @@
 import { jwtVerify, SignJWT } from 'jose';
 
 import { validateUser, validateSession } from './auth-types';
+import { openApiSpec } from './openapi';
 import { getDefaultDestinyStatusTemplate, getStartingInventoryTemplate } from './templates/destiny-status-template';
 import { getAllDoorTemplates, getDoorTemplateById, getDoorsForRoom, createDoorTemplate, updateDoorTemplate, deleteDoorTemplate } from './templates/door-templates';
 import { getAllGalaxyTemplates, getGalaxyTemplateById } from './templates/galaxy-templates';
@@ -103,6 +104,14 @@ export default {
 				headers: { 'content-type': 'text/plain' },
 			}));
 		}
+
+		// OpenAPI specification endpoint
+		if (url.pathname === '/.well-known/openapi.json' && request.method === 'GET') {
+			return withCors(new Response(JSON.stringify(openApiSpec), {
+				headers: { 'content-type': 'application/json' },
+			}));
+		}
+
 		if (url.pathname === '/api/auth/google' && request.method === 'POST') {
 			try {
 				const { idToken } = await request.json() as any;
