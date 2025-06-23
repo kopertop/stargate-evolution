@@ -74,6 +74,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 		type: 'room' | 'door' | 'furniture';
 		data: any;
 	} | null>(null);
+	const [isSnapped, setIsSnapped] = useState(false);
 
 	// Camera state for pan/zoom
 	const [camera, setCamera] = useState<Camera>({
@@ -725,14 +726,22 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 				const snappedDeltaX = Math.round(worldDeltaX / 32) * 32;
 				const snappedDeltaY = Math.round(worldDeltaY / 32) * 32;
 
-				// Update room position
-				const updatedRoom = {
+				// Calculate new room position
+				let updatedRoom = {
 					...selectedRoom,
 					startX: selectedRoom.startX + snappedDeltaX,
 					endX: selectedRoom.endX + snappedDeltaX,
 					startY: selectedRoom.startY + snappedDeltaY,
 					endY: selectedRoom.endY + snappedDeltaY,
 				};
+
+				// Apply room snapping to adjacent rooms
+				const otherRooms = floorRooms.filter(r => r.id !== selectedRoom.id);
+				const snapResult = findSnapPosition(updatedRoom, otherRooms);
+				if (snapResult.hasSnapped) {
+					updatedRoom = snapResult.snappedRoom;
+				}
+				setIsSnapped(snapResult.hasSnapped);
 
 				setSelectedRoom(updatedRoom);
 				// Update in rooms array for immediate visual feedback
@@ -832,6 +841,15 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 						width: selectedRoom.endX - selectedRoom.startX, // Update legacy width
 						height: selectedRoom.endY - selectedRoom.startY, // Update legacy height
 					});
+
+					// Check for adjacent rooms and create automatic doors
+					const otherRooms = floorRooms.filter(r => r.id !== selectedRoom.id);
+					const adjacentRooms = findAdjacentRooms(selectedRoom, otherRooms);
+
+					for (const { room: adjacentRoom, side } of adjacentRooms) {
+						await createAutomaticDoor(selectedRoom, adjacentRoom, side);
+					}
+
 					toast.success('Room moved successfully');
 				} else if (dragState.dragType === 'door' && selectedDoor && dragState.dragId === selectedDoor.id) {
 					// Save door position changes
@@ -864,6 +882,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 			currentX: 0,
 			currentY: 0,
 		});
+		setIsSnapped(false);
 	};
 
 	const handleCanvasClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
@@ -1282,6 +1301,161 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 			loadData();
 		} catch (err: any) {
 			toast.error(err.message || 'Failed to delete room');
+		}
+	};
+
+	// Room snapping and auto-door creation utilities
+	const SNAP_THRESHOLD = 16; // Distance threshold for snapping (in world units)
+
+	const findSnapPosition = (room: RoomTemplate, otherRooms: RoomTemplate[]) => {
+		const snappedRoom = { ...room };
+		let hasSnapped = false;
+
+		for (const otherRoom of otherRooms) {
+			if (otherRoom.id === room.id) continue; // Skip self
+
+			// Check for horizontal snapping (rooms side by side)
+			// Left edge of moving room to right edge of other room
+			if (Math.abs(room.startX - otherRoom.endX) <= SNAP_THRESHOLD &&
+				!(room.endY <= otherRoom.startY || room.startY >= otherRoom.endY)) {
+				const deltaX = otherRoom.endX - room.startX;
+				snappedRoom.startX += deltaX;
+				snappedRoom.endX += deltaX;
+				hasSnapped = true;
+			}
+			// Right edge of moving room to left edge of other room
+			else if (Math.abs(room.endX - otherRoom.startX) <= SNAP_THRESHOLD &&
+				!(room.endY <= otherRoom.startY || room.startY >= otherRoom.endY)) {
+				const deltaX = otherRoom.startX - room.endX;
+				snappedRoom.startX += deltaX;
+				snappedRoom.endX += deltaX;
+				hasSnapped = true;
+			}
+
+			// Check for vertical snapping (rooms above/below)
+			// Top edge of moving room to bottom edge of other room
+			if (Math.abs(room.startY - otherRoom.endY) <= SNAP_THRESHOLD &&
+				!(room.endX <= otherRoom.startX || room.startX >= otherRoom.endX)) {
+				const deltaY = otherRoom.endY - room.startY;
+				snappedRoom.startY += deltaY;
+				snappedRoom.endY += deltaY;
+				hasSnapped = true;
+			}
+			// Bottom edge of moving room to top edge of other room
+			else if (Math.abs(room.endY - otherRoom.startY) <= SNAP_THRESHOLD &&
+				!(room.endX <= otherRoom.startX || room.startX >= otherRoom.endX)) {
+				const deltaY = otherRoom.startY - room.endY;
+				snappedRoom.startY += deltaY;
+				snappedRoom.endY += deltaY;
+				hasSnapped = true;
+			}
+
+			// If we snapped, break to avoid multiple snaps
+			if (hasSnapped) break;
+		}
+
+		return { snappedRoom, hasSnapped };
+	};
+
+	const findAdjacentRooms = (room: RoomTemplate, otherRooms: RoomTemplate[]) => {
+		const adjacentRooms: Array<{ room: RoomTemplate; side: 'north' | 'south' | 'east' | 'west' }> = [];
+
+		for (const otherRoom of otherRooms) {
+			if (otherRoom.id === room.id) continue; // Skip self
+
+			// Check if rooms are adjacent (touching edges)
+			// East side: right edge of room touches left edge of other room
+			if (room.endX === otherRoom.startX &&
+				!(room.endY <= otherRoom.startY || room.startY >= otherRoom.endY)) {
+				adjacentRooms.push({ room: otherRoom, side: 'east' });
+			}
+			// West side: left edge of room touches right edge of other room
+			else if (room.startX === otherRoom.endX &&
+				!(room.endY <= otherRoom.startY || room.startY >= otherRoom.endY)) {
+				adjacentRooms.push({ room: otherRoom, side: 'west' });
+			}
+			// South side: bottom edge of room touches top edge of other room
+			else if (room.endY === otherRoom.startY &&
+				!(room.endX <= otherRoom.startX || room.startX >= otherRoom.endX)) {
+				adjacentRooms.push({ room: otherRoom, side: 'south' });
+			}
+			// North side: top edge of room touches bottom edge of other room
+			else if (room.startY === otherRoom.endY &&
+				!(room.endX <= otherRoom.startX || room.startX >= otherRoom.endX)) {
+				adjacentRooms.push({ room: otherRoom, side: 'north' });
+			}
+		}
+
+		return adjacentRooms;
+	};
+
+	const createAutomaticDoor = async (fromRoom: RoomTemplate, toRoom: RoomTemplate, side: 'north' | 'south' | 'east' | 'west') => {
+		// Calculate door position based on the side where rooms are adjacent
+		let doorX: number, doorY: number, rotation: number;
+
+		switch (side) {
+		case 'east': // Door on the right edge of fromRoom
+			doorX = fromRoom.endX;
+			doorY = Math.max(fromRoom.startY, toRoom.startY) + Math.min(fromRoom.endY - fromRoom.startY, toRoom.endY - toRoom.startY) / 2;
+			rotation = 90; // Vertical door
+			break;
+		case 'west': // Door on the left edge of fromRoom
+			doorX = fromRoom.startX;
+			doorY = Math.max(fromRoom.startY, toRoom.startY) + Math.min(fromRoom.endY - fromRoom.startY, toRoom.endY - toRoom.startY) / 2;
+			rotation = 90; // Vertical door
+			break;
+		case 'south': // Door on the bottom edge of fromRoom
+			doorX = Math.max(fromRoom.startX, toRoom.startX) + Math.min(fromRoom.endX - fromRoom.startX, toRoom.endX - toRoom.startX) / 2;
+			doorY = fromRoom.endY;
+			rotation = 0; // Horizontal door
+			break;
+		case 'north': // Door on the top edge of fromRoom
+			doorX = Math.max(fromRoom.startX, toRoom.startX) + Math.min(fromRoom.endX - fromRoom.startX, toRoom.endX - toRoom.startX) / 2;
+			doorY = fromRoom.startY;
+			rotation = 0; // Horizontal door
+			break;
+		}
+
+		// Check if a door already exists between these rooms at this position
+		const existingDoor = floorDoors.find(door =>
+			((door.from_room_id === fromRoom.id && door.to_room_id === toRoom.id) ||
+			 (door.from_room_id === toRoom.id && door.to_room_id === fromRoom.id)) &&
+			Math.abs(door.x - doorX) < 32 && Math.abs(door.y - doorY) < 32,
+		);
+
+		if (existingDoor) {
+			return; // Door already exists, don't create another
+		}
+
+		// Create the door
+		const newDoor: Partial<DoorTemplate> = {
+			id: `door_${Date.now()}_${fromRoom.id}_${toRoom.id}`,
+			name: `Door: ${fromRoom.name} ↔ ${toRoom.name}`,
+			from_room_id: fromRoom.id,
+			to_room_id: toRoom.id,
+			x: doorX,
+			y: doorY,
+			width: 32,
+			height: 8,
+			rotation,
+			state: 'closed',
+			is_automatic: false,
+			open_direction: 'inward',
+			style: 'standard',
+			power_required: 0,
+			created_at: Date.now(),
+			updated_at: Date.now(),
+		};
+
+		try {
+			await adminService.createDoor(newDoor);
+			toast.success(`Auto-created door between ${fromRoom.name} and ${toRoom.name}`);
+			// Reload doors to show the new door
+			const doorsData = await adminService.getAllDoors();
+			setDoors(doorsData);
+		} catch (err: any) {
+			console.warn('Failed to create automatic door:', err);
+			// Don't show error toast for auto-door creation failures
 		}
 	};
 
@@ -2091,12 +2265,14 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 									>
 										<option value="corridor">Corridor</option>
 										<option value="gate_room">Gate Room</option>
+										<option value="control_room">Control Room</option>
 										<option value="quarters">Quarters</option>
 										<option value="bridge">Bridge</option>
 										<option value="hydroponics">Hydroponics</option>
 										<option value="medical">Medical</option>
 										<option value="storage">Storage</option>
 										<option value="elevator">Elevator</option>
+										<option value="room">Generic Room</option>
 									</Form.Select>
 								</Form.Group>
 							</div>

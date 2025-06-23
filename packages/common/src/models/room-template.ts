@@ -24,8 +24,8 @@ export const RoomTemplateSchema = z.object({
 	explored: z.union([z.boolean(), z.number()]).optional().transform((val) => val === true || val === 1),
 	exploration_data: z.string().optional().nullable(),
 	image: z.string().nullable(),
-	base_exploration_time: z.number().optional(),
-	status: z.string().optional(),
+	base_exploration_time: z.number().optional().nullable(),
+	status: z.string().optional().nullable(),
 
 	// Legacy connection fields - deprecated but may still exist in old data
 	connection_north: z.string().nullable().optional(),

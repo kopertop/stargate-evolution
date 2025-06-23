@@ -11,7 +11,7 @@ export const PlanetSchema = z.object({
 	habitable: z.boolean(),
 	discovered_at: z.date(),
 	owner_id: z.string().nullable(),
-	resources: z.record(z.string(), z.number()).optional(),
+	resources: z.record(z.string(), z.number()).optional().nullable(),
 });
 
 export type Planet = z.infer<typeof PlanetSchema>;

@@ -6,8 +6,8 @@ export const StarSystemSchema = z.object({
 	galaxy_id: z.string(),
 	x: z.number(),
 	y: z.number(),
-	description: z.string().optional(),
-	image: z.string().optional(),
+	description: z.string().optional().nullable(),
+	image: z.string().optional().nullable(),
 });
 
 export type StarSystem = z.infer<typeof StarSystemSchema>;
