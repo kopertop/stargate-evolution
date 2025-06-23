@@ -31,11 +31,11 @@ INSERT INTO room_templates (
 -- The room is 1024x256 points, so center is at (0,0) in room coordinates
 INSERT INTO room_furniture (
 	id, room_id, furniture_type, name, description,
-	x, y, width, height, rotation,
+	x, y, z, width, height, rotation,
 	image, interactive, power_required, active
 ) VALUES (
 	'gate_room_stargate', 'gate_room', 'stargate', 'Ancient Stargate',
 	'Ancient stargate device for interplanetary travel. The primary means of transportation between worlds.',
-	-32, 0, 64, 64, 0,
+	-32, 0, 1, 64, 64, 0,
 	'stargate.png', 1, 0, 1
 );
