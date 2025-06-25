@@ -294,6 +294,102 @@ export const openApiSpec: OpenAPIV3_1.Document = {
 				},
 			},
 		},
+
+		// Furniture Endpoints
+		'/api/rooms/{roomId}/furniture': {
+			get: {
+				tags: ['Furniture'],
+				summary: 'Get furniture for a room',
+				description: 'Retrieve all furniture items in a specific room. **NO AUTHENTICATION REQUIRED** - Perfect for Swift clients',
+				security: [], // No auth required
+				parameters: [
+					{
+						name: 'roomId',
+						in: 'path',
+						required: true,
+						description: 'Unique room identifier',
+						schema: {
+							type: 'string',
+							example: 'gate_room',
+						},
+					},
+				],
+				responses: {
+					'200': {
+						description: 'List of furniture in the room',
+						content: {
+							'application/json': {
+								schema: {
+									type: 'array',
+									items: { $ref: '#/components/schemas/RoomFurniture' },
+								},
+							},
+						},
+					},
+					'500': {
+						description: 'Internal server error',
+						content: {
+							'application/json': {
+								schema: { $ref: '#/components/schemas/ErrorResponse' },
+							},
+						},
+					},
+				},
+			},
+		},
+		'/api/admin/furniture/{furnitureId}': {
+			get: {
+				tags: ['Admin - Furniture'],
+				summary: 'Get furniture by ID',
+				description: 'Retrieve a specific furniture item by its ID. **REQUIRES ADMIN AUTHENTICATION**',
+				parameters: [
+					{
+						name: 'furnitureId',
+						in: 'path',
+						required: true,
+						description: 'Unique furniture identifier',
+						schema: {
+							type: 'string',
+							example: 'stargate_01',
+						},
+					},
+				],
+				responses: {
+					'200': {
+						description: 'Furniture item details',
+						content: {
+							'application/json': {
+								schema: { $ref: '#/components/schemas/RoomFurniture' },
+							},
+						},
+					},
+					'404': {
+						description: 'Furniture not found',
+						content: {
+							'application/json': {
+								schema: { $ref: '#/components/schemas/ErrorResponse' },
+							},
+						},
+					},
+					'401': {
+						description: 'Unauthorized - Admin access required',
+						content: {
+							'application/json': {
+								schema: { $ref: '#/components/schemas/ErrorResponse' },
+							},
+						},
+					},
+					'500': {
+						description: 'Internal server error',
+						content: {
+							'application/json': {
+								schema: { $ref: '#/components/schemas/ErrorResponse' },
+							},
+						},
+					},
+				},
+			},
+		},
 	},
 	components: {
 		securitySchemes: {
@@ -438,6 +534,49 @@ export const openApiSpec: OpenAPIV3_1.Document = {
 					error: { type: 'string', description: 'Error message' },
 				},
 			},
+			RoomFurniture: {
+				type: 'object',
+				description: 'Furniture item with room-relative positioning (0,0 at room center)',
+				properties: {
+					id: { type: 'string', description: 'Unique furniture identifier' },
+					room_id: { type: 'string', description: 'Room identifier this furniture belongs to' },
+					furniture_type: {
+						type: 'string',
+						description: 'Type of furniture',
+						enum: ['stargate', 'console', 'bed', 'table', 'chair', 'storage', 'workstation', 'stargate_dialer'],
+						example: 'console',
+					},
+					name: { type: 'string', description: 'Furniture name', example: 'Main Console' },
+					description: { type: ['string', 'null'], description: 'Furniture description' },
+
+					// Positioning (room-relative)
+					x: { type: 'number', description: 'X offset from room center', example: -32 },
+					y: { type: 'number', description: 'Y offset from room center', example: 0 },
+					z: { type: 'number', description: 'Z-index for layering', default: 1, example: 1 },
+					width: { type: 'number', description: 'Furniture width in pixels', default: 32, example: 64 },
+					height: { type: 'number', description: 'Furniture height in pixels', default: 32, example: 64 },
+					rotation: { type: 'number', description: 'Rotation in degrees', default: 0, example: 0 },
+
+					// Visual properties
+					image: { type: ['string', 'null'], description: 'Image asset path for rendering' },
+					color: { type: ['string', 'null'], description: 'Hex color code for tinting', example: '#FF0000' },
+					style: { type: ['string', 'null'], description: 'Style variant', enum: ['ancient', 'modern', 'damaged'] },
+
+					// Functional properties
+					interactive: { type: 'boolean', description: 'Can player interact with this furniture?', default: false },
+					blocks_movement: { type: 'boolean', description: 'Does this furniture block player movement?', default: false },
+					requirements: { type: ['string', 'null'], description: 'JSON string of requirements to use this furniture' },
+					power_required: { type: 'number', description: 'Power needed to operate', default: 0 },
+
+					// State
+					active: { type: 'boolean', description: 'Is this furniture currently active/functional?', default: true },
+					discovered: { type: 'boolean', description: 'Has the player discovered this furniture?', default: false },
+
+					created_at: { type: 'number', description: 'Creation timestamp' },
+					updated_at: { type: 'number', description: 'Last update timestamp' },
+				},
+				required: ['id', 'room_id', 'furniture_type', 'name', 'x', 'y', 'created_at', 'updated_at'],
+			},
 		},
 	},
 	tags: [
@@ -460,6 +599,14 @@ export const openApiSpec: OpenAPIV3_1.Document = {
 		{
 			name: 'Meta',
 			description: 'API metadata and documentation (NO AUTH REQUIRED)',
+		},
+		{
+			name: 'Furniture',
+			description: 'Furniture management (NO AUTH REQUIRED - Perfect for Swift clients)',
+		},
+		{
+			name: 'Admin - Furniture',
+			description: 'Furniture management (REQUIRES ADMIN AUTH)',
 		},
 	],
 };

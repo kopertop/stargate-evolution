@@ -1261,15 +1261,8 @@ export default {
 			}
 		}
 
-		// GET /api/admin/furniture/{furnitureId} - Get furniture by ID
+		// GET /api/furniture/{furnitureId} - Get furniture by ID
 		if (url.pathname.startsWith('/api/admin/furniture/') && request.method === 'GET') {
-			const adminCheck = await verifyAdminAccess(request);
-			if (!adminCheck.success) {
-				return withCors(new Response(JSON.stringify({ error: adminCheck.error }), {
-					status: 401, headers: { 'content-type': 'application/json' },
-				}));
-			}
-
 			try {
 				const furnitureId = url.pathname.split('/').pop();
 				if (!furnitureId) throw new Error('Furniture ID required');
@@ -1291,15 +1284,8 @@ export default {
 			}
 		}
 
-		// GET /api/admin/rooms/{roomId}/furniture - Get furniture for a room
+		// GET /api/rooms/{roomId}/furniture - Get furniture for a room
 		if (url.pathname.includes('/rooms/') && url.pathname.endsWith('/furniture') && request.method === 'GET') {
-			const adminCheck = await verifyAdminAccess(request);
-			if (!adminCheck.success) {
-				return withCors(new Response(JSON.stringify({ error: adminCheck.error }), {
-					status: 401, headers: { 'content-type': 'application/json' },
-				}));
-			}
-
 			try {
 				const pathParts = url.pathname.split('/');
 				const roomId = pathParts[pathParts.length - 2]; // Get room ID from path

@@ -13,7 +13,7 @@ interface RoomBuilderProps {
 
 type DragState = {
 	isDragging: boolean;
-	dragType: 'room' | 'door' | 'furniture' | 'camera' | 'none';
+	dragType: 'room' | 'door' | 'furniture' | 'camera' | 'resize' | 'none';
 	dragId: string | null;
 	startX: number;
 	startY: number;
@@ -23,6 +23,9 @@ type DragState = {
 	originalRoomPosition?: { startX: number; endX: number; startY: number; endY: number };
 	originalDoorPosition?: { x: number; y: number };
 	originalFurniturePosition?: { x: number; y: number };
+	// Resize handle information
+	resizeHandle?: 'nw' | 'ne' | 'sw' | 'se' | 'n' | 's' | 'e' | 'w';
+	resizeRoomId?: string;
 };
 
 type ContextMenu = {
@@ -279,6 +282,8 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 		// Draw selection highlights
 		if (selectedRoom) {
 			highlightRoom(ctx, selectedRoom);
+			// Draw resize handles for selected room
+			drawResizeHandles(ctx, selectedRoom);
 		}
 		if (selectedDoor) {
 			highlightDoor(ctx, selectedDoor);
@@ -587,6 +592,75 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 		ctx.restore();
 	};
 
+	const drawResizeHandles = (ctx: CanvasRenderingContext2D, room: RoomTemplate) => {
+		// Convert room bounds to screen coordinates
+		const topLeft = worldToScreen(room.startX, room.startY);
+		const bottomRight = worldToScreen(room.endX, room.endY);
+
+		const handleSize = Math.max(6, 8 * camera.zoom);
+		const halfHandle = handleSize / 2;
+
+		// Handle positions (screen coordinates)
+		const handles = {
+			nw: { x: topLeft.x, y: topLeft.y },
+			ne: { x: bottomRight.x, y: topLeft.y },
+			sw: { x: topLeft.x, y: bottomRight.y },
+			se: { x: bottomRight.x, y: bottomRight.y },
+			n: { x: (topLeft.x + bottomRight.x) / 2, y: topLeft.y },
+			s: { x: (topLeft.x + bottomRight.x) / 2, y: bottomRight.y },
+			e: { x: bottomRight.x, y: (topLeft.y + bottomRight.y) / 2 },
+			w: { x: topLeft.x, y: (topLeft.y + bottomRight.y) / 2 },
+		};
+
+		// Draw resize handles
+		ctx.fillStyle = '#ffffff';
+		ctx.strokeStyle = '#000000';
+		ctx.lineWidth = Math.max(1, 1 * camera.zoom);
+
+		for (const [handleType, pos] of Object.entries(handles)) {
+			// Highlight the handle being dragged
+			if (dragState.isDragging && dragState.dragType === 'resize' && dragState.resizeHandle === handleType) {
+				ctx.fillStyle = '#ff6b6b';
+			} else {
+				ctx.fillStyle = '#ffffff';
+			}
+
+			ctx.fillRect(pos.x - halfHandle, pos.y - halfHandle, handleSize, handleSize);
+			ctx.strokeRect(pos.x - halfHandle, pos.y - halfHandle, handleSize, handleSize);
+		}
+	};
+
+	const getResizeHandle = (screenX: number, screenY: number, room: RoomTemplate): 'nw' | 'ne' | 'sw' | 'se' | 'n' | 's' | 'e' | 'w' | null => {
+		// Convert room bounds to screen coordinates
+		const topLeft = worldToScreen(room.startX, room.startY);
+		const bottomRight = worldToScreen(room.endX, room.endY);
+
+		const handleSize = Math.max(6, 8 * camera.zoom);
+		const halfHandle = handleSize / 2;
+		const tolerance = halfHandle + 2; // Extra tolerance for easier clicking
+
+		// Handle positions (screen coordinates)
+		const handles = {
+			nw: { x: topLeft.x, y: topLeft.y },
+			ne: { x: bottomRight.x, y: topLeft.y },
+			sw: { x: topLeft.x, y: bottomRight.y },
+			se: { x: bottomRight.x, y: bottomRight.y },
+			n: { x: (topLeft.x + bottomRight.x) / 2, y: topLeft.y },
+			s: { x: (topLeft.x + bottomRight.x) / 2, y: bottomRight.y },
+			e: { x: bottomRight.x, y: (topLeft.y + bottomRight.y) / 2 },
+			w: { x: topLeft.x, y: (topLeft.y + bottomRight.y) / 2 },
+		};
+
+		// Check each handle
+		for (const [handleType, pos] of Object.entries(handles)) {
+			if (Math.abs(screenX - pos.x) <= tolerance && Math.abs(screenY - pos.y) <= tolerance) {
+				return handleType as 'nw' | 'ne' | 'sw' | 'se' | 'n' | 's' | 'e' | 'w';
+			}
+		}
+
+		return null;
+	};
+
 	const handleCanvasWheel = (event: React.WheelEvent<HTMLCanvasElement>) => {
 		event.preventDefault();
 
@@ -636,8 +710,9 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 		const worldPos = screenToWorld(screenX, screenY);
 
 		// Check if we're clicking on a selected item to start dragging it
-		let dragType: 'room' | 'door' | 'furniture' | 'camera' = 'camera';
+		let dragType: 'room' | 'door' | 'furniture' | 'camera' | 'resize' = 'camera';
 		let dragId: string | null = null;
+		let resizeHandle: 'nw' | 'ne' | 'sw' | 'se' | 'n' | 's' | 'e' | 'w' | undefined;
 
 		// Check if clicking on selected furniture (highest priority)
 		if (selectedFurniture) {
@@ -668,10 +743,17 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 			}
 		}
 
-		// Check if clicking on selected room
+		// Check if clicking on selected room (first check for resize handles, then room drag)
 		if (dragType === 'camera' && selectedRoom) {
-			if (worldPos.x >= selectedRoom.startX && worldPos.x <= selectedRoom.endX &&
-				worldPos.y >= selectedRoom.startY && worldPos.y <= selectedRoom.endY) {
+			// Check for resize handle first (higher priority)
+			const detectedHandle = getResizeHandle(screenX, screenY, selectedRoom);
+			if (detectedHandle) {
+				dragType = 'resize';
+				dragId = selectedRoom.id;
+				resizeHandle = detectedHandle;
+			} else if (worldPos.x >= selectedRoom.startX && worldPos.x <= selectedRoom.endX &&
+					   worldPos.y >= selectedRoom.startY && worldPos.y <= selectedRoom.endY) {
+				// If not on resize handle, check for room drag
 				dragType = 'room';
 				dragId = selectedRoom.id;
 			}
@@ -717,6 +799,8 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 				originalRoomPosition,
 				originalDoorPosition,
 				originalFurniturePosition,
+				resizeHandle,
+				resizeRoomId: dragType === 'resize' && dragId ? dragId : undefined,
 			});
 		}
 	};
@@ -859,6 +943,86 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 					// Update in furniture array for immediate visual feedback
 					setFurniture(prev => prev.map(f => f.id === selectedFurniture.id ? updatedFurniture : f));
 				}
+			} else if (dragState.dragType === 'resize' && selectedRoom && dragState.resizeRoomId === selectedRoom.id && dragState.resizeHandle && dragState.originalRoomPosition) {
+				// Resize room - calculate world space delta from original drag start position
+				const worldStart = screenToWorld(dragState.startX, dragState.startY);
+				const worldCurrent = screenToWorld(screenX, screenY);
+				const worldDeltaX = worldCurrent.x - worldStart.x;
+				const worldDeltaY = worldCurrent.y - worldStart.y;
+
+				// Calculate new room bounds based on resize handle and original position
+				let newStartX = dragState.originalRoomPosition.startX;
+				let newEndX = dragState.originalRoomPosition.endX;
+				let newStartY = dragState.originalRoomPosition.startY;
+				let newEndY = dragState.originalRoomPosition.endY;
+
+				const handle = dragState.resizeHandle;
+				const minSize = GRID_SIZE; // Minimum room size (32 pixels)
+
+				// Apply resize based on handle type
+				if (handle.includes('w')) { // west side (left)
+					newStartX = dragState.originalRoomPosition.startX + worldDeltaX;
+					// Ensure minimum size
+					if (newEndX - newStartX < minSize) {
+						newStartX = newEndX - minSize;
+					}
+				}
+				if (handle.includes('e')) { // east side (right)
+					newEndX = dragState.originalRoomPosition.endX + worldDeltaX;
+					// Ensure minimum size
+					if (newEndX - newStartX < minSize) {
+						newEndX = newStartX + minSize;
+					}
+				}
+				if (handle.includes('n')) { // north side (top)
+					newStartY = dragState.originalRoomPosition.startY + worldDeltaY;
+					// Ensure minimum size
+					if (newEndY - newStartY < minSize) {
+						newStartY = newEndY - minSize;
+					}
+				}
+				if (handle.includes('s')) { // south side (bottom)
+					newEndY = dragState.originalRoomPosition.endY + worldDeltaY;
+					// Ensure minimum size
+					if (newEndY - newStartY < minSize) {
+						newEndY = newStartY + minSize;
+					}
+				}
+
+				// Snap to grid
+				newStartX = Math.round(newStartX / GRID_SIZE) * GRID_SIZE;
+				newEndX = Math.round(newEndX / GRID_SIZE) * GRID_SIZE;
+				newStartY = Math.round(newStartY / GRID_SIZE) * GRID_SIZE;
+				newEndY = Math.round(newEndY / GRID_SIZE) * GRID_SIZE;
+
+				// Ensure minimum size after snapping
+				if (newEndX - newStartX < minSize) {
+					if (handle.includes('w')) {
+						newStartX = newEndX - minSize;
+					} else {
+						newEndX = newStartX + minSize;
+					}
+				}
+				if (newEndY - newStartY < minSize) {
+					if (handle.includes('n')) {
+						newStartY = newEndY - minSize;
+					} else {
+						newEndY = newStartY + minSize;
+					}
+				}
+
+				// Create updated room
+				const updatedRoom = {
+					...selectedRoom,
+					startX: newStartX,
+					endX: newEndX,
+					startY: newStartY,
+					endY: newEndY,
+				};
+
+				setSelectedRoom(updatedRoom);
+				// Update in rooms array for immediate visual feedback
+				setRooms(prev => prev.map(r => r.id === selectedRoom.id ? updatedRoom : r));
 			}
 
 			// Update current position for tracking purposes only (not used in delta calculations)
@@ -893,6 +1057,23 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 					}
 
 					toast.success('Room moved successfully');
+				} else if (dragState.dragType === 'resize' && selectedRoom && dragState.resizeRoomId === selectedRoom.id) {
+					// Save room resize changes
+					await adminService.updateRoom(selectedRoom.id, {
+						...selectedRoom,
+						width: selectedRoom.endX - selectedRoom.startX, // Update legacy width
+						height: selectedRoom.endY - selectedRoom.startY, // Update legacy height
+					});
+
+					// Check for adjacent rooms and create automatic doors
+					const otherRooms = floorRooms.filter(r => r.id !== selectedRoom.id);
+					const adjacentRooms = findAdjacentRooms(selectedRoom, otherRooms);
+
+					for (const { room: adjacentRoom, side } of adjacentRooms) {
+						await createAutomaticDoor(selectedRoom, adjacentRoom, side);
+					}
+
+					toast.success('Room resized successfully');
 				} else if (dragState.dragType === 'door' && selectedDoor && dragState.dragId === selectedDoor.id) {
 					// Save door position changes
 					await adminService.updateDoor(selectedDoor.id, selectedDoor);
@@ -926,6 +1107,8 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 			originalRoomPosition: undefined,
 			originalDoorPosition: undefined,
 			originalFurniturePosition: undefined,
+			resizeHandle: undefined,
+			resizeRoomId: undefined,
 		});
 		setIsSnapped(false);
 	};

@@ -33,7 +33,10 @@ export const MenuPage: React.FC = () => {
 			const validSession = await validateOrRefreshSession(API_URL);
 
 			if (validSession?.user) {
-				setUser(validSession.user);
+				setUser({
+					...validSession.user,
+					picture: validSession.user.picture || undefined,
+				});
 			}
 		} catch (error) {
 			console.error('Failed to validate session:', error);
