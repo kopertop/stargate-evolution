@@ -194,6 +194,27 @@ export const openApiSpec: OpenAPIV3_1.Document = {
 				},
 			},
 		},
+		'/api/templates/doors': {
+			get: {
+				tags: ['Templates'],
+				summary: 'Get all door templates',
+				description: 'Retrieve all available door templates for ship layouts. **NO AUTHENTICATION REQUIRED**',
+				security: [], // No auth required
+				responses: {
+					'200': {
+						description: 'List of door templates',
+						content: {
+							'application/json': {
+								schema: {
+									type: 'array',
+									items: { $ref: '#/components/schemas/DoorTemplate' },
+								},
+							},
+						},
+					},
+				},
+			},
+		},
 
 		// Well-known OpenAPI endpoint
 		'/.well-known/openapi.json': {
@@ -507,6 +528,37 @@ export const openApiSpec: OpenAPIV3_1.Document = {
 						default: 'ok',
 					},
 				},
+			},
+			DoorTemplate: {
+				type: 'object',
+				description: 'Door template connecting two rooms',
+				properties: {
+					id: { type: 'string', description: 'Unique door identifier' },
+					layout_id: {
+						type: 'string',
+						description: 'Ship layout this door belongs to',
+						example: 'destiny',
+					},
+					from_room_id: {
+						type: 'string',
+						description: 'The ID of the first room this door connects to.',
+					},
+					to_room_id: {
+						type: 'string',
+						description: 'The ID of the second room this door connects to.',
+					},
+					x: {
+						type: 'number',
+						description: 'X coordinate on the ship map',
+					},
+					y: {
+						type: 'number',
+						description: 'Y coordinate on the ship map',
+					},
+					created_at: { type: 'number', description: 'Creation timestamp' },
+					updated_at: { type: 'number', description: 'Last update timestamp' },
+				},
+				required: ['id', 'layout_id', 'from_room_id', 'to_room_id', 'x', 'y', 'created_at', 'updated_at'],
 			},
 			TechnologyTemplate: {
 				type: 'object',

@@ -279,6 +279,20 @@ export default {
 			}
 		}
 
+		if (url.pathname === '/api/templates/doors' && request.method === 'GET') {
+			try {
+				const doors = await getAllDoorTemplates(env.DB);
+				return withCors(new Response(JSON.stringify(doors), {
+					headers: { 'content-type': 'application/json' },
+				}));
+			} catch (err: any) {
+				return withCors(new Response(JSON.stringify({ error: err.message || 'Failed to fetch room templates' }), {
+					status: 500, headers: { 'content-type': 'application/json' },
+				}));
+			}
+		}
+
+
 		if (url.pathname.startsWith('/api/templates/rooms/') && request.method === 'GET') {
 			try {
 				const roomId = url.pathname.split('/').pop();
