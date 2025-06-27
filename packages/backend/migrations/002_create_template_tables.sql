@@ -42,8 +42,8 @@ CREATE TABLE IF NOT EXISTS room_templates (
 	floor INTEGER NOT NULL,
 
 	-- Legacy width/height for backward compatibility (auto-calculated)
-	width INTEGER GENERATED ALWAYS AS ((endX - startX) / 32) STORED,
-	height INTEGER GENERATED ALWAYS AS ((endY - startY) / 32) STORED,
+	width INTEGER GENERATED ALWAYS AS ((endX - startX)) STORED,
+	height INTEGER GENERATED ALWAYS AS ((endY - startY)) STORED,
 
 	-- Room properties
 	found BOOLEAN DEFAULT FALSE,
