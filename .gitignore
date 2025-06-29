@@ -45,3 +45,6 @@ yarn-error.*
 # Wrangler
 .wrangler/
 packages/*/.wrangler
+
+# Local MCP configs
+.mcp.json
