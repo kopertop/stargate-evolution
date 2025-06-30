@@ -2,6 +2,7 @@ import { jwtVerify, SignJWT } from 'jose';
 
 import { validateUser, validateSession } from './auth-types';
 import { openApiSpec } from './openapi';
+import { getAllCharacterTemplates, getCharacterTemplateById, createCharacterTemplate, updateCharacterTemplate, gainExperience } from './templates/character-templates';
 import { getDefaultDestinyStatusTemplate, getStartingInventoryTemplate } from './templates/destiny-status-template';
 import { getAllDoorTemplates, getDoorTemplateById, getDoorsForRoom, createDoorTemplate, updateDoorTemplate, deleteDoorTemplate } from './templates/door-templates';
 import { getAllGalaxyTemplates, getGalaxyTemplateById } from './templates/galaxy-templates';
@@ -541,6 +542,19 @@ export default {
 				}));
 			} catch (err: any) {
 				return withCors(new Response(JSON.stringify({ error: err.message || 'Failed to fetch starting inventory template' }), {
+					status: 500, headers: { 'content-type': 'application/json' },
+				}));
+			}
+		}
+
+		if (url.pathname === '/api/templates/characters' && request.method === 'GET') {
+			try {
+				const characters = await getAllCharacterTemplates(env.DB);
+				return withCors(new Response(JSON.stringify(characters), {
+					headers: { 'content-type': 'application/json' },
+				}));
+			} catch (err: any) {
+				return withCors(new Response(JSON.stringify({ error: err.message || 'Failed to fetch character templates' }), {
 					status: 500, headers: { 'content-type': 'application/json' },
 				}));
 			}
@@ -1388,6 +1402,241 @@ export default {
 				}));
 			} catch (err: any) {
 				return withCors(new Response(JSON.stringify({ error: err.message || 'Failed to delete furniture' }), {
+					status: 500, headers: { 'content-type': 'application/json' },
+				}));
+			}
+		}
+
+		// Character Admin Endpoints
+
+		// GET /api/admin/characters - Get all characters
+		if (url.pathname === '/api/admin/characters' && request.method === 'GET') {
+			const adminCheck = await verifyAdminAccess(request);
+			if (!adminCheck.success) {
+				return withCors(new Response(JSON.stringify({ error: adminCheck.error }), {
+					status: 401, headers: { 'content-type': 'application/json' },
+				}));
+			}
+
+			try {
+				const characters = await getAllCharacterTemplates(env.DB);
+				return withCors(new Response(JSON.stringify(characters), {
+					headers: { 'content-type': 'application/json' },
+				}));
+			} catch (err: any) {
+				return withCors(new Response(JSON.stringify({ error: err.message || 'Failed to fetch characters' }), {
+					status: 500, headers: { 'content-type': 'application/json' },
+				}));
+			}
+		}
+
+		// GET /api/admin/characters/{characterId} - Get character by ID
+		if (url.pathname.startsWith('/api/admin/characters/') && request.method === 'GET') {
+			const adminCheck = await verifyAdminAccess(request);
+			if (!adminCheck.success) {
+				return withCors(new Response(JSON.stringify({ error: adminCheck.error }), {
+					status: 401, headers: { 'content-type': 'application/json' },
+				}));
+			}
+
+			try {
+				const characterId = url.pathname.split('/').pop();
+				if (!characterId) throw new Error('Character ID required');
+
+				const character = await getCharacterTemplateById(env.DB, characterId);
+				if (!character) {
+					return withCors(new Response(JSON.stringify({ error: 'Character not found' }), {
+						status: 404, headers: { 'content-type': 'application/json' },
+					}));
+				}
+
+				return withCors(new Response(JSON.stringify(character), {
+					headers: { 'content-type': 'application/json' },
+				}));
+			} catch (err: any) {
+				return withCors(new Response(JSON.stringify({ error: err.message || 'Failed to fetch character' }), {
+					status: 500, headers: { 'content-type': 'application/json' },
+				}));
+			}
+		}
+
+		// POST /api/admin/characters - Create character
+		if (url.pathname === '/api/admin/characters' && request.method === 'POST') {
+			const adminCheck = await verifyAdminAccess(request);
+			if (!adminCheck.success) {
+				return withCors(new Response(JSON.stringify({ error: adminCheck.error }), {
+					status: 401, headers: { 'content-type': 'application/json' },
+				}));
+			}
+
+			try {
+				const characterData = await request.json() as any;
+				
+				// Generate ID if not provided
+				if (!characterData.id) {
+					characterData.id = crypto.randomUUID();
+				}
+
+				// Set timestamps
+				const now = Date.now();
+				characterData.created_at = now;
+				characterData.updated_at = now;
+
+				await createCharacterTemplate(env.DB, characterData);
+
+				return withCors(new Response(JSON.stringify({ success: true, id: characterData.id }), {
+					headers: { 'content-type': 'application/json' },
+				}));
+			} catch (err: any) {
+				return withCors(new Response(JSON.stringify({ error: err.message || 'Failed to create character' }), {
+					status: 500, headers: { 'content-type': 'application/json' },
+				}));
+			}
+		}
+
+		// PUT /api/admin/characters/{characterId} - Update character
+		if (url.pathname.startsWith('/api/admin/characters/') && request.method === 'PUT') {
+			const adminCheck = await verifyAdminAccess(request);
+			if (!adminCheck.success) {
+				return withCors(new Response(JSON.stringify({ error: adminCheck.error }), {
+					status: 401, headers: { 'content-type': 'application/json' },
+				}));
+			}
+
+			try {
+				const characterId = url.pathname.split('/').pop();
+				if (!characterId) throw new Error('Character ID required');
+
+				const characterData = await request.json() as any;
+				characterData.updated_at = Date.now();
+
+				await updateCharacterTemplate(env.DB, characterId, characterData);
+
+				return withCors(new Response(JSON.stringify({ success: true }), {
+					headers: { 'content-type': 'application/json' },
+				}));
+			} catch (err: any) {
+				return withCors(new Response(JSON.stringify({ error: err.message || 'Failed to update character' }), {
+					status: 500, headers: { 'content-type': 'application/json' },
+				}));
+			}
+		}
+
+		// DELETE /api/admin/characters/{characterId} - Delete character
+		if (url.pathname.startsWith('/api/admin/characters/') && request.method === 'DELETE') {
+			const adminCheck = await verifyAdminAccess(request);
+			if (!adminCheck.success) {
+				return withCors(new Response(JSON.stringify({ error: adminCheck.error }), {
+					status: 401, headers: { 'content-type': 'application/json' },
+				}));
+			}
+
+			try {
+				const characterId = url.pathname.split('/').pop();
+				if (!characterId) throw new Error('Character ID required');
+
+				const result = await env.DB.prepare('DELETE FROM characters WHERE id = ?').bind(characterId).run();
+
+				if (result.meta.changes === 0) {
+					return withCors(new Response(JSON.stringify({ error: 'Character not found' }), {
+						status: 404, headers: { 'content-type': 'application/json' },
+					}));
+				}
+
+				return withCors(new Response(JSON.stringify({ success: true }), {
+					headers: { 'content-type': 'application/json' },
+				}));
+			} catch (err: any) {
+				return withCors(new Response(JSON.stringify({ error: err.message || 'Failed to delete character' }), {
+					status: 500, headers: { 'content-type': 'application/json' },
+				}));
+			}
+		}
+
+		// Game Character Endpoints (less auth required)
+
+		// POST /api/game/character/{characterId}/gain-xp - Gain experience
+		if (url.pathname.includes('/api/game/character/') && url.pathname.endsWith('/gain-xp') && request.method === 'POST') {
+			try {
+				const pathParts = url.pathname.split('/');
+				const characterId = pathParts[pathParts.length - 2]; // Get character ID from path
+				if (!characterId) throw new Error('Character ID required');
+
+				const { xp } = await request.json() as { xp: number };
+				if (typeof xp !== 'number' || xp <= 0) throw new Error('Valid XP amount required');
+
+				const updatedCharacter = await gainExperience(env.DB, characterId, xp);
+				if (!updatedCharacter) {
+					return withCors(new Response(JSON.stringify({ error: 'Character not found' }), {
+						status: 404, headers: { 'content-type': 'application/json' },
+					}));
+				}
+
+				return withCors(new Response(JSON.stringify(updatedCharacter), {
+					headers: { 'content-type': 'application/json' },
+				}));
+			} catch (err: any) {
+				return withCors(new Response(JSON.stringify({ error: err.message || 'Failed to gain experience' }), {
+					status: 500, headers: { 'content-type': 'application/json' },
+				}));
+			}
+		}
+
+		// POST /api/game/character/{characterId}/update-skill - Update skill
+		if (url.pathname.includes('/api/game/character/') && url.pathname.endsWith('/update-skill') && request.method === 'POST') {
+			try {
+				const pathParts = url.pathname.split('/');
+				const characterId = pathParts[pathParts.length - 2]; // Get character ID from path
+				if (!characterId) throw new Error('Character ID required');
+
+				const { skillName, levelChange, experienceChange } = await request.json() as { 
+					skillName: string; 
+					levelChange: number; 
+					experienceChange: number; 
+				};
+
+				if (!skillName || typeof levelChange !== 'number' || typeof experienceChange !== 'number') {
+					throw new Error('Valid skill name, level change, and experience change required');
+				}
+
+				// Get current character
+				const character = await getCharacterTemplateById(env.DB, characterId);
+				if (!character) {
+					return withCors(new Response(JSON.stringify({ error: 'Character not found' }), {
+						status: 404, headers: { 'content-type': 'application/json' },
+					}));
+				}
+
+				// Update skill
+				const progression = character.progression || { total_experience: 0, current_level: 0, skills: [] };
+				const skillIndex = progression.skills.findIndex(skill => skill.name === skillName);
+
+				if (skillIndex >= 0) {
+					// Update existing skill
+					progression.skills[skillIndex].level += levelChange;
+					progression.skills[skillIndex].experience += experienceChange;
+				} else {
+					// Add new skill
+					progression.skills.push({
+						name: skillName,
+						level: Math.max(0, levelChange),
+						experience: Math.max(0, experienceChange),
+					});
+				}
+
+				// Update total experience
+				progression.total_experience += experienceChange;
+
+				// Save updated character
+				await updateCharacterTemplate(env.DB, characterId, { progression, updated_at: Date.now() });
+
+				// Return updated character
+				const updatedCharacter = await getCharacterTemplateById(env.DB, characterId);
+				return withCors(new Response(JSON.stringify(updatedCharacter), {
+					headers: { 'content-type': 'application/json' },
+				}));
+			} catch (err: any) {
+				return withCors(new Response(JSON.stringify({ error: err.message || 'Failed to update skill' }), {
 					status: 500, headers: { 'content-type': 'application/json' },
 				}));
 			}

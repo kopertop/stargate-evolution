@@ -1,3 +1,5 @@
+import { RoomTemplate, TechnologyTemplate } from '@stargate/common';
+
 import { apiClient } from './api-client';
 
 const API_URL = import.meta.env.VITE_PUBLIC_API_URL || '';
@@ -24,7 +26,7 @@ class AdminService {
 	}
 
 	// Room management
-	async getAllRoomTemplates() {
+	async getAllRoomTemplates(): Promise<RoomTemplate[]> {
 		const response = await apiClient.get('/api/templates/rooms', false); // Public endpoint
 		if (response.error) {
 			throw new Error(response.error);
@@ -58,6 +60,15 @@ class AdminService {
 	}
 
 	// Technology management
+	async getAllTechnologyTemplates(): Promise<TechnologyTemplate[]> {
+		const response = await apiClient.get('/api/templates/technology', false); // Public endpoint
+		if (response.error) {
+			throw new Error(response.error);
+		}
+		const data = response.data;
+		return Array.isArray(data) ? data : [];
+	}
+
 	async createTechnology(techData: any) {
 		const response = await apiClient.post('/api/admin/technologies', techData, true);
 		if (response.error) {

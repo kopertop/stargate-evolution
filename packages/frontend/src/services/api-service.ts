@@ -70,9 +70,7 @@ class APIService {
 		}
 	}
 
-	async getAllRoomTemplates(): Promise<RoomTemplate[]> {
-		return this.fetchWithCache<RoomTemplate[]>('/api/templates/rooms');
-	}
+	
 
 	async getRoomTemplateById(id: string): Promise<RoomTemplate | null> {
 		try {
@@ -137,9 +135,7 @@ class APIService {
 		}
 	}
 
-	async getAllTechnologyTemplates(): Promise<TechnologyTemplate[]> {
-		return this.fetchWithCache<TechnologyTemplate[]>('/api/templates/technology');
-	}
+	
 
 	// Helper methods for parsing JSON fields
 	parseSkills(skillsJson: string | string[]): string[] {
