@@ -76,3 +76,4 @@ dev-debug.log
 # Local Settings
 */*.local.json
 .cursor/mcp.json
+.turbo/

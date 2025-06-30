@@ -3,7 +3,7 @@
 	"version": "0.1.1",
 	"private": true,
 	"scripts": {
-		"start": "pnpm -r --parallel run dev",
+		"start": "turbo --ui tui run start",
 		"check": "pnpm -r run typecheck && pnpm run lint",
 		"lint": "eslint packages --ext .ts,.tsx --fix",
 		"db:up": "pnpm -r run db:up",
@@ -39,6 +39,7 @@
 	},
 	"packageManager": "pnpm@10.11.0",
 	"dependencies": {
+		"turbo": "^2.5.4",
 		"zod": "^3.25.36"
 	}
 }

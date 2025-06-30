@@ -3,7 +3,7 @@
 	"version": "0.1.0",
 	"private": true,
 	"scripts": {
-		"dev": "wrangler dev",
+		"start": "wrangler dev",
 		"typecheck": "tsc --noEmit",
 		"db:up": "wrangler d1 migrations apply stargate-game",
 		"db:down": "npx tsx bin/reset-database.ts",
@@ -12,6 +12,8 @@
 		"db:generate": "npx tsx bin/generate-d1-from-models.ts",
 		"db:create-schema": "pnpm run db:generate && pnpm run db:init",
 		"migration:generate": "npx tsx bin/generate-migration.ts",
+		"sync:from-remote": "npx tsx bin/sync-from-remote.ts",
+		"sync:dry-run": "npx tsx bin/sync-from-remote.ts --dry-run",
 		"test": "vitest run",
 		"deploy": "npx wrangler deploy",
 		"postdeploy": "pnpm run db:up --remote"

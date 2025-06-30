@@ -1,5 +1,4 @@
-import { RoomTemplate, TechnologyTemplate, DoorTemplate } from '@stargate/common';
-import { RoomTechnology } from '@stargate/common/models/room-technology';
+import { RoomTemplate, TechnologyTemplate, DoorTemplate, Character, Progression, Skill, RoomTechnology } from '@stargate/common';
 import Fuse from 'fuse.js';
 import React, { useState, useEffect, useMemo } from 'react';
 import { Button, Card, Nav, Tab, Table, Modal, Form, Alert, InputGroup, OverlayTrigger, Tooltip } from 'react-bootstrap';
@@ -13,6 +12,7 @@ import { getSession, validateOrRefreshSession } from '../auth/session';
 import { RoomBuilder } from '../components/room-builder';
 import { adminService } from '../services/admin-service';
 import { apiService } from '../services/api-service';
+import { characterService } from '../services/character-service';
 
 type User = {
 	id: string;
@@ -28,16 +28,23 @@ export const AdminPage: React.FC = () => {
 	const navigate = useNavigate();
 
 	// Helper function to truncate text and show tooltip
-	const truncateWithTooltip = (text: string, maxLength: number = 25) => {
-		if (!text || text.length <= maxLength) {
-			return <span>{text}</span>;
+	const truncateWithTooltip = (text: string | string[], maxLength: number = 25) => {
+		let display_text = '';
+		if (Array.isArray(text)) {
+			display_text = text.join(', ');
+		} else {
+			display_text = text;
 		}
 
-		const truncated = text.substring(0, maxLength) + '...';
+		if (!display_text || display_text.length <= maxLength) {
+			return <span>{display_text}</span>;
+		}
+
+		const truncated = display_text.substring(0, maxLength) + '...';
 		return (
 			<OverlayTrigger
 				placement="top"
-				overlay={<Tooltip id={`tooltip-${Date.now()}`}>{text}</Tooltip>}
+				overlay={<Tooltip id={`tooltip-${Date.now()}`}>{display_text}</Tooltip>}
 			>
 				<span style={{ cursor: 'help', textDecoration: 'underline dotted' }}>
 					{truncated}
@@ -50,6 +57,14 @@ export const AdminPage: React.FC = () => {
 	const [rooms, setRooms] = useState<RoomTemplate[]>([]);
 	const [technologies, setTechnologies] = useState<TechnologyTemplate[]>([]);
 	const [doors, setDoors] = useState<DoorTemplate[]>([]);
+	const [characters, setCharacters] = useState<Character[]>([]);
+
+	// Character form states
+	const [showCharacterModal, setShowCharacterModal] = useState(false);
+	const [characterForm, setCharacterForm] = useState<Partial<Character>>({
+		progression: { total_experience: 0, current_level: 0, skills: [] },
+	});
+	const [isNewCharacter, setIsNewCharacter] = useState(false);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 
@@ -58,6 +73,7 @@ export const AdminPage: React.FC = () => {
 	const [roomSearch, setRoomSearch] = useState('');
 	const [techSearch, setTechSearch] = useState('');
 	const [doorSearch, setDoorSearch] = useState('');
+	const [characterSearch, setCharacterSearch] = useState('');
 	const [selectedFloor, setSelectedFloor] = useState(0);
 
 	// Modal states
@@ -101,6 +117,14 @@ export const AdminPage: React.FC = () => {
 		});
 	}, [technologies]);
 
+	const characterFuse = useMemo(() => {
+		if (characters.length === 0) return null;
+		return new Fuse(characters, {
+			keys: ['id', 'name', 'role', 'progression.skills.name', 'description'],
+			threshold: 0.3,
+		});
+	}, [characters]);
+
 	// Filtered data based on search - always return arrays
 	const filteredUsers = useMemo(() => {
 		if (!userSearch.trim()) return users;
@@ -140,6 +164,12 @@ export const AdminPage: React.FC = () => {
 		return techFuse.search(techSearch).map(result => result.item);
 	}, [technologies, techSearch, techFuse]);
 
+	const filteredCharacters = useMemo(() => {
+		if (!characterSearch.trim()) return characters;
+		if (!characterFuse) return characters;
+		return characterFuse.search(characterSearch).map(result => result.item);
+	}, [characters, characterSearch, characterFuse]);
+
 	// Update selectedFloor if it's not valid anymore
 	React.useEffect(() => {
 		if (floors.length > 0 && !floors.includes(selectedFloor)) {
@@ -177,17 +207,19 @@ export const AdminPage: React.FC = () => {
 				apiService.clearCache();
 			}
 
-			const [usersData, roomsData, techData, doorsData] = await Promise.all([
+			const [usersData, roomsData, techData, doorsData, charactersData] = await Promise.all([
 				adminService.getUsers(),
 				apiService.getAllRoomTemplates(),
 				apiService.getAllTechnologyTemplates(),
 				adminService.getAllDoors().catch(() => []), // Fallback to empty array if doors not available yet
+				characterService.getAllCharacters(),
 			]);
 
 			setUsers(usersData);
 			setRooms(roomsData);
 			setTechnologies(techData);
 			setDoors(doorsData);
+			setCharacters(charactersData);
 			setAvailableTechnologies(techData); // Store for dropdown
 		} catch (err: any) {
 			setError(err.message || 'Failed to load admin data');
@@ -365,6 +397,65 @@ export const AdminPage: React.FC = () => {
 		setShowTechModal(true);
 	};
 
+	const handleCreateCharacter = () => {
+		setEditingItem(null);
+		setIsNewCharacter(true);
+		setCharacterForm({
+			name: '',
+			role: '',
+			progression: {
+				total_experience: 0,
+				current_level: 0,
+				skills: [],
+			},
+			description: '',
+			image: '',
+			current_room_id: 'gate_room',
+		});
+		setShowCharacterModal(true);
+	};
+
+	const handleEditCharacter = (char: Character) => {
+		setEditingItem(char);
+		setIsNewCharacter(false);
+		setCharacterForm(char);
+		setShowCharacterModal(true);
+	};
+
+	const handleSaveCharacter = async () => {
+		try {
+			if (!characterForm.id || !characterForm.name || !characterForm.role || !characterForm.progression) {
+				toast.error('Character ID, name, role, and progression are required');
+				return;
+			}
+
+			if (isNewCharacter) {
+				await characterService.createCharacter(characterForm as Omit<Character, 'id' | 'created_at' | 'updated_at'>);
+				toast.success('Character created successfully');
+			} else {
+				await characterService.updateCharacter(editingItem.id, characterForm);
+				toast.success('Character updated successfully');
+			}
+
+			setShowCharacterModal(false);
+			loadData(true); // Clear cache to fetch fresh character data
+		} catch (err: any) {
+			toast.error(err.message || 'Failed to save character');
+		}
+	};
+
+	const handleDeleteCharacter = async (characterId: string) => {
+		if (!confirm('Are you sure you want to delete this character?')) return;
+
+		try {
+			await characterService.deleteCharacter(characterId);
+			toast.success('Character deleted successfully');
+			loadData(true); // Clear cache to fetch fresh character data
+		} catch (err: any) {
+			toast.error(err.message || 'Failed to delete character');
+		}
+	};
+
 	const handleSaveTechnology = async () => {
 		try {
 			if (!techForm.id || !techForm.name || !techForm.description) {
@@ -448,6 +539,9 @@ export const AdminPage: React.FC = () => {
 						</Nav.Item>
 						<Nav.Item>
 							<Nav.Link eventKey="technologies">Technology Templates</Nav.Link>
+						</Nav.Item>
+						<Nav.Item>
+							<Nav.Link eventKey="characters">Character Templates</Nav.Link>
 						</Nav.Item>
 					</Nav>
 
@@ -702,7 +796,289 @@ export const AdminPage: React.FC = () => {
 								</Card.Body>
 							</Card>
 						</Tab.Pane>
+
+						{/* Characters Tab */}
+						<Tab.Pane eventKey="characters">
+							<Card bg="dark" text="light">
+								<Card.Header className="d-flex justify-content-between align-items-center">
+									<h4>Character Templates</h4>
+									<Button variant="primary" onClick={handleCreateCharacter}>
+										<FaPlus /> Add Character
+									</Button>
+								</Card.Header>
+								<Card.Body>
+									<InputGroup className="mb-3">
+										<InputGroup.Text>
+											<FaSearch />
+										</InputGroup.Text>
+										<Form.Control
+											type="text"
+											value={characterSearch}
+											onChange={(e) => setCharacterSearch(e.target.value)}
+											placeholder="Search characters by ID, name, role, or skills"
+										/>
+									</InputGroup>
+									<div style={{ maxHeight: '600px', overflowY: 'auto' }}>
+										<Table striped bordered hover variant="dark">
+											<thead style={{ position: 'sticky', top: 0, zIndex: 10 }}>
+												<tr>
+													<th>ID</th>
+													<th>Name</th>
+													<th>Role</th>
+													<th>Race</th>
+													<th>Skills</th>
+													<th>Actions</th>
+												</tr>
+											</thead>
+											<tbody>
+												{filteredCharacters.map((char) => (
+													<tr key={char.id}>
+														<td><code>{char.id}</code></td>
+														<td>{char.name}</td>
+														<td>{char.role}</td>
+														<td>{char.race_template_id || 'N/A'}</td>
+														<td>{truncateWithTooltip(char.progression?.skills?.map(s => s.name).join(', ') || 'No skills')}</td>
+														<td>
+															<Button
+																size="sm"
+																variant="outline-info"
+																className="me-2"
+																onClick={() => handleViewRawData(char)}
+																title="View Raw Data"
+															>
+																<FaEye />
+															</Button>
+															<Button
+																size="sm"
+																variant="outline-warning"
+																className="me-2"
+																onClick={() => handleEditCharacter(char)}
+															>
+																<FaEdit />
+															</Button>
+															<Button
+																size="sm"
+																variant="outline-danger"
+																onClick={() => handleDeleteCharacter(char.id)}
+															>
+																<FaTrash />
+															</Button>
+														</td>
+													</tr>
+												))}
+											</tbody>
+										</Table>
+									</div>
+									{filteredCharacters.length === 0 && characterSearch && (
+										<div className="text-center text-muted py-3">
+											No characters found matching &ldquo;{characterSearch}&rdquo;
+										</div>
+									)}
+								</Card.Body>
+							</Card>
+						</Tab.Pane>
 					</Tab.Content>
+
+					{/* Character Modal */}
+					<Modal show={showCharacterModal} onHide={() => setShowCharacterModal(false)} size="lg">
+						<Modal.Header closeButton>
+							<Modal.Title>{isNewCharacter ? 'Create Character' : 'Edit Character'}</Modal.Title>
+						</Modal.Header>
+						<Modal.Body>
+							<Form>
+								<Form.Group className="mb-3">
+									<Form.Label>Character ID</Form.Label>
+									<Form.Control
+										type="text"
+										value={characterForm.id || ''}
+										onChange={(e) => setCharacterForm({ ...characterForm, id: e.target.value })}
+										disabled={!!editingItem}
+									/>
+								</Form.Group>
+								<Form.Group className="mb-3">
+									<Form.Label>Name</Form.Label>
+									<Form.Control
+										type="text"
+										value={characterForm.name || ''}
+										onChange={(e) => setCharacterForm({ ...characterForm, name: e.target.value })}
+									/>
+								</Form.Group>
+								<Form.Group className="mb-3">
+									<Form.Label>Role</Form.Label>
+									<Form.Control
+										type="text"
+										value={characterForm.role || ''}
+										onChange={(e) => setCharacterForm({ ...characterForm, role: e.target.value })}
+									/>
+								</Form.Group>
+								<Form.Group className="mb-3">
+									<Form.Label>Race Template ID</Form.Label>
+									<Form.Control
+										type="text"
+										value={characterForm.race_template_id || ''}
+										onChange={(e) => setCharacterForm({ ...characterForm, race_template_id: e.target.value })}
+									/>
+								</Form.Group>
+								<Form.Group className="mb-3">
+									<Form.Label>Total Experience</Form.Label>
+									<Form.Control
+										type="number"
+										value={characterForm.progression?.total_experience || 0}
+										onChange={(e) => setCharacterForm({
+											...characterForm,
+											progression: {
+												total_experience: parseInt(e.target.value) || 0,
+												current_level: characterForm.progression?.current_level || 0,
+												skills: characterForm.progression?.skills || [],
+											},
+										})}
+									/>
+								</Form.Group>
+								<Form.Group className="mb-3">
+									<Form.Label>Current Level</Form.Label>
+									<Form.Control
+										type="number"
+										value={characterForm.progression?.current_level || 0}
+										onChange={(e) => setCharacterForm({
+											...characterForm,
+											progression: {
+												total_experience: characterForm.progression?.total_experience || 0,
+												current_level: parseInt(e.target.value) || 0,
+												skills: characterForm.progression?.skills || [],
+											},
+										})}
+									/>
+								</Form.Group>
+
+								<h5>Skills</h5>
+								{characterForm.progression?.skills?.map((skill: Skill, index: number) => (
+									<Card key={index} className="mb-2">
+										<Card.Body className="py-2">
+											<div className="d-flex justify-content-between align-items-center">
+												<div className="flex-grow-1 row">
+													<Form.Group className="col-md-4">
+														<Form.Label>Name</Form.Label>
+														<Form.Control
+															type="text"
+															value={skill.name}
+															onChange={(e) => {
+																const newSkills = [...(characterForm.progression?.skills || [])];
+																newSkills[index] = { ...newSkills[index], name: e.target.value };
+																setCharacterForm({ 
+																	...characterForm, 
+																	progression: { 
+																		total_experience: characterForm.progression?.total_experience || 0,
+																		current_level: characterForm.progression?.current_level || 0,
+																		skills: newSkills, 
+																	}, 
+																});
+															}}
+														/>
+													</Form.Group>
+													<Form.Group className="col-md-4">
+														<Form.Label>Level</Form.Label>
+														<Form.Control
+															type="number"
+															value={skill.level}
+															onChange={(e) => {
+																const newSkills = [...(characterForm.progression?.skills || [])];
+																newSkills[index] = { ...newSkills[index], level: parseInt(e.target.value) || 0 };
+																setCharacterForm({ 
+																	...characterForm, 
+																	progression: { 
+																		total_experience: characterForm.progression?.total_experience || 0,
+																		current_level: characterForm.progression?.current_level || 0,
+																		skills: newSkills, 
+																	}, 
+																});
+															}}
+														/>
+													</Form.Group>
+													<Form.Group className="col-md-4">
+														<Form.Label>Experience</Form.Label>
+														<Form.Control
+															type="number"
+															value={skill.experience}
+															onChange={(e) => {
+																const newSkills = [...(characterForm.progression?.skills || [])];
+																newSkills[index] = { ...newSkills[index], experience: parseInt(e.target.value) || 0 };
+																setCharacterForm({ 
+																	...characterForm, 
+																	progression: { 
+																		total_experience: characterForm.progression?.total_experience || 0,
+																		current_level: characterForm.progression?.current_level || 0,
+																		skills: newSkills, 
+																	}, 
+																});
+															}}
+														/>
+													</Form.Group>
+												</div>
+												<Button
+													size="sm"
+													variant="outline-danger"
+													onClick={() => {
+														const newSkills = (characterForm.progression?.skills || []).filter((_: Skill, i: number) => i !== index);
+														setCharacterForm({ 
+															...characterForm, 
+															progression: { 
+																total_experience: characterForm.progression?.total_experience || 0,
+																current_level: characterForm.progression?.current_level || 0,
+																skills: newSkills, 
+															}, 
+														});
+													}}
+												>
+                                                Remove
+												</Button>
+											</div>
+										</Card.Body>
+									</Card>
+								)) || <Alert variant="info">No skills defined.</Alert>}
+
+								<Button variant="secondary" onClick={() => {
+									const newSkills = [...(characterForm.progression?.skills || [])];
+									newSkills.push({ name: '', level: 0, experience: 0 });
+									setCharacterForm({ 
+										...characterForm, 
+										progression: { 
+											total_experience: characterForm.progression?.total_experience || 0,
+											current_level: characterForm.progression?.current_level || 0,
+											skills: newSkills, 
+										}, 
+									});
+								}}>
+									<FaPlus /> Add Skill
+								</Button>
+								<Form.Group className="mb-3">
+									<Form.Label>Description</Form.Label>
+									<Form.Control
+										as="textarea"
+										rows={3}
+										value={characterForm.description || ''}
+										onChange={(e) => setCharacterForm({ ...characterForm, description: e.target.value })}
+									/>
+								</Form.Group>
+								<Form.Group className="mb-3">
+									<Form.Label>Image URL</Form.Label>
+									<Form.Control
+										type="text"
+										value={characterForm.image || ''}
+										onChange={(e) => setCharacterForm({ ...characterForm, image: e.target.value })}
+									/>
+								</Form.Group>
+							</Form>
+						</Modal.Body>
+						<Modal.Footer>
+							<Button variant="secondary" onClick={() => setShowCharacterModal(false)}>
+							Cancel
+							</Button>
+							<Button variant="primary" onClick={handleSaveCharacter}>
+								{isNewCharacter ? 'Create' : 'Update'}
+							</Button>
+						</Modal.Footer>
+					</Modal>
+					{/* Technology Modal */}
 				</Tab.Container>
 
 				{/* Room Modal */}
