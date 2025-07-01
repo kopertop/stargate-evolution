@@ -46,6 +46,18 @@ export const GamePage: React.FC = () => {
 	const [listeningKey, setListeningKey] = useState<{ action: string; index: number } | null>(null);
 	const [gamepadState, setGamepadState] = useState<any>(null);
 	const [focusedMenuItem, setFocusedMenuItem] = useState(0); // Track focused menu item
+	
+	// Use refs to avoid stale closure issues in gamepad polling
+	const showPauseRef = useRef(showPause);
+	const showSettingsRef = useRef(showSettings);
+	const showDebugRef = useRef(showDebug);
+	const focusedMenuItemRef = useRef(focusedMenuItem);
+	
+	// Keep refs in sync with state
+	useEffect(() => { showPauseRef.current = showPause; }, [showPause]);
+	useEffect(() => { showSettingsRef.current = showSettings; }, [showSettings]);
+	useEffect(() => { showDebugRef.current = showDebug; }, [showDebug]);
+	useEffect(() => { focusedMenuItemRef.current = focusedMenuItem; }, [focusedMenuItem]);
 
 	// Fullscreen on mount
 	useEffect(() => {
@@ -165,13 +177,17 @@ export const GamePage: React.FC = () => {
 				// Handle pause button (only on button release, not press or hold)
 				if (!pausePressed && gamepadBindings.pause.some(buttonIndex => lastGamepadState[buttonIndex])) {
 					console.log('[DEBUG] Gamepad pause button released');
-					setShowPause((prev) => !prev);
+					console.log('[DEBUG] Current showPause state:', showPauseRef.current);
+					setShowPause((prev) => {
+						console.log('[DEBUG] Toggling pause from', prev, 'to', !prev);
+						return !prev;
+					});
 					setFocusedMenuItem(0); // Reset to first menu item when opening
 				}
 				
 				// Handle d-pad navigation in menus (only when a menu is open, on button release)
-				if (showPause || showSettings || showDebug) {
-					const menuItemCount = showPause ? 5 : (showSettings ? 1 : 1); // Pause has 5 items, others have different counts
+				if (showPauseRef.current || showSettingsRef.current || showDebugRef.current) {
+					const menuItemCount = showPauseRef.current ? 5 : (showSettingsRef.current ? 1 : 1); // Pause has 5 items, others have different counts
 					
 					if (!upPressed && gamepadBindings.up.some(buttonIndex => lastGamepadState[buttonIndex])) {
 						console.log('[DEBUG] Gamepad up navigation (released)');
@@ -187,7 +203,7 @@ export const GamePage: React.FC = () => {
 				// Handle back button (only on button release, not press or hold)
 				if (!backPressed && gamepadBindings.back.some(buttonIndex => lastGamepadState[buttonIndex])) {
 					console.log('[DEBUG] Gamepad back button released');
-					if (showPause || showSettings || showDebug) {
+					if (showPauseRef.current || showSettingsRef.current || showDebugRef.current) {
 						setShowPause(false);
 						setShowSettings(false);
 						setShowDebug(false);
@@ -197,13 +213,13 @@ export const GamePage: React.FC = () => {
 				// Handle activate button (only on button release, not press or hold)
 				if (!activatePressed && gamepadBindings.activate.some(buttonIndex => lastGamepadState[buttonIndex])) {
 					console.log('[DEBUG] Gamepad activate button released');
-					console.log('[DEBUG] Current menu state - pause:', showPause, 'settings:', showSettings, 'debug:', showDebug);
-					console.log('[DEBUG] Focused menu item:', focusedMenuItem);
+					console.log('[DEBUG] Current menu state - pause:', showPauseRef.current, 'settings:', showSettingsRef.current, 'debug:', showDebugRef.current);
+					console.log('[DEBUG] Focused menu item:', focusedMenuItemRef.current);
 					
 					// Handle activation based on which menu is open and which item is focused
-					if (showPause) {
-						console.log('[DEBUG] Activating pause menu item:', focusedMenuItem);
-						switch (focusedMenuItem) {
+					if (showPauseRef.current) {
+						console.log('[DEBUG] Activating pause menu item:', focusedMenuItemRef.current);
+						switch (focusedMenuItemRef.current) {
 							case 0: // Resume
 								console.log('[DEBUG] Resuming game');
 								setShowPause(false);
@@ -229,10 +245,10 @@ export const GamePage: React.FC = () => {
 								setFocusedMenuItem(0);
 								break;
 						}
-					} else if (showSettings) {
+					} else if (showSettingsRef.current) {
 						console.log('[DEBUG] Closing settings menu');
 						setShowSettings(false);
-					} else if (showDebug) {
+					} else if (showDebugRef.current) {
 						console.log('[DEBUG] Closing debug menu');
 						setShowDebug(false);
 					}
@@ -253,7 +269,7 @@ export const GamePage: React.FC = () => {
 		return () => {
 			cancelAnimationFrame(animationFrameId);
 		};
-	}, [gamepadBindings, showPause, showSettings, showDebug]);
+	}, [gamepadBindings, navigate]);
 
 	// Update game menu state when any menu opens/closes
 	useEffect(() => {
