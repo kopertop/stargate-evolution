@@ -1,6 +1,8 @@
 import * as PIXI from 'pixi.js';
 
 import { HelpPopover } from './help-popover';
+import { AdminService } from './services/admin-service';
+import type { RoomTemplate, DoorTemplate, RoomFurniture } from '@stargate/common';
 
 const SHIP_SPEED = 4;
 const STAR_COUNT = 200;
@@ -22,12 +24,21 @@ export class Game {
 	private focusPlanet: any = null;
 	private gamepadIndex: number | null = null;
 	private menuOpen: boolean = false;
+	
+	// Room rendering system
+	private roomsLayer: PIXI.Container | null = null;
+	private doorsLayer: PIXI.Container | null = null;
+	private furnitureLayer: PIXI.Container | null = null;
+	private rooms: RoomTemplate[] = [];
+	private doors: DoorTemplate[] = [];
+	private furniture: RoomFurniture[] = [];
 
 	constructor(app: PIXI.Application, _unused: any, gameData?: any) {
 		this.app = app;
 		this.world = new PIXI.Container();
 		this.starfield = this.createStarfield();
 		this.gameData = gameData;
+		// Only add starfield if we don't have room data - we'll render rooms instead
 		this.world.addChild(this.starfield);
 		// Load Eli's sprite
 		this.player = PIXI.Sprite.from(ELI_SPRITE_PATH);
@@ -52,6 +63,9 @@ export class Game {
 		window.addEventListener('gamepaddisconnected', (e: GamepadEvent) => {
 			if (this.gamepadIndex === e.gamepad.index) this.gamepadIndex = null;
 		});
+		
+		// Initialize room rendering system
+		this.initializeRoomSystem();
 	}
 
 	private createStarfield(): PIXI.Graphics {
@@ -255,6 +269,295 @@ export class Game {
 
 	public setMenuOpen(isOpen: boolean) {
 		this.menuOpen = isOpen;
+	}
+
+	// Room rendering system methods
+	private async initializeRoomSystem() {
+		try {
+			console.log('[DEBUG] Initializing room system...');
+			
+			// Create rendering layers
+			this.roomsLayer = new PIXI.Container();
+			this.doorsLayer = new PIXI.Container();
+			this.furnitureLayer = new PIXI.Container();
+			
+			// Add layers to world in correct order (rooms first, then doors, then furniture)
+			this.world.addChild(this.roomsLayer);
+			this.world.addChild(this.doorsLayer);
+			this.world.addChild(this.furnitureLayer);
+			
+			// Load room data from admin API
+			await this.loadRoomData();
+			
+			// Render all rooms
+			this.renderRooms();
+			
+			// Position player in starting room (Gate Room)
+			this.positionPlayerInStartingRoom();
+			
+			// Center camera on rooms
+			this.centerCameraOnRooms();
+			
+			console.log('[DEBUG] Room system initialized successfully');
+		} catch (error) {
+			console.error('[DEBUG] Error initializing room system:', error);
+		}
+	}
+
+	private async loadRoomData() {
+		try {
+			console.log('[DEBUG] Loading room data...');
+			
+			// Load all room data
+			this.rooms = await AdminService.getAllRoomTemplates();
+			this.doors = await AdminService.getAllDoors();
+			this.furniture = await AdminService.getAllFurniture();
+			
+			console.log(`[DEBUG] Loaded ${this.rooms.length} rooms, ${this.doors.length} doors, ${this.furniture.length} furniture`);
+			console.log('[DEBUG] Rooms:', this.rooms.map(r => ({ id: r.id, name: r.name, type: r.type })));
+			
+			// Hide starfield when we have rooms to render
+			if (this.rooms.length > 0) {
+				console.log('[DEBUG] Hiding starfield and showing rooms');
+				this.starfield.visible = false;
+				// Change background color to make rooms more visible
+				this.app.renderer.background.color = 0x111111; // Dark gray instead of space black
+			}
+		} catch (error) {
+			console.error('[DEBUG] Error loading room data:', error);
+			// Create demo rooms as fallback
+			this.createDemoRooms();
+		}
+	}
+
+	private createDemoRooms() {
+		console.log('[DEBUG] Creating demo rooms as fallback...');
+		
+		// Create demo room data when API fails
+		this.rooms = [
+			{
+				id: 'demo-gate-room',
+				layout_id: 'demo',
+				type: 'gate_room',
+				name: 'Gate Room',
+				description: 'Demo Gate Room',
+				startX: -128,
+				endX: 128,
+				startY: -128,
+				endY: 128,
+				floor: 0,
+				width: 256,
+				height: 256,
+				image: null,
+				created_at: Date.now(),
+				updated_at: Date.now()
+			},
+			{
+				id: 'demo-corridor',
+				layout_id: 'demo',
+				type: 'corridor',
+				name: 'Corridor',
+				description: 'Demo Corridor',
+				startX: 128,
+				endX: 256,
+				startY: -64,
+				endY: 64,
+				floor: 0,
+				width: 128,
+				height: 128,
+				image: null,
+				created_at: Date.now(),
+				updated_at: Date.now()
+			}
+		] as RoomTemplate[];
+		
+		this.doors = [];
+		this.furniture = [];
+		
+		// Hide starfield
+		this.starfield.visible = false;
+		// Change background color
+		this.app.renderer.background.color = 0x111111;
+		
+		console.log('[DEBUG] Demo rooms created');
+	}
+
+	private renderRooms() {
+		if (!this.roomsLayer) return;
+		
+		console.log('[DEBUG] Rendering rooms...');
+		
+		// Clear existing rooms
+		this.roomsLayer.removeChildren();
+		this.doorsLayer?.removeChildren();
+		this.furnitureLayer?.removeChildren();
+		
+		// Render each room
+		this.rooms.forEach(room => {
+			this.renderRoom(room);
+		});
+		
+		// Render doors
+		this.doors.forEach(door => {
+			this.renderDoor(door);
+		});
+		
+		// Render furniture
+		this.furniture.forEach(furniture => {
+			this.renderFurnitureItem(furniture);
+		});
+		
+		console.log('[DEBUG] Room rendering complete');
+	}
+
+	private renderRoom(room: RoomTemplate) {
+		if (!this.roomsLayer) return;
+		
+		// Calculate room dimensions from coordinates
+		const width = room.endX - room.startX;
+		const height = room.endY - room.startY;
+		const centerX = room.startX + width / 2;
+		const centerY = room.startY + height / 2;
+		
+		// Create room graphics
+		const roomGraphics = new PIXI.Graphics();
+		
+		// Room floor (bright color for visibility)
+		roomGraphics.rect(-width/2, -height/2, width, height);
+		roomGraphics.fill(0x444444); // Medium gray - more visible
+		
+		// Room walls (bright border)
+		roomGraphics.rect(-width/2, -height/2, width, height);
+		roomGraphics.stroke({ color: 0xFFFFFF, width: 6 }); // White border - very visible
+		
+		// Position room
+		roomGraphics.x = centerX;
+		roomGraphics.y = centerY;
+		
+		// Add room label (larger and brighter)
+		const label = new PIXI.Text({
+			text: room.name,
+			style: {
+				fontFamily: 'Arial',
+				fontSize: 18,
+				fill: 0xFFFF00, // Yellow text - very visible
+				align: 'center'
+			}
+		});
+		label.anchor.set(0.5);
+		label.x = centerX;
+		label.y = centerY - height/2 - 30;
+		
+		this.roomsLayer.addChild(roomGraphics);
+		this.roomsLayer.addChild(label);
+		
+		console.log(`[DEBUG] Rendered room: ${room.name} at (${centerX}, ${centerY}) size (${width}x${height})`);
+	}
+
+	private renderDoor(door: DoorTemplate) {
+		if (!this.doorsLayer) return;
+		
+		// Create door graphics (purple rectangle)
+		const doorGraphics = new PIXI.Graphics();
+		doorGraphics.rect(-door.width/2, -door.height/2, door.width, door.height);
+		doorGraphics.fill(0x8A2BE2); // Purple color like in admin
+		
+		// Position door
+		doorGraphics.x = door.x;
+		doorGraphics.y = door.y;
+		doorGraphics.rotation = (door.rotation * Math.PI) / 180; // Convert degrees to radians
+		
+		this.doorsLayer.addChild(doorGraphics);
+		
+		console.log(`[DEBUG] Rendered door at (${door.x}, ${door.y}) size (${door.width}x${door.height})`);
+	}
+
+	private renderFurnitureItem(furniture: RoomFurniture) {
+		if (!this.furnitureLayer) return;
+		
+		// Find the room this furniture belongs to
+		const room = this.rooms.find(r => r.id === furniture.room_id);
+		if (!room) {
+			console.warn(`[DEBUG] Furniture ${furniture.name} has invalid room_id: ${furniture.room_id}`);
+			return;
+		}
+		
+		// Calculate room center
+		const roomCenterX = room.startX + (room.endX - room.startX) / 2;
+		const roomCenterY = room.startY + (room.endY - room.startY) / 2;
+		
+		// Create furniture graphics (green square for now)
+		const furnitureGraphics = new PIXI.Graphics();
+		furnitureGraphics.rect(-furniture.width/2, -furniture.height/2, furniture.width, furniture.height);
+		furnitureGraphics.fill(0x00AA00); // Green color
+		
+		// Position furniture relative to room center
+		furnitureGraphics.x = roomCenterX + furniture.x;
+		furnitureGraphics.y = roomCenterY + furniture.y;
+		furnitureGraphics.rotation = (furniture.rotation * Math.PI) / 180;
+		
+		this.furnitureLayer.addChild(furnitureGraphics);
+		
+		console.log(`[DEBUG] Rendered furniture: ${furniture.name} at room-relative (${furniture.x}, ${furniture.y})`);
+	}
+
+	private positionPlayerInStartingRoom() {
+		// Find the Gate Room to spawn the player
+		const gateRoom = this.rooms.find(room => 
+			room.type === 'gate_room' || 
+			room.name.toLowerCase().includes('gate') ||
+			room.name.toLowerCase().includes('stargate')
+		);
+		
+		if (gateRoom) {
+			// Position player in center of gate room
+			const roomCenterX = gateRoom.startX + (gateRoom.endX - gateRoom.startX) / 2;
+			const roomCenterY = gateRoom.startY + (gateRoom.endY - gateRoom.startY) / 2;
+			
+			this.player.x = roomCenterX;
+			this.player.y = roomCenterY;
+			
+			console.log(`[DEBUG] Player positioned in ${gateRoom.name} at (${roomCenterX}, ${roomCenterY})`);
+		} else {
+			// Fallback: position in first room
+			if (this.rooms.length > 0) {
+				const firstRoom = this.rooms[0];
+				const roomCenterX = firstRoom.startX + (firstRoom.endX - firstRoom.startX) / 2;
+				const roomCenterY = firstRoom.startY + (firstRoom.endY - firstRoom.startY) / 2;
+				
+				this.player.x = roomCenterX;
+				this.player.y = roomCenterY;
+				
+				console.log(`[DEBUG] Player positioned in ${firstRoom.name} (fallback) at (${roomCenterX}, ${roomCenterY})`);
+			}
+		}
+	}
+
+	private centerCameraOnRooms() {
+		if (this.rooms.length === 0) return;
+		
+		// Calculate center point of all rooms
+		let minX = Infinity, maxX = -Infinity;
+		let minY = Infinity, maxY = -Infinity;
+		
+		this.rooms.forEach(room => {
+			minX = Math.min(minX, room.startX);
+			maxX = Math.max(maxX, room.endX);
+			minY = Math.min(minY, room.startY);
+			maxY = Math.max(maxY, room.endY);
+		});
+		
+		const centerX = (minX + maxX) / 2;
+		const centerY = (minY + maxY) / 2;
+		
+		// Center camera on rooms
+		const screenCenterX = this.app.screen.width / 2;
+		const screenCenterY = this.app.screen.height / 2;
+		
+		this.world.x = screenCenterX - centerX;
+		this.world.y = screenCenterY - centerY;
+		
+		console.log(`[DEBUG] Camera centered on rooms at (${centerX}, ${centerY})`);
 	}
 
 	public focusOnSystem(systemId: string) {
