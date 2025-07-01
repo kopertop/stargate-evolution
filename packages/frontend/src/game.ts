@@ -9,11 +9,10 @@ const STAR_COUNT = 200;
 const STAR_COLOR = 0xffffff;
 const STAR_RADIUS = 1.5;
 const WORLD_BOUNDS = { minX: -1000, maxX: 1000, minY: -1000, maxY: 1000 };
-const ELI_SPRITE_PATH = '/assets/people/eli-wallace.png';
 
 export class Game {
 	private app: PIXI.Application;
-	private player: PIXI.Sprite;
+	private player: PIXI.Graphics;
 	private keys: Record<string, boolean> = {};
 	private starfield: PIXI.Graphics;
 	private world: PIXI.Container;
@@ -40,14 +39,16 @@ export class Game {
 		this.gameData = gameData;
 		// Only add starfield if we don't have room data - we'll render rooms instead
 		this.world.addChild(this.starfield);
-		// Load Eli's sprite
-		this.player = PIXI.Sprite.from(ELI_SPRITE_PATH);
-		this.player.anchor.set(0.5);
+		// Create player as circular character sprite
+		const playerGraphics = new PIXI.Graphics();
+		playerGraphics.circle(0, 0, 10).fill(0xFF6600); // Bright orange circle for player
+		playerGraphics.circle(0, 0, 10).stroke({ color: 0xFFFFFF, width: 2 }); // White border
+		playerGraphics.circle(0, 0, 7).stroke({ color: 0xCC4400, width: 1 }); // Inner darker orange ring
+		this.player = playerGraphics;
+		console.log('[DEBUG] Created circular player character');
 		this.player.x = 0;
 		this.player.y = 0;
-		this.player.width = 64;
-		this.player.height = 64;
-		this.world.addChild(this.player);
+		// Player will be added to world after room system is initialized
 		this.app.stage.addChild(this.world);
 		this.setupInput();
 		this.resizeToWindow();
@@ -147,11 +148,11 @@ export class Game {
 			this.player.x = Math.max(WORLD_BOUNDS.minX, Math.min(WORLD_BOUNDS.maxX, this.player.x));
 			this.player.y = Math.max(WORLD_BOUNDS.minY, Math.min(WORLD_BOUNDS.maxY, this.player.y));
 		}
-		// Center camera on player
+		// Center camera on player (accounting for zoom scale)
 		const centerX = this.app.screen.width / 2;
 		const centerY = this.app.screen.height / 2;
-		this.world.x = centerX - this.player.x;
-		this.world.y = centerY - this.player.y;
+		this.world.x = centerX - (this.player.x * this.mapZoom);
+		this.world.y = centerY - (this.player.y * this.mapZoom);
 	}
 
 	private setupLegendPopover() {
@@ -257,6 +258,10 @@ export class Game {
 		if (this.mapLayer) {
 			this.mapLayer.scale.set(this.mapZoom);
 		}
+		// Also zoom the world container for room system
+		if (this.world) {
+			this.world.scale.set(this.mapZoom);
+		}
 	}
 
 	public zoomIn() {
@@ -276,18 +281,30 @@ export class Game {
 		try {
 			console.log('[DEBUG] Initializing room system...');
 			
+			// Always create demo rooms first as a safety measure
+			this.createDemoRooms();
+			
 			// Create rendering layers
 			this.roomsLayer = new PIXI.Container();
 			this.doorsLayer = new PIXI.Container();
 			this.furnitureLayer = new PIXI.Container();
 			
-			// Add layers to world in correct order (rooms first, then doors, then furniture)
+			console.log('[DEBUG] Created rendering layers');
+			
+			// Add layers to world in correct order (rooms first, then doors, then furniture, then player)
 			this.world.addChild(this.roomsLayer);
 			this.world.addChild(this.doorsLayer);
 			this.world.addChild(this.furnitureLayer);
+			this.world.addChild(this.player); // Add player on top of everything
 			
-			// Load room data from admin API
-			await this.loadRoomData();
+			console.log('[DEBUG] Added layers to world');
+			
+			// Try to load real room data from admin API
+			try {
+				await this.loadRoomData();
+			} catch (error) {
+				console.warn('[DEBUG] Failed to load real room data, using demo rooms:', error);
+			}
 			
 			// Render all rooms
 			this.renderRooms();
@@ -305,35 +322,32 @@ export class Game {
 	}
 
 	private async loadRoomData() {
-		try {
-			console.log('[DEBUG] Loading room data...');
-			
-			// Load all room data
-			this.rooms = await AdminService.getAllRoomTemplates();
-			this.doors = await AdminService.getAllDoors();
-			this.furniture = await AdminService.getAllFurniture();
-			
-			console.log(`[DEBUG] Loaded ${this.rooms.length} rooms, ${this.doors.length} doors, ${this.furniture.length} furniture`);
-			console.log('[DEBUG] Rooms:', this.rooms.map(r => ({ id: r.id, name: r.name, type: r.type })));
-			
-			// Hide starfield when we have rooms to render
-			if (this.rooms.length > 0) {
-				console.log('[DEBUG] Hiding starfield and showing rooms');
-				this.starfield.visible = false;
-				// Change background color to make rooms more visible
-				this.app.renderer.background.color = 0x111111; // Dark gray instead of space black
-			}
-		} catch (error) {
-			console.error('[DEBUG] Error loading room data:', error);
-			// Create demo rooms as fallback
-			this.createDemoRooms();
+		console.log('[DEBUG] Loading room data from API...');
+		
+		// Try to load real room data and replace demo rooms if successful
+		const adminService = new AdminService();
+		const realRooms = await adminService.getAllRoomTemplates();
+		const realDoors = await adminService.getAllDoors();
+		const realFurniture = await adminService.getAllFurniture();
+		
+		console.log(`[DEBUG] Loaded ${realRooms.length} rooms, ${realDoors.length} doors, ${realFurniture.length} furniture from API`);
+		
+		// Only replace demo data if we actually got real data
+		if (realRooms.length > 0) {
+			this.rooms = realRooms;
+			this.doors = realDoors;
+			this.furniture = realFurniture;
+			console.log('[DEBUG] Replaced demo data with real room data');
+			console.log('[DEBUG] Real rooms:', this.rooms.map(r => ({ id: r.id, name: r.name, type: r.type })));
+		} else {
+			console.log('[DEBUG] No real rooms found, keeping demo rooms');
 		}
 	}
 
 	private createDemoRooms() {
 		console.log('[DEBUG] Creating demo rooms as fallback...');
 		
-		// Create demo room data when API fails
+		// Create demo room data with larger, more visible rooms
 		this.rooms = [
 			{
 				id: 'demo-gate-room',
@@ -341,13 +355,13 @@ export class Game {
 				type: 'gate_room',
 				name: 'Gate Room',
 				description: 'Demo Gate Room',
-				startX: -128,
-				endX: 128,
-				startY: -128,
-				endY: 128,
+				startX: -200,
+				endX: 200,
+				startY: -150,
+				endY: 150,
 				floor: 0,
-				width: 256,
-				height: 256,
+				width: 400,
+				height: 300,
 				image: null,
 				created_at: Date.now(),
 				updated_at: Date.now()
@@ -356,23 +370,66 @@ export class Game {
 				id: 'demo-corridor',
 				layout_id: 'demo',
 				type: 'corridor',
-				name: 'Corridor',
+				name: 'East Corridor',
 				description: 'Demo Corridor',
-				startX: 128,
-				endX: 256,
-				startY: -64,
-				endY: 64,
+				startX: 200,
+				endX: 400,
+				startY: -75,
+				endY: 75,
 				floor: 0,
-				width: 128,
-				height: 128,
+				width: 200,
+				height: 150,
 				image: null,
 				created_at: Date.now(),
 				updated_at: Date.now()
 			}
 		] as RoomTemplate[];
 		
-		this.doors = [];
-		this.furniture = [];
+		// Add a demo door connecting the rooms
+		this.doors = [
+			{
+				id: 'demo-door',
+				name: 'Demo Door',
+				from_room_id: 'demo-gate-room',
+				to_room_id: 'demo-corridor',
+				x: 200, // At the connection point between rooms
+				y: 0,   // Center vertically
+				width: 32,
+				height: 8,
+				rotation: 90, // Vertical door
+				state: 'opened',
+				is_automatic: true,
+				open_direction: 'sliding',
+				style: 'standard',
+				power_required: 0,
+				created_at: Date.now(),
+				updated_at: Date.now()
+			}
+		] as DoorTemplate[];
+		
+		// Add demo furniture (stargate in the gate room)
+		this.furniture = [
+			{
+				id: 'demo-stargate',
+				room_id: 'demo-gate-room',
+				furniture_type: 'stargate',
+				name: 'Demo Stargate',
+				description: 'Demo Stargate',
+				x: 0,  // Center of gate room
+				y: 0,  // Center of gate room
+				z: 1,
+				width: 64,
+				height: 64,
+				rotation: 0,
+				interactive: true,
+				blocks_movement: true,
+				power_required: 0,
+				active: true,
+				discovered: true,
+				created_at: Date.now(),
+				updated_at: Date.now()
+			}
+		] as RoomFurniture[];
 		
 		// Hide starfield
 		this.starfield.visible = false;
@@ -423,12 +480,10 @@ export class Game {
 		const roomGraphics = new PIXI.Graphics();
 		
 		// Room floor (bright color for visibility)
-		roomGraphics.rect(-width/2, -height/2, width, height);
-		roomGraphics.fill(0x444444); // Medium gray - more visible
+		roomGraphics.rect(-width/2, -height/2, width, height).fill(0x333355); // Dark blue-gray floor
 		
-		// Room walls (bright border)
-		roomGraphics.rect(-width/2, -height/2, width, height);
-		roomGraphics.stroke({ color: 0xFFFFFF, width: 6 }); // White border - very visible
+		// Room walls (bright border) 
+		roomGraphics.rect(-width/2, -height/2, width, height).stroke({ color: 0x88AAFF, width: 8 }); // Light blue border - very visible
 		
 		// Position room
 		roomGraphics.x = centerX;
@@ -459,8 +514,7 @@ export class Game {
 		
 		// Create door graphics (purple rectangle)
 		const doorGraphics = new PIXI.Graphics();
-		doorGraphics.rect(-door.width/2, -door.height/2, door.width, door.height);
-		doorGraphics.fill(0x8A2BE2); // Purple color like in admin
+		doorGraphics.rect(-door.width/2, -door.height/2, door.width, door.height).fill(0x8A2BE2); // Purple color like in admin
 		
 		// Position door
 		doorGraphics.x = door.x;
@@ -486,10 +540,10 @@ export class Game {
 		const roomCenterX = room.startX + (room.endX - room.startX) / 2;
 		const roomCenterY = room.startY + (room.endY - room.startY) / 2;
 		
-		// Create furniture graphics (green square for now)
+		// Create furniture graphics (bright color for visibility)
 		const furnitureGraphics = new PIXI.Graphics();
-		furnitureGraphics.rect(-furniture.width/2, -furniture.height/2, furniture.width, furniture.height);
-		furnitureGraphics.fill(0x00AA00); // Green color
+		furnitureGraphics.rect(-furniture.width/2, -furniture.height/2, furniture.width, furniture.height).fill(0x00FF88); // Bright green color
+		furnitureGraphics.rect(-furniture.width/2, -furniture.height/2, furniture.width, furniture.height).stroke({ color: 0xFFFFFF, width: 2 }); // White border
 		
 		// Position furniture relative to room center
 		furnitureGraphics.x = roomCenterX + furniture.x;
@@ -502,35 +556,11 @@ export class Game {
 	}
 
 	private positionPlayerInStartingRoom() {
-		// Find the Gate Room to spawn the player
-		const gateRoom = this.rooms.find(room => 
-			room.type === 'gate_room' || 
-			room.name.toLowerCase().includes('gate') ||
-			room.name.toLowerCase().includes('stargate')
-		);
+		// Position player at world origin (0, 0)
+		this.player.x = 0;
+		this.player.y = 0;
 		
-		if (gateRoom) {
-			// Position player in center of gate room
-			const roomCenterX = gateRoom.startX + (gateRoom.endX - gateRoom.startX) / 2;
-			const roomCenterY = gateRoom.startY + (gateRoom.endY - gateRoom.startY) / 2;
-			
-			this.player.x = roomCenterX;
-			this.player.y = roomCenterY;
-			
-			console.log(`[DEBUG] Player positioned in ${gateRoom.name} at (${roomCenterX}, ${roomCenterY})`);
-		} else {
-			// Fallback: position in first room
-			if (this.rooms.length > 0) {
-				const firstRoom = this.rooms[0];
-				const roomCenterX = firstRoom.startX + (firstRoom.endX - firstRoom.startX) / 2;
-				const roomCenterY = firstRoom.startY + (firstRoom.endY - firstRoom.startY) / 2;
-				
-				this.player.x = roomCenterX;
-				this.player.y = roomCenterY;
-				
-				console.log(`[DEBUG] Player positioned in ${firstRoom.name} (fallback) at (${roomCenterX}, ${roomCenterY})`);
-			}
-		}
+		console.log('[DEBUG] Player positioned at origin (0, 0)');
 	}
 
 	private centerCameraOnRooms() {
@@ -550,12 +580,12 @@ export class Game {
 		const centerX = (minX + maxX) / 2;
 		const centerY = (minY + maxY) / 2;
 		
-		// Center camera on rooms
+		// Center camera on rooms (accounting for zoom scale)
 		const screenCenterX = this.app.screen.width / 2;
 		const screenCenterY = this.app.screen.height / 2;
 		
-		this.world.x = screenCenterX - centerX;
-		this.world.y = screenCenterY - centerY;
+		this.world.x = screenCenterX - (centerX * this.mapZoom);
+		this.world.y = screenCenterY - (centerY * this.mapZoom);
 		
 		console.log(`[DEBUG] Camera centered on rooms at (${centerX}, ${centerY})`);
 	}
