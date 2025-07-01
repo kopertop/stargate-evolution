@@ -6,10 +6,12 @@ const SHIP_SPEED = 4;
 const STAR_COUNT = 200;
 const STAR_COLOR = 0xffffff;
 const STAR_RADIUS = 1.5;
+const WORLD_BOUNDS = { minX: -1000, maxX: 1000, minY: -1000, maxY: 1000 };
+const ELI_SPRITE_PATH = '/assets/people/eli-wallace.png';
 
 export class Game {
 	private app: PIXI.Application;
-	private ship: PIXI.Graphics;
+	private player: PIXI.Sprite;
 	private keys: Record<string, boolean> = {};
 	private starfield: PIXI.Graphics;
 	private world: PIXI.Container;
@@ -18,21 +20,23 @@ export class Game {
 	private mapLayer: PIXI.Container | null = null;
 	private focusSystem: any = null;
 	private focusPlanet: any = null;
+	private gamepadIndex: number | null = null;
+	private menuOpen: boolean = false;
 
-	constructor(app: PIXI.Application, ship: PIXI.Graphics, gameData?: any) {
+	constructor(app: PIXI.Application, _unused: any, gameData?: any) {
 		this.app = app;
 		this.world = new PIXI.Container();
 		this.starfield = this.createStarfield();
-		this.ship = ship;
 		this.gameData = gameData;
 		this.world.addChild(this.starfield);
-		// If gameData is present, render the correct galaxy and place the ship
-		if (this.gameData && this.gameData.galaxies && this.gameData.galaxies.length > 0 && this.gameData.ships) {
-			this.renderGalaxyForDestiny();
-		} else {
-			// Fallback: add placeholder ship
-			this.world.addChild(this.ship);
-		}
+		// Load Eli's sprite
+		this.player = PIXI.Sprite.from(ELI_SPRITE_PATH);
+		this.player.anchor.set(0.5);
+		this.player.x = 0;
+		this.player.y = 0;
+		this.player.width = 64;
+		this.player.height = 64;
+		this.world.addChild(this.player);
 		this.app.stage.addChild(this.world);
 		this.setupInput();
 		this.resizeToWindow();
@@ -42,6 +46,12 @@ export class Game {
 		}
 		this.setupLegendPopover();
 		this.setupMapZoomControls();
+		window.addEventListener('gamepadconnected', (e: GamepadEvent) => {
+			if (this.gamepadIndex === null) this.gamepadIndex = e.gamepad.index;
+		});
+		window.addEventListener('gamepaddisconnected', (e: GamepadEvent) => {
+			if (this.gamepadIndex === e.gamepad.index) this.gamepadIndex = null;
+		});
 	}
 
 	private createStarfield(): PIXI.Graphics {
@@ -72,23 +82,62 @@ export class Game {
 	private update() {
 		if (!this.app || !this.app.screen) return;
 
+		// Skip game input when menu is open
+		if (this.menuOpen) {
+			return;
+		}
+
 		let dx = 0, dy = 0;
+		// Keyboard input
 		if (this.keys['arrowup'] || this.keys['w']) dy -= 1;
 		if (this.keys['arrowdown'] || this.keys['s']) dy += 1;
 		if (this.keys['arrowleft'] || this.keys['a']) dx -= 1;
 		if (this.keys['arrowright'] || this.keys['d']) dx += 1;
+
+		// Gamepad input
+		const gp = this.gamepadIndex !== null ? navigator.getGamepads()[this.gamepadIndex] : null;
+		if (gp) {
+			// Left stick - movement
+			const leftAxisX = gp.axes[0] || 0;
+			const leftAxisY = gp.axes[1] || 0;
+			if (Math.abs(leftAxisX) > 0.15) dx += leftAxisX;
+			if (Math.abs(leftAxisY) > 0.15) dy += leftAxisY;
+			
+			// Right stick - zoom controls
+			const rightAxisY = gp.axes[3] || 0; // Right stick Y-axis
+			if (Math.abs(rightAxisY) > 0.2) { // Slightly higher deadzone for zoom
+				const zoomSpeed = 0.02; // Zoom sensitivity
+				if (rightAxisY < -0.2) {
+					// Right stick up = zoom in
+					this.setMapZoom(this.mapZoom * (1 + zoomSpeed));
+				} else if (rightAxisY > 0.2) {
+					// Right stick down = zoom out  
+					this.setMapZoom(this.mapZoom * (1 - zoomSpeed));
+				}
+			}
+			
+			// D-pad - movement (fallback/additional control)
+			if (gp.buttons[12]?.pressed) dy -= 1;
+			if (gp.buttons[13]?.pressed) dy += 1;
+			if (gp.buttons[14]?.pressed) dx -= 1;
+			if (gp.buttons[15]?.pressed) dx += 1;
+		}
+
 		if (dx !== 0 || dy !== 0) {
 			const len = Math.sqrt(dx * dx + dy * dy) || 1;
 			dx /= len;
 			dy /= len;
-			this.ship.x += dx * SHIP_SPEED;
-			this.ship.y += dy * SHIP_SPEED;
+			this.player.x += dx * SHIP_SPEED;
+			this.player.y += dy * SHIP_SPEED;
+			// Clamp to world bounds
+			this.player.x = Math.max(WORLD_BOUNDS.minX, Math.min(WORLD_BOUNDS.maxX, this.player.x));
+			this.player.y = Math.max(WORLD_BOUNDS.minY, Math.min(WORLD_BOUNDS.maxY, this.player.y));
 		}
-		// Center camera on ship
+		// Center camera on player
 		const centerX = this.app.screen.width / 2;
 		const centerY = this.app.screen.height / 2;
-		this.world.x = centerX - this.ship.x;
-		this.world.y = centerY - this.ship.y;
+		this.world.x = centerX - this.player.x;
+		this.world.y = centerY - this.player.y;
 	}
 
 	private setupLegendPopover() {
@@ -180,9 +229,9 @@ export class Game {
 			mapLayer.addChild(label);
 			// If this is the focus system and ship is present, place the ship here
 			if (focusSystem && sys.id === focusSystem.id && shipData) {
-				this.ship.x = x;
-				this.ship.y = y - 30; // Slightly above the system
-				this.world.addChild(this.ship);
+				this.player.x = x;
+				this.player.y = y - 30; // Slightly above the system
+				this.world.addChild(this.player);
 			}
 		});
 		mapLayer.scale.set(this.mapZoom);
@@ -202,6 +251,10 @@ export class Game {
 
 	public zoomOut() {
 		this.setMapZoom(this.mapZoom / 1.25);
+	}
+
+	public setMenuOpen(isOpen: boolean) {
+		this.menuOpen = isOpen;
 	}
 
 	public focusOnSystem(systemId: string) {
