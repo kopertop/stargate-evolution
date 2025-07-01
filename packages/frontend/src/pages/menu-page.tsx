@@ -115,7 +115,6 @@ export const MenuPage: React.FC = () => {
 					<Col md={8} lg={6}>
 						<div className="text-center mb-5">
 							<h1 className="display-4 mb-3">Stargate Evolution</h1>
-							<p className="lead">Admin Panel Access</p>
 						</div>
 
 						{user ? (
@@ -176,7 +175,7 @@ export const MenuPage: React.FC = () => {
 								<Card.Body>
 									<h5 className="card-title text-center mb-4">Sign In Required</h5>
 									<p className="text-center text-muted mb-4">
-										Sign in with Google to access the Stargate Evolution Admin Panel
+										Signing in will let you save and restore your progress.
 									</p>
 									<div className="d-grid">
 										<GoogleSignInButton />

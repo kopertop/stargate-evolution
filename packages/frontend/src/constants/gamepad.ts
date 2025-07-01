@@ -15,7 +15,7 @@ export const GAMEPAD_BUTTONS = {
 	DPAD_UP: 12,   // D-pad up
 	DPAD_DOWN: 13, // D-pad down
 	DPAD_LEFT: 14, // D-pad left
-	DPAD_RIGHT: 15 // D-pad right
+	DPAD_RIGHT: 15, // D-pad right
 } as const;
 
 // Human-readable button names for UI display
@@ -35,37 +35,37 @@ export const GAMEPAD_BUTTON_NAMES = {
 	[GAMEPAD_BUTTONS.DPAD_UP]: 'D-pad Up',
 	[GAMEPAD_BUTTONS.DPAD_DOWN]: 'D-pad Down',
 	[GAMEPAD_BUTTONS.DPAD_LEFT]: 'D-pad Left',
-	[GAMEPAD_BUTTONS.DPAD_RIGHT]: 'D-pad Right'
+	[GAMEPAD_BUTTONS.DPAD_RIGHT]: 'D-pad Right',
 } as const;
 
 // Control scheme documentation for settings menu
 export const CONTROL_SCHEME = {
 	movement: {
 		keyboard: ['WASD', 'Arrow Keys'],
-		gamepad: ['Left Stick', 'D-pad']
+		gamepad: ['Left Stick', 'D-pad'],
 	},
 	running: {
 		keyboard: ['Shift'],
-		gamepad: ['RB (R)']
+		gamepad: ['RB (R)'],
 	},
 	zoom: {
 		keyboard: ['+/-'],
-		gamepad: ['Right Stick Y-axis']
+		gamepad: ['Right Stick Y-axis'],
 	},
 	pause: {
 		keyboard: ['ESC'],
-		gamepad: ['Start', 'Back/Select']
+		gamepad: ['Start', 'Back/Select'],
 	},
 	menuNavigation: {
 		keyboard: ['WASD', 'Arrow Keys'],
-		gamepad: ['D-pad']
+		gamepad: ['D-pad'],
 	},
 	menuActivate: {
 		keyboard: ['Enter'],
-		gamepad: ['A']
+		gamepad: ['A'],
 	},
 	menuBack: {
 		keyboard: ['ESC'],
-		gamepad: ['B']
-	}
+		gamepad: ['B'],
+	},
 } as const;

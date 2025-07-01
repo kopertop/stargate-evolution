@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Card } from 'react-bootstrap';
 import { FaMap } from 'react-icons/fa';
 import { useNavigate } from 'react-router';
+
 import { RoomBuilder } from '../../components/room-builder';
 
 const MENU_BAR_HEIGHT = 56;

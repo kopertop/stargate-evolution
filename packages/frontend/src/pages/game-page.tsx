@@ -5,8 +5,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Button, Container, Modal, Form, Row, Col, Table } from 'react-bootstrap';
 import { useNavigate } from 'react-router';
 
-import { Game } from '../game';
 import { GAMEPAD_BUTTONS } from '../constants/gamepad';
+import { Game } from '../game';
 
 // Game page removed - focusing on Admin functionality only
 // If game functionality is needed later, it should use direct API calls instead of LiveStore
@@ -131,7 +131,7 @@ export const GamePage: React.FC = () => {
 					id: gamepad.id,
 					buttonsCount: Object.keys(gamepad.button).length,
 					hasLeftJoystick: !!gamepad.leftJoystick,
-					hasRightJoystick: !!gamepad.rightJoystick
+					hasRightJoystick: !!gamepad.rightJoystick,
 				});
 			});
 			
@@ -153,7 +153,7 @@ export const GamePage: React.FC = () => {
 			
 			console.log('[DEBUG] InputDevice cleanup completed');
 		};
-	// eslint-disable-next-line react-hooks/exhaustive-deps
+	 
 	}, [speed, keybindings, gamepadBindings]);
 
 	// Gamepad menu controls
@@ -219,30 +219,30 @@ export const GamePage: React.FC = () => {
 					if (showPauseRef.current) {
 						console.log('[DEBUG] Activating pause menu item:', focusedMenuItemRef.current);
 						switch (focusedMenuItemRef.current) {
-							case 0: // Resume
-								console.log('[DEBUG] Resuming game');
-								setShowPause(false);
-								break;
-							case 1: // Main Menu
-								console.log('[DEBUG] Navigating to main menu');
-								navigate('/');
-								break;
-							case 2: // Save Game (disabled)
-								console.log('[DEBUG] Save game button is disabled');
-								// Do nothing - button is disabled
-								break;
-							case 3: // Settings
-								console.log('[DEBUG] Opening settings menu');
-								setShowSettings(true);
-								setShowPause(false);
-								setFocusedMenuItem(0);
-								break;
-							case 4: // Debug
-								console.log('[DEBUG] Opening debug menu');
-								setShowDebug(true);
-								setShowPause(false);
-								setFocusedMenuItem(0);
-								break;
+						case 0: // Resume
+							console.log('[DEBUG] Resuming game');
+							setShowPause(false);
+							break;
+						case 1: // Main Menu
+							console.log('[DEBUG] Navigating to main menu');
+							navigate('/');
+							break;
+						case 2: // Save Game (disabled)
+							console.log('[DEBUG] Save game button is disabled');
+							// Do nothing - button is disabled
+							break;
+						case 3: // Settings
+							console.log('[DEBUG] Opening settings menu');
+							setShowSettings(true);
+							setShowPause(false);
+							setFocusedMenuItem(0);
+							break;
+						case 4: // Debug
+							console.log('[DEBUG] Opening debug menu');
+							setShowDebug(true);
+							setShowPause(false);
+							setFocusedMenuItem(0);
+							break;
 						}
 					} else if (showSettingsRef.current) {
 						console.log('[DEBUG] Closing settings menu');
@@ -364,7 +364,7 @@ export const GamePage: React.FC = () => {
 				<Modal.Body>
 					<div className="d-grid gap-2">
 						<Button 
-							variant={focusedMenuItem === 0 ? "primary" : "outline-primary"} 
+							variant={focusedMenuItem === 0 ? 'primary' : 'outline-primary'} 
 							size="lg" 
 							onClick={() => setShowPause(false)}
 							style={focusedMenuItem === 0 ? { boxShadow: '0 0 10px rgba(13, 110, 253, 0.8)' } : {}}
@@ -372,7 +372,7 @@ export const GamePage: React.FC = () => {
 							Resume
 						</Button>
 						<Button 
-							variant={focusedMenuItem === 1 ? "primary" : "secondary"} 
+							variant={focusedMenuItem === 1 ? 'primary' : 'secondary'} 
 							size="lg" 
 							onClick={() => navigate('/')}
 							style={focusedMenuItem === 1 ? { boxShadow: '0 0 10px rgba(13, 110, 253, 0.8)' } : {}}
@@ -380,7 +380,7 @@ export const GamePage: React.FC = () => {
 							Main Menu
 						</Button>
 						<Button 
-							variant={focusedMenuItem === 2 ? "primary" : "outline-secondary"} 
+							variant={focusedMenuItem === 2 ? 'primary' : 'outline-secondary'} 
 							size="lg" 
 							disabled 
 							title="TODO: Save game coming soon"
@@ -389,7 +389,7 @@ export const GamePage: React.FC = () => {
 							Save Game (TODO)
 						</Button>
 						<Button 
-							variant={focusedMenuItem === 3 ? "primary" : "outline-secondary"} 
+							variant={focusedMenuItem === 3 ? 'primary' : 'outline-secondary'} 
 							size="lg" 
 							onClick={() => { setShowSettings(true); setShowPause(false); setFocusedMenuItem(0); }}
 							style={focusedMenuItem === 3 ? { boxShadow: '0 0 10px rgba(13, 110, 253, 0.8)' } : {}}
@@ -397,7 +397,7 @@ export const GamePage: React.FC = () => {
 							Settings
 						</Button>
 						<Button 
-							variant={focusedMenuItem === 4 ? "primary" : "outline-secondary"} 
+							variant={focusedMenuItem === 4 ? 'primary' : 'outline-secondary'} 
 							size="lg" 
 							onClick={() => { setShowDebug(true); setShowPause(false); setFocusedMenuItem(0); }}
 							style={focusedMenuItem === 4 ? { boxShadow: '0 0 10px rgba(13, 110, 253, 0.8)' } : {}}
