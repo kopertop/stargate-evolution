@@ -2,9 +2,11 @@ import * as PIXI from 'pixi.js';
 
 import { HelpPopover } from './help-popover';
 import { AdminService } from './services/admin-service';
+import { GAMEPAD_BUTTONS } from './constants/gamepad';
 import type { RoomTemplate, DoorTemplate, RoomFurniture } from '@stargate/common';
 
 const SHIP_SPEED = 4;
+const SPEED_MULTIPLIER = 5; // 5x speed when running (Shift/Right Trigger)
 const STAR_COUNT = 200;
 const STAR_COLOR = 0xffffff;
 const STAR_RADIUS = 1.5;
@@ -17,6 +19,7 @@ export class Game {
 	private starfield: PIXI.Graphics;
 	private world: PIXI.Container;
 	private gameData: any;
+	private wasRunning: boolean = false;
 	private mapZoom: number = 1;
 	private mapLayer: PIXI.Container | null = null;
 	private focusSystem: any = null;
@@ -103,11 +106,16 @@ export class Game {
 		}
 
 		let dx = 0, dy = 0;
+		let isRunning = false;
+		
 		// Keyboard input
 		if (this.keys['arrowup'] || this.keys['w']) dy -= 1;
 		if (this.keys['arrowdown'] || this.keys['s']) dy += 1;
 		if (this.keys['arrowleft'] || this.keys['a']) dx -= 1;
 		if (this.keys['arrowright'] || this.keys['d']) dx += 1;
+		
+		// Check for shift key (running modifier) - properly track key state
+		isRunning = this.keys['shift'] || false;
 
 		// Gamepad input
 		const gp = this.gamepadIndex !== null ? navigator.getGamepads()[this.gamepadIndex] : null;
@@ -132,18 +140,34 @@ export class Game {
 			}
 			
 			// D-pad - movement (fallback/additional control)
-			if (gp.buttons[12]?.pressed) dy -= 1;
-			if (gp.buttons[13]?.pressed) dy += 1;
-			if (gp.buttons[14]?.pressed) dx -= 1;
-			if (gp.buttons[15]?.pressed) dx += 1;
+			if (gp.buttons[GAMEPAD_BUTTONS.DPAD_UP]?.pressed) dy -= 1;
+			if (gp.buttons[GAMEPAD_BUTTONS.DPAD_DOWN]?.pressed) dy += 1;
+			if (gp.buttons[GAMEPAD_BUTTONS.DPAD_LEFT]?.pressed) dx -= 1;
+			if (gp.buttons[GAMEPAD_BUTTONS.DPAD_RIGHT]?.pressed) dx += 1;
+			
+			// Right bumper (RB/R) - running modifier - properly track button state  
+			if (gp.buttons[GAMEPAD_BUTTONS.RB]?.pressed) isRunning = true;
 		}
 
 		if (dx !== 0 || dy !== 0) {
 			const len = Math.sqrt(dx * dx + dy * dy) || 1;
 			dx /= len;
 			dy /= len;
-			this.player.x += dx * SHIP_SPEED;
-			this.player.y += dy * SHIP_SPEED;
+			
+			// Calculate movement speed (base speed or running speed)
+			const currentSpeed = isRunning ? SHIP_SPEED * SPEED_MULTIPLIER : SHIP_SPEED;
+			
+			// Debug logging for running mode (only when state changes)
+			if (isRunning && !this.wasRunning) {
+				console.log('[DEBUG] Running mode activated - speed:', currentSpeed);
+				this.wasRunning = true;
+			} else if (!isRunning && this.wasRunning) {
+				console.log('[DEBUG] Running mode deactivated - speed:', currentSpeed);
+				this.wasRunning = false;
+			}
+			
+			this.player.x += dx * currentSpeed;
+			this.player.y += dy * currentSpeed;
 			// Clamp to world bounds
 			this.player.x = Math.max(WORLD_BOUNDS.minX, Math.min(WORLD_BOUNDS.maxX, this.player.x));
 			this.player.y = Math.max(WORLD_BOUNDS.minY, Math.min(WORLD_BOUNDS.maxY, this.player.y));

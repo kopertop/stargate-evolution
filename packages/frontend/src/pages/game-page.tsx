@@ -6,6 +6,7 @@ import { Button, Container, Modal, Form, Row, Col, Table } from 'react-bootstrap
 import { useNavigate } from 'react-router';
 
 import { Game } from '../game';
+import { GAMEPAD_BUTTONS } from '../constants/gamepad';
 
 // Game page removed - focusing on Admin functionality only
 // If game functionality is needed later, it should use direct API calls instead of LiveStore
@@ -23,13 +24,13 @@ const DEFAULT_KEYBINDINGS: Keybindings = {
 };
 
 const DEFAULT_GAMEPAD_BINDINGS: GamepadBindings = {
-	up: [12], // D-pad up
-	down: [13], // D-pad down
-	left: [14], // D-pad left
-	right: [15], // D-pad right
-	pause: [9, 8], // Start (+) and Select (-) buttons
-	back: [0], // B button (button 0)
-	activate: [1], // A button (button 1)
+	up: [GAMEPAD_BUTTONS.DPAD_UP], // D-pad up
+	down: [GAMEPAD_BUTTONS.DPAD_DOWN], // D-pad down
+	left: [GAMEPAD_BUTTONS.DPAD_LEFT], // D-pad left
+	right: [GAMEPAD_BUTTONS.DPAD_RIGHT], // D-pad right
+	pause: [GAMEPAD_BUTTONS.START, GAMEPAD_BUTTONS.BACK], // Start (+) and Select (-) buttons
+	back: [GAMEPAD_BUTTONS.B], // B button
+	activate: [GAMEPAD_BUTTONS.A], // A button
 };
 
 export const GamePage: React.FC = () => {

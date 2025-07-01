@@ -356,17 +356,6 @@
             "details": "Build progression system tracking character stats, skills, achievements, and game milestones. Include progress validation, rollback protection, and progress synchronization across sessions.",
             "status": "done",
             "testStrategy": ""
-          },
-          {
-            "id": 7,
-            "title": "Implement offline capability",
-            "description": "Build offline mode with local state management and sync on reconnection",
-            "dependencies": [
-              6
-            ],
-            "details": "Create offline gameplay mode with local state persistence, action queuing, and conflict resolution when reconnecting. Handle offline progress validation and merge conflicts with server state.",
-            "status": "pending",
-            "testStrategy": ""
           }
         ]
       },
@@ -843,11 +832,24 @@
             "testStrategy": ""
           }
         ]
+      },
+      {
+        "id": 100,
+        "title": "Implement offline capability",
+        "description": "Build offline mode with local state management and sync on reconnection",
+        "status": "pending",
+        "dependencies": [
+          6
+        ],
+        "priority": "low",
+        "details": "Create offline gameplay mode with local state persistence, action queuing, and conflict resolution when reconnecting. Handle offline progress validation and merge conflicts with server state.",
+        "testStrategy": "",
+        "subtasks": []
       }
     ],
     "metadata": {
       "created": "2025-06-30T16:15:40.594Z",
-      "updated": "2025-06-30T20:48:02.829Z",
+      "updated": "2025-06-30T22:02:52.157Z",
       "description": "Tasks for master context"
     }
   }
