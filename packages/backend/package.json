@@ -31,7 +31,9 @@
 	"dependencies": {
 		"@stargate/common": "workspace:*",
 		"commander": "^14.0.0",
+		"hono": "^4.5.3",
 		"jose": "^6.0.11",
-		"openapi-types": "^12.1.3"
+		"openapi-types": "^12.1.3",
+		"ulid": "^2.4.0"
 	}
 }
