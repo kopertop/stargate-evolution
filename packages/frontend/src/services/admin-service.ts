@@ -4,7 +4,7 @@ import { apiClient } from './api-client';
 
 const API_URL = import.meta.env.VITE_PUBLIC_API_URL || '';
 
-class AdminService {
+export class AdminService {
 
 	// User management
 	async getUsers() {

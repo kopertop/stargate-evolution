@@ -2,7 +2,7 @@ import type { Session } from '@stargate/common';
 import React, { useState, useEffect } from 'react';
 import { Button, Card, Container, Row, Col } from 'react-bootstrap';
 import { FaTools, FaSignInAlt, FaSignOutAlt } from 'react-icons/fa';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { toast } from 'react-toastify';
 
 import { renderGoogleSignInButton } from '../auth/google-auth';
@@ -140,6 +140,15 @@ export const MenuPage: React.FC = () => {
 												</div>
 											)}
 										</div>
+									</div>
+
+									<div className="d-grid gap-2 mb-3">
+										<Button variant="success" size="lg" onClick={() => navigate('/game')}>
+											Start New Game
+										</Button>
+										<Button variant="outline-secondary" size="lg" disabled title="TODO: Resume last game (not yet implemented)">
+											Continue (TODO)
+										</Button>
 									</div>
 
 									<div className="d-grid gap-2">

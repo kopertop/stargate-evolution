@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import 'bootstrap/dist/css/bootstrap.min.css';
@@ -13,6 +13,7 @@ import {
 	AdminRooms,
 	AdminTechnologies,
 } from './pages/admin';
+import { GamePage } from './pages/game-page';
 import { MenuPage } from './pages/menu-page';
 
 export const App: React.FC = () => {
@@ -20,6 +21,7 @@ export const App: React.FC = () => {
 		<Router>
 			<Routes>
 				<Route path="/" element={<MenuPage />} />
+				<Route path="/game" element={<GamePage />} />
 				<Route path="/admin" element={<AdminLayout />}>
 					<Route index element={<AdminOverview />} />
 					<Route path="characters" element={<AdminCharacters />} />

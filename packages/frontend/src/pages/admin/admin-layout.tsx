@@ -1,7 +1,7 @@
 import React from 'react';
 import { Container, Nav, Navbar } from 'react-bootstrap';
 import { FaUsers, FaGamepad, FaCog, FaMap, FaRobot, FaDoorOpen, FaToolbox } from 'react-icons/fa';
-import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Outlet, useLocation, useNavigate } from 'react-router';
 
 export const AdminLayout: React.FC = () => {
 	const navigate = useNavigate();

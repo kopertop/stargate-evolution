@@ -116,9 +116,8 @@ export const GamePage: React.FC = () => {
 		window.addEventListener('gamepaddisconnected', handleGamepadDisconnected);
 		
 		try {
-			// Initialize InputDevice
-			InputDevice.init();
-			console.log('[DEBUG] InputDevice initialized successfully');
+			// Initialize InputDevice (no init method needed)
+			console.log('[DEBUG] InputDevice available');
 			
 			// Add InputDevice.update to the ticker
 			Ticker.shared.add(InputDevice.update);
@@ -129,7 +128,6 @@ export const GamePage: React.FC = () => {
 			InputDevice.gamepads.forEach((gamepad, index) => {
 				console.log(`[DEBUG] Gamepad ${index}:`, {
 					id: gamepad.id,
-					connected: gamepad.connected,
 					buttonsCount: Object.keys(gamepad.button).length,
 					hasLeftJoystick: !!gamepad.leftJoystick,
 					hasRightJoystick: !!gamepad.rightJoystick
