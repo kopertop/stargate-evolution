@@ -1,6 +1,4 @@
 import { DestinyStatusSchema, type DestinyStatus } from '@stargate/common/models/destiny-status';
-import { Inventory } from '@stargate/common/models/inventory';
-import { InventorySchema } from '@stargate/common/models/inventory';
 
 /**
  * Default ship status for a new game
@@ -16,6 +14,14 @@ export function getDefaultDestinyStatusTemplate(): DestinyStatus {
 		max_shields: 500,
 		hull: 900,
 		max_hull: 1000,
+		water: 800,
+		max_water: 1000,
+		food: 500,
+		max_food: 1000,
+		spare_parts: 50,
+		max_spare_parts: 100,
+		medical_supplies: 50,
+		max_medical_supplies: 100,
 		race_id: 'ancients',
 		star_system_id: 'system-destiny',
 		stargate_id: 'destiny',
@@ -31,69 +37,5 @@ export function getDefaultDestinyStatusTemplate(): DestinyStatus {
 		next_ftl_transition: (Math.floor(Math.random() * 43) + 6) * 3600,
 		created_at: Date.now(),
 		updated_at: Date.now(),
-	});
-}
-
-/**
- * Default starting inventory for a new game.
- */
-export function getStartingInventoryTemplate(): Inventory[] {
-	const now = Date.now();
-	return [
-		{
-			id: 'food',
-			resource_type: 'food',
-			amount: 50,
-			location: 'ship',
-			description: 'Emergency food supplies, each unit can sustain one person for one day.',
-		},
-		{
-			id: 'water',
-			resource_type: 'water',
-			amount: 100,
-			location: 'ship',
-			description: 'Water reserves, each unit can sustain one person for one day.',
-		},
-		{
-			id: 'parts',
-			resource_type: 'parts',
-			amount: 10,
-			location: 'ship',
-			description: 'Spare parts',
-		},
-		{
-			id: 'medicine',
-			resource_type: 'medicine',
-			amount: 5,
-			location: 'ship',
-			description: 'Medical supplies',
-		},
-		{
-			id: 'ancient_tech',
-			resource_type: 'ancient_tech',
-			amount: 2,
-			location: 'ship',
-			description: 'Ancient technology parts, used to repair the ship.',
-		},
-		{
-			id: 'oxygen_canister',
-			resource_type: 'oxygen_canister',
-			amount: 5,
-			location: 'ship',
-			description: 'Oxygen canisters, used to replenish the ship\'s oxygen supply.',
-		},
-		{
-			id: 'communication-stones',
-			resource_type: 'communication_stones',
-			amount: 4,
-			location: 'ship',
-			description: 'Communication stones, capable of sending messages back to Earth.',
-		},
-	].map((item) => {
-		return InventorySchema.parse({
-			...item,
-			created_at: now,
-			updated_at: now,
-		});
 	});
 }

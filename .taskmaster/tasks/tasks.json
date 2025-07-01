@@ -291,7 +291,7 @@
         "dependencies": [
           3
         ],
-        "status": "pending",
+        "status": "done",
         "subtasks": [
           {
             "id": 1,
@@ -373,70 +373,57 @@
         "subtasks": [
           {
             "id": 1,
-            "title": "Implement core room navigation mechanics",
-            "description": "Create the foundational system for moving between rooms including directional movement, room transitions, and basic navigation state tracking",
-            "dependencies": [],
-            "details": "Build the core navigation system that handles player movement between rooms. Include directional controls (north, south, east, west), room transition logic, and maintain current room state. Implement basic room identification and tracking system.",
+            "title": "Integrate Sprite-based Rendering for Rooms",
+            "description": "Replace the current PIXI.Graphics-based room rendering with a PIXI.Sprite-based system. This will involve using textures for floors and walls to create a more visually appealing and game-like environment. The system should be able to handle different floor and wall textures for various room types.",
+            "details": "",
             "status": "pending",
-            "testStrategy": ""
+            "dependencies": [],
+            "parentTaskId": 5
           },
           {
             "id": 2,
-            "title": "Develop collision detection system",
-            "description": "Implement collision detection for room boundaries, blocked passages, and interactive elements within rooms",
-            "dependencies": [
-              1
-            ],
-            "details": "Create collision detection system that prevents invalid movements, handles blocked doorways, and manages interaction boundaries. Include checks for room exits, obstacles, and interactive objects. Ensure smooth integration with navigation mechanics.",
+            "title": "Implement Sprite-based Rendering for Doors and Furniture",
+            "description": "Upgrade the rendering for doors and furniture from basic PIXI.Graphics shapes to dynamic PIXI.Sprites. This will involve loading appropriate textures for different door states (e.g., open, closed, locked) and various furniture types. The system must select the correct sprite based on the object's state and type.",
+            "details": "",
             "status": "pending",
-            "testStrategy": ""
+            "dependencies": [],
+            "parentTaskId": 5
           },
           {
             "id": 3,
-            "title": "Build room state management system",
-            "description": "Create comprehensive room state tracking including visited status, discovered items, environmental changes, and persistent room data",
-            "dependencies": [
-              1
-            ],
-            "details": "Implement room state management to track room exploration status, item interactions, environmental modifications, and any persistent changes. Include save/load functionality for room states and efficient state synchronization across game sessions.",
+            "title": "Develop Player Character Sprite and Animation",
+            "description": "Replace the placeholder graphic for the player with a dedicated sprite. This includes creating animations for idle, walking, and running states. The correct animation should play based on the player's movement status.",
+            "details": "",
             "status": "pending",
-            "testStrategy": ""
+            "dependencies": [],
+            "parentTaskId": 5
           },
           {
             "id": 4,
-            "title": "Design and implement room template system",
-            "description": "Create a flexible template system for defining room layouts, connections, properties, and content that supports easy expansion",
-            "dependencies": [
-              2,
-              3
-            ],
-            "details": "Build a template-based room generation system using JSON or similar configuration format. Include room properties, connection definitions, interactive elements, and expansion hooks. Design for modularity and easy addition of new room types.",
+            "title": "Implement Grid-Based Movement and Collision Detection",
+            "description": "Refactor the current free-form movement system to a grid-based or physics-based model. Implement collision detection that prevents the player from walking through walls and furniture that are marked as `blocks_movement: true`. The player should be able to move through open doors but be blocked by closed or locked ones.",
+            "details": "",
             "status": "pending",
-            "testStrategy": ""
+            "dependencies": [],
+            "parentTaskId": 5
           },
           {
             "id": 5,
-            "title": "Implement unlock progression logic",
-            "description": "Create system for room unlocking based on story progression, item collection, or other game events",
-            "dependencies": [
-              3,
-              4
-            ],
-            "details": "Develop progression system that controls room accessibility based on game state, collected items, completed objectives, or story milestones. Include validation logic, progression tracking, and integration with room template system.",
+            "title": "Connect Door State to Rendering and Collision",
+            "description": "Dynamically update a door's sprite and collision properties based on its state ('opened', 'closed', 'locked'). An 'opened' door should be visually open and allow the player to pass through. 'closed' and 'locked' doors should be visually closed and block movement. This will require linking the game state to the rendering and physics logic.",
+            "details": "",
             "status": "pending",
-            "testStrategy": ""
+            "dependencies": [],
+            "parentTaskId": 5
           },
           {
             "id": 6,
-            "title": "Create initial ship area rooms",
-            "description": "Design and implement the starting ship area rooms using the template system, including basic room connections and initial game content",
-            "dependencies": [
-              4,
-              5
-            ],
-            "details": "Create the initial set of ship rooms using the implemented template system. Include starting room, basic ship areas (bridge, cargo, engineering), room descriptions, and initial interactive elements. Ensure proper room connections and progression flow.",
+            "title": "Implement Interactive Furniture System",
+            "description": "Create a system that allows the player to interact with furniture objects that are marked as `interactive: true`. This should include a visual indicator when the player is near an interactive object and a mechanism (e.g., pressing a key or button) to trigger an interaction event. Initially, this can log a message to the console, with hooks for future game logic.",
+            "details": "",
             "status": "pending",
-            "testStrategy": ""
+            "dependencies": [],
+            "parentTaskId": 5
           }
         ]
       },
@@ -454,60 +441,39 @@
         "subtasks": [
           {
             "id": 1,
-            "title": "Design Storage System Architecture",
-            "description": "Create the core storage system design with capacity limits, item types, and storage tiers",
-            "dependencies": [],
-            "details": "Define storage capacity mechanics, item categorization (resources, equipment, consumables), storage tier progression (basic containers to advanced vaults), and capacity expansion methods. Include storage location types (personal, base, shared) and access control systems.",
+            "title": "Implement Core Resource Management Tracking",
+            "description": "Implement the backend and frontend systems for tracking player and ship resources (e.g., power, water, spare parts). This includes creating the necessary data models and API endpoints, and a client-side service to manage the state.",
+            "details": "",
             "status": "pending",
-            "testStrategy": ""
+            "dependencies": [],
+            "parentTaskId": 6
           },
           {
             "id": 2,
-            "title": "Implement Resource Collection Mechanics",
-            "description": "Build the systems for gathering, harvesting, and acquiring various game resources",
-            "dependencies": [
-              1
-            ],
-            "details": "Create resource nodes, collection tools, gathering efficiency systems, resource quality variations, and collection skill progression. Include resource respawn mechanics, seasonal availability, and environmental factors affecting collection rates.",
+            "title": "Create Resource Management Visual Overlay",
+            "description": "Create a new top-bar UI component, similar to the admin panel's navigation bar, to display the player's current resources in real-time. This component will subscribe to the resource management service for live updates.",
+            "details": "",
             "status": "pending",
-            "testStrategy": ""
+            "dependencies": [],
+            "parentTaskId": 6
           },
           {
             "id": 3,
-            "title": "Develop Allocation Algorithms",
-            "description": "Create intelligent systems for resource distribution and priority management",
-            "dependencies": [
-              1,
-              2
-            ],
-            "details": "Implement automated resource sorting, priority-based allocation for crafting/construction, emergency reserve systems, and predictive allocation based on usage patterns. Include manual override capabilities and allocation preset configurations.",
+            "title": "Implement 'Container' Items for Inventory Retrieval",
+            "description": "Implement a new type of interactive furniture that acts as a container. When a player interacts with a container, its contents (a list of resources or items) are added to the player's inventory. This requires both backend logic for container contents and frontend interaction handling.",
+            "details": "",
             "status": "pending",
-            "testStrategy": ""
+            "dependencies": [],
+            "parentTaskId": 6
           },
           {
             "id": 4,
-            "title": "Build Trade-off Decision Systems",
-            "description": "Implement strategic choice mechanisms that create meaningful resource management decisions",
-            "dependencies": [
-              2,
-              3
-            ],
-            "details": "Design scarcity mechanics that force strategic choices, opportunity cost calculations, resource conversion systems, and strategic stockpiling vs immediate use decisions. Include consequence systems for poor resource management and reward systems for efficient allocation.",
+            "title": "Implement Room and Door Damage/Repair System",
+            "description": "Develop a system for tracking the status of rooms and doors, including damage percentage. Implement the logic for repairs, which will consume resources from the player's inventory and take a certain amount of time to complete. This will involve updating data models, API endpoints, and creating UI feedback for the repair process.",
+            "details": "",
             "status": "pending",
-            "testStrategy": ""
-          },
-          {
-            "id": 5,
-            "title": "Create Inventory UI Implementation",
-            "description": "Build comprehensive user interface for inventory management and strategic decision making",
-            "dependencies": [
-              1,
-              3,
-              4
-            ],
-            "details": "Design intuitive inventory grids, drag-and-drop functionality, sorting and filtering options, resource allocation interfaces, and visual indicators for scarcity/abundance. Include quick-action buttons, batch operations, and strategic overview dashboards showing resource trends and allocation efficiency.",
-            "status": "pending",
-            "testStrategy": ""
+            "dependencies": [],
+            "parentTaskId": 6
           }
         ]
       },
@@ -675,79 +641,30 @@
         "subtasks": [
           {
             "id": 1,
-            "title": "Implement Canvas 2D rendering engine",
-            "description": "Create core 2D graphics rendering system using HTML5 Canvas API with optimized drawing operations for game objects, sprites, and effects",
-            "dependencies": [],
-            "details": "Build rendering pipeline with sprite batching, texture management, layer composition, and efficient draw calls. Include support for animations, transformations, and visual effects.",
+            "title": "Implement Texture Atlas and Asset Loader",
+            "description": "Implement a robust texture loading and management system using PIXI.Assets. This system should asynchronously load all necessary image assets (floors, walls, doors, furniture, player sprites) at the start of the game and provide a centralized way to access these textures by a logical name or ID. This will prevent rendering delays and improve performance.",
+            "details": "",
             "status": "pending",
-            "testStrategy": ""
+            "dependencies": [],
+            "parentTaskId": 9
           },
           {
             "id": 2,
-            "title": "Build responsive UI framework",
-            "description": "Develop adaptive user interface system that works across desktop, tablet, and mobile devices with touch and mouse support",
-            "dependencies": [
-              1
-            ],
-            "details": "Create flexible layout system with breakpoints, scalable UI components, and device-specific adaptations. Include theme support and consistent visual design patterns.",
+            "title": "Develop Centralized Game State Context",
+            "description": "Create a centralized game state management context or service. This context will hold the live data for the current game session, including player position, room states, door states, and inventory. The `Game` class and other UI components will subscribe to this context to get real-time updates, ensuring the entire application is driven by a single source of truth.",
+            "details": "",
             "status": "pending",
-            "testStrategy": ""
+            "dependencies": [],
+            "parentTaskId": 9
           },
           {
             "id": 3,
-            "title": "Create HUD system",
-            "description": "Implement heads-up display overlay system for game status, player information, and interactive controls",
-            "dependencies": [
-              2
-            ],
-            "details": "Design modular HUD components including health bars, score displays, mini-maps, inventory panels, and contextual menus. Ensure smooth integration with game state.",
+            "title": "Create Contextual UI Components (HUD, Modals)",
+            "description": "Create UI components (e.g., popovers, modals, or a HUD) that display information based on the player's context. For example, display a room's name and description upon entering, show details of an interactive object when nearby, or open a dialogue box. This requires the game engine to emit events or update the shared game state context that the UI can react to.",
+            "details": "",
             "status": "pending",
-            "testStrategy": ""
-          },
-          {
-            "id": 4,
-            "title": "Implement input handling system",
-            "description": "Build comprehensive input management for keyboard, mouse, touch, and gamepad controls with customizable key bindings",
             "dependencies": [],
-            "details": "Create input abstraction layer supporting multiple input methods, gesture recognition, input buffering, and accessibility-compliant control schemes.",
-            "status": "pending",
-            "testStrategy": ""
-          },
-          {
-            "id": 5,
-            "title": "Add accessibility features",
-            "description": "Implement WCAG compliance with screen reader support, keyboard navigation, high contrast modes, and assistive technology integration",
-            "dependencies": [
-              3,
-              4
-            ],
-            "details": "Include ARIA labels, focus management, alternative text for visual elements, audio cues, and configurable accessibility options for diverse user needs.",
-            "status": "pending",
-            "testStrategy": ""
-          },
-          {
-            "id": 6,
-            "title": "Optimize performance across platforms",
-            "description": "Implement performance monitoring, frame rate optimization, memory management, and platform-specific optimizations",
-            "dependencies": [
-              1,
-              2
-            ],
-            "details": "Add performance profiling tools, implement object pooling, optimize rendering loops, reduce garbage collection, and ensure smooth 60fps performance on target devices.",
-            "status": "pending",
-            "testStrategy": ""
-          },
-          {
-            "id": 7,
-            "title": "Implement PWA functionality",
-            "description": "Convert application to Progressive Web App with offline support, service workers, and installable app experience",
-            "dependencies": [
-              5,
-              6
-            ],
-            "details": "Add service worker for caching, offline game state management, app manifest for installation, push notifications, and seamless online/offline transitions.",
-            "status": "pending",
-            "testStrategy": ""
+            "parentTaskId": 9
           }
         ]
       },
@@ -845,11 +762,133 @@
         "details": "Create offline gameplay mode with local state persistence, action queuing, and conflict resolution when reconnecting. Handle offline progress validation and merge conflicts with server state.",
         "testStrategy": "",
         "subtasks": []
+      },
+      {
+        "id": 101,
+        "title": "Implement Fog of War System",
+        "description": "Create a fog of war system that reveals parts of the game map as the player explores. The system should persist the explored areas.",
+        "details": "The fog of war will hide unexplored areas of the game map. As the player character moves, a certain number of \"nodes\" (e.g., rooms, grid cells) in each direction will be revealed. The state of the fog of war (which areas are revealed) must be saved to the database so that it can be restored when the player resumes their game. This will likely involve modifications to the game state and the database schema.",
+        "testStrategy": "- Unit tests for the fog of war logic (e.g., calculating revealed nodes based on player position).\n- Integration tests to ensure the fog of war state is correctly saved to and loaded from the database with the game session.\n- End-to-end tests to verify that the UI correctly displays the fog of war and updates as the player moves.",
+        "priority": "medium",
+        "dependencies": [],
+        "status": "todo",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Design Fog of War data structure",
+            "description": "Decide how to represent the fog of war data. A 2D array or a set of coordinates for revealed nodes are possibilities. This will be part of the character's progression data.",
+            "dependencies": [],
+            "details": "",
+            "status": "todo",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Modify database schema",
+            "description": "Add a field to a relevant table (e.g., `characters` or a new table) to store the fog of war data. Create a migration for this change.",
+            "dependencies": [
+              1
+            ],
+            "details": "",
+            "status": "todo",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Implement backend logic",
+            "description": "Update the game logic to calculate the visible area around the player. Modify the game state loading/saving logic to include the fog of war data. Create or update API endpoints to expose the fog of war data to the frontend.",
+            "dependencies": [
+              2
+            ],
+            "details": "",
+            "status": "todo",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Implement frontend rendering",
+            "description": "Update the UI to render the fog of war overlay on the game map. The UI should update in real-time as the player explores new areas.",
+            "dependencies": [
+              3
+            ],
+            "details": "",
+            "status": "todo",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "Connect backend and frontend",
+            "description": "Integrate the frontend with the new API endpoints to fetch and display the fog of war.",
+            "dependencies": [
+              4
+            ],
+            "details": "",
+            "status": "todo",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 102,
+        "title": "Implement Save/Load Game System",
+        "description": "Create a system for players to save their game progress and load it later. This involves creating backend APIs for managing save data and frontend UI for player interaction.",
+        "details": "This task covers the full-stack implementation of a save/load game feature.\n\n**Backend:**\n- Create API endpoints under `/api/saves` for creating, listing, and retrieving saved games.\n- The create endpoint will accept a JSON blob of the game state. Storing this in a Cloudflare Durable Object is a strong possibility to consider.\n- The API must be secured so users can only access their own save files.\n- The list endpoint should return metadata for the user's saves (e.g., save name, timestamp).\n- The retrieve endpoint will return the full game state JSON blob for a specific save.\n\n**Frontend:**\n- Implement a 'Save Game' UI, allowing the player to name their save.\n- Implement a 'Load Game' UI that lists the player's existing saves and allows them to select one to restore.\n- Integrate these UI components with the new backend API endpoints.",
+        "testStrategy": "- Backend: Unit tests for the save/load logic and integration tests for the API endpoints, including auth.\n- Frontend: Component tests for the save/load UI and E2E tests for the full save/load user flow.\n- Verification: Ensure that saving and then loading a game restores the exact same game state.",
+        "priority": "high",
+        "dependencies": [4],
+        "status": "todo",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Backend: Design Save Game Schema & API",
+            "description": "Define the data model for saved games and design the RESTful API endpoints.",
+            "dependencies": [],
+            "details": "",
+            "status": "todo",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Backend: Implement Save/Load API",
+            "description": "Build the backend logic on Cloudflare Workers, using Durable Objects for storage and ensuring endpoints are authenticated.",
+            "dependencies": [102.1],
+            "details": "",
+            "status": "todo",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Frontend: Create Game State Serialization Service",
+            "description": "Implement a frontend service to gather the entire game state into a serializable JSON object.",
+            "dependencies": [],
+            "details": "",
+            "status": "todo",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Frontend: Build Save/Load UI Components",
+            "description": "Create the React components for the 'Save Game' and 'Load Game' menus.",
+            "dependencies": [],
+            "details": "",
+            "status": "todo",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "Full-Stack: Integrate UI with API",
+            "description": "Connect the frontend UI to the backend API to make the save/load functionality fully operational.",
+            "dependencies": [102.2, 102.3, 102.4],
+            "details": "",
+            "status": "todo",
+            "testStrategy": ""
+          }
+        ]
       }
     ],
     "metadata": {
       "created": "2025-06-30T16:15:40.594Z",
-      "updated": "2025-06-30T22:02:52.157Z",
+      "updated": "2025-07-01T20:05:17.470Z",
       "description": "Tasks for master context"
     }
   }
