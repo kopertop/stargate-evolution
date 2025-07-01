@@ -140,7 +140,7 @@ auth.post('/api/auth/validate', async (c) => {
 			throw new Error('Missing token');
 		}
 
-		const { payload } = await verifyJwt(token, c.env.JWT_SECRET);
+		const { payload } = await verifyJwt(token);
 		const userResult = validateUser(payload.user);
 		if (!userResult.success) {
 			throw new Error('Invalid user');
@@ -180,7 +180,7 @@ auth.post('/api/auth/refresh', async (c) => {
 			throw new Error('Missing refreshToken');
 		}
 
-		const { payload } = await verifyJwt(refreshToken, c.env.JWT_SECRET);
+		const { payload } = await verifyJwt(refreshToken);
 		const userResult = validateUser(payload.user);
 		if (!userResult.success) {
 			throw new Error('Invalid user');

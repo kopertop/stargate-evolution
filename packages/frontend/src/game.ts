@@ -8,6 +8,7 @@ import * as PIXI from 'pixi.js';
 import { GAMEPAD_BUTTONS } from './constants/gamepad';
 import { HelpPopover } from './help-popover';
 import { AdminService } from './services/admin-service';
+import { TemplateService } from './services/template-service';
 
 const SHIP_SPEED = 4;
 const SPEED_MULTIPLIER = 5; // 5x speed when running (Shift/Right Trigger)
@@ -353,10 +354,10 @@ export class Game {
 		console.log('[DEBUG] Loading room data from API...');
 
 		// Try to load real room data and replace demo rooms if successful
-		const adminService = new AdminService();
-		const realRooms = await adminService.getAllRoomTemplates();
-		const realDoors = await adminService.getAllDoors();
-		const realFurniture = await adminService.getAllFurniture();
+		const templateService = new TemplateService();
+		const realRooms = await templateService.getRooms();
+		const realDoors = await templateService.getDoors();
+		const realFurniture = await templateService.getFurniture();
 
 		console.log(`[DEBUG] Loaded ${realRooms.length} rooms, ${realDoors.length} doors, ${realFurniture.length} furniture from API`);
 

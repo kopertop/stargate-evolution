@@ -109,6 +109,26 @@ templates.get('/api/templates/characters/:id', async (c) => {
 	}
 });
 
-// We will migrate all public template-fetching routes here
+templates.get('/api/templates/furniture', async (c) => {
+	try {
+		const { getAllRoomFurniture } = await import('../../templates/room-furniture-templates');
+		const furniture = await getAllRoomFurniture(c.env);
+		return c.json(furniture);
+	} catch (err: any) {
+		return c.json({ error: err.message || 'Failed to fetch furniture' }, 500);
+	}
+});
+
+templates.get('/api/templates/furniture/:id', async (c) => {
+	const { id } = c.req.param();
+	try {
+		const { getRoomFurnitureById } = await import('../../templates/room-furniture-templates');
+		const furniture = await getRoomFurnitureById(c.env, id);
+		return c.json(furniture);
+	} catch (err: any) {
+		return c.json({ error: err.message || 'Failed to fetch furniture' }, 500);
+	}
+});
+
 
 export default templates;
