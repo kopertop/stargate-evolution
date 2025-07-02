@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback, useState } from 'react';
+import { useEffect, useRef, useCallback, useState, useMemo } from 'react';
 
 import { GAMEPAD_BUTTONS, GAMEPAD_BUTTON_NAMES } from '../constants/gamepad';
 
@@ -342,10 +342,14 @@ export const useGameController = () => {
 		return managedRef.current?.getAxisValue(axis) || 0;
 	}, []);
 
-	return {
+	// Memoize the returned object to prevent constant re-renders
+	// Only update when connection status changes, not on every gamepad state update
+	const isConnected = gamepadState?.connected || false;
+	
+	return useMemo(() => ({
 		// Current state
 		gamepadState,
-		isConnected: gamepadState?.connected || false,
+		isConnected,
 
 		// Event hooks
 		onButtonPress,
@@ -356,7 +360,16 @@ export const useGameController = () => {
 		// State queries
 		isPressed,
 		getAxisValue,
-	};
+	}), [
+		isConnected, // Only re-create when connection status changes
+		onButtonPress,
+		onButtonRelease,
+		onButtonHold,
+		onAxisChange,
+		isPressed,
+		getAxisValue
+		// Note: gamepadState is NOT in dependencies to prevent constant re-renders
+	]);
 };
 
 // Cleanup function for app unmount

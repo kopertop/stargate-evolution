@@ -376,7 +376,7 @@
             "title": "Integrate Sprite-based Rendering for Rooms",
             "description": "Replace the current PIXI.Graphics-based room rendering with a PIXI.Sprite-based system. This will involve using textures for floors and walls to create a more visually appealing and game-like environment. The system should be able to handle different floor and wall textures for various room types.",
             "details": "",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "parentTaskId": 5
           },
@@ -385,7 +385,7 @@
             "title": "Implement Sprite-based Rendering for Doors and Furniture",
             "description": "Upgrade the rendering for doors and furniture from basic PIXI.Graphics shapes to dynamic PIXI.Sprites. This will involve loading appropriate textures for different door states (e.g., open, closed, locked) and various furniture types. The system must select the correct sprite based on the object's state and type.",
             "details": "",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "parentTaskId": 5
           },
@@ -394,7 +394,7 @@
             "title": "Develop Player Character Sprite and Animation",
             "description": "Replace the placeholder graphic for the player with a dedicated sprite. This includes creating animations for idle, walking, and running states. The correct animation should play based on the player's movement status.",
             "details": "",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "parentTaskId": 5
           },
@@ -403,7 +403,7 @@
             "title": "Implement Grid-Based Movement and Collision Detection",
             "description": "Refactor the current free-form movement system to a grid-based or physics-based model. Implement collision detection that prevents the player from walking through walls and furniture that are marked as `blocks_movement: true`. The player should be able to move through open doors but be blocked by closed or locked ones.",
             "details": "",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "parentTaskId": 5
           },
@@ -412,7 +412,7 @@
             "title": "Connect Door State to Rendering and Collision",
             "description": "Dynamically update a door's sprite and collision properties based on its state ('opened', 'closed', 'locked'). An 'opened' door should be visually open and allow the player to pass through. 'closed' and 'locked' doors should be visually closed and block movement. This will require linking the game state to the rendering and physics logic.",
             "details": "",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "parentTaskId": 5
           },
@@ -835,7 +835,9 @@
         "details": "This task covers the full-stack implementation of a save/load game feature.\n\n**Backend:**\n- Create API endpoints under `/api/saves` for creating, listing, and retrieving saved games.\n- The create endpoint will accept a JSON blob of the game state. Storing this in a Cloudflare Durable Object is a strong possibility to consider.\n- The API must be secured so users can only access their own save files.\n- The list endpoint should return metadata for the user's saves (e.g., save name, timestamp).\n- The retrieve endpoint will return the full game state JSON blob for a specific save.\n\n**Frontend:**\n- Implement a 'Save Game' UI, allowing the player to name their save.\n- Implement a 'Load Game' UI that lists the player's existing saves and allows them to select one to restore.\n- Integrate these UI components with the new backend API endpoints.",
         "testStrategy": "- Backend: Unit tests for the save/load logic and integration tests for the API endpoints, including auth.\n- Frontend: Component tests for the save/load UI and E2E tests for the full save/load user flow.\n- Verification: Ensure that saving and then loading a game restores the exact same game state.",
         "priority": "high",
-        "dependencies": [4],
+        "dependencies": [
+          4
+        ],
         "status": "todo",
         "subtasks": [
           {
@@ -851,7 +853,9 @@
             "id": 2,
             "title": "Backend: Implement Save/Load API",
             "description": "Build the backend logic on Cloudflare Workers, using Durable Objects for storage and ensuring endpoints are authenticated.",
-            "dependencies": [102.1],
+            "dependencies": [
+              102.1
+            ],
             "details": "",
             "status": "todo",
             "testStrategy": ""
@@ -878,7 +882,11 @@
             "id": 5,
             "title": "Full-Stack: Integrate UI with API",
             "description": "Connect the frontend UI to the backend API to make the save/load functionality fully operational.",
-            "dependencies": [102.2, 102.3, 102.4],
+            "dependencies": [
+              102.2,
+              102.3,
+              102.4
+            ],
             "details": "",
             "status": "todo",
             "testStrategy": ""
@@ -888,7 +896,7 @@
     ],
     "metadata": {
       "created": "2025-06-30T16:15:40.594Z",
-      "updated": "2025-07-01T20:05:17.470Z",
+      "updated": "2025-07-02T16:34:16.152Z",
       "description": "Tasks for master context"
     }
   }
