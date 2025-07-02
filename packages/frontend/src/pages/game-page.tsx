@@ -45,9 +45,40 @@ export const GamePage: React.FC = () => {
 	const [listeningKey, setListeningKey] = useState<{ action: string; index: number } | null>(null);
 	const [focusedMenuItem, setFocusedMenuItem] = useState(0); // Track focused menu item
 	const [gamepadDebugState, setGamepadDebugState] = useState<any[]>([]); // Debug state for gamepad info
+	const [isFullscreen, setIsFullscreen] = useState(false);
 
 	// Use the centralized game controller service
 	const controller = useGameController();
+
+	// Fullscreen detection
+	useEffect(() => {
+		const handleFullscreenChange = () => {
+			const isCurrentlyFullscreen = !!(
+				document.fullscreenElement ||
+				(document as any).webkitFullscreenElement ||
+				(document as any).mozFullScreenElement ||
+				(document as any).msFullscreenElement
+			);
+			setIsFullscreen(isCurrentlyFullscreen);
+			console.log('[FULLSCREEN] Fullscreen state changed:', isCurrentlyFullscreen);
+		};
+
+		// Listen for fullscreen changes
+		document.addEventListener('fullscreenchange', handleFullscreenChange);
+		document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+		document.addEventListener('mozfullscreenchange', handleFullscreenChange);
+		document.addEventListener('MSFullscreenChange', handleFullscreenChange);
+
+		// Check initial state
+		handleFullscreenChange();
+
+		return () => {
+			document.removeEventListener('fullscreenchange', handleFullscreenChange);
+			document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+			document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
+			document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
+		};
+	}, []);
 
 	// PixiJS setup
 	useEffect(() => {
@@ -235,11 +266,32 @@ export const GamePage: React.FC = () => {
 	}, [listeningKey]);
 
 	return (
-		<Container fluid style={{ padding: 0, background: '#000', minHeight: '100vh', position: 'relative' }}>
-			<div style={{ position: 'absolute', top: 16, left: 16, zIndex: 10 }}>
-				<Button variant="secondary" onClick={() => navigate('/')}>Back to Menu</Button>
-			</div>
-			<div ref={canvasRef} style={{ width: '100vw', height: '100vh', overflow: 'hidden', position: 'relative', zIndex: 1 }} />
+		<Container
+			fluid
+			style={{
+				padding: 0,
+				background: '#000',
+				minHeight: '100vh',
+				position: 'relative',
+				cursor: isFullscreen ? 'none' : 'default'
+			}}
+		>
+			{!isFullscreen && (
+				<div style={{ position: 'absolute', top: 16, left: 16, zIndex: 10 }}>
+					<Button variant="secondary" onClick={() => navigate('/')}>Back to Menu</Button>
+				</div>
+			)}
+			<div
+				ref={canvasRef}
+				style={{
+					width: '100vw',
+					height: '100vh',
+					overflow: 'hidden',
+					position: 'relative',
+					zIndex: 1,
+					cursor: isFullscreen ? 'none' : 'default'
+				}}
+			/>
 
 			{/* Pause Modal */}
 			<Modal show={showPause} centered backdrop="static" keyboard={false}>
