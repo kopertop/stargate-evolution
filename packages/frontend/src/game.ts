@@ -8,6 +8,7 @@ import * as PIXI from 'pixi.js';
 import { GAMEPAD_BUTTONS } from './constants/gamepad';
 import { HelpPopover } from './help-popover';
 import { AdminService } from './services/admin-service';
+import type { GamepadAxis, GamepadButton } from './services/game-controller';
 import { TemplateService } from './services/template-service';
 
 const SHIP_SPEED = 4;
@@ -16,6 +17,18 @@ const STAR_COUNT = 200;
 const STAR_COLOR = 0xffffff;
 const STAR_RADIUS = 1.5;
 const WORLD_BOUNDS = { minX: -1000, maxX: 1000, minY: -1000, maxY: 1000 };
+
+export interface GameOptions {
+	speed?: number;
+	keybindings?: any;
+	gamepadBindings?: any;
+	// Controller subscription methods
+	onButtonPress?: (button: GamepadButton, callback: () => void) => () => void;
+	onButtonRelease?: (button: GamepadButton, callback: () => void) => () => void;
+	onAxisChange?: (axis: GamepadAxis, callback: (value: number) => void) => () => void;
+	getAxisValue?: (axis: GamepadAxis) => number;
+	isPressed?: (button: GamepadButton) => boolean;
+}
 
 export class Game {
 	private app: PIXI.Application;
@@ -29,8 +42,11 @@ export class Game {
 	private mapLayer: PIXI.Container | null = null;
 	private focusSystem: any = null;
 	private focusPlanet: any = null;
-	private gamepadIndex: number | null = null;
 	private menuOpen: boolean = false;
+	private options: GameOptions;
+
+	// Controller subscription cleanup functions
+	private controllerUnsubscribers: (() => void)[] = [];
 
 	// Room rendering system
 	private roomsLayer: PIXI.Container | null = null;
@@ -40,8 +56,9 @@ export class Game {
 	private doors: DoorTemplate[] = [];
 	private furniture: RoomFurniture[] = [];
 
-	constructor(app: PIXI.Application, _unused: any, gameData?: any) {
+	constructor(app: PIXI.Application, options: GameOptions = {}, gameData?: any) {
 		this.app = app;
+		this.options = options;
 		this.world = new PIXI.Container();
 		this.starfield = this.createStarfield();
 		this.gameData = gameData;
@@ -53,12 +70,13 @@ export class Game {
 		playerGraphics.circle(0, 0, 10).stroke({ color: 0xFFFFFF, width: 2 }); // White border
 		playerGraphics.circle(0, 0, 7).stroke({ color: 0xCC4400, width: 1 }); // Inner darker orange ring
 		this.player = playerGraphics;
-		console.log('[DEBUG] Created circular player character');
+		console.log('[GAME] Created circular player character');
 		this.player.x = 0;
 		this.player.y = 0;
 		// Player will be added to world after room system is initialized
 		this.app.stage.addChild(this.world);
 		this.setupInput();
+		this.setupControllerInput();
 		this.resizeToWindow();
 		window.addEventListener('resize', () => this.resizeToWindow());
 		if (this.app.ticker) {
@@ -66,12 +84,6 @@ export class Game {
 		}
 		this.setupLegendPopover();
 		this.setupMapZoomControls();
-		window.addEventListener('gamepadconnected', (e: GamepadEvent) => {
-			if (this.gamepadIndex === null) this.gamepadIndex = e.gamepad.index;
-		});
-		window.addEventListener('gamepaddisconnected', (e: GamepadEvent) => {
-			if (this.gamepadIndex === e.gamepad.index) this.gamepadIndex = null;
-		});
 
 		// Initialize room rendering system
 		this.initializeRoomSystem();
@@ -96,6 +108,41 @@ export class Game {
 		});
 	}
 
+	private setupControllerInput() {
+		if (!this.options.onAxisChange || !this.options.getAxisValue || !this.options.isPressed) {
+			console.log('[GAME] Controller methods not available - skipping controller setup');
+			return;
+		}
+
+		console.log('[GAME] Setting up controller input subscriptions');
+
+		// Subscribe to axis changes for movement
+		const unsubscribeLeftX = this.options.onAxisChange('LEFT_X', (value) => {
+			// Movement will be handled in update loop by polling axis values
+		});
+
+		const unsubscribeLeftY = this.options.onAxisChange('LEFT_Y', (value) => {
+			// Movement will be handled in update loop by polling axis values
+		});
+
+		// Subscribe to right stick for zoom
+		const unsubscribeRightY = this.options.onAxisChange('RIGHT_Y', (value) => {
+			if (Math.abs(value) > 0.2) {
+				const zoomSpeed = 0.02;
+				if (value < -0.2) {
+					// Right stick up = zoom in
+					this.setMapZoom(this.mapZoom * (1 + zoomSpeed));
+				} else if (value > 0.2) {
+					// Right stick down = zoom out
+					this.setMapZoom(this.mapZoom * (1 - zoomSpeed));
+				}
+			}
+		});
+
+		// Store unsubscribers for cleanup
+		this.controllerUnsubscribers.push(unsubscribeLeftX, unsubscribeLeftY, unsubscribeRightY);
+	}
+
 	private resizeToWindow() {
 		if (this.app && this.app.renderer) {
 			this.app.renderer.resize(window.innerWidth, window.innerHeight);
@@ -104,6 +151,15 @@ export class Game {
 
 	private update() {
 		if (!this.app || !this.app.screen) return;
+
+		// Log current game state every few seconds for debugging
+		const now = Date.now();
+		if (now % 5000 < 16) { // Log roughly every 5 seconds
+			console.log('[GAME-STATE-DEBUG]', {
+				timestamp: new Date().toISOString(),
+				menuOpen: this.menuOpen,
+			});
+		}
 
 		// Skip game input when menu is open
 		if (this.menuOpen) {
@@ -119,57 +175,47 @@ export class Game {
 		if (this.keys['arrowleft'] || this.keys['a']) dx -= 1;
 		if (this.keys['arrowright'] || this.keys['d']) dx += 1;
 
-		// Check for shift key (running modifier) - properly track key state
+		// Check for shift key (running modifier)
 		isRunning = this.keys['shift'] || false;
 
-		// Gamepad input
-		const gp = this.gamepadIndex !== null ? navigator.getGamepads()[this.gamepadIndex] : null;
-		
-		// Debug gamepad detection (log only once every 60 frames to avoid spam)
-		if (this.gamepadIndex !== null && Math.floor(Date.now() / 1000) % 5 === 0) {
-			console.log('[DEBUG] Game update - gamepad detected at index:', this.gamepadIndex, 'menuOpen:', this.menuOpen);
-		}
-		
-		if (gp) {
+		// Controller input (if available)
+		if (this.options.getAxisValue && this.options.isPressed) {
 			// Left stick - movement
-			const leftAxisX = gp.axes[0] || 0;
-			const leftAxisY = gp.axes[1] || 0;
-			
-			// Debug logging for thumbstick input (only when significant movement)
-			if (Math.abs(leftAxisX) > 0.15 || Math.abs(leftAxisY) > 0.15) {
-				console.log('[DEBUG] Left stick input:', { x: leftAxisX.toFixed(3), y: leftAxisY.toFixed(3) });
-			}
-			
-			if (Math.abs(leftAxisX) > 0.15) dx += leftAxisX;
-			if (Math.abs(leftAxisY) > 0.15) dy += leftAxisY;
+			const leftAxisX = this.options.getAxisValue('LEFT_X');
+			const leftAxisY = this.options.getAxisValue('LEFT_Y');
 
-			// Right stick - zoom controls
-			const rightAxisY = gp.axes[3] || 0; // Right stick Y-axis
-			
-			// Debug logging for right stick zoom input
-			if (Math.abs(rightAxisY) > 0.2) {
-				console.log('[DEBUG] Right stick zoom input:', { y: rightAxisY.toFixed(3), currentZoom: this.mapZoom.toFixed(3) });
+			if (Math.abs(leftAxisX) > 0.15) {
+				dx += leftAxisX;
+				console.log('[GAME-INPUT] Left stick X:', leftAxisX.toFixed(3));
 			}
-			
-			if (Math.abs(rightAxisY) > 0.2) { // Slightly higher deadzone for zoom
-				const zoomSpeed = 0.02; // Zoom sensitivity
-				if (rightAxisY < -0.2) {
-					// Right stick up = zoom in
-					this.setMapZoom(this.mapZoom * (1 + zoomSpeed));
-				} else if (rightAxisY > 0.2) {
-					// Right stick down = zoom out
-					this.setMapZoom(this.mapZoom * (1 - zoomSpeed));
-				}
+			if (Math.abs(leftAxisY) > 0.15) {
+				dy += leftAxisY;
+				console.log('[GAME-INPUT] Left stick Y:', leftAxisY.toFixed(3));
 			}
 
 			// D-pad - movement (fallback/additional control)
-			if (gp.buttons[GAMEPAD_BUTTONS.DPAD_UP]?.pressed) dy -= 1;
-			if (gp.buttons[GAMEPAD_BUTTONS.DPAD_DOWN]?.pressed) dy += 1;
-			if (gp.buttons[GAMEPAD_BUTTONS.DPAD_LEFT]?.pressed) dx -= 1;
-			if (gp.buttons[GAMEPAD_BUTTONS.DPAD_RIGHT]?.pressed) dx += 1;
+			if (this.options.isPressed('DPAD_UP')) {
+				console.log('[GAME-INPUT] D-pad UP pressed');
+				dy -= 1;
+			}
+			if (this.options.isPressed('DPAD_DOWN')) {
+				console.log('[GAME-INPUT] D-pad DOWN pressed');
+				dy += 1;
+			}
+			if (this.options.isPressed('DPAD_LEFT')) {
+				console.log('[GAME-INPUT] D-pad LEFT pressed');
+				dx -= 1;
+			}
+			if (this.options.isPressed('DPAD_RIGHT')) {
+				console.log('[GAME-INPUT] D-pad RIGHT pressed');
+				dx += 1;
+			}
 
-			// Right bumper (RB/R) - running modifier - properly track button state
-			if (gp.buttons[GAMEPAD_BUTTONS.RB]?.pressed) isRunning = true;
+			// Right bumper (RB/R) - running modifier
+			if (this.options.isPressed('RB')) {
+				console.log('[GAME-INPUT] Right bumper (RB) pressed - running mode');
+				isRunning = true;
+			}
 		}
 
 		if (dx !== 0 || dy !== 0) {
@@ -180,12 +226,20 @@ export class Game {
 			// Calculate movement speed (base speed or running speed)
 			const currentSpeed = isRunning ? SHIP_SPEED * SPEED_MULTIPLIER : SHIP_SPEED;
 
+			console.log('[GAME-INPUT] Player movement:', {
+				dx: dx.toFixed(3),
+				dy: dy.toFixed(3),
+				speed: currentSpeed,
+				isRunning,
+				playerPos: { x: this.player.x.toFixed(1), y: this.player.y.toFixed(1) },
+			});
+
 			// Debug logging for running mode (only when state changes)
 			if (isRunning && !this.wasRunning) {
-				console.log('[DEBUG] Running mode activated - speed:', currentSpeed);
+				console.log('[GAME] Running mode activated - speed:', currentSpeed);
 				this.wasRunning = true;
 			} else if (!isRunning && this.wasRunning) {
-				console.log('[DEBUG] Running mode deactivated - speed:', currentSpeed);
+				console.log('[GAME] Running mode deactivated - speed:', currentSpeed);
 				this.wasRunning = false;
 			}
 
@@ -200,6 +254,18 @@ export class Game {
 		const centerY = this.app.screen.height / 2;
 		this.world.x = centerX - (this.player.x * this.mapZoom);
 		this.world.y = centerY - (this.player.y * this.mapZoom);
+	}
+
+	public setMenuOpen(isOpen: boolean) {
+		console.log('[GAME] Menu state changed. Is open:', isOpen);
+		this.menuOpen = isOpen;
+	}
+
+	public destroy() {
+		// Cleanup controller subscriptions
+		this.controllerUnsubscribers.forEach(unsubscribe => unsubscribe());
+		this.controllerUnsubscribers = [];
+		console.log('[GAME] Controller subscriptions cleaned up');
 	}
 
 	private setupLegendPopover() {
@@ -317,10 +383,6 @@ export class Game {
 
 	public zoomOut() {
 		this.setMapZoom(this.mapZoom / 1.25);
-	}
-
-	public setMenuOpen(isOpen: boolean) {
-		this.menuOpen = isOpen;
 	}
 
 	// Room rendering system methods

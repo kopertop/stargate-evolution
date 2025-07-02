@@ -8,6 +8,7 @@ import { useNavigate } from 'react-router';
 
 import { GAMEPAD_BUTTONS } from '../constants/gamepad';
 import { Game } from '../game';
+import { useGameController } from '../services/game-controller';
 
 type Direction = 'up' | 'down' | 'left' | 'right';
 type MenuAction = 'pause' | 'back' | 'activate';
@@ -43,20 +44,10 @@ export const GamePage: React.FC = () => {
 	const [keybindings, setKeybindings] = useState<Keybindings>(DEFAULT_KEYBINDINGS);
 	const [gamepadBindings, setGamepadBindings] = useState<GamepadBindings>(DEFAULT_GAMEPAD_BINDINGS);
 	const [listeningKey, setListeningKey] = useState<{ action: string; index: number } | null>(null);
-	const [gamepadState, setGamepadState] = useState<any>(null);
 	const [focusedMenuItem, setFocusedMenuItem] = useState(0); // Track focused menu item
 
-	// Use refs to avoid stale closure issues in gamepad polling
-	const showPauseRef = useRef(showPause);
-	const showSettingsRef = useRef(showSettings);
-	const showDebugRef = useRef(showDebug);
-	const focusedMenuItemRef = useRef(focusedMenuItem);
-
-	// Keep refs in sync with state
-	useEffect(() => { showPauseRef.current = showPause; }, [showPause]);
-	useEffect(() => { showSettingsRef.current = showSettings; }, [showSettings]);
-	useEffect(() => { showDebugRef.current = showDebug; }, [showDebug]);
-	useEffect(() => { focusedMenuItemRef.current = focusedMenuItem; }, [focusedMenuItem]);
+	// Use the centralized game controller service
+	const controller = useGameController();
 
 	// Fullscreen on mount
 	useEffect(() => {
@@ -93,49 +84,19 @@ export const GamePage: React.FC = () => {
 				canvasRef.current.innerHTML = '';
 				canvasRef.current.appendChild(app.canvas);
 			}
-			const game = new Game(app, { speed, keybindings, gamepadBindings });
+			const game = new Game(app, {
+				speed,
+				keybindings,
+				gamepadBindings,
+				// Pass controller methods to Game class
+				onButtonPress: controller.onButtonPress,
+				onButtonRelease: controller.onButtonRelease,
+				onAxisChange: controller.onAxisChange,
+				getAxisValue: controller.getAxisValue,
+				isPressed: controller.isPressed,
+			});
 			gameRef.current = game;
 		})();
-
-		// Initialize and configure InputDevice for gamepad support
-		console.log('[DEBUG] Initializing InputDevice...');
-
-		// Add gamepad connection event listeners for debugging
-		const handleGamepadConnected = (e: GamepadEvent) => {
-			console.log('[DEBUG] Gamepad connected:', e.gamepad.id, 'at index', e.gamepad.index);
-			console.log('[DEBUG] Updated InputDevice gamepads count:', InputDevice.gamepads.length);
-		};
-
-		const handleGamepadDisconnected = (e: GamepadEvent) => {
-			console.log('[DEBUG] Gamepad disconnected:', e.gamepad.id, 'at index', e.gamepad.index);
-			console.log('[DEBUG] Updated InputDevice gamepads count:', InputDevice.gamepads.length);
-		};
-
-		window.addEventListener('gamepadconnected', handleGamepadConnected);
-		window.addEventListener('gamepaddisconnected', handleGamepadDisconnected);
-
-		try {
-			// Initialize InputDevice (no init method needed)
-			console.log('[DEBUG] InputDevice available');
-
-			// NOTE: Removed InputDevice.update from ticker due to errors
-			// The Game class uses native navigator.getGamepads() instead
-			console.log('[DEBUG] Skipping InputDevice ticker integration');
-
-			// Log initial gamepad state
-			console.log('[DEBUG] Initial gamepads detected:', InputDevice.gamepads.length);
-			InputDevice.gamepads.forEach((gamepad, index) => {
-				console.log(`[DEBUG] Gamepad ${index}:`, {
-					id: gamepad.id,
-					buttonsCount: Object.keys(gamepad.button).length,
-					hasLeftJoystick: !!gamepad.leftJoystick,
-					hasRightJoystick: !!gamepad.rightJoystick,
-				});
-			});
-
-		} catch (error) {
-			console.error('[DEBUG] Error initializing InputDevice:', error);
-		}
 
 		return () => {
 			destroyed = true;
@@ -143,143 +104,128 @@ export const GamePage: React.FC = () => {
 				pixiAppRef.current.destroy(true);
 				pixiAppRef.current = null;
 			}
-			// NOTE: InputDevice.update was not added to ticker, so no need to remove
-
-			// Cleanup gamepad event listeners
-			window.removeEventListener('gamepadconnected', handleGamepadConnected);
-			window.removeEventListener('gamepaddisconnected', handleGamepadDisconnected);
-
-			console.log('[DEBUG] InputDevice cleanup completed');
 		};
 
 	}, [speed, keybindings, gamepadBindings]);
 
-	// Gamepad menu controls
+	// Game controller event subscriptions
 	useEffect(() => {
-		let lastGamepadState: { [key: number]: boolean } = {};
-		let animationFrameId: number;
+		if (!controller.isConnected) return;
 
-		const pollGamepadInput = () => {
-			const gp = navigator.getGamepads()[0]; // Use first connected gamepad
-			if (gp) {
-				// Check pause buttons (Start/+ and Select/-)
-				const pausePressed = gamepadBindings.pause.some(buttonIndex => gp.buttons[buttonIndex]?.pressed);
-				const backPressed = gamepadBindings.back.some(buttonIndex => gp.buttons[buttonIndex]?.pressed);
-				const activatePressed = gamepadBindings.activate.some(buttonIndex => gp.buttons[buttonIndex]?.pressed);
+		console.log('[GAME-PAGE-CONTROLLER] Setting up controller event subscriptions');
 
-				// Check d-pad for menu navigation
-				const upPressed = gamepadBindings.up.some(buttonIndex => gp.buttons[buttonIndex]?.pressed);
-				const downPressed = gamepadBindings.down.some(buttonIndex => gp.buttons[buttonIndex]?.pressed);
+		// Pause button handling (START or BACK buttons)
+		const unsubscribePauseStart = controller.onButtonRelease('START', () => {
+			console.log('[GAME-PAGE-CONTROLLER] START button released - toggling pause');
+			setShowPause(prev => {
+				console.log('[GAME-PAGE-CONTROLLER] Pause toggled from', prev, 'to', !prev);
+				return !prev;
+			});
+			setFocusedMenuItem(0);
+		});
 
-				// Handle pause button (only on button release, not press or hold)
-				if (!pausePressed && gamepadBindings.pause.some(buttonIndex => lastGamepadState[buttonIndex])) {
-					console.log('[DEBUG] Gamepad pause button released');
-					console.log('[DEBUG] Current showPause state:', showPauseRef.current);
-					setShowPause((prev) => {
-						console.log('[DEBUG] Toggling pause from', prev, 'to', !prev);
-						return !prev;
-					});
-					setFocusedMenuItem(0); // Reset to first menu item when opening
-				}
+		const unsubscribePauseBack = controller.onButtonRelease('BACK', () => {
+			console.log('[GAME-PAGE-CONTROLLER] BACK button released - toggling pause');
+			setShowPause(prev => {
+				console.log('[GAME-PAGE-CONTROLLER] Pause toggled from', prev, 'to', !prev);
+				return !prev;
+			});
+			setFocusedMenuItem(0);
+		});
 
-				// Handle d-pad navigation in menus (only when a menu is open, on button release)
-				if (showPauseRef.current || showSettingsRef.current || showDebugRef.current) {
-					const menuItemCount = showPauseRef.current ? 5 : (showSettingsRef.current ? 1 : 1); // Pause has 5 items, others have different counts
-
-					if (!upPressed && gamepadBindings.up.some(buttonIndex => lastGamepadState[buttonIndex])) {
-						console.log('[DEBUG] Gamepad up navigation (released)');
-						setFocusedMenuItem((prev) => (prev > 0 ? prev - 1 : menuItemCount - 1));
-					}
-
-					if (!downPressed && gamepadBindings.down.some(buttonIndex => lastGamepadState[buttonIndex])) {
-						console.log('[DEBUG] Gamepad down navigation (released)');
-						setFocusedMenuItem((prev) => (prev < menuItemCount - 1 ? prev + 1 : 0));
-					}
-				}
-
-				// Handle back button (only on button release, not press or hold)
-				if (!backPressed && gamepadBindings.back.some(buttonIndex => lastGamepadState[buttonIndex])) {
-					console.log('[DEBUG] Gamepad back button released');
-					if (showPauseRef.current || showSettingsRef.current || showDebugRef.current) {
-						setShowPause(false);
-						setShowSettings(false);
-						setShowDebug(false);
-					}
-				}
-
-				// Handle activate button (only on button release, not press or hold)
-				if (!activatePressed && gamepadBindings.activate.some(buttonIndex => lastGamepadState[buttonIndex])) {
-					console.log('[DEBUG] Gamepad activate button released');
-					console.log('[DEBUG] Current menu state - pause:', showPauseRef.current, 'settings:', showSettingsRef.current, 'debug:', showDebugRef.current);
-					console.log('[DEBUG] Focused menu item:', focusedMenuItemRef.current);
-					console.log('[DEBUG] Activate button mapping:', gamepadBindings.activate);
-					console.log('[DEBUG] Last gamepad state for activate buttons:', gamepadBindings.activate.map(idx => ({ idx, pressed: lastGamepadState[idx] })));
-
-					// Handle activation based on which menu is open and which item is focused
-					if (showPauseRef.current) {
-						console.log('[DEBUG] Activating pause menu item:', focusedMenuItemRef.current);
-						switch (focusedMenuItemRef.current) {
-						case 0: // Resume
-							console.log('[DEBUG] Resuming game');
-							setShowPause(false);
-							break;
-						case 1: // Main Menu
-							console.log('[DEBUG] Navigating to main menu');
-							navigate('/');
-							break;
-						case 2: // Save Game (disabled)
-							console.log('[DEBUG] Save game button is disabled');
-							// Do nothing - button is disabled
-							break;
-						case 3: // Settings
-							console.log('[DEBUG] Opening settings menu');
-							setShowSettings(true);
-							setShowPause(false);
-							setFocusedMenuItem(0);
-							break;
-						case 4: // Debug
-							console.log('[DEBUG] Opening debug menu');
-							setShowDebug(true);
-							setShowPause(false);
-							setFocusedMenuItem(0);
-							break;
-						}
-					} else if (showSettingsRef.current) {
-						console.log('[DEBUG] Closing settings menu');
-						setShowSettings(false);
-					} else if (showDebugRef.current) {
-						console.log('[DEBUG] Closing debug menu');
-						setShowDebug(false);
-					}
-				}
-
-				// Update last state for next frame
-				lastGamepadState = {};
-				gp.buttons.forEach((button, index) => {
-					lastGamepadState[index] = button.pressed;
-				});
+		// Menu navigation (only when menus are open)
+		const unsubscribeUpNav = controller.onButtonRelease('DPAD_UP', () => {
+			if (showPause || showSettings || showDebug) {
+				console.log('[GAME-PAGE-CONTROLLER] D-pad UP released - menu navigation');
+				const menuItemCount = showPause ? 5 : 1;
+				setFocusedMenuItem(prev => (prev > 0 ? prev - 1 : menuItemCount - 1));
 			}
+		});
 
-			animationFrameId = requestAnimationFrame(pollGamepadInput);
-		};
+		const unsubscribeDownNav = controller.onButtonRelease('DPAD_DOWN', () => {
+			if (showPause || showSettings || showDebug) {
+				console.log('[GAME-PAGE-CONTROLLER] D-pad DOWN released - menu navigation');
+				const menuItemCount = showPause ? 5 : 1;
+				setFocusedMenuItem(prev => (prev < menuItemCount - 1 ? prev + 1 : 0));
+			}
+		});
 
-		pollGamepadInput();
+		// Menu back button (B button)
+		const unsubscribeMenuBack = controller.onButtonRelease('B', () => {
+			if (showPause || showSettings || showDebug) {
+				console.log('[GAME-PAGE-CONTROLLER] B button released - closing menus');
+				setShowPause(false);
+				setShowSettings(false);
+				setShowDebug(false);
+			}
+		});
 
+		// Menu activate button (A button)
+		const unsubscribeMenuActivate = controller.onButtonRelease('A', () => {
+			if (showPause) {
+				console.log('[GAME-PAGE-CONTROLLER] A button released - activating menu item:', focusedMenuItem);
+				switch (focusedMenuItem) {
+				case 0: // Resume
+					console.log('[GAME-PAGE-CONTROLLER] Resuming game');
+					setShowPause(false);
+					break;
+				case 1: // Main Menu
+					console.log('[GAME-PAGE-CONTROLLER] Navigating to main menu');
+					navigate('/');
+					break;
+				case 2: // Save Game (disabled)
+					console.log('[GAME-PAGE-CONTROLLER] Save game button is disabled');
+					break;
+				case 3: // Settings
+					console.log('[GAME-PAGE-CONTROLLER] Opening settings menu');
+					setShowSettings(true);
+					setShowPause(false);
+					setFocusedMenuItem(0);
+					break;
+				case 4: // Debug
+					console.log('[GAME-PAGE-CONTROLLER] Opening debug menu');
+					setShowDebug(true);
+					setShowPause(false);
+					setFocusedMenuItem(0);
+					break;
+				}
+			} else if (showSettings) {
+				console.log('[GAME-PAGE-CONTROLLER] Closing settings menu');
+				setShowSettings(false);
+			} else if (showDebug) {
+				console.log('[GAME-PAGE-CONTROLLER] Closing debug menu');
+				setShowDebug(false);
+			}
+		});
+
+		// Cleanup subscriptions
 		return () => {
-			cancelAnimationFrame(animationFrameId);
+			console.log('[GAME-PAGE-CONTROLLER] Cleaning up controller subscriptions');
+			unsubscribePauseStart();
+			unsubscribePauseBack();
+			unsubscribeUpNav();
+			unsubscribeDownNav();
+			unsubscribeMenuBack();
+			unsubscribeMenuActivate();
 		};
-	}, [gamepadBindings, navigate]);
+	}, [controller, showPause, showSettings, showDebug, focusedMenuItem, navigate]);
 
 	// Update game menu state when any menu opens/closes
 	useEffect(() => {
 		if (gameRef.current) {
 			const menuOpen = showPause || showSettings || showDebug;
 			gameRef.current.setMenuOpen(menuOpen);
-			console.log('[DEBUG] Game menu state updated:', menuOpen);
+			console.log('[GAME-PAGE-CONTROLLER] Game menu state updated:', {
+				menuOpen,
+				showPause,
+				showSettings,
+				showDebug,
+				timestamp: new Date().toISOString(),
+			});
 		}
 	}, [showPause, showSettings, showDebug]);
 
-	// Escape key for pause menu
+	// Keyboard controls
 	useEffect(() => {
 		const handleKeyDown = (e: KeyboardEvent) => {
 			if (e.key === 'Escape') {
@@ -299,56 +245,6 @@ export const GamePage: React.FC = () => {
 		document.addEventListener('keydown', handleKeyDown);
 		return () => document.removeEventListener('keydown', handleKeyDown);
 	}, [listeningKey]);
-
-	// Poll gamepad state for debug using pixijs-input-devices
-	useEffect(() => {
-		if (!showDebug) return;
-
-		console.log('[DEBUG] Starting gamepad debug polling...');
-		console.log('[DEBUG] Available gamepads:', InputDevice.gamepads.length);
-
-		// Also check native gamepad API for comparison
-		const nativeGamepads = navigator.getGamepads();
-		console.log('[DEBUG] Native gamepads:', nativeGamepads.length, Array.from(nativeGamepads).filter(Boolean).length, 'connected');
-
-		let raf: number;
-		let pollCount = 0;
-
-		const poll = () => {
-			try {
-				const gamepadData = InputDevice.gamepads.map(gp => ({
-					id: gp.id,
-					buttons: Object.entries(gp.button).map(([name, btn]: [string, any]) => ({ name, pressed: !!btn })),
-					leftJoystick: gp.leftJoystick,
-					rightJoystick: gp.rightJoystick,
-				}));
-
-				// Log every 60 polls (roughly once per second at 60fps)
-				if (pollCount % 60 === 0) {
-					console.log(`[DEBUG] Poll ${pollCount}: InputDevice gamepads:`, gamepadData.length);
-					const nativeCount = Array.from(navigator.getGamepads()).filter(Boolean).length;
-					console.log(`[DEBUG] Poll ${pollCount}: Native gamepads:`, nativeCount);
-
-					if (gamepadData.length !== nativeCount) {
-						console.warn(`[DEBUG] Mismatch: InputDevice (${gamepadData.length}) vs Native (${nativeCount})`);
-					}
-				}
-
-				setGamepadState(gamepadData);
-				pollCount++;
-				raf = requestAnimationFrame(poll);
-			} catch (error) {
-				console.error('[DEBUG] Error in gamepad polling:', error);
-				raf = requestAnimationFrame(poll);
-			}
-		};
-
-		poll();
-		return () => {
-			console.log('[DEBUG] Stopping gamepad debug polling after', pollCount, 'polls');
-			cancelAnimationFrame(raf);
-		};
-	}, [showDebug]);
 
 	return (
 		<Container fluid style={{ padding: 0, background: '#000', minHeight: '100vh', position: 'relative' }}>
@@ -512,7 +408,7 @@ export const GamePage: React.FC = () => {
 											leftJoystick: gp.leftJoystick,
 											rightJoystick: gp.rightJoystick,
 										}));
-										setGamepadState([...currentState]);
+										setGamepadBindings(prev => ({ ...prev, gamepadState: currentState }));
 									}}
 								>
 								Refresh Gamepad Detection
@@ -520,13 +416,13 @@ export const GamePage: React.FC = () => {
 							</div>
 						</div>
 
-						{gamepadState && gamepadState.length === 0 && (
+						{gamepadBindings.gamepadState && gamepadBindings.gamepadState.length === 0 && (
 							<div style={{ color: 'orange', fontWeight: 'bold' }}>
 							No gamepads detected by InputDevice.
 								<br/><small>Try connecting a gamepad and pressing any button, then refresh this debug panel.</small>
 							</div>
 						)}
-						{gamepadState && gamepadState.map((pad: any, idx: number) => (
+						{gamepadBindings.gamepadState && gamepadBindings.gamepadState.map((pad: any, idx: number) => (
 							<div key={pad.id} style={{ marginBottom: 16 }}>
 								<h6>Gamepad #{idx + 1}: {pad.id}</h6>
 								<Table size="sm" bordered>
