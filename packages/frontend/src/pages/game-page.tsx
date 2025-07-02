@@ -273,7 +273,7 @@ export const GamePage: React.FC = () => {
 				background: '#000',
 				minHeight: '100vh',
 				position: 'relative',
-				cursor: isFullscreen ? 'none' : 'default'
+				cursor: isFullscreen ? 'none' : 'default',
 			}}
 		>
 			{!isFullscreen && (
@@ -289,7 +289,7 @@ export const GamePage: React.FC = () => {
 					overflow: 'hidden',
 					position: 'relative',
 					zIndex: 1,
-					cursor: isFullscreen ? 'none' : 'default'
+					cursor: isFullscreen ? 'none' : 'default',
 				}}
 			/>
 

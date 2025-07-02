@@ -53,9 +53,9 @@ async function verifyJwt(token: string, jwtSecret: string) {
 }
 
 // Helper function to verify admin access
-async function verifyAdminAccess(request: Request): Promise<{ success: boolean; user?: any; error?: string }> {
+async function verifyAdminAccess(c: any): Promise<{ success: boolean; user?: any; error?: string }> {
 	try {
-		const authHeader = request.headers.get('Authorization');
+		const authHeader = c.req.header('Authorization');
 		if (!authHeader || !authHeader.startsWith('Bearer ')) {
 			return { success: false, error: 'Missing or invalid authorization header' };
 		}

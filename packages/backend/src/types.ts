@@ -1,5 +1,7 @@
 import type { D1Database } from '@cloudflare/workers-types';
 
+import type { User } from './auth-types';
+
 export interface Env {
 	DB: D1Database;
 	JWT_SECRET: string;
@@ -9,3 +11,5 @@ export interface Env {
 	// Add other bindings here as needed
 	user: any;
 }
+
+export type { User };

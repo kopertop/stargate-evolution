@@ -338,21 +338,21 @@ export class Game {
 	private findRoomContainingPoint(x: number, y: number): RoomTemplate | null {
 		return this.rooms.find(room =>
 			x >= room.startX && x <= room.endX &&
-			y >= room.startY && y <= room.endY
+			y >= room.startY && y <= room.endY,
 		) || null;
 	}
 
 	private findRoomContainingPointWithThreshold(x: number, y: number, threshold: number): RoomTemplate | null {
 		return this.rooms.find(room =>
 			x >= room.startX + threshold && x <= room.endX - threshold &&
-			y >= room.startY + threshold && y <= room.endY - threshold
+			y >= room.startY + threshold && y <= room.endY - threshold,
 		) || null;
 	}
 
 	private findDoorBetweenRooms(roomId1: string, roomId2: string): any | null {
 		return this.doors.find(door =>
 			(door.from_room_id === roomId1 && door.to_room_id === roomId2) ||
-			(door.from_room_id === roomId2 && door.to_room_id === roomId1)
+			(door.from_room_id === roomId2 && door.to_room_id === roomId1),
 		) || null;
 	}
 
@@ -907,16 +907,16 @@ export class Game {
 		// Choose color based on door state
 		let doorColor: number;
 		switch (door.state) {
-			case 'opened':
-				doorColor = 0x00FF00; // Green for open doors
-				break;
-			case 'locked':
-				doorColor = 0x800000; // Dark red for locked doors
-				break;
-			case 'closed':
-			default:
-				doorColor = 0xFF0000; // Red for closed doors
-				break;
+		case 'opened':
+			doorColor = 0x00FF00; // Green for open doors
+			break;
+		case 'locked':
+			doorColor = 0x800000; // Dark red for locked doors
+			break;
+		case 'closed':
+		default:
+			doorColor = 0xFF0000; // Red for closed doors
+			break;
 		}
 
 		doorGraphics.rect(-door.width/2, -door.height/2, door.width, door.height).fill(doorColor);
