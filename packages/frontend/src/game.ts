@@ -14,7 +14,15 @@ const SPEED_MULTIPLIER = 5; // 5x speed when running (Shift/Right Trigger)
 const STAR_COUNT = 200;
 const STAR_COLOR = 0xffffff;
 const STAR_RADIUS = 1.5;
-const WORLD_BOUNDS = { minX: -1000, maxX: 1000, minY: -1000, maxY: 1000 };
+
+// Door configuration constants - EASILY ADJUSTABLE FOR FUTURE CHANGES
+const DOOR_WIDTH = 64; // Width of doors (was 32, now doubled) - Adjust this to change all door widths
+const DOOR_HEIGHT = 16; // Height of doors (was 8, now doubled) - Adjust this to change all door heights
+
+// Player configuration constants
+const PLAYER_RADIUS = 5; // Player radius (was 10, now halved)
+const DEFAULT_ZOOM = 2.0; // Default zoom level (was 1.0, now more zoomed in)
+
 
 export interface GameOptions {
 	speed?: number;
@@ -36,7 +44,7 @@ export class Game {
 	private world: PIXI.Container;
 	private gameData: any;
 	private wasRunning: boolean = false;
-	private mapZoom: number = 1;
+	private mapZoom: number = DEFAULT_ZOOM;
 	private mapLayer: PIXI.Container | null = null;
 	private focusSystem: any = null;
 	private focusPlanet: any = null;
@@ -64,11 +72,11 @@ export class Game {
 		this.world.addChild(this.starfield);
 		// Create player as circular character sprite
 		const playerGraphics = new PIXI.Graphics();
-		playerGraphics.circle(0, 0, 10).fill(0xFF6600); // Bright orange circle for player
-		playerGraphics.circle(0, 0, 10).stroke({ color: 0xFFFFFF, width: 2 }); // White border
-		playerGraphics.circle(0, 0, 7).stroke({ color: 0xCC4400, width: 1 }); // Inner darker orange ring
+		playerGraphics.circle(0, 0, PLAYER_RADIUS).fill(0xFF6600); // Bright orange circle for player
+		playerGraphics.circle(0, 0, PLAYER_RADIUS).stroke({ color: 0xFFFFFF, width: 1 }); // White border (thinner for smaller player)
+		playerGraphics.circle(0, 0, PLAYER_RADIUS - 2).stroke({ color: 0xCC4400, width: 1 }); // Inner darker orange ring
 		this.player = playerGraphics;
-		console.log('[GAME] Created circular player character');
+		console.log('[GAME] Created circular player character with radius:', PLAYER_RADIUS);
 		this.player.x = 0;
 		this.player.y = 0;
 		// Player will be added to world after room system is initialized
@@ -102,7 +110,7 @@ export class Game {
 			this.keys[e.key.toLowerCase()] = true;
 
 			// Handle door activation
-			if (e.key.toLowerCase() === 'e' || e.key === 'Enter') {
+			if (e.key.toLowerCase() === 'e' || e.key === 'Enter' || e.key === ' ') {
 				this.handleDoorActivation();
 			}
 		});
@@ -258,25 +266,22 @@ export class Game {
 			const finalPosition = this.checkCollision(this.player.x, this.player.y, newX, newY);
 			this.player.x = finalPosition.x;
 			this.player.y = finalPosition.y;
-
-			// Clamp to world bounds
-			this.player.x = Math.max(WORLD_BOUNDS.minX, Math.min(WORLD_BOUNDS.maxX, this.player.x));
-			this.player.y = Math.max(WORLD_BOUNDS.minY, Math.min(WORLD_BOUNDS.maxY, this.player.y));
 		}
 		// Check for door interactions
 		this.checkDoorInteraction();
 
-		// Center camera on player (accounting for zoom scale)
+		// Center camera on player (accounting for world scale)
 		const centerX = this.app.screen.width / 2;
 		const centerY = this.app.screen.height / 2;
-		this.world.x = centerX - (this.player.x * this.mapZoom);
-		this.world.y = centerY - (this.player.y * this.mapZoom);
+		// Player's visual position is player.x * world.scale, so we need to offset by that amount
+		this.world.x = centerX - (this.player.x * this.world.scale.x);
+		this.world.y = centerY - (this.player.y * this.world.scale.y);
 	}
 
 	// Collision detection system
 	private checkCollision(currentX: number, currentY: number, newX: number, newY: number): { x: number; y: number } {
-		const playerRadius = 10; // Player is a circle with radius 10
-		const wallThreshold = 15; // Buffer zone around walls to prevent walking "on top of" them
+		const playerRadius = PLAYER_RADIUS; // Player is a circle with configurable radius
+		const wallThreshold = 8; // Reduced buffer zone for smaller player (was 15, now 8)
 
 		// Check room boundaries - player must stay within accessible rooms with wall threshold
 		const currentRoom = this.findRoomContainingPoint(currentX, currentY);
@@ -309,7 +314,7 @@ export class Game {
 		// If moving to an area that's too close to walls (outside safe zone), block movement
 		if (currentRoom && targetRoom && !targetRoomSafe) {
 			// Check if we're near an open door - doors allow closer approach to walls
-			const nearbyOpenDoor = this.findNearbyOpenDoor(newX, newY, playerRadius + 5);
+			const nearbyOpenDoor = this.findNearbyOpenDoor(newX, newY, playerRadius + 10); // Increased door detection range
 			if (!nearbyOpenDoor) {
 				// Not near an open door and too close to walls - hard stop at current position
 				console.log('[COLLISION] Blocked movement - too close to walls (within', wallThreshold, 'px threshold)');
@@ -357,8 +362,8 @@ export class Game {
 	}
 
 	private isPassingThroughDoor(currentX: number, currentY: number, newX: number, newY: number, door: any): boolean {
-		const playerRadius = 10;
-		const doorTolerance = 5; // Extra tolerance for door passage
+		const playerRadius = PLAYER_RADIUS;
+		const doorTolerance = 15; // Increased tolerance for smaller player (was 5, now 15)
 
 		// Check if either current position or new position is within the door area
 		const currentNearDoor = this.isPointNearDoor(currentX, currentY, door, playerRadius + doorTolerance);
@@ -369,13 +374,24 @@ export class Game {
 	}
 
 	private isPointNearDoor(x: number, y: number, door: any, tolerance: number): boolean {
-		// Check if point is within the door's bounding box plus tolerance
-		const doorLeft = door.x - door.width / 2 - tolerance;
-		const doorRight = door.x + door.width / 2 + tolerance;
-		const doorTop = door.y - door.height / 2 - tolerance;
-		const doorBottom = door.y + door.height / 2 + tolerance;
+		// Transform point to door's local coordinate system to handle rotation
+		const dx = x - door.x;
+		const dy = y - door.y;
 
-		return x >= doorLeft && x <= doorRight && y >= doorTop && y <= doorBottom;
+		// Convert door rotation from degrees to radians
+		const rotationRad = (door.rotation * Math.PI) / 180;
+
+		// Rotate the point by the negative door rotation to get local coordinates
+		const cos = Math.cos(-rotationRad);
+		const sin = Math.sin(-rotationRad);
+		const localX = dx * cos - dy * sin;
+		const localY = dx * sin + dy * cos;
+
+		// Check if point is within the door's local bounding box plus tolerance
+		const halfWidth = door.width / 2 + tolerance;
+		const halfHeight = door.height / 2 + tolerance;
+
+		return Math.abs(localX) <= halfWidth && Math.abs(localY) <= halfHeight;
 	}
 
 	private findNearbyOpenDoor(x: number, y: number, radius: number): any | null {
@@ -420,16 +436,29 @@ export class Game {
 
 	private findCollidingDoor(x: number, y: number, playerRadius: number): any | null {
 		for (const door of this.doors) {
-			// Check collision with door bounding box
-			const doorLeft = door.x - door.width / 2;
-			const doorRight = door.x + door.width / 2;
-			const doorTop = door.y - door.height / 2;
-			const doorBottom = door.y + door.height / 2;
+			// Transform player position to door's local coordinate system to handle rotation
+			const dx = x - door.x;
+			const dy = y - door.y;
 
-			// Check if player circle intersects with door rectangle
-			const closestX = Math.max(doorLeft, Math.min(x, doorRight));
-			const closestY = Math.max(doorTop, Math.min(y, doorBottom));
-			const distance = Math.sqrt((x - closestX) ** 2 + (y - closestY) ** 2);
+			// Convert door rotation from degrees to radians
+			const rotationRad = (door.rotation * Math.PI) / 180;
+
+			// Rotate the player position by the negative door rotation to get local coordinates
+			const cos = Math.cos(-rotationRad);
+			const sin = Math.sin(-rotationRad);
+			const localX = dx * cos - dy * sin;
+			const localY = dx * sin + dy * cos;
+
+			// Check collision with door's local bounding box
+			const halfWidth = door.width / 2;
+			const halfHeight = door.height / 2;
+
+			// Find closest point on the door rectangle to the player circle center
+			const closestX = Math.max(-halfWidth, Math.min(localX, halfWidth));
+			const closestY = Math.max(-halfHeight, Math.min(localY, halfHeight));
+
+			// Calculate distance from player center to closest point on door
+			const distance = Math.sqrt((localX - closestX) ** 2 + (localY - closestY) ** 2);
 
 			if (distance <= playerRadius) {
 				return door;
@@ -447,38 +476,55 @@ export class Game {
 	}
 
 	private pushPlayerOutOfDoor(door: any): void {
-		const playerRadius = 10;
-		const safeDistance = playerRadius + 5; // Extra margin for safety
+		const playerRadius = PLAYER_RADIUS;
+		const safeDistance = playerRadius + 3; // Reduced margin for smaller player (was 5, now 3)
 
 		// Check if player is colliding with the door
 		const collidingDoor = this.findCollidingDoor(this.player.x, this.player.y, playerRadius);
 		if (collidingDoor && collidingDoor.id === door.id) {
-			// Player is inside the door - push them to the nearest safe position
-			const doorCenterX = door.x;
-			const doorCenterY = door.y;
+			// Transform player position to door's local coordinate system
+			const dx = this.player.x - door.x;
+			const dy = this.player.y - door.y;
 
-			// Calculate direction from door center to player
-			const dx = this.player.x - doorCenterX;
-			const dy = this.player.y - doorCenterY;
-			const distance = Math.sqrt(dx * dx + dy * dy);
+			// Convert door rotation from degrees to radians
+			const rotationRad = (door.rotation * Math.PI) / 180;
 
-			if (distance > 0) {
-				// Normalize direction and push player out
-				const normalizedDx = dx / distance;
-				const normalizedDy = dy / distance;
+			// Rotate to get local coordinates
+			const cos = Math.cos(-rotationRad);
+			const sin = Math.sin(-rotationRad);
+			const localX = dx * cos - dy * sin;
+			const localY = dx * sin + dy * cos;
 
-				// Calculate safe position outside the door
-				const pushDistance = Math.max(door.width, door.height) / 2 + safeDistance;
-				this.player.x = doorCenterX + normalizedDx * pushDistance;
-				this.player.y = doorCenterY + normalizedDy * pushDistance;
+			// Determine which side of the door to push the player to
+			const halfWidth = door.width / 2;
+			const halfHeight = door.height / 2;
 
-				console.log('[DOOR] Pushed player out of closed door to:', this.player.x.toFixed(1), this.player.y.toFixed(1));
+			// Find the closest edge and push player out in that direction
+			let pushLocalX = localX;
+			let pushLocalY = localY;
+
+			// Push to the nearest edge with safe distance
+			if (Math.abs(localX) > Math.abs(localY)) {
+				// Push horizontally
+				pushLocalX = localX > 0 ? halfWidth + safeDistance : -halfWidth - safeDistance;
+			} else {
+				// Push vertically
+				pushLocalY = localY > 0 ? halfHeight + safeDistance : -halfHeight - safeDistance;
 			}
+
+			// Transform back to world coordinates
+			const worldDx = pushLocalX * cos + pushLocalY * sin;
+			const worldDy = -pushLocalX * sin + pushLocalY * cos;
+
+			this.player.x = door.x + worldDx;
+			this.player.y = door.y + worldDy;
+
+			console.log('[DOOR] Pushed player out of closed door to:', this.player.x.toFixed(1), this.player.y.toFixed(1));
 		}
 	}
 
 	private handleDoorActivation(): void {
-		const interactionRadius = 30; // Player can interact with doors within this distance
+		const interactionRadius = 25; // Slightly reduced for smaller player (was 30, now 25)
 
 		// Find the closest door within interaction range
 		let closestDoor: any = null;
@@ -783,8 +829,8 @@ export class Game {
 				to_room_id: 'demo-corridor',
 				x: 200, // At the connection point between rooms
 				y: 0,   // Center vertically
-				width: 32,
-				height: 8,
+				width: DOOR_WIDTH,
+				height: DOOR_HEIGHT,
 				rotation: 90, // Vertical door
 				state: 'opened',
 				is_automatic: true,
@@ -931,7 +977,7 @@ export class Game {
 
 		this.doorsLayer.addChild(doorGraphics);
 
-		console.log(`[DEBUG] Rendered door at (${door.x}, ${door.y}) size (${door.width}x${door.height}) state: ${door.state}`);
+		console.log(`[DEBUG] Rendered door at (${door.x}, ${door.y}) size (${door.width}x${door.height}) rotation: ${door.rotation}° state: ${door.state}`);
 	}
 
 	private renderFurnitureItem(furniture: RoomFurniture) {
@@ -988,12 +1034,12 @@ export class Game {
 		const centerX = (minX + maxX) / 2;
 		const centerY = (minY + maxY) / 2;
 
-		// Center camera on rooms (accounting for zoom scale)
+		// Center camera on rooms (accounting for world scale)
 		const screenCenterX = this.app.screen.width / 2;
 		const screenCenterY = this.app.screen.height / 2;
 
-		this.world.x = screenCenterX - (centerX * this.mapZoom);
-		this.world.y = screenCenterY - (centerY * this.mapZoom);
+		this.world.x = screenCenterX - (centerX * this.world.scale.x);
+		this.world.y = screenCenterY - (centerY * this.world.scale.y);
 
 		console.log(`[DEBUG] Camera centered on rooms at (${centerX}, ${centerY})`);
 	}
