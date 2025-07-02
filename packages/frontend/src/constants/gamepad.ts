@@ -1,9 +1,9 @@
 // Gamepad button mapping (standard gamepad layout)
 export const GAMEPAD_BUTTONS = {
-	A: 0,          // Bottom face button
-	B: 1,          // Right face button  
-	X: 2,          // Left face button
-	Y: 3,          // Top face button
+	A: 1,          // Right face button
+	B: 0,          // Bottom face button
+	Y: 2,          // Left face button
+	X: 3,          // Top face button
 	LB: 4,         // Left bumper
 	RB: 5,         // Right bumper (R trigger)
 	LT: 6,         // Left trigger

@@ -2,6 +2,7 @@ import { Ticker } from 'pixi.js';
 import * as PIXI from 'pixi.js';
 import { InputDevice } from 'pixijs-input-devices';
 import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Button, Container, Modal, Form, Row, Col, Table } from 'react-bootstrap';
 import { useNavigate } from 'react-router';
 
@@ -117,9 +118,9 @@ export const GamePage: React.FC = () => {
 			// Initialize InputDevice (no init method needed)
 			console.log('[DEBUG] InputDevice available');
 
-			// Add InputDevice.update to the ticker
-			Ticker.shared.add(InputDevice.update);
-			console.log('[DEBUG] InputDevice update added to ticker');
+			// NOTE: Removed InputDevice.update from ticker due to errors
+			// The Game class uses native navigator.getGamepads() instead
+			console.log('[DEBUG] Skipping InputDevice ticker integration');
 
 			// Log initial gamepad state
 			console.log('[DEBUG] Initial gamepads detected:', InputDevice.gamepads.length);
@@ -142,7 +143,7 @@ export const GamePage: React.FC = () => {
 				pixiAppRef.current.destroy(true);
 				pixiAppRef.current = null;
 			}
-			Ticker.shared.remove(InputDevice.update);
+			// NOTE: InputDevice.update was not added to ticker, so no need to remove
 
 			// Cleanup gamepad event listeners
 			window.removeEventListener('gamepadconnected', handleGamepadConnected);
@@ -211,6 +212,8 @@ export const GamePage: React.FC = () => {
 					console.log('[DEBUG] Gamepad activate button released');
 					console.log('[DEBUG] Current menu state - pause:', showPauseRef.current, 'settings:', showSettingsRef.current, 'debug:', showDebugRef.current);
 					console.log('[DEBUG] Focused menu item:', focusedMenuItemRef.current);
+					console.log('[DEBUG] Activate button mapping:', gamepadBindings.activate);
+					console.log('[DEBUG] Last gamepad state for activate buttons:', gamepadBindings.activate.map(idx => ({ idx, pressed: lastGamepadState[idx] })));
 
 					// Handle activation based on which menu is open and which item is focused
 					if (showPauseRef.current) {
@@ -352,9 +355,10 @@ export const GamePage: React.FC = () => {
 			<div style={{ position: 'absolute', top: 16, left: 16, zIndex: 10 }}>
 				<Button variant="secondary" onClick={() => navigate('/')}>Back to Menu</Button>
 			</div>
-			<div ref={canvasRef} style={{ width: '100vw', height: '100vh', overflow: 'hidden' }} />
+			<div ref={canvasRef} style={{ width: '100vw', height: '100vh', overflow: 'hidden', position: 'relative', zIndex: 1 }} />
 
-			<Modal show={showPause} centered backdrop="static" keyboard={false}>
+			{createPortal(
+				<Modal show={showPause} centered backdrop="static" keyboard={false} style={{ zIndex: 9999 }}>
 				<Modal.Header>
 					<Modal.Title>Paused</Modal.Title>
 				</Modal.Header>
@@ -403,10 +407,12 @@ export const GamePage: React.FC = () => {
 						</Button>
 					</div>
 				</Modal.Body>
-			</Modal>
+			</Modal>, document.body
+			)}
 
 			{/* Settings Modal */}
-			<Modal show={showSettings} centered onHide={() => setShowSettings(false)}>
+			{createPortal(
+				<Modal show={showSettings} centered onHide={() => setShowSettings(false)} style={{ zIndex: 9999 }}>
 				<Modal.Header closeButton>
 					<Modal.Title>Settings</Modal.Title>
 				</Modal.Header>
@@ -464,10 +470,12 @@ export const GamePage: React.FC = () => {
 				<Modal.Footer>
 					<Button variant="secondary" onClick={() => setShowSettings(false)}>Close</Button>
 				</Modal.Footer>
-			</Modal>
+			</Modal>, document.body
+			)}
 
 			{/* Debug Modal */}
-			<Modal show={showDebug} centered onHide={() => setShowDebug(false)} size="lg">
+			{createPortal(
+				<Modal show={showDebug} centered onHide={() => setShowDebug(false)} size="lg" style={{ zIndex: 9999 }}>
 				<Modal.Header closeButton>
 					<Modal.Title>Gamepad Debug</Modal.Title>
 				</Modal.Header>
@@ -549,7 +557,8 @@ export const GamePage: React.FC = () => {
 				<Modal.Footer>
 					<Button variant="secondary" onClick={() => setShowDebug(false)}>Close</Button>
 				</Modal.Footer>
-			</Modal>
+			</Modal>, document.body
+			)}
 		</Container>
 	);
 };

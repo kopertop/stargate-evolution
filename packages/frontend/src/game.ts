@@ -124,15 +124,33 @@ export class Game {
 
 		// Gamepad input
 		const gp = this.gamepadIndex !== null ? navigator.getGamepads()[this.gamepadIndex] : null;
+		
+		// Debug gamepad detection (log only once every 60 frames to avoid spam)
+		if (this.gamepadIndex !== null && Math.floor(Date.now() / 1000) % 5 === 0) {
+			console.log('[DEBUG] Game update - gamepad detected at index:', this.gamepadIndex, 'menuOpen:', this.menuOpen);
+		}
+		
 		if (gp) {
 			// Left stick - movement
 			const leftAxisX = gp.axes[0] || 0;
 			const leftAxisY = gp.axes[1] || 0;
+			
+			// Debug logging for thumbstick input (only when significant movement)
+			if (Math.abs(leftAxisX) > 0.15 || Math.abs(leftAxisY) > 0.15) {
+				console.log('[DEBUG] Left stick input:', { x: leftAxisX.toFixed(3), y: leftAxisY.toFixed(3) });
+			}
+			
 			if (Math.abs(leftAxisX) > 0.15) dx += leftAxisX;
 			if (Math.abs(leftAxisY) > 0.15) dy += leftAxisY;
 
 			// Right stick - zoom controls
 			const rightAxisY = gp.axes[3] || 0; // Right stick Y-axis
+			
+			// Debug logging for right stick zoom input
+			if (Math.abs(rightAxisY) > 0.2) {
+				console.log('[DEBUG] Right stick zoom input:', { y: rightAxisY.toFixed(3), currentZoom: this.mapZoom.toFixed(3) });
+			}
+			
 			if (Math.abs(rightAxisY) > 0.2) { // Slightly higher deadzone for zoom
 				const zoomSpeed = 0.02; // Zoom sensitivity
 				if (rightAxisY < -0.2) {

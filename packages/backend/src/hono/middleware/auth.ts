@@ -1,11 +1,12 @@
 import { type MiddlewareHandler } from 'hono';
 import { jwtVerify } from 'jose';
+
 import { validateUser } from '../../auth-types';
 import type { Env } from '../../types';
 
 const JWT_ISSUER = 'stargate-evolution';
 
-export const verifyJwt: MiddlewareHandler<{ Bindings: Env }> = async (c, next) => {
+export const verifyJwt: MiddlewareHandler<{ Bindings: Env}> = async (c, next) => {
 	const authHeader = c.req.header('Authorization');
 
 	if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -19,9 +20,11 @@ export const verifyJwt: MiddlewareHandler<{ Bindings: Env }> = async (c, next) =
 		const { payload } = await jwtVerify(token, secret, { issuer: JWT_ISSUER });
 		const userResult = validateUser(payload.user);
 		if (!userResult.success) {
+			console.log('Invalid user', userResult);
 			return c.json({ error: 'Invalid user' }, 401);
 		}
 		c.set('user', userResult.data);
+		console.log('set user', userResult.data);
 		await next();
 	} catch (error) {
 		return c.json({ error: 'Invalid or expired token' }, 401);

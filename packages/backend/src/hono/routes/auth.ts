@@ -37,8 +37,8 @@ async function verifyGoogleIdToken(idToken: string) {
 	}
 }
 
-async function signJwt(payload: any, expiresInSec: number): Promise<string> {
-	const secret = new TextEncoder().encode(JWT_SECRET);
+async function signJwt(payload: any, expiresInSec: number, jwtSecret: string): Promise<string> {
+	const secret = new TextEncoder().encode(jwtSecret);
 	return await new jose.SignJWT(payload)
 		.setProtectedHeader({ alg: 'HS256' })
 		.setIssuer(JWT_ISSUER)
@@ -47,8 +47,8 @@ async function signJwt(payload: any, expiresInSec: number): Promise<string> {
 		.sign(secret);
 }
 
-async function verifyJwt(token: string) {
-	const secret = new TextEncoder().encode(JWT_SECRET);
+async function verifyJwt(token: string, jwtSecret: string) {
+	const secret = new TextEncoder().encode(jwtSecret);
 	return await jose.jwtVerify(token, secret, { issuer: JWT_ISSUER });
 }
 
@@ -61,7 +61,7 @@ async function verifyAdminAccess(request: Request): Promise<{ success: boolean; 
 		}
 
 		const token = authHeader.substring(7);
-		const { payload } = await verifyJwt(token);
+		const { payload } = await verifyJwt(token, c.env.JWT_SECRET);
 		const userResult = validateUser(payload.user);
 		if (!userResult.success) {
 			return { success: false, error: 'Invalid user' };
@@ -117,8 +117,8 @@ auth.post('/api/auth/google', async (c) => {
 			is_admin: Boolean(dbUser?.is_admin),
 		};
 
-		const accessToken = await signJwt({ user: authenticatedUser }, ACCESS_TOKEN_EXP);
-		const refreshToken = await signJwt({ user: authenticatedUser }, REFRESH_TOKEN_EXP);
+		const accessToken = await signJwt({ user: authenticatedUser }, ACCESS_TOKEN_EXP, c.env.JWT_SECRET);
+		const refreshToken = await signJwt({ user: authenticatedUser }, REFRESH_TOKEN_EXP, c.env.JWT_SECRET);
 		const session = {
 			token: accessToken,
 			refreshToken,
@@ -140,7 +140,7 @@ auth.post('/api/auth/validate', async (c) => {
 			throw new Error('Missing token');
 		}
 
-		const { payload } = await verifyJwt(token);
+		const { payload } = await verifyJwt(token, c.env.JWT_SECRET);
 		const userResult = validateUser(payload.user);
 		if (!userResult.success) {
 			throw new Error('Invalid user');
@@ -180,7 +180,7 @@ auth.post('/api/auth/refresh', async (c) => {
 			throw new Error('Missing refreshToken');
 		}
 
-		const { payload } = await verifyJwt(refreshToken);
+		const { payload } = await verifyJwt(refreshToken, c.env.JWT_SECRET);
 		const userResult = validateUser(payload.user);
 		if (!userResult.success) {
 			throw new Error('Invalid user');
@@ -208,8 +208,8 @@ auth.post('/api/auth/refresh', async (c) => {
 		};
 
 		const now = Date.now();
-		const newAccessToken = await signJwt({ user }, ACCESS_TOKEN_EXP);
-		const newRefreshToken = await signJwt({ user }, REFRESH_TOKEN_EXP);
+		const newAccessToken = await signJwt({ user }, ACCESS_TOKEN_EXP, c.env.JWT_SECRET);
+		const newRefreshToken = await signJwt({ user }, REFRESH_TOKEN_EXP, c.env.JWT_SECRET);
 		const session = {
 			token: newAccessToken,
 			refreshToken: newRefreshToken,
