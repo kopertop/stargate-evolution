@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -17,6 +17,18 @@ import { GamePage } from './pages/game-page';
 import { MenuPage } from './pages/menu-page';
 
 export const App: React.FC = () => {
+	// Fullscreen on mount
+	useEffect(() => {
+		const goFullscreen = () => {
+			const el = document.body;
+			if (el && document.fullscreenElement == null) {
+				if (el.requestFullscreen) el.requestFullscreen();
+				else if ((el as any).webkitRequestFullscreen) (el as any).webkitRequestFullscreen();
+			}
+		};
+		setTimeout(goFullscreen, 0);
+	}, []);
+
 	return (
 		<Router>
 			<Routes>

@@ -5,9 +5,7 @@ import type {
 } from '@stargate/common';
 import * as PIXI from 'pixi.js';
 
-import { GAMEPAD_BUTTONS } from './constants/gamepad';
 import { HelpPopover } from './help-popover';
-import { AdminService } from './services/admin-service';
 import type { GamepadAxis, GamepadButton } from './services/game-controller';
 import { TemplateService } from './services/template-service';
 
