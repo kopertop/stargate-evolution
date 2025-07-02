@@ -136,18 +136,9 @@ export class Game {
 			// Movement will be handled in update loop by polling axis values
 		});
 
-		// Subscribe to right stick for zoom
+		// Right stick zoom will be handled in update loop for smooth continuous zooming
 		const unsubscribeRightY = this.options.onAxisChange('RIGHT_Y', (value) => {
-			if (Math.abs(value) > 0.2) {
-				const zoomSpeed = 0.02;
-				if (value < -0.2) {
-					// Right stick up = zoom in
-					this.setMapZoom(this.mapZoom * (1 + zoomSpeed));
-				} else if (value > 0.2) {
-					// Right stick down = zoom out
-					this.setMapZoom(this.mapZoom * (1 - zoomSpeed));
-				}
-			}
+			// No longer handle zoom here - moved to update loop for smoothness
 		});
 
 		// Subscribe to A button for door activation
@@ -230,6 +221,25 @@ export class Game {
 			if (this.options.isPressed('RB')) {
 				console.log('[GAME-INPUT] Right bumper (RB) pressed - running mode');
 				isRunning = true;
+			}
+
+			// Right stick Y - smooth continuous zoom
+			const rightAxisY = this.options.getAxisValue('RIGHT_Y');
+			if (Math.abs(rightAxisY) > 0.12) { // Lower deadzone for responsive control
+				// Use variable zoom speed based on stick deflection with smooth curve
+				const stickIntensity = Math.abs(rightAxisY);
+				// Apply smooth easing curve for more natural feel
+				const easedIntensity = stickIntensity * stickIntensity; // Quadratic easing
+				const baseZoomSpeed = 0.004; // Slower base speed for ultra-smooth continuous control
+				const zoomSpeed = baseZoomSpeed * (1 + easedIntensity * 2); // Scale with eased deflection
+				
+				if (rightAxisY < -0.12) {
+					// Right stick up = zoom in
+					this.setMapZoom(this.mapZoom * (1 + zoomSpeed));
+				} else if (rightAxisY > 0.12) {
+					// Right stick down = zoom out
+					this.setMapZoom(this.mapZoom * (1 - zoomSpeed));
+				}
 			}
 		}
 
@@ -750,7 +760,10 @@ export class Game {
 			// Center camera on rooms
 			this.centerCameraOnRooms();
 
-			console.log('[DEBUG] Room system initialized successfully');
+			// Apply default zoom after room system is fully initialized
+			this.setMapZoom(DEFAULT_ZOOM);
+
+			console.log('[DEBUG] Room system initialized successfully with default zoom:', DEFAULT_ZOOM);
 		} catch (error) {
 			console.error('[DEBUG] Error initializing room system:', error);
 		}
