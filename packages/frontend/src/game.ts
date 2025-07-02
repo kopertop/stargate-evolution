@@ -100,6 +100,11 @@ export class Game {
 	private setupInput() {
 		window.addEventListener('keydown', (e) => {
 			this.keys[e.key.toLowerCase()] = true;
+
+			// Handle door activation
+			if (e.key.toLowerCase() === 'e' || e.key === 'Enter') {
+				this.handleDoorActivation();
+			}
 		});
 		window.addEventListener('keyup', (e) => {
 			this.keys[e.key.toLowerCase()] = false;
@@ -137,8 +142,19 @@ export class Game {
 			}
 		});
 
+		// Subscribe to A button for door activation
+		const unsubscribeAButton = this.options.onButtonRelease?.('A', () => {
+			if (!this.menuOpen) {
+				console.log('[GAME-INPUT] A button released - checking for door activation');
+				this.handleDoorActivation();
+			}
+		});
+
 		// Store unsubscribers for cleanup
 		this.controllerUnsubscribers.push(unsubscribeLeftX, unsubscribeLeftY, unsubscribeRightY);
+		if (unsubscribeAButton) {
+			this.controllerUnsubscribers.push(unsubscribeAButton);
+		}
 	}
 
 	private resizeToWindow() {
@@ -150,14 +166,7 @@ export class Game {
 	private update() {
 		if (!this.app || !this.app.screen) return;
 
-		// Log current game state every few seconds for debugging
-		const now = Date.now();
-		if (now % 5000 < 16) { // Log roughly every 5 seconds
-			console.log('[GAME-STATE-DEBUG]', {
-				timestamp: new Date().toISOString(),
-				menuOpen: this.menuOpen,
-			});
-		}
+
 
 		// Skip game input when menu is open
 		if (this.menuOpen) {
@@ -241,17 +250,290 @@ export class Game {
 				this.wasRunning = false;
 			}
 
-			this.player.x += dx * currentSpeed;
-			this.player.y += dy * currentSpeed;
+			// Calculate new position with collision detection
+			const newX = this.player.x + dx * currentSpeed;
+			const newY = this.player.y + dy * currentSpeed;
+
+			// Check collision and apply movement
+			const finalPosition = this.checkCollision(this.player.x, this.player.y, newX, newY);
+			this.player.x = finalPosition.x;
+			this.player.y = finalPosition.y;
+
 			// Clamp to world bounds
 			this.player.x = Math.max(WORLD_BOUNDS.minX, Math.min(WORLD_BOUNDS.maxX, this.player.x));
 			this.player.y = Math.max(WORLD_BOUNDS.minY, Math.min(WORLD_BOUNDS.maxY, this.player.y));
 		}
+		// Check for door interactions
+		this.checkDoorInteraction();
+
 		// Center camera on player (accounting for zoom scale)
 		const centerX = this.app.screen.width / 2;
 		const centerY = this.app.screen.height / 2;
 		this.world.x = centerX - (this.player.x * this.mapZoom);
 		this.world.y = centerY - (this.player.y * this.mapZoom);
+	}
+
+	// Collision detection system
+	private checkCollision(currentX: number, currentY: number, newX: number, newY: number): { x: number; y: number } {
+		const playerRadius = 10; // Player is a circle with radius 10
+		const wallThreshold = 15; // Buffer zone around walls to prevent walking "on top of" them
+
+		// Check room boundaries - player must stay within accessible rooms with wall threshold
+		const currentRoom = this.findRoomContainingPoint(currentX, currentY);
+		const targetRoom = this.findRoomContainingPoint(newX, newY);
+		const targetRoomSafe = this.findRoomContainingPointWithThreshold(newX, newY, wallThreshold);
+
+		// If moving between rooms, check if there's a valid door passage
+		if (currentRoom && targetRoom && currentRoom.id !== targetRoom.id) {
+			const doorBetweenRooms = this.findDoorBetweenRooms(currentRoom.id, targetRoom.id);
+			if (!doorBetweenRooms || doorBetweenRooms.state !== 'opened') {
+				// No open door between rooms - block movement
+				console.log('[COLLISION] Blocked movement between rooms - no open door');
+				return { x: currentX, y: currentY };
+			}
+
+			// Check if the player is actually passing through the door opening
+			if (!this.isPassingThroughDoor(currentX, currentY, newX, newY, doorBetweenRooms)) {
+				// Player is trying to cross room boundary outside of door - block movement
+				console.log('[COLLISION] Blocked movement - not passing through door opening');
+				return { x: currentX, y: currentY };
+			}
+		}
+
+		// If moving completely outside any room, block movement
+		if (currentRoom && !targetRoom) {
+			console.log('[COLLISION] Blocked movement - completely outside room boundaries');
+			return { x: currentX, y: currentY };
+		}
+
+		// If moving to an area that's too close to walls (outside safe zone), block movement
+		if (currentRoom && targetRoom && !targetRoomSafe) {
+			// Check if we're near an open door - doors allow closer approach to walls
+			const nearbyOpenDoor = this.findNearbyOpenDoor(newX, newY, playerRadius + 5);
+			if (!nearbyOpenDoor) {
+				// Not near an open door and too close to walls - hard stop at current position
+				console.log('[COLLISION] Blocked movement - too close to walls (within', wallThreshold, 'px threshold)');
+				return { x: currentX, y: currentY };
+			}
+		}
+
+		// Check furniture collisions
+		const collidingFurniture = this.findCollidingFurniture(newX, newY, playerRadius);
+		if (collidingFurniture) {
+			console.log('[COLLISION] Blocked by furniture:', collidingFurniture.name);
+			return { x: currentX, y: currentY };
+		}
+
+		// Check door collisions (closed doors block movement)
+		const collidingDoor = this.findCollidingDoor(newX, newY, playerRadius);
+		if (collidingDoor && collidingDoor.state !== 'opened') {
+			console.log('[COLLISION] Blocked by closed door');
+			return { x: currentX, y: currentY };
+		}
+
+		// No collision detected
+		return { x: newX, y: newY };
+	}
+
+	private findRoomContainingPoint(x: number, y: number): RoomTemplate | null {
+		return this.rooms.find(room =>
+			x >= room.startX && x <= room.endX &&
+			y >= room.startY && y <= room.endY
+		) || null;
+	}
+
+	private findRoomContainingPointWithThreshold(x: number, y: number, threshold: number): RoomTemplate | null {
+		return this.rooms.find(room =>
+			x >= room.startX + threshold && x <= room.endX - threshold &&
+			y >= room.startY + threshold && y <= room.endY - threshold
+		) || null;
+	}
+
+	private findDoorBetweenRooms(roomId1: string, roomId2: string): any | null {
+		return this.doors.find(door =>
+			(door.from_room_id === roomId1 && door.to_room_id === roomId2) ||
+			(door.from_room_id === roomId2 && door.to_room_id === roomId1)
+		) || null;
+	}
+
+	private isPassingThroughDoor(currentX: number, currentY: number, newX: number, newY: number, door: any): boolean {
+		const playerRadius = 10;
+		const doorTolerance = 5; // Extra tolerance for door passage
+
+		// Check if either current position or new position is within the door area
+		const currentNearDoor = this.isPointNearDoor(currentX, currentY, door, playerRadius + doorTolerance);
+		const newNearDoor = this.isPointNearDoor(newX, newY, door, playerRadius + doorTolerance);
+
+		// Player must be moving through the door area (either starting near it or ending near it)
+		return currentNearDoor || newNearDoor;
+	}
+
+	private isPointNearDoor(x: number, y: number, door: any, tolerance: number): boolean {
+		// Check if point is within the door's bounding box plus tolerance
+		const doorLeft = door.x - door.width / 2 - tolerance;
+		const doorRight = door.x + door.width / 2 + tolerance;
+		const doorTop = door.y - door.height / 2 - tolerance;
+		const doorBottom = door.y + door.height / 2 + tolerance;
+
+		return x >= doorLeft && x <= doorRight && y >= doorTop && y <= doorBottom;
+	}
+
+	private findNearbyOpenDoor(x: number, y: number, radius: number): any | null {
+		return this.doors.find(door => {
+			if (door.state !== 'opened') return false;
+			const distance = Math.sqrt((x - door.x) ** 2 + (y - door.y) ** 2);
+			return distance <= radius;
+		}) || null;
+	}
+
+	private findCollidingFurniture(x: number, y: number, playerRadius: number): RoomFurniture | null {
+		for (const furniture of this.furniture) {
+			if (!furniture.blocks_movement) continue;
+
+			// Find the room this furniture belongs to
+			const room = this.rooms.find(r => r.id === furniture.room_id);
+			if (!room) continue;
+
+			// Calculate furniture world position
+			const roomCenterX = room.startX + (room.endX - room.startX) / 2;
+			const roomCenterY = room.startY + (room.endY - room.startY) / 2;
+			const furnitureWorldX = roomCenterX + furniture.x;
+			const furnitureWorldY = roomCenterY + furniture.y;
+
+			// Check collision with furniture bounding box
+			const furnitureLeft = furnitureWorldX - furniture.width / 2;
+			const furnitureRight = furnitureWorldX + furniture.width / 2;
+			const furnitureTop = furnitureWorldY - furniture.height / 2;
+			const furnitureBottom = furnitureWorldY + furniture.height / 2;
+
+			// Check if player circle intersects with furniture rectangle
+			const closestX = Math.max(furnitureLeft, Math.min(x, furnitureRight));
+			const closestY = Math.max(furnitureTop, Math.min(y, furnitureBottom));
+			const distance = Math.sqrt((x - closestX) ** 2 + (y - closestY) ** 2);
+
+			if (distance <= playerRadius) {
+				return furniture;
+			}
+		}
+		return null;
+	}
+
+	private findCollidingDoor(x: number, y: number, playerRadius: number): any | null {
+		for (const door of this.doors) {
+			// Check collision with door bounding box
+			const doorLeft = door.x - door.width / 2;
+			const doorRight = door.x + door.width / 2;
+			const doorTop = door.y - door.height / 2;
+			const doorBottom = door.y + door.height / 2;
+
+			// Check if player circle intersects with door rectangle
+			const closestX = Math.max(doorLeft, Math.min(x, doorRight));
+			const closestY = Math.max(doorTop, Math.min(y, doorBottom));
+			const distance = Math.sqrt((x - closestX) ** 2 + (y - closestY) ** 2);
+
+			if (distance <= playerRadius) {
+				return door;
+			}
+		}
+		return null;
+	}
+
+
+
+	// Door interaction system
+	private checkDoorInteraction(): void {
+		// This method is called every frame but currently just exists for future UI indicators
+		// When we add door interaction UI, this is where we'll update the visual indicators
+	}
+
+	private pushPlayerOutOfDoor(door: any): void {
+		const playerRadius = 10;
+		const safeDistance = playerRadius + 5; // Extra margin for safety
+
+		// Check if player is colliding with the door
+		const collidingDoor = this.findCollidingDoor(this.player.x, this.player.y, playerRadius);
+		if (collidingDoor && collidingDoor.id === door.id) {
+			// Player is inside the door - push them to the nearest safe position
+			const doorCenterX = door.x;
+			const doorCenterY = door.y;
+
+			// Calculate direction from door center to player
+			const dx = this.player.x - doorCenterX;
+			const dy = this.player.y - doorCenterY;
+			const distance = Math.sqrt(dx * dx + dy * dy);
+
+			if (distance > 0) {
+				// Normalize direction and push player out
+				const normalizedDx = dx / distance;
+				const normalizedDy = dy / distance;
+
+				// Calculate safe position outside the door
+				const pushDistance = Math.max(door.width, door.height) / 2 + safeDistance;
+				this.player.x = doorCenterX + normalizedDx * pushDistance;
+				this.player.y = doorCenterY + normalizedDy * pushDistance;
+
+				console.log('[DOOR] Pushed player out of closed door to:', this.player.x.toFixed(1), this.player.y.toFixed(1));
+			}
+		}
+	}
+
+	private handleDoorActivation(): void {
+		const interactionRadius = 30; // Player can interact with doors within this distance
+
+		// Find the closest door within interaction range
+		let closestDoor: any = null;
+		let closestDistance = Infinity;
+
+		for (const door of this.doors) {
+			const distance = Math.sqrt((this.player.x - door.x) ** 2 + (this.player.y - door.y) ** 2);
+			if (distance <= interactionRadius && distance < closestDistance) {
+				closestDistance = distance;
+				closestDoor = door;
+			}
+		}
+
+		if (closestDoor) {
+			this.activateDoor(closestDoor.id);
+		} else {
+			console.log('[INTERACTION] No doors nearby to activate');
+		}
+	}
+
+	public activateDoor(doorId: string): boolean {
+		const door = this.doors.find(d => d.id === doorId);
+		if (!door) {
+			console.log('[DOOR] Door not found:', doorId);
+			return false;
+		}
+
+		// Check if door can be activated
+		if (door.state === 'locked') {
+			console.log('[DOOR] Cannot activate locked door:', doorId);
+			return false;
+		}
+
+		// Check if player has required power/items (placeholder for future implementation)
+		if (door.power_required > 0) {
+			console.log('[DOOR] Door requires power:', door.power_required);
+			// TODO: Check if player/ship has enough power
+		}
+
+		// Toggle door state
+		if (door.state === 'opened') {
+			door.state = 'closed';
+			console.log('[DOOR] Closed door:', doorId);
+
+			// Check if player is inside the door and push them out
+			this.pushPlayerOutOfDoor(door);
+		} else if (door.state === 'closed') {
+			door.state = 'opened';
+			console.log('[DOOR] Opened door:', doorId);
+		}
+
+		// Re-render doors to show state change
+		this.renderRooms();
+
+		return true;
 	}
 
 	public setMenuOpen(isOpen: boolean) {
@@ -619,9 +901,28 @@ export class Game {
 	private renderDoor(door: DoorTemplate) {
 		if (!this.doorsLayer) return;
 
-		// Create door graphics (purple rectangle)
+		// Create door graphics with color based on state
 		const doorGraphics = new PIXI.Graphics();
-		doorGraphics.rect(-door.width/2, -door.height/2, door.width, door.height).fill(0x8A2BE2); // Purple color like in admin
+
+		// Choose color based on door state
+		let doorColor: number;
+		switch (door.state) {
+			case 'opened':
+				doorColor = 0x00FF00; // Green for open doors
+				break;
+			case 'locked':
+				doorColor = 0x800000; // Dark red for locked doors
+				break;
+			case 'closed':
+			default:
+				doorColor = 0xFF0000; // Red for closed doors
+				break;
+		}
+
+		doorGraphics.rect(-door.width/2, -door.height/2, door.width, door.height).fill(doorColor);
+
+		// Add a white border for visibility
+		doorGraphics.rect(-door.width/2, -door.height/2, door.width, door.height).stroke({ color: 0xFFFFFF, width: 2 });
 
 		// Position door
 		doorGraphics.x = door.x;
@@ -630,7 +931,7 @@ export class Game {
 
 		this.doorsLayer.addChild(doorGraphics);
 
-		console.log(`[DEBUG] Rendered door at (${door.x}, ${door.y}) size (${door.width}x${door.height})`);
+		console.log(`[DEBUG] Rendered door at (${door.x}, ${door.y}) size (${door.width}x${door.height}) state: ${door.state}`);
 	}
 
 	private renderFurnitureItem(furniture: RoomFurniture) {
