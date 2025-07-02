@@ -8,6 +8,9 @@ import { useNavigate } from 'react-router';
 import { GAMEPAD_BUTTONS } from '../constants/gamepad';
 import { Game } from '../game';
 import { useGameController } from '../services/game-controller';
+import { ResourceBar } from '../components/resource-bar';
+import { InventoryModal } from '../components/inventory-modal';
+import { useGameState } from '../contexts/game-state-context';
 
 type Direction = 'up' | 'down' | 'left' | 'right';
 type MenuAction = 'pause' | 'back' | 'activate';
@@ -39,6 +42,8 @@ export const GamePage: React.FC = () => {
 	const [showPause, setShowPause] = useState(false);
 	const [showSettings, setShowSettings] = useState(false);
 	const [showDebug, setShowDebug] = useState(false);
+	const [showInventory, setShowInventory] = useState(false);
+	const [inventoryTab, setInventoryTab] = useState(0);
 	const [speed, setSpeed] = useState(4);
 	const [keybindings, setKeybindings] = useState<Keybindings>(DEFAULT_KEYBINDINGS);
 	const [gamepadBindings, setGamepadBindings] = useState<GamepadBindings>(DEFAULT_GAMEPAD_BINDINGS);
@@ -49,6 +54,9 @@ export const GamePage: React.FC = () => {
 
 	// Use the centralized game controller service
 	const controller = useGameController();
+	
+	// Game state for resource management
+	const gameState = useGameState();
 
 	// Fullscreen detection
 	useEffect(() => {
@@ -127,22 +135,35 @@ export const GamePage: React.FC = () => {
 
 	}, [speed, keybindings, gamepadBindings]);
 
+	// Use refs to avoid stale closure issues
+	const stateRef = useRef({
+		showPause,
+		showSettings,
+		showDebug,
+		showInventory,
+		focusedMenuItem,
+		inventoryTab
+	});
+	
+	// Update refs when state changes
+	useEffect(() => {
+		stateRef.current = {
+			showPause,
+			showSettings,
+			showDebug,
+			showInventory,
+			focusedMenuItem,
+			inventoryTab
+		};
+	}, [showPause, showSettings, showDebug, showInventory, focusedMenuItem, inventoryTab]);
+
 	// Game controller event subscriptions
 	useEffect(() => {
 		if (!controller.isConnected) return;
 
 		console.log('[GAME-PAGE-CONTROLLER] Setting up controller event subscriptions');
 
-		// Pause button handling (START or BACK buttons)
-		const unsubscribePauseStart = controller.onButtonRelease('START', () => {
-			console.log('[GAME-PAGE-CONTROLLER] START button released - toggling pause');
-			setShowPause(prev => {
-				console.log('[GAME-PAGE-CONTROLLER] Pause toggled from', prev, 'to', !prev);
-				return !prev;
-			});
-			setFocusedMenuItem(0);
-		});
-
+		// Pause button handling (BACK button only)
 		const unsubscribePauseBack = controller.onButtonRelease('BACK', () => {
 			console.log('[GAME-PAGE-CONTROLLER] BACK button released - toggling pause');
 			setShowPause(prev => {
@@ -152,38 +173,61 @@ export const GamePage: React.FC = () => {
 			setFocusedMenuItem(0);
 		});
 
+		// Inventory button handling (START button)
+		const unsubscribeInventory = controller.onButtonRelease('START', () => {
+			console.log('[GAME-PAGE-CONTROLLER] START button released - toggling inventory');
+			setShowInventory(prev => {
+				console.log('[GAME-PAGE-CONTROLLER] Inventory toggled from', prev, 'to', !prev);
+				return !prev;
+			});
+			setInventoryTab(0);
+		});
+
 		// Menu navigation (only when menus are open)
 		const unsubscribeUpNav = controller.onButtonRelease('DPAD_UP', () => {
-			if (showPause || showSettings || showDebug) {
+			const state = stateRef.current;
+			if (state.showPause || state.showSettings || state.showDebug) {
 				console.log('[GAME-PAGE-CONTROLLER] D-pad UP released - menu navigation');
-				const menuItemCount = showPause ? 5 : 1;
+				const menuItemCount = state.showPause ? 5 : 1;
 				setFocusedMenuItem(prev => (prev > 0 ? prev - 1 : menuItemCount - 1));
+			} else if (state.showInventory) {
+				console.log('[GAME-PAGE-CONTROLLER] D-pad UP released - inventory tab navigation');
+				setInventoryTab(prev => (prev > 0 ? prev - 1 : 4));
 			}
 		});
 
 		const unsubscribeDownNav = controller.onButtonRelease('DPAD_DOWN', () => {
-			if (showPause || showSettings || showDebug) {
+			const state = stateRef.current;
+			if (state.showPause || state.showSettings || state.showDebug) {
 				console.log('[GAME-PAGE-CONTROLLER] D-pad DOWN released - menu navigation');
-				const menuItemCount = showPause ? 5 : 1;
+				const menuItemCount = state.showPause ? 5 : 1;
 				setFocusedMenuItem(prev => (prev < menuItemCount - 1 ? prev + 1 : 0));
+			} else if (state.showInventory) {
+				console.log('[GAME-PAGE-CONTROLLER] D-pad DOWN released - inventory tab navigation');
+				setInventoryTab(prev => (prev < 4 ? prev + 1 : 0));
 			}
 		});
 
 		// Menu back button (B button)
 		const unsubscribeMenuBack = controller.onButtonRelease('B', () => {
-			if (showPause || showSettings || showDebug) {
+			const state = stateRef.current;
+			if (state.showPause || state.showSettings || state.showDebug) {
 				console.log('[GAME-PAGE-CONTROLLER] B button released - closing menus');
 				setShowPause(false);
 				setShowSettings(false);
 				setShowDebug(false);
+			} else if (state.showInventory) {
+				console.log('[GAME-PAGE-CONTROLLER] B button released - closing inventory');
+				setShowInventory(false);
 			}
 		});
 
 		// Menu activate button (A button)
 		const unsubscribeMenuActivate = controller.onButtonRelease('A', () => {
-			if (showPause) {
-				console.log('[GAME-PAGE-CONTROLLER] A button released - activating menu item:', focusedMenuItem);
-				switch (focusedMenuItem) {
+			const state = stateRef.current;
+			if (state.showPause) {
+				console.log('[GAME-PAGE-CONTROLLER] A button released - activating menu item:', state.focusedMenuItem);
+				switch (state.focusedMenuItem) {
 				case 0: // Resume
 					console.log('[GAME-PAGE-CONTROLLER] Resuming game');
 					setShowPause(false);
@@ -208,47 +252,57 @@ export const GamePage: React.FC = () => {
 					setFocusedMenuItem(0);
 					break;
 				}
-			} else if (showSettings) {
+			} else if (state.showSettings) {
 				console.log('[GAME-PAGE-CONTROLLER] Closing settings menu');
 				setShowSettings(false);
-			} else if (showDebug) {
+			} else if (state.showDebug) {
 				console.log('[GAME-PAGE-CONTROLLER] Closing debug menu');
 				setShowDebug(false);
+			} else if (state.showInventory) {
+				console.log('[GAME-PAGE-CONTROLLER] A button released - inventory interaction');
+				// For now, just close inventory on A press - could add item selection later
+				setShowInventory(false);
 			}
 		});
 
 		// Cleanup subscriptions
 		return () => {
 			console.log('[GAME-PAGE-CONTROLLER] Cleaning up controller subscriptions');
-			unsubscribePauseStart();
 			unsubscribePauseBack();
+			unsubscribeInventory();
 			unsubscribeUpNav();
 			unsubscribeDownNav();
 			unsubscribeMenuBack();
 			unsubscribeMenuActivate();
 		};
-	}, [controller, showPause, showSettings, showDebug, focusedMenuItem, navigate]);
+	}, [controller]);
 
 	// Update game menu state when any menu opens/closes
 	useEffect(() => {
 		if (gameRef.current) {
-			const menuOpen = showPause || showSettings || showDebug;
+			const menuOpen = showPause || showSettings || showDebug || showInventory;
 			gameRef.current.setMenuOpen(menuOpen);
 			console.log('[GAME-PAGE-CONTROLLER] Game menu state updated:', {
 				menuOpen,
 				showPause,
 				showSettings,
 				showDebug,
+				showInventory,
 				timestamp: new Date().toISOString(),
 			});
 		}
-	}, [showPause, showSettings, showDebug]);
+	}, [showPause, showSettings, showDebug, showInventory]);
 
 	// Keyboard controls
 	useEffect(() => {
 		const handleKeyDown = (e: KeyboardEvent) => {
 			if (e.key === 'Escape') {
 				setShowPause((prev) => !prev);
+			}
+			if (e.key === 'i' || e.key === 'I' || e.key === 'Tab') {
+				e.preventDefault();
+				setShowInventory((prev) => !prev);
+				setInventoryTab(0);
 			}
 			if (listeningKey) {
 				setKeybindings((prev) => {
@@ -265,6 +319,37 @@ export const GamePage: React.FC = () => {
 		return () => document.removeEventListener('keydown', handleKeyDown);
 	}, [listeningKey]);
 
+	// Resource display data (use actual game state or defaults)
+	const destinyStatus = gameState.destinyStatus || {
+		id: 'destiny-1',
+		name: 'Destiny',
+		power: 85,
+		max_power: 100,
+		shields: 67,
+		max_shields: 100,
+		hull: 92,
+		max_hull: 100,
+		water: 78,
+		max_water: 100,
+		food: 45,
+		max_food: 100,
+		spare_parts: 34,
+		max_spare_parts: 100,
+		medical_supplies: 89,
+		max_medical_supplies: 100,
+		race_id: 'ancient',
+		location: '{}',
+		co2: 0.04,
+		o2: 20.9,
+		co2Scrubbers: 5,
+		weapons: '{}',
+		shuttles: '{}',
+		game_days: 15,
+		game_hours: 8,
+		ftl_status: 'normal_space' as const,
+		next_ftl_transition: 0,
+	};
+
 	return (
 		<Container
 			fluid
@@ -276,8 +361,33 @@ export const GamePage: React.FC = () => {
 				cursor: isFullscreen ? 'none' : 'default',
 			}}
 		>
+			{/* Resource Bar */}
+			<ResourceBar
+				power={destinyStatus.power}
+				maxPower={destinyStatus.max_power}
+				shields={destinyStatus.shields}
+				maxShields={destinyStatus.max_shields}
+				hull={destinyStatus.hull}
+				maxHull={destinyStatus.max_hull}
+				water={destinyStatus.water}
+				maxWater={destinyStatus.max_water}
+				food={destinyStatus.food}
+				maxFood={destinyStatus.max_food}
+				spareParts={destinyStatus.spare_parts}
+				maxSpareParts={destinyStatus.max_spare_parts}
+				medicalSupplies={destinyStatus.medical_supplies}
+				maxMedicalSupplies={destinyStatus.max_medical_supplies}
+				co2={destinyStatus.co2}
+				o2={destinyStatus.o2}
+				gameDays={destinyStatus.game_days}
+				gameHours={destinyStatus.game_hours}
+				ftlStatus={destinyStatus.ftl_status}
+				nextFtlTransition={destinyStatus.next_ftl_transition}
+				characterCount={gameState.characters.length || 4}
+			/>
+
 			{!isFullscreen && (
-				<div style={{ position: 'absolute', top: 16, left: 16, zIndex: 10 }}>
+				<div style={{ position: 'absolute', top: 56, left: 16, zIndex: 10 }}>
 					<Button variant="secondary" onClick={() => navigate('/')}>Back to Menu</Button>
 				</div>
 			)}
@@ -290,6 +400,7 @@ export const GamePage: React.FC = () => {
 					position: 'relative',
 					zIndex: 1,
 					cursor: isFullscreen ? 'none' : 'default',
+					paddingTop: '48px', // Add padding for resource bar
 				}}
 			/>
 
@@ -490,6 +601,18 @@ export const GamePage: React.FC = () => {
 					<Button variant="secondary" onClick={() => setShowDebug(false)}>Close</Button>
 				</Modal.Footer>
 			</Modal>
+
+			{/* Inventory Modal */}
+			<InventoryModal
+				show={showInventory}
+				onHide={() => setShowInventory(false)}
+				destinyStatus={destinyStatus}
+				characters={gameState.characters}
+				technologies={gameState.technologies}
+				exploredRooms={gameState.exploredRooms}
+				focusedTab={inventoryTab}
+				onTabChange={setInventoryTab}
+			/>
 		</Container>
 	);
 };

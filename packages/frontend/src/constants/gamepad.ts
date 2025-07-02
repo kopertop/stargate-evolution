@@ -54,7 +54,11 @@ export const CONTROL_SCHEME = {
 	},
 	pause: {
 		keyboard: ['ESC'],
-		gamepad: ['Start', 'Back/Select'],
+		gamepad: ['Back/Select'],
+	},
+	inventory: {
+		keyboard: ['I', 'Tab'],
+		gamepad: ['Start button'],
 	},
 	menuNavigation: {
 		keyboard: ['WASD', 'Arrow Keys'],
