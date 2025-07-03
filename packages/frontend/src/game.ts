@@ -15,10 +15,6 @@ const STAR_COUNT = 200;
 const STAR_COLOR = 0xffffff;
 const STAR_RADIUS = 1.5;
 
-// Door configuration constants - EASILY ADJUSTABLE FOR FUTURE CHANGES
-const DOOR_WIDTH = 64; // Width of doors (was 32, now doubled) - Adjust this to change all door widths
-const DOOR_HEIGHT = 16; // Height of doors (was 8, now doubled) - Adjust this to change all door heights
-
 // Player configuration constants
 const PLAYER_RADIUS = 5; // Player radius (was 10, now halved)
 const DEFAULT_ZOOM = 2.0; // Default zoom level (was 1.0, now more zoomed in)
@@ -710,7 +706,7 @@ export class Game {
 		this.player.x = x;
 		this.player.y = y;
 		console.log('[GAME] Player position restored to:', { x, y, roomId });
-		
+
 		// If roomId is provided, validate that the room exists
 		if (roomId) {
 			const room = this.rooms.find(r => r.id === roomId);
@@ -724,7 +720,7 @@ export class Game {
 
 	public restoreDoorStates(doorStates: any[]) {
 		console.log('[GAME] Restoring door states:', doorStates.length, 'doors');
-		
+
 		// Update door states in our internal doors array
 		doorStates.forEach(savedDoor => {
 			const doorIndex = this.doors.findIndex(d => d.id === savedDoor.id);
@@ -736,7 +732,7 @@ export class Game {
 				console.warn('[GAME] Door not found for restoration:', savedDoor.id);
 			}
 		});
-		
+
 		// Re-render rooms to reflect door state changes
 		this.renderRooms();
 	}
@@ -948,10 +944,10 @@ export class Game {
 		this.rooms = realRooms;
 		this.doors = realDoors;
 		this.furniture = realFurniture;
-		
+
 		console.log('[DEBUG] Loaded room data from API successfully');
 		console.log('[DEBUG] Rooms:', this.rooms.map(r => ({ id: r.id, name: r.name, type: r.type })));
-		
+
 		// Hide starfield since we have rooms
 		this.starfield.visible = false;
 		// Change background color for room view
