@@ -703,7 +703,7 @@ export class Game {
 		console.log('[GAME] Destroying game instance');
 		this.isDestroyed = true;
 		this.pendingRestoration = null;
-		
+
 		// Cleanup controller subscriptions
 		this.controllerUnsubscribers.forEach(unsubscribe => unsubscribe());
 		this.controllerUnsubscribers = [];

@@ -29,7 +29,7 @@ export const App: React.FC = () => {
 				<Router>
 					<Routes>
 						<Route path="/" element={<MenuPage />} />
-						<Route path="/game" element={<GamePage />} />
+						<Route path="/game/:id" element={<GamePage />} />
 						<Route path="/admin" element={<AdminLayout />}>
 							<Route index element={<AdminOverview />} />
 							<Route path="characters" element={<AdminCharacters />} />

@@ -415,9 +415,8 @@ export const GameStateProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 			setGameName(savedGame.name);
 			setIsInitialized(true);
 
-			// Store game data for game engine restoration when it's ready
-			// This will be picked up by the GamePage component
-			(window as any).loadedGameData = gameData;
+			// Game data will be passed to GameRenderer via props
+			// No need to store in global window object anymore
 
 			// Save to local storage as backup
 			localStorage.setItem('stargate-current-game-id', newGameId);
