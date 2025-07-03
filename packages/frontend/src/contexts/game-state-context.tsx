@@ -137,8 +137,6 @@ export const GameStateProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 				co2Scrubbers: 5,
 				weapons: '{}',
 				shuttles: '{}',
-				game_days: 0,
-				game_hours: 0,
 				current_time: 0, // Start at mission beginning
 				next_jump_time: randomJumpSeconds, // Random 4-48 hours in seconds
 				time_speed: 1, // 1 second per second by default
@@ -226,11 +224,6 @@ export const GameStateProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 					// Advance current_time by time_speed seconds per second
 					const newCurrentTime = prev.current_time + prev.time_speed;
 
-					// Update legacy game_days and game_hours for backward compatibility
-					const totalHours = newCurrentTime / 3600; // Convert seconds to hours
-					const newDays = Math.floor(totalHours / 24);
-					const newHours = totalHours % 24;
-
 					// Check for FTL transition
 					let newFtlStatus = prev.ftl_status;
 					let newNextJumpTime = prev.next_jump_time;
@@ -255,8 +248,6 @@ export const GameStateProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 						...prev,
 						current_time: newCurrentTime,
 						next_jump_time: newNextJumpTime,
-						game_hours: newHours,
-						game_days: newDays,
 						next_ftl_transition: newFtlTransition,
 						ftl_status: newFtlStatus,
 					};

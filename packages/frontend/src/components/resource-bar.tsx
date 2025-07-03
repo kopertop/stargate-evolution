@@ -32,8 +32,6 @@ interface ResourceBarProps {
   maxMedicalSupplies: number;
   co2: number;
   o2: number;
-  gameDays: number;
-  gameHours: number;
   ftlStatus: string;
   nextFtlTransition: number;
   timeSpeed: number;
@@ -145,19 +143,12 @@ export const ResourceBar: React.FC<ResourceBarProps> = ({
 	maxMedicalSupplies,
 	co2,
 	o2,
-	gameDays,
-	gameHours,
 	ftlStatus,
 	nextFtlTransition,
 	timeSpeed,
 	characterCount,
 	currentTime,
 }) => {
-	// Calculate total time for display
-	const totalTime = gameDays + (gameHours / 24);
-	// Use currentTime (seconds) if available, otherwise fall back to legacy gameDays/gameHours
-	const totalTimeInHours = currentTime ? (currentTime / 3600) : (gameDays * 24 + gameHours);
-
 	return (
 		<div
 			style={{
@@ -272,7 +263,7 @@ export const ResourceBar: React.FC<ResourceBarProps> = ({
 							{/* Time */}
 							<ResourceItem
 								icon={<FaClock />}
-								current={totalTime}
+								current={currentTime ?? 0}
 								label="Mission Time"
 								color="#20c997"
 								format="time"

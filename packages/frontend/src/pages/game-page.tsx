@@ -136,12 +136,12 @@ export const GamePage: React.FC = () => {
 				if (canvasRef.current) {
 					canvasRef.current.innerHTML = `
 						<div style="
-							display: flex; 
-							align-items: center; 
-							justify-content: center; 
-							height: 100vh; 
-							color: #ff6b6b; 
-							font-size: 18px; 
+							display: flex;
+							align-items: center;
+							justify-content: center;
+							height: 100vh;
+							color: #ff6b6b;
+							font-size: 18px;
 							text-align: center;
 							background: #1a1a1a;
 							padding: 20px;
@@ -412,14 +412,14 @@ export const GamePage: React.FC = () => {
 			if (gameRef.current) {
 				const currentPosition = gameRef.current.getPlayerPosition();
 				const currentRoomId = gameRef.current.getCurrentRoomId();
-				
+
 				// Only update if position has changed significantly (avoid excessive updates)
 				if (gameState.playerPosition) {
 					const { x: oldX, y: oldY, roomId: oldRoomId } = gameState.playerPosition;
-					const positionChanged = Math.abs(currentPosition.x - oldX) > 5 || 
-											Math.abs(currentPosition.y - oldY) > 5 || 
+					const positionChanged = Math.abs(currentPosition.x - oldX) > 5 ||
+											Math.abs(currentPosition.y - oldY) > 5 ||
 											currentRoomId !== oldRoomId;
-					
+
 					if (positionChanged) {
 						gameState.setPlayerPosition({
 							x: currentPosition.x,
@@ -519,8 +519,7 @@ export const GamePage: React.FC = () => {
 				maxMedicalSupplies={destinyStatus.max_medical_supplies}
 				co2={destinyStatus.co2}
 				o2={destinyStatus.o2}
-				gameDays={destinyStatus.game_days}
-				gameHours={destinyStatus.game_hours}
+				currentTime={destinyStatus.current_time}
 				ftlStatus={destinyStatus.ftl_status}
 				nextFtlTransition={destinyStatus.next_ftl_transition}
 				timeSpeed={destinyStatus.time_speed}

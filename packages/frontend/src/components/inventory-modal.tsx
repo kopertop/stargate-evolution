@@ -1,13 +1,13 @@
 import { DestinyStatus, Character } from '@stargate/common';
 import React, { useState } from 'react';
 import { Modal, Container, Row, Col, Card, ProgressBar, Badge, Table, Nav, ButtonGroup, Button } from 'react-bootstrap';
-import { 
-	FaBolt, 
-	FaShieldAlt, 
-	FaHeart, 
-	FaTint, 
-	FaUtensils, 
-	FaCog, 
+import {
+	FaBolt,
+	FaShieldAlt,
+	FaHeart,
+	FaTint,
+	FaUtensils,
+	FaCog,
 	FaMedkit,
 	FaClock,
 	FaRocket,
@@ -26,37 +26,37 @@ import {
 } from 'react-icons/fa';
 
 interface InventoryModalProps {
-  show: boolean;
-  onHide: () => void;
-  destinyStatus: DestinyStatus;
-  characters: Character[];
-  technologies: string[];
-  exploredRooms: string[];
-  focusedTab: number;
-  onTabChange: (tabIndex: number) => void;
-  onStartFTLJump?: (hours: number) => void;
-  onExitFTL?: () => void;
-  onSetTimeSpeed?: (speed: number) => void;
+	show: boolean;
+	onHide: () => void;
+	destinyStatus: DestinyStatus;
+	characters: Character[];
+	technologies: string[];
+	exploredRooms: string[];
+	focusedTab: number;
+	onTabChange: (tabIndex: number) => void;
+	onStartFTLJump?: (hours: number) => void;
+	onExitFTL?: () => void;
+	onSetTimeSpeed?: (speed: number) => void;
 }
 
 interface ResourceCardProps {
-  icon: React.ReactNode;
-  title: string;
-  current: number;
-  max?: number;
-  color: string;
-  description: string;
-  format?: 'percentage' | 'number' | 'time';
+	icon: React.ReactNode;
+	title: string;
+	current: number;
+	max?: number;
+	color: string;
+	description: string;
+	format?: 'percentage' | 'number' | 'time';
 }
 
-const ResourceCard: React.FC<ResourceCardProps> = ({ 
-	icon, 
-	title, 
-	current, 
-	max, 
-	color, 
+const ResourceCard: React.FC<ResourceCardProps> = ({
+	icon,
+	title,
+	current,
+	max,
+	color,
 	description,
-	format = 'number', 
+	format = 'number',
 }) => {
 	const getPercentage = () => {
 		if (!max) return 100;
@@ -93,26 +93,26 @@ const ResourceCard: React.FC<ResourceCardProps> = ({
 						{title}
 					</Card.Title>
 				</div>
-        
+
 				{max && (
-					<ProgressBar 
-						variant={getVariant()} 
-						now={getPercentage()} 
+					<ProgressBar
+						variant={getVariant()}
+						now={getPercentage()}
 						className="mb-2"
 						style={{ height: '8px' }}
 					/>
 				)}
-        
+
 				<div style={{ color: 'white', fontWeight: 'bold', fontSize: '1.1rem' }}>
 					{getDisplayValue()}
 				</div>
-        
+
 				{max && (
 					<div style={{ color: color, fontSize: '0.9rem' }}>
 						{getPercentage()}%
 					</div>
 				)}
-        
+
 				<div style={{ color: '#aaa', fontSize: '0.8rem', marginTop: '8px' }}>
 					{description}
 				</div>
@@ -147,7 +147,7 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
 		const timeToJump = Math.max(0, destinyStatus.next_jump_time - destinyStatus.current_time);
 		const timeToJumpHours = Math.floor(timeToJump / 60);
 		const timeToJumpMinutes = Math.round(timeToJump % 60);
-    
+
 		const currentTimeHours = Math.floor(destinyStatus.current_time / 60);
 		const currentTimeDays = Math.floor(currentTimeHours / 24);
 		const currentTimeDisplayHours = currentTimeHours % 24;
@@ -159,29 +159,29 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
 				<div style={{ marginBottom: '2rem' }}>
 					<h6 style={{ color: 'white', marginBottom: '1rem', borderBottom: '2px solid #007bff', paddingBottom: '0.5rem' }}>
 						<FaClock style={{ marginRight: '8px', color: '#007bff' }} />
-            Mission Time & FTL Status
+						Mission Time & FTL Status
 					</h6>
-          
+
 					<Row>
 						<Col lg={6} className="mb-3">
-							<Card className="h-100" style={{ 
-								background: 'rgba(13, 110, 253, 0.1)', 
+							<Card className="h-100" style={{
+								background: 'rgba(13, 110, 253, 0.1)',
 								border: '2px solid #007bff',
 								borderRadius: '12px',
 							}}>
 								<Card.Body>
 									<div className="text-center">
 										<div style={{ color: '#007bff', fontSize: '1.1rem', fontWeight: '600', marginBottom: '8px' }}>
-                      Current Mission Time
+											Current Mission Time
 										</div>
-										<div style={{ 
-											color: 'white', 
-											fontSize: '1.8rem', 
+										<div style={{
+											color: 'white',
+											fontSize: '1.8rem',
 											fontWeight: 'bold',
 											marginBottom: '4px',
 											fontFamily: 'monospace',
 										}}>
-                      Day {currentTimeDays} • {String(currentTimeDisplayHours).padStart(2, '0')}:{String(currentTimeDisplayMinutes).padStart(2, '0')}
+											Day {currentTimeDays} • {String(currentTimeDisplayHours).padStart(2, '0')}:{String(currentTimeDisplayMinutes).padStart(2, '0')}
 										</div>
 										<div style={{ color: '#aaa', fontSize: '0.85rem' }}>
 											{destinyStatus.current_time.toLocaleString()} minutes elapsed
@@ -190,31 +190,31 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
 								</Card.Body>
 							</Card>
 						</Col>
-            
+
 						<Col lg={6} className="mb-3">
-							<Card className="h-100" style={{ 
-								background: destinyStatus.ftl_status === 'ftl' 
-									? 'rgba(13, 110, 253, 0.1)' 
-									: 'rgba(40, 167, 69, 0.1)', 
+							<Card className="h-100" style={{
+								background: destinyStatus.ftl_status === 'ftl'
+									? 'rgba(13, 110, 253, 0.1)'
+									: 'rgba(40, 167, 69, 0.1)',
 								border: `2px solid ${destinyStatus.ftl_status === 'ftl' ? '#007bff' : '#28a745'}`,
 								borderRadius: '12px',
 							}}>
 								<Card.Body>
 									<div className="text-center">
-										<div style={{ 
-											color: destinyStatus.ftl_status === 'ftl' ? '#007bff' : '#28a745', 
-											fontSize: '1.1rem', 
-											fontWeight: '600', 
-											marginBottom: '8px', 
+										<div style={{
+											color: destinyStatus.ftl_status === 'ftl' ? '#007bff' : '#28a745',
+											fontSize: '1.1rem',
+											fontWeight: '600',
+											marginBottom: '8px',
 										}}>
 											{destinyStatus.ftl_status === 'ftl' ? 'FTL Jump Countdown' : 'Normal Space'}
 										</div>
-                    
+
 										{destinyStatus.ftl_status === 'ftl' && timeToJump > 0 ? (
 											<div>
-												<div style={{ 
-													color: '#ffc107', 
-													fontSize: '1.8rem', 
+												<div style={{
+													color: '#ffc107',
+													fontSize: '1.8rem',
 													fontWeight: 'bold',
 													marginBottom: '4px',
 													fontFamily: 'monospace',
@@ -222,21 +222,21 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
 													{timeToJumpHours}h {timeToJumpMinutes}m
 												</div>
 												<div style={{ color: '#aaa', fontSize: '0.85rem' }}>
-                          Until drop from hyperspace
+													Until drop from hyperspace
 												</div>
 											</div>
 										) : (
 											<div>
-												<div style={{ 
-													color: destinyStatus.ftl_status === 'ftl' ? '#007bff' : '#28a745', 
-													fontSize: '1.4rem', 
+												<div style={{
+													color: destinyStatus.ftl_status === 'ftl' ? '#007bff' : '#28a745',
+													fontSize: '1.4rem',
 													fontWeight: 'bold',
 													marginBottom: '4px',
 												}}>
 													{destinyStatus.ftl_status === 'ftl' ? 'HYPERSPACE' : 'READY'}
 												</div>
 												<div style={{ color: '#aaa', fontSize: '0.85rem' }}>
-													{destinyStatus.ftl_status === 'ftl' 
+													{destinyStatus.ftl_status === 'ftl'
 														? 'No scheduled exit time'
 														: 'Ready for FTL jump'
 													}
@@ -248,36 +248,36 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
 							</Card>
 						</Col>
 					</Row>
-          
+
 					{/* Time Speed Controls */}
 					<div style={{ marginTop: '1rem' }}>
 						<div style={{ color: 'white', fontSize: '0.9rem', marginBottom: '0.5rem', textAlign: 'center' }}>
-              Time Speed: <strong>{destinyStatus.time_speed}x</strong> ({destinyStatus.time_speed} minutes per second)
+							Time Speed: <strong>{destinyStatus.time_speed}x</strong> ({destinyStatus.time_speed} minutes per second)
 						</div>
 						<div className="d-flex justify-content-center">
 							<ButtonGroup size="sm">
-								<Button 
+								<Button
 									variant={destinyStatus.time_speed === 0 ? 'warning' : 'outline-warning'}
 									onClick={() => onSetTimeSpeed?.(0)}
 									title="Pause time"
 								>
 									<FaPause /> Pause
 								</Button>
-								<Button 
+								<Button
 									variant={destinyStatus.time_speed === 1 ? 'success' : 'outline-success'}
 									onClick={() => onSetTimeSpeed?.(1)}
 									title="Normal time (1 minute per second)"
 								>
 									<FaPlay /> 1x
 								</Button>
-								<Button 
+								<Button
 									variant={destinyStatus.time_speed === 5 ? 'info' : 'outline-info'}
 									onClick={() => onSetTimeSpeed?.(5)}
 									title="Fast time (5 minutes per second)"
 								>
 									<FaFastForward /> 5x
 								</Button>
-								<Button 
+								<Button
 									variant={destinyStatus.time_speed === 10 ? 'primary' : 'outline-primary'}
 									onClick={() => onSetTimeSpeed?.(10)}
 									title="Very fast time (10 minutes per second)"
@@ -291,7 +291,7 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
 
 				{/* Ship Systems */}
 				<h6 style={{ color: 'white', marginBottom: '1rem', borderBottom: '1px solid #6c757d', paddingBottom: '0.5rem' }}>
-          Ship Systems Status
+					Ship Systems Status
 				</h6>
 				<Row>
 					<Col md={4} className="mb-3">
@@ -398,7 +398,7 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
 				<FaUsers style={{ color: '#6f42c1', fontSize: '1.5rem', marginRight: '10px' }} />
 				<h5 style={{ color: 'white', margin: 0 }}>Active Crew Members: {characters.length}</h5>
 			</div>
-      
+
 			{characters.length > 0 ? (
 				<Table variant="dark" striped>
 					<thead>
@@ -416,8 +416,8 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
 								<td>
 									<div className="d-flex align-items-center">
 										{character.image && (
-											<img 
-												src={character.image} 
+											<img
+												src={character.image}
 												alt={character.name}
 												style={{ width: '32px', height: '32px', borderRadius: '50%', marginRight: '8px' }}
 											/>
@@ -429,9 +429,9 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
 									<Badge bg="secondary">{character.role}</Badge>
 								</td>
 								<td>
-									<ProgressBar 
+									<ProgressBar
 										variant={character.health > 75 ? 'success' : character.health > 40 ? 'warning' : 'danger'}
-										now={character.health} 
+										now={character.health}
 										label={`${character.health}%`}
 										style={{ minWidth: '80px' }}
 									/>
@@ -461,7 +461,7 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
 				<FaFlask style={{ color: '#20c997', fontSize: '1.5rem', marginRight: '10px' }} />
 				<h5 style={{ color: 'white', margin: 0 }}>Discovered Technologies: {technologies.length}</h5>
 			</div>
-      
+
 			{technologies.length > 0 ? (
 				<Row>
 					{technologies.map((techId, index) => (
@@ -471,11 +471,11 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
 									<div className="d-flex align-items-center">
 										<FaBroadcastTower style={{ color: '#20c997', marginRight: '8px' }} />
 										<Card.Title style={{ color: 'white', margin: 0, fontSize: '0.9rem' }}>
-                      Technology #{techId}
+											Technology #{techId}
 										</Card.Title>
 									</div>
 									<div style={{ color: '#aaa', fontSize: '0.8rem', marginTop: '8px' }}>
-                    Ancient technology discovered during exploration.
+										Ancient technology discovered during exploration.
 									</div>
 								</Card.Body>
 							</Card>
@@ -505,13 +505,13 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
 					<FaMapMarkerAlt style={{ color: '#fd7e14', fontSize: '1.5rem', marginRight: '10px' }} />
 					<h5 style={{ color: 'white', margin: 0 }}>Navigation & Exploration</h5>
 				</div>
-        
+
 				<Row>
 					<Col md={4} className="mb-3">
 						<ResourceCard
 							icon={<FaClock />}
 							title="Mission Time"
-							current={destinyStatus.game_days * 24 + destinyStatus.game_hours}
+							current={destinyStatus.current_time}
 							color="#20c997"
 							description="Total time elapsed since mission began."
 							format="time"
@@ -534,23 +534,23 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
 										<FaMapMarkerAlt />
 									</span>
 									<Card.Title style={{ color: 'white', margin: 0, fontSize: '1rem' }}>
-                    Current Location
+										Current Location
 									</Card.Title>
 								</div>
-                
+
 								<div style={{ color: 'white', fontWeight: 'bold', fontSize: '0.9rem', marginBottom: '4px' }}>
 									{destinyStatus.ftl_status === 'ftl' ? 'Hyperspace' : locationInfo.system || 'Unknown System'}
 								</div>
-                
+
 								{destinyStatus.ftl_status !== 'ftl' && (
 									<div style={{ color: '#aaa', fontSize: '0.8rem' }}>
 										{locationInfo.galaxy || 'Unknown Galaxy'}
 										{locationInfo.sector && ` • Sector ${locationInfo.sector}`}
 									</div>
 								)}
-                
+
 								<div style={{ color: '#aaa', fontSize: '0.8rem', marginTop: '8px' }}>
-									{destinyStatus.ftl_status === 'ftl' 
+									{destinyStatus.ftl_status === 'ftl'
 										? `Traveling at faster-than-light speed.${destinyStatus.next_ftl_transition > 0 ? ` Dropping out in ${destinyStatus.next_ftl_transition.toFixed(1)}h.` : ''}`
 										: 'Ship position in current star system.'
 									}
@@ -565,19 +565,19 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
 					<h6 style={{ color: 'white', marginBottom: '1rem' }}>FTL Drive Controls</h6>
 					<Row>
 						<Col md={6}>
-							<div style={{ 
-								background: 'rgba(13, 110, 253, 0.1)', 
+							<div style={{
+								background: 'rgba(13, 110, 253, 0.1)',
 								border: '1px solid rgba(13, 110, 253, 0.3)',
 								borderRadius: '8px',
 								padding: '1rem',
 							}}>
 								<div style={{ color: '#007bff', fontWeight: '600', fontSize: '0.9rem', marginBottom: '0.5rem' }}>
-                  Emergency Jump
+									Emergency Jump
 								</div>
 								<div style={{ color: '#aaa', fontSize: '0.8rem', marginBottom: '0.5rem' }}>
-                  Perform immediate FTL jump to escape danger. Duration: 2-4 hours.
+									Perform immediate FTL jump to escape danger. Duration: 2-4 hours.
 								</div>
-								<button 
+								<button
 									className="btn btn-outline-primary btn-sm"
 									disabled={destinyStatus.ftl_status === 'ftl'}
 									onClick={() => {
@@ -593,19 +593,19 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
 							</div>
 						</Col>
 						<Col md={6}>
-							<div style={{ 
-								background: 'rgba(40, 167, 69, 0.1)', 
+							<div style={{
+								background: 'rgba(40, 167, 69, 0.1)',
 								border: '1px solid rgba(40, 167, 69, 0.3)',
 								borderRadius: '8px',
 								padding: '1rem',
 							}}>
 								<div style={{ color: '#28a745', fontWeight: '600', fontSize: '0.9rem', marginBottom: '0.5rem' }}>
-                  Drop from FTL
+									Drop from FTL
 								</div>
 								<div style={{ color: '#aaa', fontSize: '0.8rem', marginBottom: '0.5rem' }}>
-                  Exit hyperspace early to investigate or respond to signals.
+									Exit hyperspace early to investigate or respond to signals.
 								</div>
-								<button 
+								<button
 									className="btn btn-outline-success btn-sm"
 									disabled={destinyStatus.ftl_status !== 'ftl'}
 									onClick={() => {
@@ -621,7 +621,7 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
 						</Col>
 					</Row>
 				</div>
-      
+
 				{exploredRooms.length > 0 ? (
 					<div style={{ marginTop: '1rem' }}>
 						<h6 style={{ color: 'white' }}>Explored Rooms:</h6>
@@ -629,7 +629,7 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
 							{exploredRooms.map((roomId, index) => (
 								<Col md={4} key={roomId} className="mb-2">
 									<Badge bg="info" style={{ fontSize: '0.8rem' }}>
-                  Room {roomId}
+										Room {roomId}
 									</Badge>
 								</Col>
 							))}
@@ -657,8 +657,8 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
 	};
 
 	return (
-		<Modal 
-			show={show} 
+		<Modal
+			show={show}
 			onHide={onHide}
 			fullscreen
 			backdrop="static"
@@ -668,16 +668,16 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
 			<Modal.Header style={{ background: 'rgba(0, 0, 0, 0.9)', borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>
 				<Modal.Title className="d-flex align-items-center">
 					<FaDatabase style={{ marginRight: '10px', color: '#007bff' }} />
-          Ship Status & Inventory
+					Ship Status & Inventory
 				</Modal.Title>
 			</Modal.Header>
-      
+
 			<Modal.Body style={{ background: 'rgba(0, 0, 0, 0.95)', padding: 0 }}>
 				<Container fluid style={{ height: '100%' }}>
 					<Row style={{ height: '100%' }}>
 						{/* Navigation Sidebar */}
-						<Col md={3} lg={2} style={{ 
-							background: 'rgba(0, 0, 0, 0.7)', 
+						<Col md={3} lg={2} style={{
+							background: 'rgba(0, 0, 0, 0.7)',
 							borderRight: '1px solid rgba(255, 255, 255, 0.1)',
 							padding: '1rem 0',
 						}}>
@@ -701,7 +701,7 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
 								))}
 							</Nav>
 						</Col>
-            
+
 						{/* Content Area */}
 						<Col md={9} lg={10} style={{ padding: '2rem' }}>
 							{renderTabContent()}
@@ -709,14 +709,14 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
 					</Row>
 				</Container>
 			</Modal.Body>
-      
-			<Modal.Footer style={{ 
-				background: 'rgba(0, 0, 0, 0.9)', 
+
+			<Modal.Footer style={{
+				background: 'rgba(0, 0, 0, 0.9)',
 				borderTop: '1px solid rgba(255, 255, 255, 0.1)',
 				justifyContent: 'center',
 			}}>
 				<div style={{ color: '#aaa', fontSize: '0.9rem' }}>
-          Use D-pad to navigate • A to select • B to close • Start to open inventory
+					Use D-pad to navigate • A to select • B to close • Start to open inventory
 				</div>
 			</Modal.Footer>
 		</Modal>
