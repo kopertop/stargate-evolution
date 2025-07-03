@@ -5,12 +5,12 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Button, Container, Modal, Form, Row, Col, Table } from 'react-bootstrap';
 import { useNavigate } from 'react-router';
 
+import { InventoryModal } from '../components/inventory-modal';
+import { ResourceBar } from '../components/resource-bar';
 import { GAMEPAD_BUTTONS } from '../constants/gamepad';
+import { useGameState } from '../contexts/game-state-context';
 import { Game } from '../game';
 import { useGameController } from '../services/game-controller';
-import { ResourceBar } from '../components/resource-bar';
-import { InventoryModal } from '../components/inventory-modal';
-import { useGameState } from '../contexts/game-state-context';
 
 type Direction = 'up' | 'down' | 'left' | 'right';
 type MenuAction = 'pause' | 'back' | 'activate';
@@ -54,7 +54,7 @@ export const GamePage: React.FC = () => {
 
 	// Use the centralized game controller service
 	const controller = useGameController();
-	
+
 	// Game state for resource management
 	const gameState = useGameState();
 
@@ -142,9 +142,9 @@ export const GamePage: React.FC = () => {
 		showDebug,
 		showInventory,
 		focusedMenuItem,
-		inventoryTab
+		inventoryTab,
 	});
-	
+
 	// Update refs when state changes
 	useEffect(() => {
 		stateRef.current = {
@@ -153,7 +153,7 @@ export const GamePage: React.FC = () => {
 			showDebug,
 			showInventory,
 			focusedMenuItem,
-			inventoryTab
+			inventoryTab,
 		};
 	}, [showPause, showSettings, showDebug, showInventory, focusedMenuItem, inventoryTab]);
 
@@ -181,6 +181,30 @@ export const GamePage: React.FC = () => {
 				return !prev;
 			});
 			setInventoryTab(0);
+		});
+
+		// Left D-pad (decrease time speed)
+		const unsubscribeLeftDpad = controller.onButtonRelease('DPAD_LEFT', () => {
+			if (!showPause && !showInventory) { // Only when not in menus
+				const currentSpeed = gameState.destinyStatus?.time_speed || 1;
+				const speeds = [0, 1, 5, 10];
+				const currentIndex = speeds.indexOf(currentSpeed);
+				const newIndex = Math.max(0, currentIndex - 1);
+				gameState.setTimeSpeed(speeds[newIndex]);
+				console.log('[GAME-PAGE-CONTROLLER] Left D-pad - decreased time speed to', speeds[newIndex]);
+			}
+		});
+
+		// Right D-pad (increase time speed)
+		const unsubscribeRightDpad = controller.onButtonRelease('DPAD_RIGHT', () => {
+			if (!showPause && !showInventory) { // Only when not in menus
+				const currentSpeed = gameState.destinyStatus?.time_speed || 1;
+				const speeds = [0, 1, 5, 10];
+				const currentIndex = speeds.indexOf(currentSpeed);
+				const newIndex = Math.min(speeds.length - 1, currentIndex + 1);
+				gameState.setTimeSpeed(speeds[newIndex]);
+				console.log('[GAME-PAGE-CONTROLLER] Right D-pad - increased time speed to', speeds[newIndex]);
+			}
 		});
 
 		// Menu navigation (only when menus are open)
@@ -236,8 +260,10 @@ export const GamePage: React.FC = () => {
 					console.log('[GAME-PAGE-CONTROLLER] Navigating to main menu');
 					navigate('/');
 					break;
-				case 2: // Save Game (disabled)
-					console.log('[GAME-PAGE-CONTROLLER] Save game button is disabled');
+				case 2: // Save Game
+					console.log('[GAME-PAGE-CONTROLLER] Saving game');
+					gameState.saveGame();
+					setShowPause(false);
 					break;
 				case 3: // Settings
 					console.log('[GAME-PAGE-CONTROLLER] Opening settings menu');
@@ -270,6 +296,8 @@ export const GamePage: React.FC = () => {
 			console.log('[GAME-PAGE-CONTROLLER] Cleaning up controller subscriptions');
 			unsubscribePauseBack();
 			unsubscribeInventory();
+			unsubscribeLeftDpad();
+			unsubscribeRightDpad();
 			unsubscribeUpNav();
 			unsubscribeDownNav();
 			unsubscribeMenuBack();
@@ -319,36 +347,25 @@ export const GamePage: React.FC = () => {
 		return () => document.removeEventListener('keydown', handleKeyDown);
 	}, [listeningKey]);
 
-	// Resource display data (use actual game state or defaults)
-	const destinyStatus = gameState.destinyStatus || {
-		id: 'destiny-1',
-		name: 'Destiny',
-		power: 85,
-		max_power: 100,
-		shields: 67,
-		max_shields: 100,
-		hull: 92,
-		max_hull: 100,
-		water: 78,
-		max_water: 100,
-		food: 45,
-		max_food: 100,
-		spare_parts: 34,
-		max_spare_parts: 100,
-		medical_supplies: 89,
-		max_medical_supplies: 100,
-		race_id: 'ancient',
-		location: '{}',
-		co2: 0.04,
-		o2: 20.9,
-		co2Scrubbers: 5,
-		weapons: '{}',
-		shuttles: '{}',
-		game_days: 15,
-		game_hours: 8,
-		ftl_status: 'normal_space' as const,
-		next_ftl_transition: 0,
-	};
+	// Monitor FTL status changes and update game background
+	useEffect(() => {
+		if (gameRef.current && gameState.destinyStatus) {
+			gameRef.current.updateFTLStatus(gameState.destinyStatus.ftl_status);
+		}
+	}, [gameState.destinyStatus?.ftl_status]);
+
+	// Show loading state while game initializes
+	if (!gameState.isInitialized || !gameState.destinyStatus) {
+		return (
+			<Container fluid style={{ padding: 0, background: '#000', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+				<div style={{ color: 'white', fontSize: '24px' }}>
+					{gameState.isLoading ? 'Loading game...' : 'Initializing game...'}
+				</div>
+			</Container>
+		);
+	}
+
+	const destinyStatus = gameState.destinyStatus;
 
 	return (
 		<Container
@@ -383,6 +400,7 @@ export const GamePage: React.FC = () => {
 				gameHours={destinyStatus.game_hours}
 				ftlStatus={destinyStatus.ftl_status}
 				nextFtlTransition={destinyStatus.next_ftl_transition}
+				timeSpeed={destinyStatus.time_speed}
 				characterCount={gameState.characters.length || 4}
 			/>
 
@@ -430,11 +448,15 @@ export const GamePage: React.FC = () => {
 						<Button
 							variant={focusedMenuItem === 2 ? 'primary' : 'outline-secondary'}
 							size="lg"
-							disabled
-							title="TODO: Save game coming soon"
+							onClick={() => {
+								gameState.saveGame();
+								setShowPause(false);
+							}}
+							disabled={gameState.isLoading}
+							title={gameState.gameName ? `Save "${gameState.gameName}"` : 'Save current game'}
 							style={focusedMenuItem === 2 ? { boxShadow: '0 0 10px rgba(13, 110, 253, 0.8)' } : {}}
 						>
-						Save Game (TODO)
+							{gameState.isLoading ? 'Saving...' : 'Save Game'}
 						</Button>
 						<Button
 							variant={focusedMenuItem === 3 ? 'primary' : 'outline-secondary'}
@@ -612,6 +634,9 @@ export const GamePage: React.FC = () => {
 				exploredRooms={gameState.exploredRooms}
 				focusedTab={inventoryTab}
 				onTabChange={setInventoryTab}
+				onStartFTLJump={gameState.startFTLJump}
+				onExitFTL={gameState.exitFTL}
+				onSetTimeSpeed={gameState.setTimeSpeed}
 			/>
 		</Container>
 	);

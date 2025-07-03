@@ -24,10 +24,13 @@ export const DestinyStatusSchema = z.object({
 	co2Scrubbers: z.number(),
 	weapons: z.string(), // JSON
 	shuttles: z.string(), // JSON
-	game_days: z.number(),
-	game_hours: z.number(),
+	game_days: z.number(), // Deprecated - keeping for backward compatibility
+	game_hours: z.number(), // Deprecated - keeping for backward compatibility
+	current_time: z.number(), // Seconds since game start
+	next_jump_time: z.number(), // Exact second when next FTL transition occurs
+	time_speed: z.number(), // Seconds per real-world second (default: 1)
 	ftl_status: z.string(), // 'ftl' or 'normal_space'
-	next_ftl_transition: z.number(), // hours until next FTL transition
+	next_ftl_transition: z.number(), // Deprecated - keeping for backward compatibility
 });
 
 export type DestinyStatus= z.infer<typeof DestinyStatusSchema>;

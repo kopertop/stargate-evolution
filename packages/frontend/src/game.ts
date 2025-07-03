@@ -51,6 +51,13 @@ export class Game {
 	private menuOpen: boolean = false;
 	private options: GameOptions;
 
+	// Dynamic background system
+	private backgroundLayer: PIXI.Container | null = null;
+	private ftlStreaksLayer: PIXI.Container | null = null;
+	private currentBackgroundType: 'stars' | 'ftl' = 'stars';
+	private ftlStreaks: PIXI.Graphics[] = [];
+	private animationFrame: number = 0;
+
 	// Controller subscription cleanup functions
 	private controllerUnsubscribers: (() => void)[] = [];
 
@@ -103,6 +110,93 @@ export class Game {
 			g.circle(x, y, STAR_RADIUS).fill(STAR_COLOR);
 		}
 		return g;
+	}
+
+	private createFTLStreaks(): PIXI.Container {
+		const container = new PIXI.Container();
+		this.ftlStreaks = [];
+
+		// Create 100 FTL streak lines
+		for (let i = 0; i < 100; i++) {
+			const streak = new PIXI.Graphics();
+			const x = Math.random() * this.app.screen.width;
+			const y = Math.random() * this.app.screen.height;
+			const length = 200 + Math.random() * 400; // Variable length streaks
+
+			// Create blue gradient streak
+			streak.moveTo(x, y)
+				.lineTo(x + length, y)
+				.stroke({
+					color: 0x0066ff,
+					width: 2 + Math.random() * 3,
+					alpha: 0.6 + Math.random() * 0.4,
+				});
+
+			// Add slight glow effect
+			streak.moveTo(x, y)
+				.lineTo(x + length, y)
+				.stroke({
+					color: 0x66aaff,
+					width: 1,
+					alpha: 0.8,
+				});
+
+			container.addChild(streak);
+			this.ftlStreaks.push(streak);
+		}
+
+		return container;
+	}
+
+	private animateFTLStreaks() {
+		if (this.currentBackgroundType !== 'ftl' || !this.ftlStreaksLayer) return;
+
+		this.animationFrame++;
+		const speed = 8; // Speed of streak movement
+
+		this.ftlStreaks.forEach((streak, index) => {
+			// Move streaks horizontally
+			streak.x -= speed + (index % 3); // Varying speeds for depth effect
+
+			// Reset streak position when it goes off screen
+			if (streak.x < -500) {
+				streak.x = this.app.screen.width + Math.random() * 200;
+				streak.y = Math.random() * this.app.screen.height;
+			}
+		});
+	}
+
+	public setBackgroundType(type: 'stars' | 'ftl') {
+		if (this.currentBackgroundType === type) return;
+
+		this.currentBackgroundType = type;
+
+		if (type === 'ftl') {
+			// Hide starfield and show FTL streaks
+			this.starfield.visible = false;
+
+			if (!this.ftlStreaksLayer) {
+				this.ftlStreaksLayer = this.createFTLStreaks();
+				this.world.addChildAt(this.ftlStreaksLayer, 0); // Add at bottom layer
+			}
+			this.ftlStreaksLayer.visible = true;
+
+			console.log('[GAME] Switched to FTL streak background');
+		} else {
+			// Show starfield and hide FTL streaks
+			this.starfield.visible = true;
+
+			if (this.ftlStreaksLayer) {
+				this.ftlStreaksLayer.visible = false;
+			}
+
+			console.log('[GAME] Switched to starfield background');
+		}
+	}
+
+	public updateFTLStatus(ftlStatus: string) {
+		const backgroundType = ftlStatus === 'ftl' ? 'ftl' : 'stars';
+		this.setBackgroundType(backgroundType);
 	}
 
 	private setupInput() {
@@ -232,7 +326,7 @@ export class Game {
 				const easedIntensity = stickIntensity * stickIntensity; // Quadratic easing
 				const baseZoomSpeed = 0.004; // Slower base speed for ultra-smooth continuous control
 				const zoomSpeed = baseZoomSpeed * (1 + easedIntensity * 2); // Scale with eased deflection
-				
+
 				if (rightAxisY < -0.12) {
 					// Right stick up = zoom in
 					this.setMapZoom(this.mapZoom * (1 + zoomSpeed));
@@ -279,6 +373,9 @@ export class Game {
 		}
 		// Check for door interactions
 		this.checkDoorInteraction();
+
+		// Animate FTL streaks if in FTL mode
+		this.animateFTLStreaks();
 
 		// Center camera on player (accounting for world scale)
 		const centerX = this.app.screen.width / 2;

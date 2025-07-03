@@ -60,9 +60,13 @@ export const CONTROL_SCHEME = {
 		keyboard: ['I', 'Tab'],
 		gamepad: ['Start button'],
 	},
+	timeSpeed: {
+		keyboard: ['N/A'],
+		gamepad: ['Left/Right D-pad (decrease/increase)'],
+	},
 	menuNavigation: {
 		keyboard: ['WASD', 'Arrow Keys'],
-		gamepad: ['D-pad'],
+		gamepad: ['D-pad (when in menus)'],
 	},
 	menuActivate: {
 		keyboard: ['Enter'],

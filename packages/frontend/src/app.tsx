@@ -4,6 +4,7 @@ import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import 'bootstrap/dist/css/bootstrap.min.css';
 
+import { GameStateProvider } from './contexts/game-state-context';
 import {
 	AdminLayout,
 	AdminOverview,
@@ -15,20 +16,10 @@ import {
 } from './pages/admin';
 import { GamePage } from './pages/game-page';
 import { MenuPage } from './pages/menu-page';
-import { GameStateProvider } from './contexts/game-state-context';
 
 export const App: React.FC = () => {
-	// Fullscreen on mount
-	useEffect(() => {
-		const goFullscreen = () => {
-			const el = document.body;
-			if (el && document.fullscreenElement == null) {
-				if (el.requestFullscreen) el.requestFullscreen();
-				else if ((el as any).webkitRequestFullscreen) (el as any).webkitRequestFullscreen();
-			}
-		};
-		setTimeout(goFullscreen, 0);
-	}, []);
+	// Note: Automatic fullscreen removed due to browser security restrictions
+	// Users can manually enter fullscreen using F11 or browser controls
 
 	return (
 		<GameStateProvider>

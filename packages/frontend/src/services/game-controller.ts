@@ -367,7 +367,7 @@ export const useGameController = () => {
 		onButtonHold,
 		onAxisChange,
 		isPressed,
-		getAxisValue
+		getAxisValue,
 		// Note: gamepadState is NOT in dependencies to prevent constant re-renders
 	]);
 };

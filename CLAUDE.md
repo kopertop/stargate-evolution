@@ -412,6 +412,13 @@ These commands make AI calls and may take up to a minute:
 - Provides more informed task creation and updates
 - Recommended for complex technical tasks
 
+## Project Dos and Don'ts
+
+### Do Not Use Directives
+
+- **Do not run npm commands** - always ask the user first for confirmation and specific requirements
+
 ---
 
 _This guide ensures Claude Code has immediate access to Task Master's essential functionality for agentic development workflows._
+```

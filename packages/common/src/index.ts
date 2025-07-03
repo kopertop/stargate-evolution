@@ -28,3 +28,4 @@ export * from './models/technology-template';
 export * from './models/user';
 export * from './models/character';
 export * from './models/progression';
+export * from './models/saved-game';
