@@ -15,6 +15,7 @@ import {
 	Modal,
 	Dropdown,
 	Pagination,
+	InputGroup,
 } from 'react-bootstrap';
 import { toast } from 'react-toastify';
 
@@ -23,7 +24,6 @@ import { AdminSqlService, SqlQueryResult, DatabaseSchema, TableData } from '../.
 export const SqlDebugPage: React.FC = () => {
 	// Query execution state
 	const [query, setQuery] = useState('');
-	const [queryParams, setQueryParams] = useState('');
 	const [queryResult, setQueryResult] = useState<SqlQueryResult | null>(null);
 	const [isExecuting, setIsExecuting] = useState(false);
 	const [queryValidation, setQueryValidation] = useState<{ isValid: boolean; warnings: string[]; errors: string[] } | null>(null);
@@ -81,22 +81,7 @@ export const SqlDebugPage: React.FC = () => {
 		setQueryResult(null);
 
 		try {
-			// Parse query parameters if provided
-			let params: any[] = [];
-			if (queryParams.trim()) {
-				try {
-					params = JSON.parse(queryParams);
-					if (!Array.isArray(params)) {
-						throw new Error('Parameters must be an array');
-					}
-				} catch (error) {
-					toast.error('Invalid JSON in query parameters');
-					setIsExecuting(false);
-					return;
-				}
-			}
-
-			const result = await AdminSqlService.executeQuery(queryToExecute, params);
+			const result = await AdminSqlService.executeQuery(queryToExecute, []);
 			setQueryResult(result);
 
 			if (result.success) {
@@ -162,7 +147,16 @@ export const SqlDebugPage: React.FC = () => {
 	};
 
 	const renderQueryResult = () => {
-		if (!queryResult) return null;
+		if (!queryResult) {
+			return (
+				<div className="d-flex align-items-center justify-content-center" style={{ height: '200px', color: '#6c757d' }}>
+					<div className="text-center">
+						<h5>No Query Executed</h5>
+						<p>Enter a SQL query below and press Execute or <kbd>Cmd+Enter</kbd></p>
+					</div>
+				</div>
+			);
+		}
 
 		if (!queryResult.success) {
 			return (
@@ -178,57 +172,122 @@ export const SqlDebugPage: React.FC = () => {
 			);
 		}
 
-		return (
-			<Alert variant="success">
-				<Alert.Heading>Query Executed Successfully</Alert.Heading>
-				<Row>
-					<Col md={6}>
-						<p><strong>Type:</strong> {queryResult.isReadOnly ? 'Read-only' : 'Write operation'}</p>
-						<p><strong>Affected/Returned Rows:</strong> {queryResult.isReadOnly ? (Array.isArray(queryResult.result) ? queryResult.result.length : 0) : queryResult.affectedRows}</p>
-					</Col>
-					<Col md={6}>
-						<p><strong>Executed by:</strong> {queryResult.executedBy}</p>
-						<p><strong>Executed at:</strong> {new Date(queryResult.executedAt).toLocaleString()}</p>
-					</Col>
-				</Row>
+		const formatCellValue = (value: any) => {
+			if (value === null) {
+				return <em className="text-muted">NULL</em>;
+			}
+			
+			const stringValue = String(value);
+			
+			// Check if it's a JSON object/array
+			if (stringValue.startsWith('{') && stringValue.endsWith('}') || 
+				stringValue.startsWith('[') && stringValue.endsWith(']')) {
+				try {
+					const parsed = JSON.parse(stringValue);
+					return (
+						<details style={{ maxWidth: '300px' }}>
+							<summary><code className="text-primary">{stringValue.substring(0, 50)}{stringValue.length > 50 ? '...' : ''}</code></summary>
+							<pre style={{ 
+								fontSize: '0.75rem', 
+								maxHeight: '200px', 
+								overflowY: 'auto',
+								backgroundColor: '#f8f9fa',
+								padding: '0.5rem',
+								margin: '0.5rem 0 0 0',
+								borderRadius: '0.25rem'
+							}}>
+								{JSON.stringify(parsed, null, 2)}
+							</pre>
+						</details>
+					);
+				} catch (e) {
+					// If it's not valid JSON, just show as code
+					return <code style={{ wordBreak: 'break-word' }}>{stringValue}</code>;
+				}
+			}
+			
+			return <code style={{ wordBreak: 'break-word' }}>{stringValue}</code>;
+		};
 
-				{queryResult.isReadOnly && Array.isArray(queryResult.result) && queryResult.result.length > 0 && (
-					<>
-						<hr />
-						<h6>Results:</h6>
-						<div style={{ maxHeight: '400px', overflowY: 'auto' }}>
-							<Table striped bordered hover size="sm">
-								<thead>
-									<tr>
-										{Object.keys(queryResult.result[0]).map(key => (
-											<th key={key}>{key}</th>
+		return (
+			<>
+				{/* Query metadata */}
+				<div className="d-flex justify-content-between align-items-center mb-3">
+					<div>
+						<Badge bg={queryResult.isReadOnly ? 'success' : 'warning'} className="me-2">
+							{queryResult.isReadOnly ? 'Read-only' : 'Write operation'}
+						</Badge>
+						<span className="text-muted">
+							{queryResult.isReadOnly ? 
+								`${Array.isArray(queryResult.result) ? queryResult.result.length : 0} rows returned` : 
+								`${queryResult.affectedRows} rows affected`
+							}
+						</span>
+					</div>
+					<small className="text-muted">
+						Executed by {queryResult.executedBy} at {new Date(queryResult.executedAt).toLocaleString()}
+					</small>
+				</div>
+
+				{queryResult.isReadOnly && Array.isArray(queryResult.result) && queryResult.result.length > 0 ? (
+					<div
+						style={{
+							height: '100%',
+							overflowY: 'auto',
+							overflowX: 'auto',
+							border: '1px solid #dee2e6',
+							borderRadius: '0.375rem',
+							backgroundColor: '#fff'
+						}}
+					>
+						<Table striped bordered hover size="sm" className="mb-0">
+							<thead style={{ position: 'sticky', top: 0, backgroundColor: '#f8f9fa', zIndex: 10 }}>
+								<tr>
+									{Object.keys(queryResult.result[0]).map(key => (
+										<th key={key} style={{ minWidth: '120px', whiteSpace: 'nowrap', fontFamily: 'monospace' }}>
+											{key}
+										</th>
+									))}
+								</tr>
+							</thead>
+							<tbody>
+								{queryResult.result.map((row, index) => (
+									<tr key={index}>
+										{Object.entries(row).map(([key, value], cellIndex) => (
+											<td key={cellIndex} style={{ maxWidth: '300px', verticalAlign: 'top' }}>
+												{formatCellValue(value)}
+											</td>
 										))}
 									</tr>
-								</thead>
-								<tbody>
-									{queryResult.result.map((row, index) => (
-										<tr key={index}>
-											{Object.values(row).map((value, cellIndex) => (
-												<td key={cellIndex}>
-													{value === null ? <em>NULL</em> : String(value)}
-												</td>
-											))}
-										</tr>
-									))}
-								</tbody>
-							</Table>
-						</div>
-					</>
-				)}
-
-				{!queryResult.isReadOnly && (
-					<>
-						<hr />
+								))}
+							</tbody>
+						</Table>
+					</div>
+				) : !queryResult.isReadOnly ? (
+					<div
+						style={{
+							backgroundColor: '#f8f9fa',
+							padding: '1rem',
+							borderRadius: '0.375rem',
+							border: '1px solid #dee2e6',
+							height: '100%',
+							overflowY: 'auto'
+						}}
+					>
 						<h6>Operation Result:</h6>
-						<pre>{JSON.stringify(queryResult.result, null, 2)}</pre>
-					</>
+						<pre style={{ margin: 0, fontSize: '0.875rem' }}>
+							{JSON.stringify(queryResult.result, null, 2)}
+						</pre>
+					</div>
+				) : (
+					<div className="d-flex align-items-center justify-content-center" style={{ height: '200px', color: '#6c757d' }}>
+						<div className="text-center">
+							<h6>No Results</h6>
+							<p>Query executed successfully but returned no data</p>
+						</div>
+					</div>
 				)}
-			</Alert>
+			</>
 		);
 	};
 
@@ -252,13 +311,19 @@ export const SqlDebugPage: React.FC = () => {
 		}
 
 		return (
-			<Row>
-				<Col md={4}>
-					<Card>
+			<Row style={{ height: 'calc(100vh - 300px)' }}>
+				<Col md={4} style={{ height: '100%' }}>
+					<Card style={{ height: '100%' }}>
 						<Card.Header>
 							<h6>Tables ({schema.tables.length})</h6>
 						</Card.Header>
-						<Card.Body style={{ maxHeight: '500px', overflowY: 'auto' }}>
+						<Card.Body
+							style={{
+								height: 'calc(100% - 60px)',
+								overflowY: 'auto',
+								padding: '0.75rem'
+							}}
+						>
 							{schema.tables.map(table => (
 								<div key={table.name} className="mb-2">
 									<Button
@@ -268,7 +333,7 @@ export const SqlDebugPage: React.FC = () => {
 										onClick={() => loadTableData(table.name)}
 									>
 										<div className="d-flex justify-content-between align-items-center">
-											<span>{table.name}</span>
+											<span style={{ fontFamily: 'monospace' }}>{table.name}</span>
 											<div>
 												<Badge bg="secondary" className="me-1">
 													{table.type}
@@ -285,15 +350,14 @@ export const SqlDebugPage: React.FC = () => {
 							))}
 						</Card.Body>
 					</Card>
-
 				</Col>
 
-				<Col md={8}>
+				<Col md={8} style={{ height: '100%' }}>
 					{selectedTable && (
-						<Card>
+						<Card style={{ height: '100%' }}>
 							<Card.Header>
 								<div className="d-flex justify-content-between align-items-center">
-									<h6>Table: {selectedTable}</h6>
+									<h6>Table: <code>{selectedTable}</code></h6>
 									<Button
 										size="sm"
 										variant="outline-primary"
@@ -303,7 +367,13 @@ export const SqlDebugPage: React.FC = () => {
 									</Button>
 								</div>
 							</Card.Header>
-							<Card.Body>
+							<Card.Body
+								style={{
+									height: 'calc(100% - 60px)',
+									overflowY: 'auto',
+									padding: '1rem'
+								}}
+							>
 								{isLoadingTableData ? (
 									<div className="text-center p-4">
 										<Spinner animation="border" size="sm" />
@@ -319,52 +389,80 @@ export const SqlDebugPage: React.FC = () => {
 											</Col>
 											<Col md={6}>
 												<p><strong>Page Size:</strong> {tableData.pagination.limit}</p>
-												<p><strong>Current Page:</strong> {Math.floor(tableData.pagination.offset / tableData.pagination.limit) + 1}</p>
+												<p><strong>Current Page:</strong> {tableData.pagination.page}</p>
 											</Col>
 										</Row>
 
 										{/* Column info */}
 										<h6>Columns:</h6>
-										<Table size="sm" className="mb-3">
-											<thead>
-												<tr>
-													<th>Name</th>
-													<th>Type</th>
-													<th>Not Null</th>
-													<th>Default</th>
-													<th>Primary Key</th>
-												</tr>
-											</thead>
-											<tbody>
-												{tableData.columns.map(col => (
-													<tr key={col.cid}>
-														<td><strong>{col.name}</strong></td>
-														<td>{col.type}</td>
-														<td>{col.notnull ? 'Yes' : 'No'}</td>
-														<td>{col.dflt_value || <em>None</em>}</td>
-														<td>{col.pk ? 'Yes' : 'No'}</td>
+										<div
+											style={{
+												maxHeight: '200px',
+												overflowY: 'auto',
+												marginBottom: '1rem',
+												border: '1px solid #dee2e6',
+												borderRadius: '0.375rem'
+											}}
+										>
+											<Table size="sm" className="mb-0">
+												<thead style={{ position: 'sticky', top: 0, backgroundColor: '#f8f9fa' }}>
+													<tr>
+														<th>Name</th>
+														<th>Type</th>
+														<th>Not Null</th>
+														<th>Default</th>
+														<th>Primary Key</th>
 													</tr>
-												))}
-											</tbody>
-										</Table>
+												</thead>
+												<tbody>
+													{tableData.columns.map((col, colIndex) => (
+														<tr key={`col-${col.cid ?? colIndex}-${col.name}`}>
+															<td><code>{col.name}</code></td>
+															<td>{col.type}</td>
+															<td>{col.notnull ? 'Yes' : 'No'}</td>
+															<td>{col.dflt_value ? (typeof col.dflt_value === 'object' ? JSON.stringify(col.dflt_value) : String(col.dflt_value)) : <em className="text-muted">None</em>}</td>
+															<td>{col.pk ? 'Yes' : 'No'}</td>
+														</tr>
+													))}
+												</tbody>
+											</Table>
+										</div>
 
 										{/* Data preview */}
-										<h6>Data Preview:</h6>
-										<div style={{ maxHeight: '400px', overflowY: 'auto', overflowX: 'auto' }}>
-											<Table striped bordered hover size="sm">
-												<thead>
+										<div className="d-flex justify-content-between align-items-center mb-2">
+											<h6>Data Preview:</h6>
+											{tableData.pagination.totalRows > tableData.pagination.limit && (
+												<small className="text-muted">
+													Showing {((tableData.pagination.page - 1) * tableData.pagination.limit) + 1} to {Math.min(tableData.pagination.page * tableData.pagination.limit, tableData.pagination.totalRows)} of {tableData.pagination.totalRows} rows
+												</small>
+											)}
+										</div>
+										<div
+											style={{
+												maxHeight: '400px',
+												overflowY: 'auto',
+												overflowX: 'auto',
+												border: '1px solid #dee2e6',
+												borderRadius: '0.375rem',
+												backgroundColor: '#fff'
+											}}
+										>
+											<Table striped bordered hover size="sm" className="mb-0">
+												<thead style={{ position: 'sticky', top: 0, backgroundColor: '#f8f9fa', zIndex: 10 }}>
 													<tr>
-														{tableData.columns.map(col => (
-															<th key={col.cid}>{col.name}</th>
+														{tableData.columns.map((col, colIndex) => (
+															<th key={`header-${col.cid ?? colIndex}-${col.name}`} style={{ minWidth: '100px', whiteSpace: 'nowrap' }}>
+																<code>{col.name}</code>
+															</th>
 														))}
 													</tr>
 												</thead>
 												<tbody>
 													{tableData.data.map((row, index) => (
-														<tr key={index}>
-															{tableData.columns.map(col => (
-																<td key={col.cid}>
-																	{row[col.name] === null ? <em>NULL</em> : String(row[col.name])}
+														<tr key={`row-${index}`}>
+															{tableData.columns.map((col, colIndex) => (
+																<td key={`cell-${index}-${col.cid ?? colIndex}-${col.name}`} style={{ maxWidth: '200px', wordBreak: 'break-word' }}>
+																	{row[col.name] === null ? <em className="text-muted">NULL</em> : (typeof row[col.name] === 'object' ? JSON.stringify(row[col.name]) : String(row[col.name]))}
 																</td>
 															))}
 														</tr>
@@ -375,28 +473,45 @@ export const SqlDebugPage: React.FC = () => {
 
 										{/* Pagination */}
 										{tableData.pagination.totalRows > tableData.pagination.limit && (
-											<div className="d-flex justify-content-between align-items-center mt-3">
-												<div>
-													Showing {tableData.pagination.offset + 1} to {Math.min(tableData.pagination.offset + tableData.pagination.limit, tableData.pagination.totalRows)} of {tableData.pagination.totalRows} rows
-												</div>
+											<div className="d-flex justify-content-center mt-3">
 												<Pagination size="sm">
+													<Pagination.First
+														disabled={tablePage === 0}
+														onClick={() => loadTableData(selectedTable, 0)}
+													/>
 													<Pagination.Prev
 														disabled={tablePage === 0}
 														onClick={() => loadTableData(selectedTable, tablePage - 1)}
 													/>
-													<Pagination.Item active>
-														{tablePage + 1}
-													</Pagination.Item>
+
+													{/* Show page numbers around current page */}
+													{Array.from({ length: Math.min(5, tableData.pagination.totalPages) }, (_, i) => {
+														const pageNum = Math.max(0, Math.min(tablePage - 2 + i, tableData.pagination.totalPages - 1));
+														return (
+															<Pagination.Item
+																key={pageNum}
+																active={pageNum === tablePage}
+																onClick={() => loadTableData(selectedTable, pageNum)}
+															>
+																{pageNum + 1}
+															</Pagination.Item>
+														);
+													})}
+
 													<Pagination.Next
-														disabled={!tableData.pagination.hasMore}
+														disabled={!tableData.pagination.hasNext}
 														onClick={() => loadTableData(selectedTable, tablePage + 1)}
+													/>
+													<Pagination.Last
+														disabled={!tableData.pagination.hasNext}
+														onClick={() => loadTableData(selectedTable, tableData.pagination.totalPages - 1)}
 													/>
 												</Pagination>
 											</div>
 										)}
 									</>
 								) : (
-									<p>Select a table to view its data</p>
+									<p className="text-center text-muted p-4">Select a table to view its data</p>
 								)}
 							</Card.Body>
 						</Card>
@@ -407,8 +522,8 @@ export const SqlDebugPage: React.FC = () => {
 	};
 
 	return (
-		<Container fluid>
-			<Row className="mb-4">
+		<Container fluid style={{ height: '100vh', paddingTop: '1rem', paddingBottom: '1rem' }}>
+			<Row className="mb-3">
 				<Col>
 					<h2>SQL Debug Console</h2>
 					<Alert variant="warning">
@@ -418,11 +533,17 @@ export const SqlDebugPage: React.FC = () => {
 				</Col>
 			</Row>
 
-			<Tabs activeKey={activeTab} onSelect={(k) => setActiveTab(k || 'query')} className="mb-4">
-				<Tab eventKey="query" title="Query Console">
-					<Row>
-						<Col md={8}>
-							<Card>
+			<div style={{ height: 'calc(100vh - 200px)' }}>
+				<Tabs activeKey={activeTab} onSelect={(k) => setActiveTab(k || 'query')} className="mb-3">
+					<Tab eventKey="query" title="Query Console">
+						<div style={{ height: 'calc(100vh - 280px)', display: 'flex', flexDirection: 'column' }}>
+							{/* Results Section - Top */}
+							<div style={{ flex: 1, overflowY: 'auto', marginBottom: '1rem' }}>
+								{renderQueryResult()}
+							</div>
+
+							{/* Query Input Section - Bottom */}
+							<Card className="flex-shrink-0">
 								<Card.Header>
 									<div className="d-flex justify-content-between align-items-center">
 										<h6>SQL Query</h6>
@@ -445,118 +566,89 @@ export const SqlDebugPage: React.FC = () => {
 												</Dropdown.Menu>
 											</Dropdown>
 											<Button
-												variant="primary"
+												variant="outline-secondary"
 												size="sm"
-												onClick={handleExecuteQuery}
-												disabled={isExecuting || !query.trim() || Boolean(queryValidation && queryValidation.isValid === false)}
+												onClick={() => setQuery('')}
 											>
-												{isExecuting ? <Spinner animation="border" size="sm" /> : 'Execute'}
+												Clear
 											</Button>
 										</div>
 									</div>
 								</Card.Header>
 								<Card.Body>
-									<Form.Group className="mb-3">
+									<InputGroup>
 										<Form.Control
 											as="textarea"
-											rows={8}
+											rows={1}
 											placeholder="Enter your SQL query here..."
 											value={query}
 											onChange={(e) => setQuery(e.target.value)}
-											style={{ fontFamily: 'monospace' }}
+											onKeyDown={(e) => {
+												if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+													e.preventDefault();
+													if (!isExecuting && query.trim() && !(queryValidation && queryValidation.isValid === false)) {
+														handleExecuteQuery();
+													}
+												}
+											}}
+											style={{ 
+												fontFamily: 'monospace', 
+												fontSize: '0.875rem',
+												minHeight: '42px',
+												resize: 'vertical'
+											}}
 										/>
-									</Form.Group>
-
-									<Form.Group className="mb-3">
-										<Form.Label>Query Parameters (JSON array, optional)</Form.Label>
-										<Form.Control
-											type="text"
-											placeholder='["param1", "param2"]'
-											value={queryParams}
-											onChange={(e) => setQueryParams(e.target.value)}
-											style={{ fontFamily: 'monospace' }}
-										/>
-									</Form.Group>
+										<Button
+											variant="primary"
+											onClick={handleExecuteQuery}
+											disabled={isExecuting || !query.trim() || Boolean(queryValidation && queryValidation.isValid === false)}
+											style={{ minWidth: '120px' }}
+										>
+											{isExecuting ? (
+												<Spinner animation="border" size="sm" />
+											) : (
+												<>
+													Execute{' '}
+													<small className="text-light">
+														<kbd style={{ backgroundColor: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.3)' }}>
+															⌘↩
+														</kbd>
+													</small>
+												</>
+											)}
+										</Button>
+									</InputGroup>
 
 									{queryValidation && (
-										<>
+										<div className="mt-2">
 											{queryValidation.errors.length > 0 && (
-												<Alert variant="danger">
+												<Alert variant="danger" className="py-2 mb-2">
 													<strong>Errors:</strong>
-													<ul className="mb-0">
-														{queryValidation.errors.map((error, index) => (
-															<li key={index}>{error}</li>
-														))}
-													</ul>
+													{queryValidation.errors.map((error, index) => (
+														<div key={index} className="small">• {error}</div>
+													))}
 												</Alert>
 											)}
 											{queryValidation.warnings.length > 0 && (
-												<Alert variant="warning">
+												<Alert variant="warning" className="py-2 mb-0">
 													<strong>Warnings:</strong>
-													<ul className="mb-0">
-														{queryValidation.warnings.map((warning, index) => (
-															<li key={index}>{warning}</li>
-														))}
-													</ul>
+													{queryValidation.warnings.map((warning, index) => (
+														<div key={index} className="small">• {warning}</div>
+													))}
 												</Alert>
 											)}
-										</>
+										</div>
 									)}
 								</Card.Body>
 							</Card>
+						</div>
+					</Tab>
 
-							{renderQueryResult()}
-						</Col>
-
-						<Col md={4}>
-							<Card>
-								<Card.Header>
-									<h6>Quick Actions</h6>
-								</Card.Header>
-								<Card.Body>
-									<div className="d-grid gap-2">
-										<Button
-											variant="outline-primary"
-											size="sm"
-											onClick={() => setActiveTab('schema')}
-										>
-											Browse Schema
-										</Button>
-										<Button
-											variant="outline-secondary"
-											size="sm"
-											onClick={() => setQuery('')}
-										>
-											Clear Query
-										</Button>
-										<Button
-											variant="outline-info"
-											size="sm"
-											onClick={loadDatabaseSchema}
-										>
-											Refresh Schema
-										</Button>
-									</div>
-
-									<hr />
-
-									<h6>Query Tips:</h6>
-									<ul className="small">
-										<li>Use <code>LIMIT</code> for large result sets</li>
-										<li>Parameterized queries use <code>?</code> placeholders</li>
-										<li>Be careful with <code>DELETE</code> and <code>UPDATE</code></li>
-										<li>Check warnings before executing</li>
-									</ul>
-								</Card.Body>
-							</Card>
-						</Col>
-					</Row>
-				</Tab>
-
-				<Tab eventKey="schema" title="Database Schema">
-					{renderSchemaTab()}
-				</Tab>
-			</Tabs>
+					<Tab eventKey="schema" title="Database Schema">
+						{renderSchemaTab()}
+					</Tab>
+				</Tabs>
+			</div>
 
 			{/* Confirmation Modal for Dangerous Queries */}
 			<Modal show={showConfirmModal} onHide={() => setShowConfirmModal(false)} centered>
@@ -571,10 +663,20 @@ export const SqlDebugPage: React.FC = () => {
 						))}
 					</Alert>
 					<p><strong>Query to execute:</strong></p>
-					<pre style={{ background: '#f8f9fa', padding: '10px', borderRadius: '4px' }}>
+					<div
+						style={{
+							background: '#f8f9fa',
+							padding: '10px',
+							borderRadius: '4px',
+							maxHeight: '200px',
+							overflowY: 'auto',
+							fontFamily: 'monospace',
+							fontSize: '0.875rem'
+						}}
+					>
 						{pendingQuery}
-					</pre>
-					<p>Are you sure you want to proceed?</p>
+					</div>
+					<p className="mt-3">Are you sure you want to proceed?</p>
 				</Modal.Body>
 				<Modal.Footer>
 					<Button variant="secondary" onClick={() => setShowConfirmModal(false)}>

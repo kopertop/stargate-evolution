@@ -26,11 +26,6 @@ export interface DatabaseSchema {
 		}[];
 		rowCount?: number;
 	}[];
-	indexes: {
-		name: string;
-		tbl_name: string;
-		sql: string;
-	}[];
 	generatedAt: string;
 	requestedBy: string;
 }
@@ -49,8 +44,11 @@ export interface TableData {
 	pagination: {
 		limit: number;
 		offset: number;
+		page: number;
 		totalRows: number;
-		hasMore: boolean;
+		totalPages: number;
+		hasNext: boolean;
+		hasPrev: boolean;
 	};
 	generatedAt: string;
 	requestedBy: string;
@@ -207,14 +205,24 @@ export class AdminSqlService {
 	static getSampleQueries(): { name: string; description: string; query: string }[] {
 		return [
 			{
-				name: 'List all tables',
-				description: 'Show all tables in the database',
-				query: 'SELECT name, type, sql FROM sqlite_master WHERE type IN (\'table\', \'view\') ORDER BY name;',
+				name: 'List all users',
+				description: 'Show all users in the system',
+				query: 'SELECT id, email, name, is_admin, created_at FROM users ORDER BY created_at DESC LIMIT 20;',
 			},
 			{
 				name: 'User statistics',
-				description: 'Count of users by admin status',
-				query: 'SELECT is_admin, COUNT(*) as count FROM users GROUP BY is_admin;',
+				description: 'Number of saved games by user',
+				query: `SELECT
+						users.name,
+						users.email,
+						users.is_admin,
+						saved_counts.games
+					FROM (
+						SELECT user_id, COUNT(id) as games
+						FROM saved_games
+						GROUP BY user_id
+					) as saved_counts
+					JOIN users ON users.id = saved_counts.user_id;`,
 			},
 			{
 				name: 'Recent users',
@@ -222,19 +230,19 @@ export class AdminSqlService {
 				query: 'SELECT id, email, name, is_admin, created_at FROM users ORDER BY created_at DESC LIMIT 10;',
 			},
 			{
-				name: 'Saved games count',
-				description: 'Count saved games by user',
-				query: 'SELECT user_id, COUNT(*) as game_count FROM saved_games GROUP BY user_id ORDER BY game_count DESC;',
+				name: 'Saved games',
+				description: 'Show recent saved games',
+				query: 'SELECT * FROM saved_games ORDER BY created_at DESC LIMIT 10;',
 			},
 			{
-				name: 'Database size info',
-				description: 'Show table sizes and row counts',
-				query: `SELECT
-					name as table_name,
-					(SELECT COUNT(*) FROM sqlite_master WHERE name = m.name) as row_count
-				FROM sqlite_master m
-				WHERE type = 'table' AND name NOT LIKE 'sqlite_%'
-				ORDER BY name;`,
+				name: 'Character overview',
+				description: 'Show characters with their progression',
+				query: 'SELECT id, name, profession, level, experience FROM characters ORDER BY level DESC, experience DESC LIMIT 15;',
+			},
+			{
+				name: 'Game sessions',
+				description: 'Recent game sessions',
+				query: 'SELECT id, user_id, character_id, created_at, updated_at FROM game_sessions ORDER BY updated_at DESC LIMIT 10;',
 			},
 		];
 	}
