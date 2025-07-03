@@ -173,18 +173,23 @@ games.put('/saves/:id', async (c) => {
 			return c.json({ error: 'Saved game not found' }, 404);
 		}
 
+		// Build update query dynamically
+		const updates = [];
+		const values = [];
+
 		// Validate game_data if provided
 		if (parsed.data.game_data) {
 			try {
-				JSON.parse(parsed.data.game_data);
+				const gameData = JSON.parse(parsed.data.game_data);
+				if (gameData.current_time) {
+					// If the current_time is updated, save it to our updated values too
+					updates.push('game_time = ?');
+					values.push(gameData.current_time);
+				}
 			} catch {
 				return c.json({ error: 'Invalid JSON in game_data' }, 400);
 			}
 		}
-
-		// Build update query dynamically
-		const updates = [];
-		const values = [];
 
 		if (parsed.data.name) {
 			updates.push('name = ?');
