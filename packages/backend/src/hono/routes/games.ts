@@ -7,15 +7,15 @@ import {
 } from '@stargate/common/models/saved-game';
 import { Hono } from 'hono';
 
-import type { Env } from '../../types';
+import type { Env, User } from '../../types';
 import { verifyJwt } from '../middleware/auth';
 
-const games = new Hono<{ Bindings: Env }>();
+const games = new Hono<{ Bindings: Env; Variables: { user: User } }>();
 
 // All game routes require authentication
-games.use('/api/games/*', verifyJwt);
+games.use('*', verifyJwt);
 
-games.get('/api/games/status', async (c) => {
+games.get('/status', async (c) => {
 	try {
 		// For now, this fetches the global destiny status.
 		// Later, this could be adapted to fetch status for a specific game session.
@@ -41,7 +41,7 @@ games.get('/api/games/status', async (c) => {
 // ===== SAVED GAMES API =====
 
 // List all saved games for the authenticated user
-games.get('/api/games/saves', async (c) => {
+games.get('/saves', async (c) => {
 	try {
 		const user = c.get('user');
 
@@ -71,7 +71,7 @@ games.get('/api/games/saves', async (c) => {
 });
 
 // Get a specific saved game by ID
-games.get('/api/games/saves/:id', async (c) => {
+games.get('/saves/:id', async (c) => {
 	try {
 		const user = c.get('user');
 		const gameId = c.req.param('id');
@@ -101,9 +101,9 @@ games.get('/api/games/saves/:id', async (c) => {
 });
 
 // Create a new saved game
-games.post('/api/games/saves', async (c) => {
+games.post('/saves', async (c) => {
 	try {
-		const user = c.get('user');
+		const user = c.get('user') as User;
 		const body = await c.req.json();
 
 		const parsed = CreateSavedGameSchema.safeParse(body);
@@ -153,9 +153,9 @@ games.post('/api/games/saves', async (c) => {
 });
 
 // Update an existing saved game
-games.put('/api/games/saves/:id', async (c) => {
+games.put('/saves/:id', async (c) => {
 	try {
-		const user = c.get('user');
+		const user = c.get('user') as User;
 		const gameId = c.req.param('id');
 		const body = await c.req.json();
 
@@ -235,7 +235,7 @@ games.put('/api/games/saves/:id', async (c) => {
 });
 
 // Delete a saved game
-games.delete('/api/games/saves/:id', async (c) => {
+games.delete('/saves/:id', async (c) => {
 	try {
 		const user = c.get('user');
 		const gameId = c.req.param('id');

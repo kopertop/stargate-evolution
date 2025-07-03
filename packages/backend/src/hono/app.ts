@@ -19,9 +19,9 @@ app.get('/', (c: Context) => {
 });
 
 // Register routes
-app.route('/', auth);
-app.route('/', games);
-app.route('/', admin);
-app.route('/', templates);
+app.route('/api/auth', auth);
+app.route('/api/games', games);
+app.route('/api/admin', admin);
+app.route('/api/templates', templates);
 
 export default app;

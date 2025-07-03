@@ -7,25 +7,16 @@ import { toast } from 'react-toastify';
 
 
 import { renderGoogleSignInButton } from '../auth/google-auth';
-import { getSession, setSession, clearSession, validateOrRefreshSession } from '../auth/session';
+import { useAuth } from '../contexts/auth-context';
 import { useGameState } from '../contexts/game-state-context';
 import { useGameController } from '../services/game-controller';
 import { SavedGameService } from '../services/saved-game-service';
 
 import './google-login.css';
 
-type User = {
-	id: string;
-	email: string;
-	name: string;
-	picture?: string;
-	is_admin: boolean;
-};
-
 export const MenuPage: React.FC = () => {
 	const navigate = useNavigate();
-	const [user, setUser] = useState<User | null>(null);
-	const [loading, setLoading] = useState(true);
+	const { user, isLoading: loading, isTokenExpired, signIn, signOut, reAuthenticate } = useAuth();
 	const [focusedMenuItem, setFocusedMenuItem] = useState(0);
 	const [showNewGameModal, setShowNewGameModal] = useState(false);
 	const [newGameName, setNewGameName] = useState('');
@@ -35,12 +26,9 @@ export const MenuPage: React.FC = () => {
 	const [selectedGameId, setSelectedGameId] = useState<string | null>(null);
 	const [checkingSavedGames, setCheckingSavedGames] = useState(false);
 	const [mostRecentGame, setMostRecentGame] = useState<SavedGameListItem | null>(null);
+	const [showReAuthModal, setShowReAuthModal] = useState(false);
 	const controller = useGameController();
 	const gameState = useGameState();
-
-	useEffect(() => {
-		checkAuthStatus();
-	}, []);
 
 	// Check for saved games when user changes
 	useEffect(() => {
@@ -66,7 +54,7 @@ export const MenuPage: React.FC = () => {
 		console.log('[MENU-PAGE-CONTROLLER] Setting up gamepad navigation');
 
 		// Get menu item count based on auth state
-		const getMenuItemCount = (currentUser: User | null) => {
+		const getMenuItemCount = (currentUser: any) => {
 			if (!currentUser) return 1; // Just sign in button
 			let count = 3; // Start Game + Continue + Load Game
 			if (currentUser.is_admin) count++; // Admin Panel
@@ -135,26 +123,10 @@ export const MenuPage: React.FC = () => {
 		};
 	}, [controller.isConnected]);
 
-	const checkAuthStatus = async () => {
-		try {
-			const API_URL = import.meta.env.VITE_PUBLIC_API_URL || '';
-			const validSession = await validateOrRefreshSession(API_URL);
 
-			if (validSession?.user) {
-				setUser({
-					...validSession.user,
-					picture: validSession.user.picture || undefined,
-				});
-			}
-		} catch (error) {
-			console.error('Failed to validate session:', error);
-		} finally {
-			setLoading(false);
-		}
-	};
 
-		const checkForSavedGames = async () => {
-		if (!user) return;
+	const checkForSavedGames = async () => {
+		if (!user || isTokenExpired) return;
 
 		setCheckingSavedGames(true);
 		try {
@@ -163,7 +135,7 @@ export const MenuPage: React.FC = () => {
 			if (games && Array.isArray(games) && games.length > 0) {
 				// Find the most recently updated game
 				const mostRecent = games.reduce((latest, current) =>
-					current.updated_at > latest.updated_at ? current : latest
+					current.updated_at > latest.updated_at ? current : latest,
 				);
 				setMostRecentGame(mostRecent);
 				console.log('[MENU] Found most recent game:', mostRecent.name, 'updated:', new Date(mostRecent.updated_at * 1000));
@@ -181,31 +153,23 @@ export const MenuPage: React.FC = () => {
 
 	const handleGoogleSignIn = async (idToken: string) => {
 		try {
-			setLoading(true);
-			const API_URL = import.meta.env.VITE_PUBLIC_API_URL || '';
-			const res = await fetch(`${API_URL}/api/auth/google`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ idToken }),
-			});
-
-			const data = await res.json();
-			if (!res.ok) throw new Error(data.error || 'Auth failed');
-
-			setSession(data);
-			setUser(data.user);
-			toast.success(`Welcome, ${data.user.name}!`);
-		} catch (error: any) {
-			toast.error(error.message || 'Authentication failed');
-		} finally {
-			setLoading(false);
+			await signIn(idToken);
+		} catch (error) {
+			// Error handling is done in the auth context
 		}
 	};
 
 	const handleSignOut = () => {
-		clearSession();
-		setUser(null);
-		toast.info('Signed out successfully');
+		signOut();
+	};
+
+	const handleReAuthenticate = async (idToken: string) => {
+		try {
+			await reAuthenticate(idToken);
+			setShowReAuthModal(false);
+		} catch (error) {
+			// Error handling is done in the auth context
+		}
 	};
 
 	const handleAdminAccess = () => {
@@ -250,6 +214,12 @@ export const MenuPage: React.FC = () => {
 			return;
 		}
 
+		if (isTokenExpired) {
+			toast.warning('Please sign in to continue your saved game');
+			setShowReAuthModal(true);
+			return;
+		}
+
 		try {
 			setCheckingSavedGames(true);
 			console.log('[MENU] Loading most recent game:', mostRecentGame.name);
@@ -267,6 +237,13 @@ export const MenuPage: React.FC = () => {
 		setShowLoadGameModal(true);
 		setLoadingGames(true);
 		setSelectedGameId(null);
+
+		if (!user || isTokenExpired) {
+			toast.warning('Please sign in to load saved games');
+			setSavedGames([]);
+			setLoadingGames(false);
+			return;
+		}
 
 		try {
 			const games = await SavedGameService.listSavedGames();
@@ -341,10 +318,25 @@ export const MenuPage: React.FC = () => {
 					renderGoogleSignInButton('google-signin-button', handleGoogleSignIn);
 				}
 			}, 100); // Small delay to ensure DOM is ready
-			
+
 			return () => clearTimeout(timer);
 		}
 	}, [user, loading]); // Only re-run when user or loading state changes
+
+	// Set up Google Sign-In button for re-authentication modal
+	useEffect(() => {
+		if (showReAuthModal) {
+			const timer = setTimeout(() => {
+				const container = document.getElementById('menu-reauth-google-signin-button');
+				if (container) {
+					container.innerHTML = ''; // Clear any existing content
+					renderGoogleSignInButton('menu-reauth-google-signin-button', handleReAuthenticate);
+				}
+			}, 100); // Small delay to ensure DOM is ready
+
+			return () => clearTimeout(timer);
+		}
+	}, [showReAuthModal]);
 
 	if (loading) {
 		return (
@@ -389,8 +381,26 @@ export const MenuPage: React.FC = () => {
 													<span className="badge bg-success ms-2">Admin</span>
 												</div>
 											)}
+											{isTokenExpired && (
+												<div>
+													<span className="badge bg-warning text-dark ms-2">Session Expired</span>
+												</div>
+											)}
 										</div>
 									</div>
+
+									{isTokenExpired && (
+										<div className="alert alert-warning d-flex justify-content-between align-items-center mb-3">
+											<span>Your session has expired. Sign in again to save/load games.</span>
+											<Button
+												variant="warning"
+												size="sm"
+												onClick={() => setShowReAuthModal(true)}
+											>
+												Sign In
+											</Button>
+										</div>
+									)}
 
 									<div className="d-grid gap-2 mb-3">
 										<Button
@@ -628,6 +638,21 @@ export const MenuPage: React.FC = () => {
 						{loadingGames ? 'Loading...' : 'Load Game'}
 					</Button>
 				</Modal.Footer>
+			</Modal>
+
+			{/* Re-Authentication Modal */}
+			<Modal show={showReAuthModal} onHide={() => setShowReAuthModal(false)} centered>
+				<Modal.Header closeButton>
+					<Modal.Title>Session Expired</Modal.Title>
+				</Modal.Header>
+				<Modal.Body>
+					<div className="text-center">
+						<p className="mb-3">
+							Your session has expired. Please sign in again to continue.
+						</p>
+						<div id="menu-reauth-google-signin-button" className="d-flex justify-content-center" />
+					</div>
+				</Modal.Body>
 			</Modal>
 		</div>
 	);

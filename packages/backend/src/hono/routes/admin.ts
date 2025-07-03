@@ -1,22 +1,24 @@
 import { Hono } from 'hono';
+import { cors } from 'hono/cors';
 
-import type { Env } from '../../types';
+import type { Env, User } from '../../types';
 import { verifyAdmin } from '../middleware/admin';
 import { verifyJwt } from '../middleware/auth';
-// We will create this middleware next
-// import { verifyAdmin } from '../middleware/admin';
+// Import the static schema
+import tableSchema from '../table-schema.json';
 
-const admin = new Hono<{ Bindings: Env }>();
+const admin = new Hono<{ Bindings: Env; Variables: { user: User } }>();
 
-// All admin routes require authentication and admin privileges
-admin.use('/api/admin/*', verifyJwt, verifyAdmin);
+// Apply CORS and auth middleware
+admin.use('*', cors());
+admin.use('*', verifyJwt, verifyAdmin);
 
-admin.get('/api/admin/health', (c) => {
+admin.get('/health', (c) => {
 	return c.json({ ok: true, message: 'Admin route is healthy' });
 });
 
 // --- User Management ---
-admin.get('/api/admin/users', async (c) => {
+admin.get('/users', async (c) => {
 	try {
 		const users = await c.env.DB.prepare('SELECT id, email, name, image, is_admin, created_at, updated_at FROM users ORDER BY created_at DESC').all();
 		return c.json(users.results);
@@ -25,7 +27,7 @@ admin.get('/api/admin/users', async (c) => {
 	}
 });
 
-admin.patch('/api/admin/users/:id', async (c) => {
+admin.patch('/users/:id', async (c) => {
 	try {
 		const userId = c.req.param('id');
 		if (!userId) throw new Error('User ID required');
@@ -47,7 +49,7 @@ admin.patch('/api/admin/users/:id', async (c) => {
 });
 
 // --- Door Templates ---
-admin.get('/api/admin/doors', async (c) => {
+admin.get('/doors', async (c) => {
 	try {
 		const { getAllDoorTemplates } = await import('../../templates/door-templates');
 		const doors = await getAllDoorTemplates(c.env.DB);
@@ -57,7 +59,7 @@ admin.get('/api/admin/doors', async (c) => {
 	}
 });
 
-admin.get('/api/admin/doors/:id', async (c) => {
+admin.get('/doors/:id', async (c) => {
 	try {
 		const { getDoorTemplateById } = await import('../../templates/door-templates');
 		const doorId = c.req.param('id');
@@ -74,7 +76,7 @@ admin.get('/api/admin/doors/:id', async (c) => {
 	}
 });
 
-admin.post('/api/admin/doors', async (c) => {
+admin.post('/doors', async (c) => {
 	const body = await c.req.json();
 	// TODO: Add validation using a library like Zod
 	try {
@@ -107,7 +109,7 @@ admin.post('/api/admin/doors', async (c) => {
 	}
 });
 
-admin.put('/api/admin/doors/:id', async (c) => {
+admin.put('/doors/:id', async (c) => {
 	const { id } = c.req.param();
 	const body = await c.req.json();
 	// TODO: Add validation
@@ -140,7 +142,7 @@ admin.put('/api/admin/doors/:id', async (c) => {
 	}
 });
 
-admin.delete('/api/admin/doors/:id', async (c) => {
+admin.delete('/doors/:id', async (c) => {
 	const { id } = c.req.param();
 	try {
 		await c.env.DB.prepare('DELETE FROM door_templates WHERE id = ?').bind(id).run();
@@ -152,7 +154,7 @@ admin.delete('/api/admin/doors/:id', async (c) => {
 });
 
 // --- Room Templates ---
-admin.post('/api/admin/rooms', async (c) => {
+admin.post('/rooms', async (c) => {
 	const body = await c.req.json();
 	// TODO: Add validation
 	try {
@@ -184,7 +186,7 @@ admin.post('/api/admin/rooms', async (c) => {
 	}
 });
 
-admin.put('/api/admin/rooms/:id', async (c) => {
+admin.put('/rooms/:id', async (c) => {
 	const { id } = c.req.param();
 	const body = await c.req.json();
 	// TODO: Add validation
@@ -216,7 +218,7 @@ admin.put('/api/admin/rooms/:id', async (c) => {
 	}
 });
 
-admin.delete('/api/admin/rooms/:id', async (c) => {
+admin.delete('/rooms/:id', async (c) => {
 	try {
 		const roomId = c.req.param('id');
 		if (!roomId) throw new Error('Room ID required');
@@ -238,7 +240,7 @@ admin.delete('/api/admin/rooms/:id', async (c) => {
 });
 
 // --- Character Templates ---
-admin.get('/api/admin/characters', async (c) => {
+admin.get('/characters', async (c) => {
 	try {
 		const { getAllCharacterTemplates } = await import('../../templates/character-templates');
 		const characters = await getAllCharacterTemplates(c.env.DB);
@@ -248,7 +250,7 @@ admin.get('/api/admin/characters', async (c) => {
 	}
 });
 
-admin.get('/api/admin/characters/:id', async (c) => {
+admin.get('/characters/:id', async (c) => {
 	try {
 		const { getCharacterTemplateById } = await import('../../templates/character-templates');
 		const characterId = c.req.param('id');
@@ -265,7 +267,7 @@ admin.get('/api/admin/characters/:id', async (c) => {
 	}
 });
 
-admin.post('/api/admin/characters', async (c) => {
+admin.post('/characters', async (c) => {
 	const body = await c.req.json();
 	// TODO: Add validation
 	try {
@@ -297,7 +299,7 @@ admin.post('/api/admin/characters', async (c) => {
 	}
 });
 
-admin.put('/api/admin/characters/:id', async (c) => {
+admin.put('/characters/:id', async (c) => {
 	const { id } = c.req.param();
 	const body = await c.req.json();
 	// TODO: Add validation
@@ -329,7 +331,7 @@ admin.put('/api/admin/characters/:id', async (c) => {
 	}
 });
 
-admin.delete('/api/admin/characters/:id', async (c) => {
+admin.delete('/characters/:id', async (c) => {
 	try {
 		const characterId = c.req.param('id');
 		if (!characterId) throw new Error('Character ID required');
@@ -346,7 +348,7 @@ admin.delete('/api/admin/characters/:id', async (c) => {
 	}
 });
 
-admin.post('/api/admin/characters/:id/experience', async (c) => {
+admin.post('/characters/:id/experience', async (c) => {
 	const { id } = c.req.param();
 	const { amount } = await c.req.json();
 
@@ -376,7 +378,7 @@ admin.post('/api/admin/characters/:id/experience', async (c) => {
 });
 
 // --- Technology Templates ---
-admin.post('/api/admin/technologies', async (c) => {
+admin.post('/technologies', async (c) => {
 	try {
 		const techData = await c.req.json();
 		const now = Date.now();
@@ -403,7 +405,7 @@ admin.post('/api/admin/technologies', async (c) => {
 	}
 });
 
-admin.put('/api/admin/technologies/:id', async (c) => {
+admin.put('/technologies/:id', async (c) => {
 	try {
 		const techId = c.req.param('id');
 		if (!techId) throw new Error('Technology ID required');
@@ -436,7 +438,7 @@ admin.put('/api/admin/technologies/:id', async (c) => {
 	}
 });
 
-admin.delete('/api/admin/technologies/:id', async (c) => {
+admin.delete('/technologies/:id', async (c) => {
 	try {
 		const techId = c.req.param('id');
 		if (!techId) throw new Error('Technology ID required');
@@ -454,7 +456,7 @@ admin.delete('/api/admin/technologies/:id', async (c) => {
 });
 
 // --- Room Technology ---
-admin.post('/api/admin/room-technology', async (c) => {
+admin.post('/room-technology', async (c) => {
 	try {
 		const { setRoomTechnology } = await import('../../templates/technology-templates');
 		const { room_id, technologies } = await c.req.json() as { room_id: string; technologies: any[] };
@@ -470,7 +472,7 @@ admin.post('/api/admin/room-technology', async (c) => {
 	}
 });
 
-admin.delete('/api/admin/room-technology/:id', async (c) => {
+admin.delete('/room-technology/:id', async (c) => {
 	try {
 		const { deleteRoomTechnology } = await import('../../templates/technology-templates');
 		const techId = c.req.param('id');
@@ -489,7 +491,7 @@ admin.delete('/api/admin/room-technology/:id', async (c) => {
 });
 
 // --- Room Furniture ---
-admin.get('/api/admin/furniture', async (c) => {
+admin.get('/furniture', async (c) => {
 	try {
 		const { getAllRoomFurniture } = await import('../../templates/room-furniture-templates');
 		const furniture = await getAllRoomFurniture(c.env);
@@ -499,7 +501,7 @@ admin.get('/api/admin/furniture', async (c) => {
 	}
 });
 
-admin.get('/api/admin/furniture/:id', async (c) => {
+admin.get('/furniture/:id', async (c) => {
 	try {
 		const { getRoomFurnitureById } = await import('../../templates/room-furniture-templates');
 		const furnitureId = c.req.param('id');
@@ -516,7 +518,7 @@ admin.get('/api/admin/furniture/:id', async (c) => {
 	}
 });
 
-admin.get('/api/admin/rooms/:id/furniture', async (c) => {
+admin.get('/rooms/:id/furniture', async (c) => {
 	try {
 		const { getRoomFurniture } = await import('../../templates/room-furniture-templates');
 		const roomId = c.req.param('id');
@@ -529,7 +531,7 @@ admin.get('/api/admin/rooms/:id/furniture', async (c) => {
 	}
 });
 
-admin.post('/api/admin/furniture', async (c) => {
+admin.post('/furniture', async (c) => {
 	try {
 		const { createRoomFurniture } = await import('../../templates/room-furniture-templates');
 		const furnitureData = await c.req.json();
@@ -541,7 +543,7 @@ admin.post('/api/admin/furniture', async (c) => {
 	}
 });
 
-admin.put('/api/admin/furniture/:id', async (c) => {
+admin.put('/furniture/:id', async (c) => {
 	try {
 		const { updateRoomFurniture } = await import('../../templates/room-furniture-templates');
 		const furnitureId = c.req.param('id');
@@ -556,7 +558,7 @@ admin.put('/api/admin/furniture/:id', async (c) => {
 	}
 });
 
-admin.delete('/api/admin/furniture/:id', async (c) => {
+admin.delete('/furniture/:id', async (c) => {
 	try {
 		const { deleteRoomFurniture } = await import('../../templates/room-furniture-templates');
 		const furnitureId = c.req.param('id');
@@ -570,6 +572,169 @@ admin.delete('/api/admin/furniture/:id', async (c) => {
 		return c.json({ success: true });
 	} catch (err: any) {
 		return c.json({ error: err.message || 'Failed to delete furniture' }, 500);
+	}
+});
+
+// SQL Debug Endpoints - ADMIN ONLY
+admin.post('/sql/query', async (c) => {
+	try {
+		const { query, params = [] } = await c.req.json();
+
+		if (!query || typeof query !== 'string') {
+			return c.json({ error: 'Query is required and must be a string' }, 400);
+		}
+
+		// Log the query for security audit
+		const user = c.get('user');
+		console.log(`[ADMIN-SQL] User ${user.email} (${user.id}) executing query:`, query);
+		console.log('[ADMIN-SQL] Query params:', params);
+
+		// Determine if this is a read or write operation
+		const trimmedQuery = query.trim().toLowerCase();
+		const isReadOnly = trimmedQuery.startsWith('select') ||
+						  trimmedQuery.startsWith('with') ||
+						  trimmedQuery.startsWith('pragma');
+
+		let result;
+		let affectedRows = 0;
+
+		if (isReadOnly) {
+			// For read operations, use .all() to get all results
+			let queryResult;
+			if (params && params.length > 0) {
+				queryResult = await c.env.DB.prepare(query).bind(...params).all();
+			} else {
+				queryResult = await c.env.DB.prepare(query).all();
+			}
+			result = queryResult.results || [];
+		} else {
+			// For write operations, use .run() and get info about changes
+			let runResult;
+			if (params && params.length > 0) {
+				runResult = await c.env.DB.prepare(query).bind(...params).run();
+			} else {
+				runResult = await c.env.DB.prepare(query).run();
+			}
+			affectedRows = runResult.meta?.changes || 0;
+			result = {
+				success: true,
+				changes: runResult.meta?.changes || 0,
+				lastInsertRowid: runResult.meta?.last_row_id,
+			};
+		}
+
+		console.log(`[ADMIN-SQL] Query executed successfully. Affected rows: ${affectedRows}`);
+
+		return c.json({
+			success: true,
+			isReadOnly,
+			result,
+			affectedRows,
+			executedAt: new Date().toISOString(),
+			executedBy: user.email,
+		});
+
+	} catch (error) {
+		console.error('[ADMIN-SQL] Query execution failed:', error);
+		return c.json({
+			error: 'Query execution failed',
+			details: error instanceof Error ? error.message : 'Unknown error',
+			executedAt: new Date().toISOString(),
+		}, 500);
+	}
+});
+
+// Get database schema information
+admin.get('/sql/schema', async (c) => {
+	const user = c.get('user');
+	console.log(`[ADMIN-SQL] User ${user.email} (${user.id}) requesting database schema`);
+
+	const tables = await Promise.all(tableSchema.tables.map(async (table) => {
+		console.log(`[ADMIN-SQL] Table ${table.name}`);
+		const rowCount = await c.env.DB.prepare(`SELECT count(*) as rowCount FROM ${table.name}`).first();
+		return {
+			...table,
+			rowCount: rowCount?.rowCount || 0,
+		};
+	}));
+
+	// Return the pre-generated schema
+	return c.json({
+		tables,
+		requestedBy: user.email,
+	});
+});
+
+// Get table data with pagination
+admin.get('/sql/table/:tableName', async (c) => {
+	const user = c.get('user');
+	const tableName = c.req.param('tableName');
+	const page = parseInt(c.req.query('page') || '1');
+	const limit = parseInt(c.req.query('limit') || '100');
+	const offset = (page - 1) * limit;
+
+	console.log(`[ADMIN-SQL] User ${user.email} (${user.id}) requesting table data: ${tableName}`);
+
+	// Find table in schema to validate it exists
+	const tableExists = tableSchema.tables.find(t => t.name === tableName);
+	if (!tableExists) {
+		return c.json({ error: 'Table not found' }, 404);
+	}
+
+	// Get total count
+	const countResult = await c.env.DB.prepare(`SELECT COUNT(*) as count FROM ${tableName}`).first();
+	const totalRows = countResult?.count || 0;
+
+	// Get paginated data
+	const dataResult = await c.env.DB.prepare(`
+		SELECT * FROM ${tableName}
+		ORDER BY rowid
+		LIMIT ? OFFSET ?
+	`).bind(limit, offset).all();
+
+	const data = dataResult.results || [];
+
+	// Get column info from schema
+	const columns = tableExists.columns || [];
+
+	return c.json({
+		tableName,
+		columns,
+		data,
+		pagination: {
+			page,
+			limit,
+			totalRows,
+			totalPages: Math.ceil(totalRows / limit),
+			hasNext: page * limit < totalRows,
+			hasPrev: page > 1,
+		},
+		generatedAt: new Date().toISOString(),
+		requestedBy: user.email,
+	});
+});
+
+// Get recent query history (for audit purposes)
+admin.get('/sql/history', async (c) => {
+	try {
+		// This would ideally be stored in a separate audit log table
+		// For now, we'll return a placeholder indicating this feature could be implemented
+		const user = c.get('user');
+		console.log(`[ADMIN-SQL] User ${user.email} (${user.id}) requesting query history`);
+
+		return c.json({
+			message: 'Query history feature not yet implemented',
+			note: 'All SQL queries are logged to the server console for security audit purposes',
+			requestedBy: user.email,
+			requestedAt: new Date().toISOString(),
+		});
+
+	} catch (error) {
+		console.error('[ADMIN-SQL] History fetch failed:', error);
+		return c.json({
+			error: 'Failed to fetch query history',
+			details: error instanceof Error ? error.message : 'Unknown error',
+		}, 500);
 	}
 });
 

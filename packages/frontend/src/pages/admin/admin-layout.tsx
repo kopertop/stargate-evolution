@@ -1,6 +1,6 @@
 import React from 'react';
 import { Container, Nav, Navbar } from 'react-bootstrap';
-import { FaUsers, FaGamepad, FaCog, FaMap, FaRobot, FaDoorOpen, FaToolbox } from 'react-icons/fa';
+import { FaUsers, FaGamepad, FaCog, FaMap, FaRobot, FaDoorOpen, FaToolbox, FaDatabase } from 'react-icons/fa';
 import { Outlet, useLocation, useNavigate } from 'react-router';
 
 export const AdminLayout: React.FC = () => {
@@ -14,6 +14,7 @@ export const AdminLayout: React.FC = () => {
 		{ path: '/admin/characters', label: 'Characters', icon: <FaRobot /> },
 		{ path: '/admin/rooms', label: 'Room Templates', icon: <FaDoorOpen /> },
 		{ path: '/admin/technologies', label: 'Technologies', icon: <FaToolbox /> },
+		{ path: '/admin/sql-debug', label: 'SQL Debug', icon: <FaDatabase /> },
 	];
 
 	const isActive = (path: string) => {

@@ -4,11 +4,11 @@ import type { Env } from '../../types';
 
 const templates = new Hono<{ Bindings: Env }>();
 
-templates.get('/api/templates/health', (c) => {
+templates.get('/health', (c) => {
 	return c.json({ ok: true, message: 'Templates route is healthy' });
 });
 
-templates.get('/api/templates/races', async (c) => {
+templates.get('/races', async (c) => {
 	try {
 		const { results } = await c.env.DB.prepare('SELECT * FROM race_templates').all();
 		return c.json(results);
@@ -18,7 +18,7 @@ templates.get('/api/templates/races', async (c) => {
 	}
 });
 
-templates.get('/api/templates/persons', async (c) => {
+templates.get('/persons', async (c) => {
 	try {
 		const { results } = await c.env.DB.prepare('SELECT * FROM person_templates').all();
 		return c.json(results);
@@ -28,7 +28,7 @@ templates.get('/api/templates/persons', async (c) => {
 	}
 });
 
-templates.get('/api/templates/galaxies', async (c) => {
+templates.get('/galaxies', async (c) => {
 	try {
 		const { results } = await c.env.DB.prepare('SELECT * FROM galaxy_templates').all();
 		return c.json(results);
@@ -38,7 +38,7 @@ templates.get('/api/templates/galaxies', async (c) => {
 	}
 });
 
-templates.get('/api/templates/galaxies/:id', async (c) => {
+templates.get('/galaxies/:id', async (c) => {
 	const { id } = c.req.param();
 	try {
 		const result = await c.env.DB.prepare('SELECT * FROM galaxy_templates WHERE id = ?').bind(id).first();
@@ -52,7 +52,7 @@ templates.get('/api/templates/galaxies/:id', async (c) => {
 	}
 });
 
-templates.get('/api/templates/rooms', async (c) => {
+templates.get('/rooms', async (c) => {
 	try {
 		const { results } = await c.env.DB.prepare('SELECT * FROM room_templates').all();
 		return c.json(results);
@@ -62,7 +62,7 @@ templates.get('/api/templates/rooms', async (c) => {
 	}
 });
 
-templates.get('/api/templates/doors', async (c) => {
+templates.get('/doors', async (c) => {
 	try {
 		const { results } = await c.env.DB.prepare('SELECT * FROM door_templates').all();
 		return c.json(results);
@@ -72,7 +72,7 @@ templates.get('/api/templates/doors', async (c) => {
 	}
 });
 
-templates.get('/api/templates/doors/room/:id', async (c) => {
+templates.get('/doors/room/:id', async (c) => {
 	const { id } = c.req.param();
 	try {
 		const { results } = await c.env.DB.prepare('SELECT * FROM door_templates WHERE from_room_id = ? OR to_room_id = ?')
@@ -85,7 +85,7 @@ templates.get('/api/templates/doors/room/:id', async (c) => {
 	}
 });
 
-templates.get('/api/templates/characters', async (c) => {
+templates.get('/characters', async (c) => {
 	try {
 		const { results } = await c.env.DB.prepare('SELECT * FROM character_templates').all();
 		return c.json(results);
@@ -95,7 +95,7 @@ templates.get('/api/templates/characters', async (c) => {
 	}
 });
 
-templates.get('/api/templates/characters/:id', async (c) => {
+templates.get('/characters/:id', async (c) => {
 	const { id } = c.req.param();
 	try {
 		const result = await c.env.DB.prepare('SELECT * FROM character_templates WHERE id = ?').bind(id).first();
@@ -109,7 +109,7 @@ templates.get('/api/templates/characters/:id', async (c) => {
 	}
 });
 
-templates.get('/api/templates/furniture', async (c) => {
+templates.get('/furniture', async (c) => {
 	try {
 		const { getAllRoomFurniture } = await import('../../templates/room-furniture-templates');
 		const furniture = await getAllRoomFurniture(c.env);
@@ -119,7 +119,7 @@ templates.get('/api/templates/furniture', async (c) => {
 	}
 });
 
-templates.get('/api/templates/furniture/:id', async (c) => {
+templates.get('/furniture/:id', async (c) => {
 	const { id } = c.req.param();
 	try {
 		const { getRoomFurnitureById } = await import('../../templates/room-furniture-templates');

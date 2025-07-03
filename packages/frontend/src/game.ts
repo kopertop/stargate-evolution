@@ -99,7 +99,11 @@ export class Game {
 		this.setupMapZoomControls();
 
 		// Initialize room rendering system
-		this.initializeRoomSystem();
+		this.initializeRoomSystem().catch((error) => {
+			console.error('[GAME] Failed to initialize room system:', error);
+			// Show error to user - the game cannot function without room data
+			throw new Error(`Game initialization failed: ${error.message}`);
+		});
 	}
 
 	private createStarfield(): PIXI.Graphics {
@@ -701,6 +705,71 @@ export class Game {
 		console.log('[GAME] Controller subscriptions cleaned up');
 	}
 
+	// Game state restoration methods
+	public setPlayerPosition(x: number, y: number, roomId?: string) {
+		this.player.x = x;
+		this.player.y = y;
+		console.log('[GAME] Player position restored to:', { x, y, roomId });
+		
+		// If roomId is provided, validate that the room exists
+		if (roomId) {
+			const room = this.rooms.find(r => r.id === roomId);
+			if (room) {
+				console.log('[GAME] Player is in room:', room.name || room.id);
+			} else {
+				console.warn('[GAME] Room not found for roomId:', roomId);
+			}
+		}
+	}
+
+	public restoreDoorStates(doorStates: any[]) {
+		console.log('[GAME] Restoring door states:', doorStates.length, 'doors');
+		
+		// Update door states in our internal doors array
+		doorStates.forEach(savedDoor => {
+			const doorIndex = this.doors.findIndex(d => d.id === savedDoor.id);
+			if (doorIndex !== -1) {
+				// Update the door state
+				this.doors[doorIndex] = { ...this.doors[doorIndex], ...savedDoor };
+				console.log('[GAME] Restored door state:', savedDoor.id, 'state:', savedDoor.state);
+			} else {
+				console.warn('[GAME] Door not found for restoration:', savedDoor.id);
+			}
+		});
+		
+		// Re-render rooms to reflect door state changes
+		this.renderRooms();
+	}
+
+	public getPlayerPosition(): { x: number; y: number } {
+		return { x: this.player.x, y: this.player.y };
+	}
+
+	public getCurrentRoomId(): string | null {
+		const currentRoom = this.findRoomContainingPoint(this.player.x, this.player.y);
+		return currentRoom ? currentRoom.id : null;
+	}
+
+	public getDoorStates(): any[] {
+		return this.doors.map(door => ({
+			id: door.id,
+			state: door.state,
+			from_room_id: door.from_room_id,
+			to_room_id: door.to_room_id,
+			x: door.x,
+			y: door.y,
+			width: door.width,
+			height: door.height,
+			rotation: door.rotation,
+			is_automatic: door.is_automatic,
+			open_direction: door.open_direction,
+			style: door.style,
+			color: door.color,
+			requirements: door.requirements,
+			power_required: door.power_required,
+		}));
+	}
+
 	private setupLegendPopover() {
 		window.addEventListener('keydown', (e) => {
 			if (e.key === '?' || e.key === '/') {
@@ -823,9 +892,6 @@ export class Game {
 		try {
 			console.log('[DEBUG] Initializing room system...');
 
-			// Always create demo rooms first as a safety measure
-			this.createDemoRooms();
-
 			// Create rendering layers
 			this.roomsLayer = new PIXI.Container();
 			this.doorsLayer = new PIXI.Container();
@@ -841,12 +907,8 @@ export class Game {
 
 			console.log('[DEBUG] Added layers to world');
 
-			// Try to load real room data from admin API
-			try {
-				await this.loadRoomData();
-			} catch (error) {
-				console.warn('[DEBUG] Failed to load real room data, using demo rooms:', error);
-			}
+			// Load room data from API - fail if not available
+			await this.loadRoomData();
 
 			// Render all rooms
 			this.renderRooms();
@@ -862,14 +924,15 @@ export class Game {
 
 			console.log('[DEBUG] Room system initialized successfully with default zoom:', DEFAULT_ZOOM);
 		} catch (error) {
-			console.error('[DEBUG] Error initializing room system:', error);
+			console.error('[GAME] Critical error initializing room system:', error);
+			// Re-throw with more context
+			throw new Error(`Room system initialization failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
 		}
 	}
 
 	private async loadRoomData() {
 		console.log('[DEBUG] Loading room data from API...');
 
-		// Try to load real room data and replace demo rooms if successful
 		const templateService = new TemplateService();
 		const realRooms = await templateService.getRooms();
 		const realDoors = await templateService.getDoors();
@@ -877,112 +940,24 @@ export class Game {
 
 		console.log(`[DEBUG] Loaded ${realRooms.length} rooms, ${realDoors.length} doors, ${realFurniture.length} furniture from API`);
 
-		// Only replace demo data if we actually got real data
-		if (realRooms.length > 0) {
-			this.rooms = realRooms;
-			this.doors = realDoors;
-			this.furniture = realFurniture;
-			console.log('[DEBUG] Replaced demo data with real room data');
-			console.log('[DEBUG] Real rooms:', this.rooms.map(r => ({ id: r.id, name: r.name, type: r.type })));
-		} else {
-			console.log('[DEBUG] No real rooms found, keeping demo rooms');
+		// Require real data - fail if API doesn't provide rooms
+		if (realRooms.length === 0) {
+			throw new Error('No room data available from API - cannot initialize game');
 		}
-	}
 
-	private createDemoRooms() {
-		console.log('[DEBUG] Creating demo rooms as fallback...');
-
-		// Create demo room data with larger, more visible rooms
-		this.rooms = [
-			{
-				id: 'demo-gate-room',
-				layout_id: 'demo',
-				type: 'gate_room',
-				name: 'Gate Room',
-				description: 'Demo Gate Room',
-				startX: -200,
-				endX: 200,
-				startY: -150,
-				endY: 150,
-				floor: 0,
-				width: 400,
-				height: 300,
-				image: null,
-				created_at: Date.now(),
-				updated_at: Date.now(),
-			},
-			{
-				id: 'demo-corridor',
-				layout_id: 'demo',
-				type: 'corridor',
-				name: 'East Corridor',
-				description: 'Demo Corridor',
-				startX: 200,
-				endX: 400,
-				startY: -75,
-				endY: 75,
-				floor: 0,
-				width: 200,
-				height: 150,
-				image: null,
-				created_at: Date.now(),
-				updated_at: Date.now(),
-			},
-		] as RoomTemplate[];
-
-		// Add a demo door connecting the rooms
-		this.doors = [
-			{
-				id: 'demo-door',
-				name: 'Demo Door',
-				from_room_id: 'demo-gate-room',
-				to_room_id: 'demo-corridor',
-				x: 200, // At the connection point between rooms
-				y: 0,   // Center vertically
-				width: DOOR_WIDTH,
-				height: DOOR_HEIGHT,
-				rotation: 90, // Vertical door
-				state: 'opened',
-				is_automatic: true,
-				open_direction: 'sliding',
-				style: 'standard',
-				power_required: 0,
-				created_at: Date.now(),
-				updated_at: Date.now(),
-			},
-		] as DoorTemplate[];
-
-		// Add demo furniture (stargate in the gate room)
-		this.furniture = [
-			{
-				id: 'demo-stargate',
-				room_id: 'demo-gate-room',
-				furniture_type: 'stargate',
-				name: 'Demo Stargate',
-				description: 'Demo Stargate',
-				x: 0,  // Center of gate room
-				y: 0,  // Center of gate room
-				z: 1,
-				width: 64,
-				height: 64,
-				rotation: 0,
-				interactive: true,
-				blocks_movement: true,
-				power_required: 0,
-				active: true,
-				discovered: true,
-				created_at: Date.now(),
-				updated_at: Date.now(),
-			},
-		] as RoomFurniture[];
-
-		// Hide starfield
+		this.rooms = realRooms;
+		this.doors = realDoors;
+		this.furniture = realFurniture;
+		
+		console.log('[DEBUG] Loaded room data from API successfully');
+		console.log('[DEBUG] Rooms:', this.rooms.map(r => ({ id: r.id, name: r.name, type: r.type })));
+		
+		// Hide starfield since we have rooms
 		this.starfield.visible = false;
-		// Change background color
+		// Change background color for room view
 		this.app.renderer.background.color = 0x111111;
-
-		console.log('[DEBUG] Demo rooms created');
 	}
+
 
 	private renderRooms() {
 		if (!this.roomsLayer) return;

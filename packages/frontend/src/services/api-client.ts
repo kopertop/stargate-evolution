@@ -88,6 +88,11 @@ export class ApiClient {
 				const refreshedSession = await validateOrRefreshSession(API_URL);
 
 				if (!refreshedSession?.token) {
+					// Emit authentication error event for the auth context to handle
+					window.dispatchEvent(new CustomEvent('auth-error', {
+						detail: { error: 'Token refresh failed', status: 401 },
+					}));
+
 					return {
 						error: 'Authentication failed - please log in again',
 						status: 401,
@@ -107,6 +112,12 @@ export class ApiClient {
 				response = await fetch(url, requestOptions);
 			} catch (refreshError) {
 				console.error('Token refresh failed:', refreshError);
+
+				// Emit authentication error event for the auth context to handle
+				window.dispatchEvent(new CustomEvent('auth-error', {
+					detail: { error: 'Token refresh failed', status: 401 },
+				}));
+
 				return {
 					error: 'Token refresh failed - please log in again',
 					status: 401,

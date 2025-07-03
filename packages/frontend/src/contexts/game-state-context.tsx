@@ -1,9 +1,17 @@
-import { DestinyStatus } from '@stargate/common';
-import { Character } from '@stargate/common';
+import {
+	DestinyStatus,
+	Character,
+	DoorTemplate,
+	Galaxy,
+	StarSystem,
+	ExplorationProgress,
+} from '@stargate/common';
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
 
 import { SavedGameService } from '../services/saved-game-service';
+
+import { useAuth } from './auth-context';
 
 // Enhanced game state context for resource management and gameplay
 interface GameStateContextType {
@@ -22,6 +30,15 @@ interface GameStateContextType {
 	updateCharacter: (id: string, updates: Partial<Character>) => void;
 	removeCharacter: (id: string) => void;
 
+	// Player State
+	playerPosition: { x: number; y: number; roomId?: string } | null;
+	setPlayerPosition: (position: { x: number; y: number; roomId?: string }) => void;
+
+	// Door States (for save/restore)
+	doorStates: DoorTemplate[];
+	setDoorStates: (doors: DoorTemplate[]) => void;
+	updateDoorState: (doorId: string, updates: Partial<DoorTemplate>) => void;
+
 	// Technology & Discoveries
 	technologies: string[]; // Array of discovered technology IDs
 	setTechnologies: (technologies: string[]) => void;
@@ -31,6 +48,18 @@ interface GameStateContextType {
 	exploredRooms: string[]; // Array of explored room IDs
 	setExploredRooms: (rooms: string[]) => void;
 	addExploredRoom: (roomId: string) => void;
+	explorationProgress: ExplorationProgress[];
+	setExplorationProgress: (progress: ExplorationProgress[]) => void;
+
+	// Galaxy & Location Data
+	currentGalaxy: Galaxy | null;
+	setCurrentGalaxy: (galaxy: Galaxy | null) => void;
+	currentSystem: StarSystem | null;
+	setCurrentSystem: (system: StarSystem | null) => void;
+	knownGalaxies: Galaxy[];
+	setKnownGalaxies: (galaxies: Galaxy[]) => void;
+	knownSystems: StarSystem[];
+	setKnownSystems: (systems: StarSystem[]) => void;
 
 	// FTL State Management
 	startFTLJump: (hours: number) => void;
@@ -52,6 +81,7 @@ interface GameStateContextType {
 const GameStateContext = createContext<GameStateContextType | undefined>(undefined);
 
 export const GameStateProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+	const auth = useAuth();
 	const [gameId, setGameId] = useState<string | null>(null);
 	const [gameName, setGameName] = useState<string | null>(null);
 	const [destinyStatus, setDestinyStatus] = useState<DestinyStatus | null>(null);
@@ -60,6 +90,21 @@ export const GameStateProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 	const [exploredRooms, setExploredRooms] = useState<string[]>([]);
 	const [isLoading, setIsLoading] = useState(false);
 	const [isInitialized, setIsInitialized] = useState(false);
+
+	// Player State
+	const [playerPosition, setPlayerPosition] = useState<{ x: number; y: number; roomId?: string } | null>(null);
+
+	// Door States
+	const [doorStates, setDoorStates] = useState<DoorTemplate[]>([]);
+
+	// Exploration Progress
+	const [explorationProgress, setExplorationProgress] = useState<ExplorationProgress[]>([]);
+
+	// Galaxy & Location Data
+	const [currentGalaxy, setCurrentGalaxy] = useState<Galaxy | null>(null);
+	const [currentSystem, setCurrentSystem] = useState<StarSystem | null>(null);
+	const [knownGalaxies, setKnownGalaxies] = useState<Galaxy[]>([]);
+	const [knownSystems, setKnownSystems] = useState<StarSystem[]>([]);
 
 	// Game initialization function
 	const initializeNewGame = async (newGameName: string) => {
@@ -106,6 +151,13 @@ export const GameStateProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 				characters: [],
 				technologies: [],
 				exploredRooms: [],
+				playerPosition: { x: 0, y: 0, roomId: 'destiny-bridge' }, // Default starting position
+				doorStates: [], // Will be populated from templates
+				explorationProgress: [],
+				currentGalaxy: null,
+				currentSystem: null,
+				knownGalaxies: [],
+				knownSystems: [],
 			};
 
 			let savedGameId: string;
@@ -134,6 +186,13 @@ export const GameStateProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 			setCharacters([]);
 			setTechnologies([]);
 			setExploredRooms([]);
+			setPlayerPosition({ x: 0, y: 0, roomId: 'destiny-bridge' });
+			setDoorStates([]);
+			setExplorationProgress([]);
+			setCurrentGalaxy(null);
+			setCurrentSystem(null);
+			setKnownGalaxies([]);
+			setKnownSystems([]);
 			setIsInitialized(true);
 
 			// Always save to local storage as backup (or primary if backend failed)
@@ -238,6 +297,13 @@ export const GameStateProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 		setExploredRooms(prev => prev.includes(roomId) ? prev : [...prev, roomId]);
 	};
 
+	// Door state management
+	const updateDoorState = (doorId: string, updates: Partial<DoorTemplate>) => {
+		setDoorStates(prev =>
+			prev.map(door => door.id === doorId ? { ...door, ...updates } : door),
+		);
+	};
+
 	// FTL State Management
 	const startFTLJump = (hours: number) => {
 		if (!destinyStatus) return;
@@ -281,12 +347,31 @@ export const GameStateProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 				characters,
 				technologies,
 				exploredRooms,
+				playerPosition,
+				doorStates,
+				explorationProgress,
+				currentGalaxy,
+				currentSystem,
+				knownGalaxies,
+				knownSystems,
 			};
+
+			console.log('[GAME-STATE] Preparing to save game data:', {
+				gameId,
+				hasDestinyStatus: !!destinyStatus,
+				playerPosition,
+				doorStatesCount: doorStates.length,
+				charactersCount: characters.length,
+				technologiesCount: technologies.length,
+				exploredRoomsCount: exploredRooms.length,
+				gameDataSize: JSON.stringify(gameData).length,
+			});
 
 			let backendSaveSuccessful = false;
 
 			// Try to save to backend first (only for server-saved games, not local-only games)
-			if (!gameId.startsWith('local-')) {
+			// Also check if user is authenticated and token is not expired
+			if (!gameId.startsWith('local-') && auth.isAuthenticated && !auth.isTokenExpired) {
 				try {
 					await SavedGameService.updateSavedGame(gameId, {
 						name: newGameName || gameName || 'Unnamed Game',
@@ -297,6 +382,8 @@ export const GameStateProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 				} catch (backendError) {
 					console.warn('[GAME-STATE] Backend save failed, saving locally only:', backendError);
 				}
+			} else if (!gameId.startsWith('local-') && (!auth.isAuthenticated || auth.isTokenExpired)) {
+				console.warn('[GAME-STATE] Cannot save to backend - user not authenticated or token expired');
 			}
 
 			// Update local state if name changed
@@ -316,6 +403,9 @@ export const GameStateProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 			} else if (backendSaveSuccessful) {
 				toast.success(`"${displayName}" saved to server`);
 				console.log('[GAME-STATE] Game saved to server:', gameId, 'name:', displayName);
+			} else if (!auth.isAuthenticated || auth.isTokenExpired) {
+				toast.warning(`"${displayName}" saved locally only (please sign in to save to server)`);
+				console.log('[GAME-STATE] Game saved locally only - authentication required:', gameId, 'name:', displayName);
 			} else {
 				toast.warning(`"${displayName}" saved locally only (server unavailable)`);
 				console.log('[GAME-STATE] Game saved locally only:', gameId, 'name:', displayName);
@@ -331,14 +421,33 @@ export const GameStateProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 	const loadGame = async (newGameId: string) => {
 		setIsLoading(true);
 		try {
-			// Load from backend first
+			// Check authentication status
+			if (!auth.isAuthenticated || auth.isTokenExpired) {
+				console.warn('[GAME-STATE] User not authenticated or token expired');
+				toast.error('Please sign in to load saved games');
+				throw new Error('Authentication required to load saved games');
+			}
+
 			const savedGame = await SavedGameService.getSavedGame(newGameId);
+			console.log('[GAME-STATE] Loaded saved game from backend:', {
+				gameId: newGameId,
+				gameName: savedGame.name,
+				gameDataLength: savedGame.game_data?.length || 0,
+				gameDataPreview: savedGame.game_data?.substring(0, 200) + '...',
+			});
 			const gameData = JSON.parse(savedGame.game_data);
 
 			setDestinyStatus(gameData.destinyStatus);
 			setCharacters(gameData.characters || []);
 			setTechnologies(gameData.technologies || []);
 			setExploredRooms(gameData.exploredRooms || []);
+			setPlayerPosition(gameData.playerPosition || { x: 0, y: 0, roomId: 'destiny-bridge' });
+			setDoorStates(gameData.doorStates || []);
+			setExplorationProgress(gameData.explorationProgress || []);
+			setCurrentGalaxy(gameData.currentGalaxy || null);
+			setCurrentSystem(gameData.currentSystem || null);
+			setKnownGalaxies(gameData.knownGalaxies || []);
+			setKnownSystems(gameData.knownSystems || []);
 			setGameId(newGameId);
 			setGameName(savedGame.name);
 			setIsInitialized(true);
@@ -352,31 +461,8 @@ export const GameStateProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 			toast.success(`"${savedGame.name}" loaded successfully`);
 		} catch (error) {
 			console.error('Failed to load game from backend:', error);
-
-			// Fallback to local storage
-			try {
-				const savedData = localStorage.getItem(`stargate-game-${newGameId}`);
-				const savedName = localStorage.getItem('stargate-current-game-name');
-				if (savedData) {
-					const gameData = JSON.parse(savedData);
-					setDestinyStatus(gameData.destinyStatus);
-					setCharacters(gameData.characters || []);
-					setTechnologies(gameData.technologies || []);
-					setExploredRooms(gameData.exploredRooms || []);
-					setGameId(newGameId);
-					setGameName(savedName);
-					setIsInitialized(true);
-					localStorage.setItem('stargate-current-game-id', newGameId);
-					console.log('[GAME-STATE] Loaded game from local storage:', newGameId);
-					toast.success('Game loaded from local backup');
-				} else {
-					throw new Error('No saved game found');
-				}
-			} catch (localError) {
-				console.error('Failed to load from local storage:', localError);
-				toast.error('Failed to load game - please create a new game');
-				throw localError;
-			}
+			// Don't fallback to local storage - require authentication
+			throw error;
 		} finally {
 			setIsLoading(false);
 		}
@@ -384,16 +470,39 @@ export const GameStateProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
 	// Initialize game state on first load
 	useEffect(() => {
-		const currentGameId = localStorage.getItem('stargate-current-game-id');
-		if (currentGameId) {
-			// Load existing game
-			loadGame(currentGameId).catch(() => {
-				// If loading fails, don't auto-create a new game
-				console.log('[GAME-STATE] Failed to load existing game, waiting for user action');
-			});
+		// Only try to auto-load if user is authenticated
+		if (auth.isAuthenticated && !auth.isTokenExpired) {
+			const currentGameId = localStorage.getItem('stargate-current-game-id');
+			if (currentGameId) {
+				// Load existing game
+				loadGame(currentGameId).catch(() => {
+					// If loading fails, don't auto-create a new game
+					console.log('[GAME-STATE] Failed to load existing game, waiting for user action');
+				});
+			}
+		} else {
+			console.log('[GAME-STATE] User not authenticated, clearing stored game session');
+			// Clear stored game session when not authenticated
+			localStorage.removeItem('stargate-current-game-id');
+			localStorage.removeItem('stargate-current-game-name');
+			// Reset game state to uninitialized
+			setGameId(null);
+			setGameName(null);
+			setIsInitialized(false);
+			setDestinyStatus(null);
+			setCharacters([]);
+			setTechnologies([]);
+			setExploredRooms([]);
+			setPlayerPosition(null);
+			setDoorStates([]);
+			setExplorationProgress([]);
+			setCurrentGalaxy(null);
+			setCurrentSystem(null);
+			setKnownGalaxies([]);
+			setKnownSystems([]);
 		}
 		// Don't auto-initialize new game - wait for user to click "Start New Game"
-	}, []); // Empty dependency array - only run once on mount
+	}, [auth.isAuthenticated, auth.isTokenExpired]); // Depend on auth state
 
 	// Auto-save every 15 minutes when game is active
 	useEffect(() => {
@@ -424,12 +533,27 @@ export const GameStateProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 			addCharacter,
 			updateCharacter,
 			removeCharacter,
+			playerPosition,
+			setPlayerPosition,
+			doorStates,
+			setDoorStates,
+			updateDoorState,
 			technologies,
 			setTechnologies,
 			addTechnology,
 			exploredRooms,
 			setExploredRooms,
 			addExploredRoom,
+			explorationProgress,
+			setExplorationProgress,
+			currentGalaxy,
+			setCurrentGalaxy,
+			currentSystem,
+			setCurrentSystem,
+			knownGalaxies,
+			setKnownGalaxies,
+			knownSystems,
+			setKnownSystems,
 			startFTLJump,
 			exitFTL,
 			setTimeSpeed,

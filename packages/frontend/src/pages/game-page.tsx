@@ -5,9 +5,11 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Button, Container, Modal, Form, Row, Col, Table } from 'react-bootstrap';
 import { useNavigate } from 'react-router';
 
+import { renderGoogleSignInButton } from '../auth/google-auth';
 import { InventoryModal } from '../components/inventory-modal';
 import { ResourceBar } from '../components/resource-bar';
 import { GAMEPAD_BUTTONS } from '../constants/gamepad';
+import { useAuth } from '../contexts/auth-context';
 import { useGameState } from '../contexts/game-state-context';
 import { Game } from '../game';
 import { useGameController } from '../services/game-controller';
@@ -51,9 +53,13 @@ export const GamePage: React.FC = () => {
 	const [focusedMenuItem, setFocusedMenuItem] = useState(0); // Track focused menu item
 	const [gamepadDebugState, setGamepadDebugState] = useState<any[]>([]); // Debug state for gamepad info
 	const [isFullscreen, setIsFullscreen] = useState(false);
+	const [showReAuthModal, setShowReAuthModal] = useState(false);
 
 	// Use the centralized game controller service
 	const controller = useGameController();
+
+	// Authentication state
+	const auth = useAuth();
 
 	// Game state for resource management
 	const gameState = useGameState();
@@ -94,35 +100,62 @@ export const GamePage: React.FC = () => {
 		let destroyed = false;
 
 		(async () => {
-			app = new PIXI.Application();
-			await app.init({
-				width: window.innerWidth,
-				height: window.innerHeight,
-				background: 0x10101a,
-				antialias: true,
-				resolution: window.devicePixelRatio || 1,
-			});
-			if (destroyed) {
-				app.destroy(true);
-				return;
+			try {
+				app = new PIXI.Application();
+				await app.init({
+					width: window.innerWidth,
+					height: window.innerHeight,
+					background: 0x10101a,
+					antialias: true,
+					resolution: window.devicePixelRatio || 1,
+				});
+				if (destroyed) {
+					app.destroy(true);
+					return;
+				}
+				pixiAppRef.current = app;
+				if (canvasRef.current) {
+					canvasRef.current.innerHTML = '';
+					canvasRef.current.appendChild(app.canvas);
+				}
+				const game = new Game(app, {
+					speed,
+					keybindings,
+					gamepadBindings,
+					// Pass controller methods to Game class
+					onButtonPress: controller.onButtonPress,
+					onButtonRelease: controller.onButtonRelease,
+					onAxisChange: controller.onAxisChange,
+					getAxisValue: controller.getAxisValue,
+					isPressed: controller.isPressed,
+				});
+				gameRef.current = game;
+			} catch (error) {
+				console.error('[GAME-PAGE] Failed to initialize game:', error);
+				// Display error to user - likely API connection issue
+				if (canvasRef.current) {
+					canvasRef.current.innerHTML = `
+						<div style="
+							display: flex; 
+							align-items: center; 
+							justify-content: center; 
+							height: 100vh; 
+							color: #ff6b6b; 
+							font-size: 18px; 
+							text-align: center;
+							background: #1a1a1a;
+							padding: 20px;
+						">
+							<div>
+								<h3>Game Initialization Failed</h3>
+								<p>Unable to connect to game servers.</p>
+								<p>Please check your authentication and try refreshing the page.</p>
+								<small>Error: ${error instanceof Error ? error.message : 'Unknown error'}</small>
+							</div>
+						</div>
+					`;
+				}
 			}
-			pixiAppRef.current = app;
-			if (canvasRef.current) {
-				canvasRef.current.innerHTML = '';
-				canvasRef.current.appendChild(app.canvas);
-			}
-			const game = new Game(app, {
-				speed,
-				keybindings,
-				gamepadBindings,
-				// Pass controller methods to Game class
-				onButtonPress: controller.onButtonPress,
-				onButtonRelease: controller.onButtonRelease,
-				onAxisChange: controller.onAxisChange,
-				getAxisValue: controller.getAxisValue,
-				isPressed: controller.isPressed,
-			});
-			gameRef.current = game;
 		})();
 
 		return () => {
@@ -353,6 +386,96 @@ export const GamePage: React.FC = () => {
 			gameRef.current.updateFTLStatus(gameState.destinyStatus.ftl_status);
 		}
 	}, [gameState.destinyStatus?.ftl_status]);
+
+	// Restore player position when game state changes (after game load)
+	useEffect(() => {
+		if (gameRef.current && gameState.playerPosition) {
+			const { x, y, roomId } = gameState.playerPosition;
+			gameRef.current.setPlayerPosition(x, y, roomId);
+			console.log('[GAME-PAGE] Player position restored:', { x, y, roomId });
+		}
+	}, [gameState.playerPosition]);
+
+	// Restore door states when game state changes (after game load)
+	useEffect(() => {
+		if (gameRef.current && gameState.doorStates && gameState.doorStates.length > 0) {
+			gameRef.current.restoreDoorStates(gameState.doorStates);
+			console.log('[GAME-PAGE] Door states restored:', gameState.doorStates.length, 'doors');
+		}
+	}, [gameState.doorStates]);
+
+	// Sync player position from Game engine to GameState periodically
+	useEffect(() => {
+		if (!gameRef.current || !gameState.isInitialized) return;
+
+		const syncInterval = setInterval(() => {
+			if (gameRef.current) {
+				const currentPosition = gameRef.current.getPlayerPosition();
+				const currentRoomId = gameRef.current.getCurrentRoomId();
+				
+				// Only update if position has changed significantly (avoid excessive updates)
+				if (gameState.playerPosition) {
+					const { x: oldX, y: oldY, roomId: oldRoomId } = gameState.playerPosition;
+					const positionChanged = Math.abs(currentPosition.x - oldX) > 5 || 
+											Math.abs(currentPosition.y - oldY) > 5 || 
+											currentRoomId !== oldRoomId;
+					
+					if (positionChanged) {
+						gameState.setPlayerPosition({
+							x: currentPosition.x,
+							y: currentPosition.y,
+							roomId: currentRoomId || undefined,
+						});
+						console.log('[GAME-PAGE] Player position synced:', currentPosition, 'room:', currentRoomId);
+					}
+				} else {
+					// First time setting position
+					gameState.setPlayerPosition({
+						x: currentPosition.x,
+						y: currentPosition.y,
+						roomId: currentRoomId || undefined,
+					});
+				}
+			}
+		}, 2000); // Sync every 2 seconds
+
+		return () => clearInterval(syncInterval);
+	}, [gameState.isInitialized, gameState.setPlayerPosition]);
+
+	// Handle token expiration during gameplay
+	useEffect(() => {
+		if (auth.isTokenExpired && auth.user) {
+			// Only show re-auth modal if user was previously authenticated
+			setShowReAuthModal(true);
+		} else {
+			setShowReAuthModal(false);
+		}
+	}, [auth.isTokenExpired, auth.user]);
+
+	// Handle Google Sign-In for re-authentication
+	const handleReAuthentication = async (idToken: string) => {
+		try {
+			await auth.reAuthenticate(idToken);
+			setShowReAuthModal(false);
+		} catch (error) {
+			// Error handling is done in the auth context
+		}
+	};
+
+	// Set up Google Sign-In button for re-authentication modal
+	useEffect(() => {
+		if (showReAuthModal) {
+			const timer = setTimeout(() => {
+				const container = document.getElementById('reauth-google-signin-button');
+				if (container) {
+					container.innerHTML = ''; // Clear any existing content
+					renderGoogleSignInButton('reauth-google-signin-button', handleReAuthentication);
+				}
+			}, 100); // Small delay to ensure DOM is ready
+
+			return () => clearTimeout(timer);
+		}
+	}, [showReAuthModal]);
 
 	// Show loading state while game initializes
 	if (!gameState.isInitialized || !gameState.destinyStatus) {
@@ -638,6 +761,38 @@ export const GamePage: React.FC = () => {
 				onExitFTL={gameState.exitFTL}
 				onSetTimeSpeed={gameState.setTimeSpeed}
 			/>
+
+			{/* Re-Authentication Modal */}
+			<Modal show={showReAuthModal} centered backdrop="static" keyboard={false}>
+				<Modal.Header>
+					<Modal.Title>Session Expired</Modal.Title>
+				</Modal.Header>
+				<Modal.Body>
+					<div className="text-center">
+						<p className="mb-3">
+							Your session has expired, but don&apos;t worry - your game progress is safe!
+						</p>
+						<p className="mb-4">
+							Please sign in again to continue saving your progress to the server.
+						</p>
+						<div id="reauth-google-signin-button" className="d-flex justify-content-center" />
+						<div className="mt-3">
+							<small className="text-muted">
+								You can continue playing without signing in, but your progress won&apos;t be saved to the server.
+							</small>
+						</div>
+					</div>
+				</Modal.Body>
+				<Modal.Footer>
+					<Button
+						variant="secondary"
+						onClick={() => setShowReAuthModal(false)}
+						title="Continue playing without server saves"
+					>
+						Continue Offline
+					</Button>
+				</Modal.Footer>
+			</Modal>
 		</Container>
 	);
 };

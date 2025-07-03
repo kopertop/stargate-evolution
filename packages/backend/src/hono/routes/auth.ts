@@ -78,7 +78,7 @@ async function verifyAdminAccess(c: any): Promise<{ success: boolean; user?: any
 	}
 }
 
-auth.post('/api/auth/google', async (c) => {
+auth.post('/google', async (c) => {
 	try {
 		const { idToken } = await c.req.json() as any;
 		if (!idToken || typeof idToken !== 'string') throw new Error('Missing idToken');
@@ -133,7 +133,7 @@ auth.post('/api/auth/google', async (c) => {
 	}
 });
 
-auth.post('/api/auth/validate', async (c) => {
+auth.post('/validate', async (c) => {
 	try {
 		const { token } = await c.req.json();
 		if (!token || typeof token !== 'string') {
@@ -173,7 +173,7 @@ auth.post('/api/auth/validate', async (c) => {
 	}
 });
 
-auth.post('/api/auth/refresh', async (c) => {
+auth.post('/refresh', async (c) => {
 	try {
 		const { refreshToken } = await c.req.json();
 		if (!refreshToken || typeof refreshToken !== 'string') {
