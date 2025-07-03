@@ -7,6 +7,7 @@ import * as PIXI from 'pixi.js';
 
 import { HelpPopover } from './help-popover';
 import type { GamepadAxis, GamepadButton } from './services/game-controller';
+import { SavedGameService } from './services/saved-game-service';
 import { TemplateService } from './services/template-service';
 
 const SHIP_SPEED = 4;
@@ -64,6 +65,9 @@ export class Game {
 	private rooms: RoomTemplate[] = [];
 	private doors: DoorTemplate[] = [];
 	private furniture: RoomFurniture[] = [];
+
+	// Pending restoration data (stored until room system is ready)
+	private pendingRestoration: any = null;
 
 	constructor(app: PIXI.Application, options: GameOptions = {}, gameData?: any) {
 		this.app = app;
@@ -766,6 +770,128 @@ export class Game {
 		}));
 	}
 
+	// Game state serialization - gets all current game engine state
+	public toJSON(): any {
+		const playerPosition = this.getPlayerPosition();
+		const currentRoomId = this.getCurrentRoomId();
+		const doorStates = this.getDoorStates();
+
+		return {
+			playerPosition: {
+				x: playerPosition.x,
+				y: playerPosition.y,
+				roomId: currentRoomId || undefined,
+			},
+			doorStates,
+			// Add any other game engine state that needs to be saved
+			mapZoom: this.mapZoom,
+			currentBackgroundType: this.currentBackgroundType,
+		};
+	}
+
+	// Save game state directly to backend
+	public async save(gameId: string, gameName: string, contextData: any): Promise<void> {
+		const gameEngineData = this.toJSON();
+
+		// Combine game engine data with context data
+		const fullGameData = {
+			...contextData,
+			...gameEngineData,
+		};
+
+		console.log('[GAME] Saving game state:', {
+			gameId,
+			gameName,
+			playerPosition: gameEngineData.playerPosition,
+			doorStatesCount: gameEngineData.doorStates.length,
+			fullDataSize: JSON.stringify(fullGameData).length,
+		});
+
+		// Save to backend using SavedGameService
+		await SavedGameService.updateGameState(gameId, fullGameData);
+
+		console.log('[GAME] Game state saved successfully to backend');
+	}
+
+	// Load game state from saved data
+	public loadFromJSON(gameData: any): void {
+		console.log('[GAME] Loading game state from saved data');
+
+		// If room system isn't initialized yet, store data for later restoration
+		if (this.rooms.length === 0) {
+			console.log('[GAME] Room system not ready - storing data for later restoration');
+			this.pendingRestoration = gameData;
+			return;
+		}
+
+		this.performRestoration(gameData);
+	}
+
+	private performRestoration(gameData: any): void {
+		console.log('[GAME] Performing game state restoration');
+
+		// Restore player position
+		if (gameData.playerPosition) {
+			const savedPosition = gameData.playerPosition;
+
+			// Check if the saved room still exists
+			const savedRoom = this.rooms.find(r => r.id === savedPosition.roomId);
+			if (savedPosition.roomId && !savedRoom) {
+				console.warn('[GAME] Saved room not found:', savedPosition.roomId, '- placing player at origin');
+				// Place player at origin if saved room doesn't exist
+				this.setPlayerPosition(0, 0, undefined);
+			} else {
+				this.setPlayerPosition(
+					savedPosition.x,
+					savedPosition.y,
+					savedPosition.roomId,
+				);
+			}
+		}
+
+		// Restore door states (only for doors that still exist)
+		if (gameData.doorStates && gameData.doorStates.length > 0) {
+			this.restoreDoorStatesGracefully(gameData.doorStates);
+		}
+
+		// Restore other game engine state
+		if (gameData.mapZoom !== undefined) {
+			this.setMapZoom(gameData.mapZoom);
+		}
+
+		if (gameData.currentBackgroundType) {
+			this.setBackgroundType(gameData.currentBackgroundType);
+		}
+
+		console.log('[GAME] Game state restoration completed');
+	}
+
+	// Graceful door state restoration that skips missing doors
+	private restoreDoorStatesGracefully(savedDoorStates: any[]): void {
+		console.log('[GAME] Restoring door states gracefully:', savedDoorStates.length, 'saved doors');
+
+		let restoredCount = 0;
+		let skippedCount = 0;
+
+		savedDoorStates.forEach(savedDoor => {
+			const doorIndex = this.doors.findIndex(d => d.id === savedDoor.id);
+			if (doorIndex !== -1) {
+				// Update the door state
+				this.doors[doorIndex] = { ...this.doors[doorIndex], ...savedDoor };
+				restoredCount++;
+				console.log('[GAME] Restored door state:', savedDoor.id, 'state:', savedDoor.state);
+			} else {
+				skippedCount++;
+				console.log('[GAME] Skipped missing door:', savedDoor.id);
+			}
+		});
+
+		console.log(`[GAME] Door restoration complete: ${restoredCount} restored, ${skippedCount} skipped`);
+
+		// Re-render rooms to reflect door state changes
+		this.renderRooms();
+	}
+
 	private setupLegendPopover() {
 		window.addEventListener('keydown', (e) => {
 			if (e.key === '?' || e.key === '/') {
@@ -919,6 +1045,13 @@ export class Game {
 			this.setMapZoom(DEFAULT_ZOOM);
 
 			console.log('[DEBUG] Room system initialized successfully with default zoom:', DEFAULT_ZOOM);
+
+			// Check for pending restoration data now that room system is ready
+			if (this.pendingRestoration) {
+				console.log('[GAME] Room system ready - performing pending restoration');
+				this.performRestoration(this.pendingRestoration);
+				this.pendingRestoration = null;
+			}
 		} catch (error) {
 			console.error('[GAME] Critical error initializing room system:', error);
 			// Re-throw with more context

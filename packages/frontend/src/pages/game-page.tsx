@@ -130,6 +130,15 @@ export const GamePage: React.FC = () => {
 					isPressed: controller.isPressed,
 				});
 				gameRef.current = game;
+
+				// Restore game state if there's loaded data waiting
+				const loadedGameData = (window as any).loadedGameData;
+				if (loadedGameData) {
+					console.log('[GAME-PAGE] Restoring game state from loaded data');
+					game.loadFromJSON(loadedGameData);
+					// Clear the loaded data
+					(window as any).loadedGameData = null;
+				}
 			} catch (error) {
 				console.error('[GAME-PAGE] Failed to initialize game:', error);
 				// Display error to user - likely API connection issue
@@ -295,7 +304,7 @@ export const GamePage: React.FC = () => {
 					break;
 				case 2: // Save Game
 					console.log('[GAME-PAGE-CONTROLLER] Saving game');
-					gameState.saveGame();
+					gameState.saveGame(undefined, gameRef.current);
 					setShowPause(false);
 					break;
 				case 3: // Settings
@@ -387,60 +396,19 @@ export const GamePage: React.FC = () => {
 		}
 	}, [gameState.destinyStatus?.ftl_status]);
 
-	// Restore player position when game state changes (after game load)
+	// Load game state into game engine when game loads
 	useEffect(() => {
-		if (gameRef.current && gameState.playerPosition) {
-			const { x, y, roomId } = gameState.playerPosition;
-			gameRef.current.setPlayerPosition(x, y, roomId);
-			console.log('[GAME-PAGE] Player position restored:', { x, y, roomId });
-		}
-	}, [gameState.playerPosition]);
-
-	// Restore door states when game state changes (after game load)
-	useEffect(() => {
-		if (gameRef.current && gameState.doorStates && gameState.doorStates.length > 0) {
-			gameRef.current.restoreDoorStates(gameState.doorStates);
-			console.log('[GAME-PAGE] Door states restored:', gameState.doorStates.length, 'doors');
-		}
-	}, [gameState.doorStates]);
-
-	// Sync player position from Game engine to GameState periodically
-	useEffect(() => {
-		if (!gameRef.current || !gameState.isInitialized) return;
-
-		const syncInterval = setInterval(() => {
-			if (gameRef.current) {
-				const currentPosition = gameRef.current.getPlayerPosition();
-				const currentRoomId = gameRef.current.getCurrentRoomId();
-
-				// Only update if position has changed significantly (avoid excessive updates)
-				if (gameState.playerPosition) {
-					const { x: oldX, y: oldY, roomId: oldRoomId } = gameState.playerPosition;
-					const positionChanged = Math.abs(currentPosition.x - oldX) > 5 ||
-											Math.abs(currentPosition.y - oldY) > 5 ||
-											currentRoomId !== oldRoomId;
-
-					if (positionChanged) {
-						gameState.setPlayerPosition({
-							x: currentPosition.x,
-							y: currentPosition.y,
-							roomId: currentRoomId || undefined,
-						});
-						console.log('[GAME-PAGE] Player position synced:', currentPosition, 'room:', currentRoomId);
-					}
-				} else {
-					// First time setting position
-					gameState.setPlayerPosition({
-						x: currentPosition.x,
-						y: currentPosition.y,
-						roomId: currentRoomId || undefined,
-					});
-				}
+		if (gameRef.current && gameState.isInitialized) {
+			// Check if there's loaded game data waiting to be restored
+			const loadedGameData = (window as any).loadedGameData;
+			if (loadedGameData) {
+				console.log('[GAME-PAGE] Restoring game engine state from loaded data');
+				gameRef.current.loadFromJSON(loadedGameData);
+				// Clear the loaded data
+				(window as any).loadedGameData = null;
 			}
-		}, 2000); // Sync every 2 seconds
-
-		return () => clearInterval(syncInterval);
-	}, [gameState.isInitialized, gameState.setPlayerPosition]);
+		}
+	}, [gameState.isInitialized]);
 
 	// Handle token expiration during gameplay
 	useEffect(() => {
@@ -571,7 +539,7 @@ export const GamePage: React.FC = () => {
 							variant={focusedMenuItem === 2 ? 'primary' : 'outline-secondary'}
 							size="lg"
 							onClick={() => {
-								gameState.saveGame();
+								gameState.saveGame(undefined, gameRef.current);
 								setShowPause(false);
 							}}
 							disabled={gameState.isLoading}

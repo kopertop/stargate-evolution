@@ -1,7 +1,6 @@
 import {
 	DestinyStatus,
 	Character,
-	DoorTemplate,
 	Galaxy,
 	StarSystem,
 	ExplorationProgress,
@@ -29,15 +28,6 @@ interface GameStateContextType {
 	addCharacter: (character: Character) => void;
 	updateCharacter: (id: string, updates: Partial<Character>) => void;
 	removeCharacter: (id: string) => void;
-
-	// Player State
-	playerPosition: { x: number; y: number; roomId?: string } | null;
-	setPlayerPosition: (position: { x: number; y: number; roomId?: string }) => void;
-
-	// Door States (for save/restore)
-	doorStates: DoorTemplate[];
-	setDoorStates: (doors: DoorTemplate[]) => void;
-	updateDoorState: (doorId: string, updates: Partial<DoorTemplate>) => void;
 
 	// Technology & Discoveries
 	technologies: string[]; // Array of discovered technology IDs
@@ -70,7 +60,7 @@ interface GameStateContextType {
 
 	// Game State Actions
 	initializeNewGame: (gameName: string) => void;
-	saveGame: (gameName?: string) => Promise<void>;
+	saveGame: (gameName?: string, gameEngineRef?: any) => Promise<void>;
 	loadGame: (gameId: string) => Promise<void>;
 	isLoading: boolean;
 	isInitialized: boolean;
@@ -90,12 +80,6 @@ export const GameStateProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 	const [exploredRooms, setExploredRooms] = useState<string[]>([]);
 	const [isLoading, setIsLoading] = useState(false);
 	const [isInitialized, setIsInitialized] = useState(false);
-
-	// Player State
-	const [playerPosition, setPlayerPosition] = useState<{ x: number; y: number; roomId?: string } | null>(null);
-
-	// Door States
-	const [doorStates, setDoorStates] = useState<DoorTemplate[]>([]);
 
 	// Exploration Progress
 	const [explorationProgress, setExplorationProgress] = useState<ExplorationProgress[]>([]);
@@ -184,8 +168,6 @@ export const GameStateProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 			setCharacters([]);
 			setTechnologies([]);
 			setExploredRooms([]);
-			setPlayerPosition({ x: 0, y: 0, roomId: 'destiny-bridge' });
-			setDoorStates([]);
 			setExplorationProgress([]);
 			setCurrentGalaxy(null);
 			setCurrentSystem(null);
@@ -288,13 +270,6 @@ export const GameStateProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 		setExploredRooms(prev => prev.includes(roomId) ? prev : [...prev, roomId]);
 	};
 
-	// Door state management
-	const updateDoorState = (doorId: string, updates: Partial<DoorTemplate>) => {
-		setDoorStates(prev =>
-			prev.map(door => door.id === doorId ? { ...door, ...updates } : door),
-		);
-	};
-
 	// FTL State Management
 	const startFTLJump = (hours: number) => {
 		if (!destinyStatus) return;
@@ -328,18 +303,17 @@ export const GameStateProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 	};
 
 	// Game persistence
-	const saveGame = async (newGameName?: string) => {
+	const saveGame = async (newGameName?: string, gameEngineRef?: any) => {
 		if (!gameId || !destinyStatus) return;
 
 		setIsLoading(true);
 		try {
-			const gameData = {
+			// Get context data (non-game-engine state)
+			const contextData = {
 				destinyStatus,
 				characters,
 				technologies,
 				exploredRooms,
-				playerPosition,
-				doorStates,
 				explorationProgress,
 				currentGalaxy,
 				currentSystem,
@@ -350,32 +324,24 @@ export const GameStateProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 			console.log('[GAME-STATE] Preparing to save game data:', {
 				gameId,
 				hasDestinyStatus: !!destinyStatus,
-				playerPosition,
-				doorStatesCount: doorStates.length,
+				hasGameEngine: !!gameEngineRef,
 				charactersCount: characters.length,
 				technologiesCount: technologies.length,
 				exploredRoomsCount: exploredRooms.length,
-				gameDataSize: JSON.stringify(gameData).length,
+				contextDataSize: JSON.stringify(contextData).length,
 			});
 
-			let backendSaveSuccessful = false;
-
-			// Try to save to backend first (only for server-saved games, not local-only games)
-			// Also check if user is authenticated and token is not expired
-			if (!gameId.startsWith('local-') && auth.isAuthenticated && !auth.isTokenExpired) {
-				try {
-					await SavedGameService.updateSavedGame(gameId, {
-						name: newGameName || gameName || 'Unnamed Game',
-						game_data: JSON.stringify(gameData),
-					});
-					backendSaveSuccessful = true;
-					console.log('[GAME-STATE] Game saved to backend successfully:', gameId);
-				} catch (backendError) {
-					console.warn('[GAME-STATE] Backend save failed, saving locally only:', backendError);
-				}
-			} else if (!gameId.startsWith('local-') && (!auth.isAuthenticated || auth.isTokenExpired)) {
-				console.warn('[GAME-STATE] Cannot save to backend - user not authenticated or token expired');
+			// If we have a game engine reference, use its save method
+			if (gameEngineRef && typeof gameEngineRef.save === 'function') {
+				await gameEngineRef.save(gameId, newGameName || gameName || 'Unnamed Game', contextData);
+				console.log('[GAME-STATE] Game saved using game engine');
+			} else {
+				// Fallback: save context data only (for cases where game engine isn't available)
+				console.warn('[GAME-STATE] No game engine reference - saving context data only');
+				await SavedGameService.updateGameState(gameId, contextData);
 			}
+
+			const backendSaveSuccessful = true;
 
 			// Update local state if name changed
 			if (newGameName && newGameName !== gameName) {
@@ -383,8 +349,11 @@ export const GameStateProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 				localStorage.setItem('stargate-current-game-name', newGameName);
 			}
 
-			// Always save to local storage as backup (or primary for local games)
-			localStorage.setItem(`stargate-game-${gameId}`, JSON.stringify(gameData));
+			// Always save to local storage as backup
+			const fullGameData = gameEngineRef ?
+				{ ...contextData, ...gameEngineRef.toJSON() } :
+				contextData;
+			localStorage.setItem(`stargate-game-${gameId}`, JSON.stringify(fullGameData));
 
 			const displayName = newGameName || gameName || 'Game';
 
@@ -428,12 +397,11 @@ export const GameStateProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 			});
 			const gameData = JSON.parse(savedGame.game_data);
 
+			// Set context state (non-game-engine data)
 			setDestinyStatus(gameData.destinyStatus);
 			setCharacters(gameData.characters || []);
 			setTechnologies(gameData.technologies || []);
 			setExploredRooms(gameData.exploredRooms || []);
-			setPlayerPosition(gameData.playerPosition || { x: 0, y: 0, roomId: 'destiny-bridge' });
-			setDoorStates(gameData.doorStates || []);
 			setExplorationProgress(gameData.explorationProgress || []);
 			setCurrentGalaxy(gameData.currentGalaxy || null);
 			setCurrentSystem(gameData.currentSystem || null);
@@ -442,6 +410,10 @@ export const GameStateProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 			setGameId(newGameId);
 			setGameName(savedGame.name);
 			setIsInitialized(true);
+
+			// Store game data for game engine restoration when it's ready
+			// This will be picked up by the GamePage component
+			(window as any).loadedGameData = gameData;
 
 			// Save to local storage as backup
 			localStorage.setItem('stargate-current-game-id', newGameId);
@@ -484,8 +456,6 @@ export const GameStateProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 			setCharacters([]);
 			setTechnologies([]);
 			setExploredRooms([]);
-			setPlayerPosition(null);
-			setDoorStates([]);
 			setExplorationProgress([]);
 			setCurrentGalaxy(null);
 			setCurrentSystem(null);
@@ -524,11 +494,6 @@ export const GameStateProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 			addCharacter,
 			updateCharacter,
 			removeCharacter,
-			playerPosition,
-			setPlayerPosition,
-			doorStates,
-			setDoorStates,
-			updateDoorState,
 			technologies,
 			setTechnologies,
 			addTechnology,
