@@ -654,7 +654,7 @@ admin.get('/sql/schema', async (c) => {
 		const rowCount = await c.env.DB.prepare(`SELECT count(*) as rowCount FROM ${table.name}`).first();
 		return {
 			...table,
-			rowCount: rowCount?.rowCount || 0,
+			rowCount: Number(rowCount?.rowCount) || 0,
 		};
 	}));
 
@@ -683,7 +683,7 @@ admin.get('/sql/table/:tableName', async (c) => {
 
 	// Get total count
 	const countResult = await c.env.DB.prepare(`SELECT COUNT(*) as count FROM ${tableName}`).first();
-	const totalRows = countResult?.count || 0;
+	const totalRows = Number(countResult?.count) || 0;
 
 	// Get paginated data
 	const dataResult = await c.env.DB.prepare(`
@@ -733,6 +733,130 @@ admin.get('/sql/history', async (c) => {
 		console.error('[ADMIN-SQL] History fetch failed:', error);
 		return c.json({
 			error: 'Failed to fetch query history',
+			details: error instanceof Error ? error.message : 'Unknown error',
+		}, 500);
+	}
+});
+
+// Export table data as JSON
+admin.get('/sql/export/:tableName', async (c) => {
+	try {
+		const user = c.get('user');
+		const tableName = c.req.param('tableName');
+
+		console.log(`[ADMIN-SQL] User ${user.email} (${user.id}) exporting table: ${tableName}`);
+
+		// Validate table exists in schema
+		const tableExists = tableSchema.tables.find(t => t.name === tableName);
+		if (!tableExists) {
+			return c.json({ error: 'Table not found' }, 404);
+		}
+
+		// Export all data from the table
+		const result = await c.env.DB.prepare(`SELECT * FROM ${tableName}`).all();
+		const data = result.results || [];
+
+		console.log(`[ADMIN-SQL] Exported ${data.length} rows from table ${tableName}`);
+
+		return c.json(data);
+
+	} catch (error) {
+		console.error('[ADMIN-SQL] Export failed:', error);
+		return c.json({
+			error: 'Table export failed',
+			details: error instanceof Error ? error.message : 'Unknown error',
+		}, 500);
+	}
+});
+
+// Import table data from JSON
+admin.post('/sql/import/:tableName', async (c) => {
+	try {
+		const user = c.get('user');
+		const tableName = c.req.param('tableName');
+		const { data, mode = 'replace' } = await c.req.json();
+
+		console.log(`[ADMIN-SQL] User ${user.email} (${user.id}) importing to table: ${tableName}, mode: ${mode}`);
+
+		// Validate table exists in schema
+		const tableExists = tableSchema.tables.find(t => t.name === tableName);
+		if (!tableExists) {
+			return c.json({ error: 'Table not found' }, 404);
+		}
+
+		// Validate data is an array
+		if (!Array.isArray(data)) {
+			return c.json({ error: 'Data must be an array of objects' }, 400);
+		}
+
+		if (data.length === 0) {
+			return c.json({ error: 'Data array cannot be empty' }, 400);
+		}
+
+		let rowsAffected = 0;
+
+		// Get column names from the first data object
+		const firstRow = data[0];
+		if (typeof firstRow !== 'object' || firstRow === null) {
+			return c.json({ error: 'Data must contain objects' }, 400);
+		}
+
+		const columns = Object.keys(firstRow);
+		const placeholders = columns.map(() => '?').join(', ');
+		const columnList = columns.join(', ');
+
+		// Start transaction
+		await c.env.DB.prepare('BEGIN TRANSACTION').run();
+
+		try {
+			// If replace mode, delete existing data
+			if (mode === 'replace') {
+				const deleteResult = await c.env.DB.prepare(`DELETE FROM ${tableName}`).run();
+				console.log(`[ADMIN-SQL] Deleted ${deleteResult.meta?.changes || 0} existing rows from ${tableName}`);
+			}
+
+			// Insert new data
+			const insertQuery = `INSERT INTO ${tableName} (${columnList}) VALUES (${placeholders})`;
+			const insertStmt = c.env.DB.prepare(insertQuery);
+
+			for (const row of data) {
+				// Ensure all required columns are present and get values in correct order
+				const values = columns.map(col => {
+					const value = row[col];
+					// Handle JSON objects/arrays by stringifying them
+					if (typeof value === 'object' && value !== null) {
+						return JSON.stringify(value);
+					}
+					return value;
+				});
+
+				await insertStmt.bind(...values).run();
+				rowsAffected++;
+			}
+
+			// Commit transaction
+			await c.env.DB.prepare('COMMIT').run();
+
+			console.log(`[ADMIN-SQL] Successfully imported ${rowsAffected} rows to table ${tableName}`);
+
+			return c.json({
+				success: true,
+				message: `Successfully ${mode === 'replace' ? 'replaced' : 'appended'} data in table ${tableName}`,
+				rowsAffected,
+				importedAt: new Date().toISOString(),
+				importedBy: user.email,
+			});
+
+		} catch (error) {
+			// Rollback on error
+			await c.env.DB.prepare('ROLLBACK').run();
+			throw error;
+		}
+
+	} catch (error) {
+		console.error('[ADMIN-SQL] Import failed:', error);
+		return c.json({
+			error: 'Table import failed',
 			details: error instanceof Error ? error.message : 'Unknown error',
 		}, 500);
 	}

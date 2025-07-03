@@ -19,6 +19,7 @@ import {
 } from 'react-bootstrap';
 import { toast } from 'react-toastify';
 
+import { JsonDisplay } from '../../components/json-display';
 import { AdminSqlService, SqlQueryResult, DatabaseSchema, TableData } from '../../services/admin-sql-service';
 
 export const SqlDebugPage: React.FC = () => {
@@ -41,6 +42,14 @@ export const SqlDebugPage: React.FC = () => {
 	const [activeTab, setActiveTab] = useState('query');
 	const [showConfirmModal, setShowConfirmModal] = useState(false);
 	const [pendingQuery, setPendingQuery] = useState('');
+
+	// Import/Export state
+	const [showImportModal, setShowImportModal] = useState(false);
+	const [importTableName, setImportTableName] = useState('');
+	const [importData, setImportData] = useState('');
+	const [importMode, setImportMode] = useState<'replace' | 'append'>('replace');
+	const [isExporting, setIsExporting] = useState(false);
+	const [isImporting, setIsImporting] = useState(false);
 
 	// Load database schema on component mount
 	useEffect(() => {
@@ -146,6 +155,75 @@ export const SqlDebugPage: React.FC = () => {
 		setActiveTab('query');
 	};
 
+	const handleExportTable = async (tableName: string) => {
+		setIsExporting(true);
+		try {
+			const data = await AdminSqlService.exportTableData(tableName);
+
+			// Create and download JSON file
+			const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+			const url = URL.createObjectURL(blob);
+			const link = document.createElement('a');
+			link.href = url;
+			link.download = `${tableName}_export_${new Date().toISOString().split('T')[0]}.json`;
+			document.body.appendChild(link);
+			link.click();
+			document.body.removeChild(link);
+			URL.revokeObjectURL(url);
+
+			toast.success(`Exported ${data.length} rows from ${tableName}`);
+		} catch (error) {
+			console.error('[SQL-DEBUG] Export failed:', error);
+			toast.error(`Export failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+		} finally {
+			setIsExporting(false);
+		}
+	};
+
+	const handleImportTable = async () => {
+		if (!importTableName || !importData.trim()) {
+			toast.error('Please select a table and provide JSON data');
+			return;
+		}
+
+		setIsImporting(true);
+		try {
+			const parsedData = JSON.parse(importData);
+			if (!Array.isArray(parsedData)) {
+				throw new Error('JSON data must be an array of objects');
+			}
+
+			const result = await AdminSqlService.importTableData(importTableName, parsedData, importMode);
+
+			if (result.success) {
+				toast.success(`${result.message}. Rows affected: ${result.rowsAffected}`);
+				setShowImportModal(false);
+				setImportData('');
+
+				// Refresh table data if currently viewing the imported table
+				if (selectedTable === importTableName) {
+					loadTableData(importTableName, 0);
+				}
+			} else {
+				throw new Error(result.message);
+			}
+		} catch (error) {
+			console.error('[SQL-DEBUG] Import failed:', error);
+			if (error instanceof SyntaxError) {
+				toast.error('Invalid JSON format. Please check your data.');
+			} else {
+				toast.error(`Import failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+			}
+		} finally {
+			setIsImporting(false);
+		}
+	};
+
+	const openImportModal = (tableName: string) => {
+		setImportTableName(tableName);
+		setShowImportModal(true);
+	};
+
 	const renderQueryResult = () => {
 		if (!queryResult) {
 			return (
@@ -173,40 +251,7 @@ export const SqlDebugPage: React.FC = () => {
 		}
 
 		const formatCellValue = (value: any) => {
-			if (value === null) {
-				return <em className="text-muted">NULL</em>;
-			}
-			
-			const stringValue = String(value);
-			
-			// Check if it's a JSON object/array
-			if (stringValue.startsWith('{') && stringValue.endsWith('}') || 
-				stringValue.startsWith('[') && stringValue.endsWith(']')) {
-				try {
-					const parsed = JSON.parse(stringValue);
-					return (
-						<details style={{ maxWidth: '300px' }}>
-							<summary><code className="text-primary">{stringValue.substring(0, 50)}{stringValue.length > 50 ? '...' : ''}</code></summary>
-							<pre style={{ 
-								fontSize: '0.75rem', 
-								maxHeight: '200px', 
-								overflowY: 'auto',
-								backgroundColor: '#f8f9fa',
-								padding: '0.5rem',
-								margin: '0.5rem 0 0 0',
-								borderRadius: '0.25rem'
-							}}>
-								{JSON.stringify(parsed, null, 2)}
-							</pre>
-						</details>
-					);
-				} catch (e) {
-					// If it's not valid JSON, just show as code
-					return <code style={{ wordBreak: 'break-word' }}>{stringValue}</code>;
-				}
-			}
-			
-			return <code style={{ wordBreak: 'break-word' }}>{stringValue}</code>;
+			return <JsonDisplay value={value} maxPreviewLength={50} />;
 		};
 
 		return (
@@ -218,8 +263,8 @@ export const SqlDebugPage: React.FC = () => {
 							{queryResult.isReadOnly ? 'Read-only' : 'Write operation'}
 						</Badge>
 						<span className="text-muted">
-							{queryResult.isReadOnly ? 
-								`${Array.isArray(queryResult.result) ? queryResult.result.length : 0} rows returned` : 
+							{queryResult.isReadOnly ?
+								`${Array.isArray(queryResult.result) ? queryResult.result.length : 0} rows returned` :
 								`${queryResult.affectedRows} rows affected`
 							}
 						</span>
@@ -237,7 +282,7 @@ export const SqlDebugPage: React.FC = () => {
 							overflowX: 'auto',
 							border: '1px solid #dee2e6',
 							borderRadius: '0.375rem',
-							backgroundColor: '#fff'
+							backgroundColor: '#fff',
 						}}
 					>
 						<Table striped bordered hover size="sm" className="mb-0">
@@ -271,7 +316,7 @@ export const SqlDebugPage: React.FC = () => {
 							borderRadius: '0.375rem',
 							border: '1px solid #dee2e6',
 							height: '100%',
-							overflowY: 'auto'
+							overflowY: 'auto',
 						}}
 					>
 						<h6>Operation Result:</h6>
@@ -321,7 +366,7 @@ export const SqlDebugPage: React.FC = () => {
 							style={{
 								height: 'calc(100% - 60px)',
 								overflowY: 'auto',
-								padding: '0.75rem'
+								padding: '0.75rem',
 							}}
 						>
 							{schema.tables.map(table => (
@@ -358,20 +403,39 @@ export const SqlDebugPage: React.FC = () => {
 							<Card.Header>
 								<div className="d-flex justify-content-between align-items-center">
 									<h6>Table: <code>{selectedTable}</code></h6>
-									<Button
-										size="sm"
-										variant="outline-primary"
-										onClick={() => insertSampleQuery(`SELECT * FROM ${selectedTable} LIMIT 10;`)}
-									>
-										Query This Table
-									</Button>
+									<div className="d-flex gap-2">
+										<Button
+											size="sm"
+											variant="outline-success"
+											onClick={() => handleExportTable(selectedTable)}
+											disabled={isExporting}
+											title="Export table data as JSON"
+										>
+											{isExporting ? <Spinner animation="border" size="sm" /> : '📤 Export'}
+										</Button>
+										<Button
+											size="sm"
+											variant="outline-warning"
+											onClick={() => openImportModal(selectedTable)}
+											title="Import JSON data to table"
+										>
+											📥 Import
+										</Button>
+										<Button
+											size="sm"
+											variant="outline-primary"
+											onClick={() => insertSampleQuery(`SELECT * FROM ${selectedTable} LIMIT 10;`)}
+										>
+											Query This Table
+										</Button>
+									</div>
 								</div>
 							</Card.Header>
 							<Card.Body
 								style={{
 									height: 'calc(100% - 60px)',
 									overflowY: 'auto',
-									padding: '1rem'
+									padding: '1rem',
 								}}
 							>
 								{isLoadingTableData ? (
@@ -401,7 +465,7 @@ export const SqlDebugPage: React.FC = () => {
 												overflowY: 'auto',
 												marginBottom: '1rem',
 												border: '1px solid #dee2e6',
-												borderRadius: '0.375rem'
+												borderRadius: '0.375rem',
 											}}
 										>
 											<Table size="sm" className="mb-0">
@@ -420,7 +484,7 @@ export const SqlDebugPage: React.FC = () => {
 															<td><code>{col.name}</code></td>
 															<td>{col.type}</td>
 															<td>{col.notnull ? 'Yes' : 'No'}</td>
-															<td>{col.dflt_value ? (typeof col.dflt_value === 'object' ? JSON.stringify(col.dflt_value) : String(col.dflt_value)) : <em className="text-muted">None</em>}</td>
+															<td>{col.dflt_value ? <JsonDisplay value={col.dflt_value} maxPreviewLength={30} /> : <em className="text-muted">None</em>}</td>
 															<td>{col.pk ? 'Yes' : 'No'}</td>
 														</tr>
 													))}
@@ -444,7 +508,7 @@ export const SqlDebugPage: React.FC = () => {
 												overflowX: 'auto',
 												border: '1px solid #dee2e6',
 												borderRadius: '0.375rem',
-												backgroundColor: '#fff'
+												backgroundColor: '#fff',
 											}}
 										>
 											<Table striped bordered hover size="sm" className="mb-0">
@@ -462,7 +526,7 @@ export const SqlDebugPage: React.FC = () => {
 														<tr key={`row-${index}`}>
 															{tableData.columns.map((col, colIndex) => (
 																<td key={`cell-${index}-${col.cid ?? colIndex}-${col.name}`} style={{ maxWidth: '200px', wordBreak: 'break-word' }}>
-																	{row[col.name] === null ? <em className="text-muted">NULL</em> : (typeof row[col.name] === 'object' ? JSON.stringify(row[col.name]) : String(row[col.name]))}
+																	<JsonDisplay value={row[col.name]} maxPreviewLength={40} />
 																</td>
 															))}
 														</tr>
@@ -591,11 +655,11 @@ export const SqlDebugPage: React.FC = () => {
 													}
 												}
 											}}
-											style={{ 
-												fontFamily: 'monospace', 
+											style={{
+												fontFamily: 'monospace',
 												fontSize: '0.875rem',
 												minHeight: '42px',
-												resize: 'vertical'
+												resize: 'vertical',
 											}}
 										/>
 										<Button
@@ -650,6 +714,110 @@ export const SqlDebugPage: React.FC = () => {
 				</Tabs>
 			</div>
 
+			{/* Import Modal */}
+			<Modal show={showImportModal} onHide={() => setShowImportModal(false)} size="lg" centered>
+				<Modal.Header closeButton>
+					<Modal.Title>Import Data to Table: <code>{importTableName}</code></Modal.Title>
+				</Modal.Header>
+				<Modal.Body>
+					<Alert variant="warning">
+						<strong>⚠️ Warning:</strong> This operation will modify table data. Make sure to export a backup first.
+					</Alert>
+
+					<Form.Group className="mb-3">
+						<Form.Label>Import Mode</Form.Label>
+						<div>
+							<Form.Check
+								type="radio"
+								name="importMode"
+								label="Replace all data (DELETE existing data first)"
+								value="replace"
+								checked={importMode === 'replace'}
+								onChange={(e) => setImportMode('replace')}
+								className="mb-1"
+							/>
+							<Form.Check
+								type="radio"
+								name="importMode"
+								label="Append to existing data (INSERT new data)"
+								value="append"
+								checked={importMode === 'append'}
+								onChange={(e) => setImportMode('append')}
+							/>
+						</div>
+					</Form.Group>
+
+					<Form.Group className="mb-3">
+						<Form.Label>JSON Data (Array of Objects)</Form.Label>
+						<Form.Control
+							as="textarea"
+							rows={12}
+							placeholder={`[
+  {
+    "column1": "value1",
+    "column2": "value2"
+  },
+  {
+    "column1": "value3",
+    "column2": "value4"
+  }
+]`}
+							value={importData}
+							onChange={(e) => setImportData(e.target.value)}
+							style={{ fontFamily: 'monospace', fontSize: '0.875rem' }}
+						/>
+						<Form.Text className="text-muted">
+							Paste JSON array of objects. Each object should match the table&apos;s column structure.
+						</Form.Text>
+					</Form.Group>
+
+					<div className="d-flex gap-2">
+						<Button
+							variant="outline-secondary"
+							size="sm"
+							onClick={() => {
+								const input = document.createElement('input');
+								input.type = 'file';
+								input.accept = '.json';
+								input.onchange = (e) => {
+									const file = (e.target as HTMLInputElement).files?.[0];
+									if (file) {
+										const reader = new FileReader();
+										reader.onload = (e) => {
+											setImportData(e.target?.result as string || '');
+										};
+										reader.readAsText(file);
+									}
+								};
+								input.click();
+							}}
+						>
+							📁 Load from File
+						</Button>
+						<Button
+							variant="outline-info"
+							size="sm"
+							onClick={() => handleExportTable(importTableName)}
+							disabled={isExporting}
+						>
+							{isExporting ? <Spinner animation="border" size="sm" /> : '📤 Export Current Data'}
+						</Button>
+					</div>
+				</Modal.Body>
+				<Modal.Footer>
+					<Button variant="secondary" onClick={() => setShowImportModal(false)}>
+						Cancel
+					</Button>
+					<Button
+						variant={importMode === 'replace' ? 'danger' : 'warning'}
+						onClick={handleImportTable}
+						disabled={isImporting || !importData.trim()}
+					>
+						{isImporting ? <Spinner animation="border" size="sm" /> : `${importMode === 'replace' ? 'Replace' : 'Append'} Data`}
+					</Button>
+				</Modal.Footer>
+			</Modal>
+
 			{/* Confirmation Modal for Dangerous Queries */}
 			<Modal show={showConfirmModal} onHide={() => setShowConfirmModal(false)} centered>
 				<Modal.Header closeButton>
@@ -671,7 +839,7 @@ export const SqlDebugPage: React.FC = () => {
 							maxHeight: '200px',
 							overflowY: 'auto',
 							fontFamily: 'monospace',
-							fontSize: '0.875rem'
+							fontSize: '0.875rem',
 						}}
 					>
 						{pendingQuery}

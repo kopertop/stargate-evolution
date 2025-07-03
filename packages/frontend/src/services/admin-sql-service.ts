@@ -134,6 +134,52 @@ export class AdminSqlService {
 	}
 
 	/**
+	 * Export table data as JSON
+	 */
+	static async exportTableData(tableName: string): Promise<any[]> {
+		try {
+			const response = await apiClient.get(
+				`/api/admin/sql/export/${encodeURIComponent(tableName)}`,
+				true, // authenticated
+			);
+
+			if (response.error) {
+				throw new Error(response.error);
+			}
+
+			return response.data;
+		} catch (error) {
+			console.error('[ADMIN-SQL-SERVICE] Table export failed:', error);
+			throw error;
+		}
+	}
+
+	/**
+	 * Import table data from JSON
+	 */
+	static async importTableData(tableName: string, data: any[], mode: 'replace' | 'append' = 'replace'): Promise<{ success: boolean; message: string; rowsAffected: number }> {
+		try {
+			const response = await apiClient.post(
+				`/api/admin/sql/import/${encodeURIComponent(tableName)}`,
+				{
+					data,
+					mode,
+				},
+				true, // authenticated
+			);
+
+			if (response.error) {
+				throw new Error(response.error);
+			}
+
+			return response.data;
+		} catch (error) {
+			console.error('[ADMIN-SQL-SERVICE] Table import failed:', error);
+			throw error;
+		}
+	}
+
+	/**
 	 * Helper method to validate SQL query safety
 	 */
 	static validateQuery(query: string): { isValid: boolean; warnings: string[]; errors: string[] } {
