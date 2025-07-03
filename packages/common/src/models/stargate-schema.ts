@@ -6,8 +6,8 @@ export const StargateSchema = z.object({
 	location_id: z.string(), // could be planet, ship, etc.
 	address: z.string(),
 	status: z.string(),
-	created_at: z.number().optional(),
-	updated_at: z.number().optional(),
+	created_at: z.number().optional().nullable(),
+	updated_at: z.number().optional().nullable(),
 });
 
 export type Stargate = z.infer<typeof StargateSchema>;

@@ -1,4 +1,6 @@
 // Simple TypeScript types for auth functionality
+import { Character } from '@stargate/common';
+
 export interface User {
 	id: string;
 	email: string;
@@ -78,3 +80,74 @@ export function validateSession(data: any): { success: boolean; data?: Session; 
 		},
 	};
 }
+
+export function validateCharacter(data: any): { success: boolean; data?: Character; error?: string } {
+	if (!data || typeof data !== 'object') {
+		return { success: false, error: 'Invalid character data' };
+	}
+
+	if (typeof data.id !== 'string' || !data.id) {
+		return { success: false, error: 'Invalid character id' };
+	}
+
+	if (typeof data.user_id !== 'string' || !data.user_id) {
+		return { success: false, error: 'Invalid user ID for character' };
+	}
+
+	if (typeof data.name !== 'string' || !data.name) {
+		return { success: false, error: 'Invalid character name' };
+	}
+
+	if (typeof data.role !== 'string' || !data.role) {
+		return { success: false, error: 'Invalid character role' };
+	}
+
+	// Validate progression or create default
+	const progression = data.progression || {
+		total_experience: 0,
+		current_level: 0,
+		skills: [],
+	};
+
+	if (typeof data.current_room_id !== 'string' || !data.current_room_id) {
+		return { success: false, error: 'Invalid current room ID' };
+	}
+
+	if (typeof data.health !== 'number' || data.health < 0 || data.health > 100) {
+		return { success: false, error: 'Invalid health value' };
+	}
+
+	if (typeof data.hunger !== 'number' || data.hunger < 0 || data.hunger > 100) {
+		return { success: false, error: 'Invalid hunger value' };
+	}
+
+	if (typeof data.thirst !== 'number' || data.thirst < 0 || data.thirst > 100) {
+		return { success: false, error: 'Invalid thirst value' };
+	}
+
+	if (typeof data.fatigue !== 'number' || data.fatigue < 0 || data.fatigue > 100) {
+		return { success: false, error: 'Invalid fatigue value' };
+	}
+
+	return {
+		success: true,
+		data: {
+			id: data.id,
+			user_id: data.user_id,
+			name: data.name,
+			role: data.role,
+			race_template_id: data.race_template_id || undefined,
+			progression: progression,
+			description: data.description || undefined,
+			image: data.image || undefined,
+			current_room_id: data.current_room_id,
+			health: data.health,
+			hunger: data.hunger,
+			thirst: data.thirst,
+			fatigue: data.fatigue,
+			created_at: data.created_at || Date.now(),
+			updated_at: data.updated_at || Date.now(),
+		},
+	};
+}
+

@@ -5,7 +5,7 @@ export const RoomTechnologySchema = z.object({
 	room_id: z.string(),
 	technology_template_id: z.string(),
 	count: z.number(),
-	description: z.string().optional(),
+	description: z.string().optional().nullable(),
 	created_at: z.number(),
 	updated_at: z.number(),
 });

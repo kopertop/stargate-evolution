@@ -6,8 +6,8 @@ export const ChevronSchema = z.object({
 	position: z.number(),
 	symbol: z.string(),
 	locked: z.boolean().default(false),
-	created_at: z.number().optional(),
-	updated_at: z.number().optional(),
+	created_at: z.number().optional().nullable(),
+	updated_at: z.number().optional().nullable(),
 });
 
 export type Chevron = z.infer<typeof ChevronSchema>;

@@ -1,0 +1,1453 @@
+{
+  "tables": [
+    {
+      "type": "table",
+      "name": "users",
+      "tbl_name": "users",
+      "rootpage": 5,
+      "sql": "CREATE TABLE users (\n  id TEXT PRIMARY KEY,\n  email TEXT NOT NULL UNIQUE,\n  name TEXT NOT NULL,\n  image TEXT,\n  is_admin BOOLEAN DEFAULT FALSE,\n  created_at INTEGER DEFAULT (strftime('%s','now')),\n  updated_at INTEGER DEFAULT (strftime('%s','now'))\n)",
+      "columns": [
+        {
+          "name": "id",
+          "type": "TEXT"
+        },
+        {
+          "name": "email",
+          "type": "TEXT"
+        },
+        {
+          "name": "name",
+          "type": "TEXT"
+        },
+        {
+          "name": "image",
+          "type": "TEXT"
+        },
+        {
+          "name": "is_admin",
+          "type": "BOOLEAN",
+          "dflt_value": {
+            "type": "bool",
+            "value": false
+          }
+        },
+        {
+          "name": "created_at",
+          "type": "INTEGER",
+          "dflt_value": {
+            "type": "function",
+            "name": {
+              "name": [
+                {
+                  "type": "default",
+                  "value": "strftime"
+                }
+              ]
+            },
+            "args": {
+              "type": "expr_list",
+              "value": [
+                {
+                  "type": "single_quote_string",
+                  "value": "%s"
+                },
+                {
+                  "type": "single_quote_string",
+                  "value": "now"
+                }
+              ]
+            },
+            "over": null,
+            "parentheses": true
+          }
+        },
+        {
+          "name": "updated_at",
+          "type": "INTEGER",
+          "dflt_value": {
+            "type": "function",
+            "name": {
+              "name": [
+                {
+                  "type": "default",
+                  "value": "strftime"
+                }
+              ]
+            },
+            "args": {
+              "type": "expr_list",
+              "value": [
+                {
+                  "type": "single_quote_string",
+                  "value": "%s"
+                },
+                {
+                  "type": "single_quote_string",
+                  "value": "now"
+                }
+              ]
+            },
+            "over": null,
+            "parentheses": true
+          }
+        }
+      ],
+      "rowCount": 0
+    },
+    {
+      "type": "table",
+      "name": "race_templates",
+      "tbl_name": "race_templates",
+      "rootpage": 12,
+      "sql": "CREATE TABLE race_templates (\n\tid TEXT PRIMARY KEY,\n\tname TEXT NOT NULL,\n\tdescription TEXT,\n\tdefault_technology TEXT, \n\tdefault_ships TEXT, \n\tcreated_at INTEGER DEFAULT (strftime('%s','now')),\n\tupdated_at INTEGER DEFAULT (strftime('%s','now'))\n)",
+      "columns": [
+        {
+          "name": "id",
+          "type": "TEXT"
+        },
+        {
+          "name": "name",
+          "type": "TEXT"
+        },
+        {
+          "name": "description",
+          "type": "TEXT"
+        },
+        {
+          "name": "default_technology",
+          "type": "TEXT"
+        },
+        {
+          "name": "default_ships",
+          "type": "TEXT"
+        },
+        {
+          "name": "created_at",
+          "type": "INTEGER",
+          "dflt_value": {
+            "type": "function",
+            "name": {
+              "name": [
+                {
+                  "type": "default",
+                  "value": "strftime"
+                }
+              ]
+            },
+            "args": {
+              "type": "expr_list",
+              "value": [
+                {
+                  "type": "single_quote_string",
+                  "value": "%s"
+                },
+                {
+                  "type": "single_quote_string",
+                  "value": "now"
+                }
+              ]
+            },
+            "over": null,
+            "parentheses": true
+          }
+        },
+        {
+          "name": "updated_at",
+          "type": "INTEGER",
+          "dflt_value": {
+            "type": "function",
+            "name": {
+              "name": [
+                {
+                  "type": "default",
+                  "value": "strftime"
+                }
+              ]
+            },
+            "args": {
+              "type": "expr_list",
+              "value": [
+                {
+                  "type": "single_quote_string",
+                  "value": "%s"
+                },
+                {
+                  "type": "single_quote_string",
+                  "value": "now"
+                }
+              ]
+            },
+            "over": null,
+            "parentheses": true
+          }
+        }
+      ],
+      "rowCount": 0
+    },
+    {
+      "type": "table",
+      "name": "technology_templates",
+      "tbl_name": "technology_templates",
+      "rootpage": 14,
+      "sql": "CREATE TABLE technology_templates (\n\tid TEXT PRIMARY KEY,\n\tname TEXT NOT NULL,\n\tdescription TEXT NOT NULL,\n\tcategory TEXT, \n\tunlock_requirements TEXT, \n\tcost INTEGER DEFAULT 0,\n\timage TEXT,\n\tcreated_at INTEGER DEFAULT (strftime('%s','now')),\n\tupdated_at INTEGER DEFAULT (strftime('%s','now'))\n)",
+      "columns": [
+        {
+          "name": "id",
+          "type": "TEXT"
+        },
+        {
+          "name": "name",
+          "type": "TEXT"
+        },
+        {
+          "name": "description",
+          "type": "TEXT"
+        },
+        {
+          "name": "category",
+          "type": "TEXT"
+        },
+        {
+          "name": "unlock_requirements",
+          "type": "TEXT"
+        },
+        {
+          "name": "cost",
+          "type": "INTEGER",
+          "dflt_value": {
+            "type": "number",
+            "value": 0
+          }
+        },
+        {
+          "name": "image",
+          "type": "TEXT"
+        },
+        {
+          "name": "created_at",
+          "type": "INTEGER",
+          "dflt_value": {
+            "type": "function",
+            "name": {
+              "name": [
+                {
+                  "type": "default",
+                  "value": "strftime"
+                }
+              ]
+            },
+            "args": {
+              "type": "expr_list",
+              "value": [
+                {
+                  "type": "single_quote_string",
+                  "value": "%s"
+                },
+                {
+                  "type": "single_quote_string",
+                  "value": "now"
+                }
+              ]
+            },
+            "over": null,
+            "parentheses": true
+          }
+        },
+        {
+          "name": "updated_at",
+          "type": "INTEGER",
+          "dflt_value": {
+            "type": "function",
+            "name": {
+              "name": [
+                {
+                  "type": "default",
+                  "value": "strftime"
+                }
+              ]
+            },
+            "args": {
+              "type": "expr_list",
+              "value": [
+                {
+                  "type": "single_quote_string",
+                  "value": "%s"
+                },
+                {
+                  "type": "single_quote_string",
+                  "value": "now"
+                }
+              ]
+            },
+            "over": null,
+            "parentheses": true
+          }
+        }
+      ],
+      "rowCount": 0
+    },
+    {
+      "type": "table",
+      "name": "room_templates",
+      "tbl_name": "room_templates",
+      "rootpage": 16,
+      "sql": "CREATE TABLE room_templates (\n\tid TEXT PRIMARY KEY,\n\tlayout_id TEXT NOT NULL, \n\ttype TEXT NOT NULL, \n\tname TEXT NOT NULL,\n\tdescription TEXT,\n\n\t\n\tstartX INTEGER NOT NULL, \n\tendX INTEGER NOT NULL, \n\tstartY INTEGER NOT NULL, \n\tendY INTEGER NOT NULL, \n\tfloor INTEGER NOT NULL,\n\n\t\n\twidth INTEGER GENERATED ALWAYS AS ((endX - startX)) STORED,\n\theight INTEGER GENERATED ALWAYS AS ((endY - startY)) STORED,\n\n\t\n\tfound BOOLEAN DEFAULT FALSE,\n\tlocked BOOLEAN DEFAULT FALSE,\n\texplored BOOLEAN DEFAULT FALSE,\n\timage TEXT,\n\tbase_exploration_time INTEGER DEFAULT 2,\n\tstatus TEXT DEFAULT 'ok' CHECK (status IN ('ok', 'damaged', 'destroyed', 'unknown')),\n\n\tcreated_at INTEGER DEFAULT (strftime('%s','now')),\n\tupdated_at INTEGER DEFAULT (strftime('%s','now')),\n\n\t\n\tCHECK (startX < endX AND startY < endY)\n)",
+      "columns": [
+        {
+          "name": "id",
+          "type": "TEXT"
+        },
+        {
+          "name": "layout_id",
+          "type": "TEXT"
+        },
+        {
+          "name": "type",
+          "type": "TEXT"
+        },
+        {
+          "name": "name",
+          "type": "TEXT"
+        },
+        {
+          "name": "description",
+          "type": "TEXT"
+        },
+        {
+          "name": "startX",
+          "type": "INTEGER"
+        },
+        {
+          "name": "endX",
+          "type": "INTEGER"
+        },
+        {
+          "name": "startY",
+          "type": "INTEGER"
+        },
+        {
+          "name": "endY",
+          "type": "INTEGER"
+        },
+        {
+          "name": "floor",
+          "type": "INTEGER"
+        },
+        {
+          "name": "width",
+          "type": "INTEGER"
+        },
+        {
+          "name": "height",
+          "type": "INTEGER"
+        },
+        {
+          "name": "found",
+          "type": "BOOLEAN",
+          "dflt_value": {
+            "type": "bool",
+            "value": false
+          }
+        },
+        {
+          "name": "locked",
+          "type": "BOOLEAN",
+          "dflt_value": {
+            "type": "bool",
+            "value": false
+          }
+        },
+        {
+          "name": "explored",
+          "type": "BOOLEAN",
+          "dflt_value": {
+            "type": "bool",
+            "value": false
+          }
+        },
+        {
+          "name": "image",
+          "type": "TEXT"
+        },
+        {
+          "name": "base_exploration_time",
+          "type": "INTEGER",
+          "dflt_value": {
+            "type": "number",
+            "value": 2
+          }
+        },
+        {
+          "name": "status",
+          "type": "TEXT",
+          "dflt_value": {
+            "type": "single_quote_string",
+            "value": "ok"
+          }
+        },
+        {
+          "name": "created_at",
+          "type": "INTEGER",
+          "dflt_value": {
+            "type": "function",
+            "name": {
+              "name": [
+                {
+                  "type": "default",
+                  "value": "strftime"
+                }
+              ]
+            },
+            "args": {
+              "type": "expr_list",
+              "value": [
+                {
+                  "type": "single_quote_string",
+                  "value": "%s"
+                },
+                {
+                  "type": "single_quote_string",
+                  "value": "now"
+                }
+              ]
+            },
+            "over": null,
+            "parentheses": true
+          }
+        },
+        {
+          "name": "updated_at",
+          "type": "INTEGER",
+          "dflt_value": {
+            "type": "function",
+            "name": {
+              "name": [
+                {
+                  "type": "default",
+                  "value": "strftime"
+                }
+              ]
+            },
+            "args": {
+              "type": "expr_list",
+              "value": [
+                {
+                  "type": "single_quote_string",
+                  "value": "%s"
+                },
+                {
+                  "type": "single_quote_string",
+                  "value": "now"
+                }
+              ]
+            },
+            "over": null,
+            "parentheses": true
+          }
+        }
+      ],
+      "rowCount": 0
+    },
+    {
+      "type": "table",
+      "name": "door_templates",
+      "tbl_name": "door_templates",
+      "rootpage": 18,
+      "sql": "CREATE TABLE door_templates (\n\tid TEXT PRIMARY KEY,\n\tname TEXT,\n\tfrom_room_id TEXT NOT NULL,\n\tto_room_id TEXT NOT NULL,\n\n\t\n\tx INTEGER NOT NULL, \n\ty INTEGER NOT NULL, \n\twidth INTEGER DEFAULT 32, \n\theight INTEGER DEFAULT 8, \n\trotation INTEGER DEFAULT 0 CHECK (rotation IN (0, 90, 180, 270)), \n\n\t\n\tstate TEXT DEFAULT 'closed' CHECK (state IN ('opened', 'closed', 'locked')),\n\tis_automatic BOOLEAN DEFAULT FALSE,\n\topen_direction TEXT DEFAULT 'inward' CHECK (open_direction IN ('inward', 'outward', 'sliding')),\n\n\t\n\tstyle TEXT DEFAULT 'standard',\n\tcolor TEXT, \n\n\t\n\trequirements TEXT, \n\tpower_required INTEGER DEFAULT 0,\n\tsound_effect TEXT,\n\n\tcreated_at INTEGER DEFAULT (strftime('%s','now')),\n\tupdated_at INTEGER DEFAULT (strftime('%s','now')),\n\n\tFOREIGN KEY (from_room_id) REFERENCES room_templates(id) ON DELETE CASCADE,\n\tFOREIGN KEY (to_room_id) REFERENCES room_templates(id) ON DELETE CASCADE\n)",
+      "columns": [
+        {
+          "name": "id",
+          "type": "TEXT"
+        },
+        {
+          "name": "name",
+          "type": "TEXT"
+        },
+        {
+          "name": "from_room_id",
+          "type": "TEXT"
+        },
+        {
+          "name": "to_room_id",
+          "type": "TEXT"
+        },
+        {
+          "name": "x",
+          "type": "INTEGER"
+        },
+        {
+          "name": "y",
+          "type": "INTEGER"
+        },
+        {
+          "name": "width",
+          "type": "INTEGER",
+          "dflt_value": {
+            "type": "number",
+            "value": 32
+          }
+        },
+        {
+          "name": "height",
+          "type": "INTEGER",
+          "dflt_value": {
+            "type": "number",
+            "value": 8
+          }
+        },
+        {
+          "name": "rotation",
+          "type": "INTEGER",
+          "dflt_value": {
+            "type": "number",
+            "value": 0
+          }
+        },
+        {
+          "name": "state",
+          "type": "TEXT",
+          "dflt_value": {
+            "type": "single_quote_string",
+            "value": "closed"
+          }
+        },
+        {
+          "name": "is_automatic",
+          "type": "BOOLEAN",
+          "dflt_value": {
+            "type": "bool",
+            "value": false
+          }
+        },
+        {
+          "name": "open_direction",
+          "type": "TEXT",
+          "dflt_value": {
+            "type": "single_quote_string",
+            "value": "inward"
+          }
+        },
+        {
+          "name": "style",
+          "type": "TEXT",
+          "dflt_value": {
+            "type": "single_quote_string",
+            "value": "standard"
+          }
+        },
+        {
+          "name": "color",
+          "type": "TEXT"
+        },
+        {
+          "name": "requirements",
+          "type": "TEXT"
+        },
+        {
+          "name": "power_required",
+          "type": "INTEGER",
+          "dflt_value": {
+            "type": "number",
+            "value": 0
+          }
+        },
+        {
+          "name": "sound_effect",
+          "type": "TEXT"
+        },
+        {
+          "name": "created_at",
+          "type": "INTEGER",
+          "dflt_value": {
+            "type": "function",
+            "name": {
+              "name": [
+                {
+                  "type": "default",
+                  "value": "strftime"
+                }
+              ]
+            },
+            "args": {
+              "type": "expr_list",
+              "value": [
+                {
+                  "type": "single_quote_string",
+                  "value": "%s"
+                },
+                {
+                  "type": "single_quote_string",
+                  "value": "now"
+                }
+              ]
+            },
+            "over": null,
+            "parentheses": true
+          }
+        },
+        {
+          "name": "updated_at",
+          "type": "INTEGER",
+          "dflt_value": {
+            "type": "function",
+            "name": {
+              "name": [
+                {
+                  "type": "default",
+                  "value": "strftime"
+                }
+              ]
+            },
+            "args": {
+              "type": "expr_list",
+              "value": [
+                {
+                  "type": "single_quote_string",
+                  "value": "%s"
+                },
+                {
+                  "type": "single_quote_string",
+                  "value": "now"
+                }
+              ]
+            },
+            "over": null,
+            "parentheses": true
+          }
+        }
+      ],
+      "rowCount": 0
+    },
+    {
+      "type": "table",
+      "name": "person_templates",
+      "tbl_name": "person_templates",
+      "rootpage": 20,
+      "sql": "CREATE TABLE person_templates (\n\tid TEXT PRIMARY KEY,\n\tname TEXT NOT NULL,\n\trole TEXT NOT NULL,\n\trace_template_id TEXT,\n\tskills TEXT, \n\tdescription TEXT,\n\timage TEXT,\n\tdefault_location TEXT, \n\tcreated_at INTEGER DEFAULT (strftime('%s','now')),\n\tupdated_at INTEGER DEFAULT (strftime('%s','now')),\n\tFOREIGN KEY (race_template_id) REFERENCES race_templates(id)\n)",
+      "columns": [
+        {
+          "name": "id",
+          "type": "TEXT"
+        },
+        {
+          "name": "name",
+          "type": "TEXT"
+        },
+        {
+          "name": "role",
+          "type": "TEXT"
+        },
+        {
+          "name": "race_template_id",
+          "type": "TEXT"
+        },
+        {
+          "name": "skills",
+          "type": "TEXT"
+        },
+        {
+          "name": "description",
+          "type": "TEXT"
+        },
+        {
+          "name": "image",
+          "type": "TEXT"
+        },
+        {
+          "name": "default_location",
+          "type": "TEXT"
+        },
+        {
+          "name": "created_at",
+          "type": "INTEGER",
+          "dflt_value": {
+            "type": "function",
+            "name": {
+              "name": [
+                {
+                  "type": "default",
+                  "value": "strftime"
+                }
+              ]
+            },
+            "args": {
+              "type": "expr_list",
+              "value": [
+                {
+                  "type": "single_quote_string",
+                  "value": "%s"
+                },
+                {
+                  "type": "single_quote_string",
+                  "value": "now"
+                }
+              ]
+            },
+            "over": null,
+            "parentheses": true
+          }
+        },
+        {
+          "name": "updated_at",
+          "type": "INTEGER",
+          "dflt_value": {
+            "type": "function",
+            "name": {
+              "name": [
+                {
+                  "type": "default",
+                  "value": "strftime"
+                }
+              ]
+            },
+            "args": {
+              "type": "expr_list",
+              "value": [
+                {
+                  "type": "single_quote_string",
+                  "value": "%s"
+                },
+                {
+                  "type": "single_quote_string",
+                  "value": "now"
+                }
+              ]
+            },
+            "over": null,
+            "parentheses": true
+          }
+        }
+      ],
+      "rowCount": 0
+    },
+    {
+      "type": "table",
+      "name": "galaxy_templates",
+      "tbl_name": "galaxy_templates",
+      "rootpage": 24,
+      "sql": "CREATE TABLE galaxy_templates (\n\tid TEXT PRIMARY KEY,\n\tname TEXT NOT NULL,\n\tdescription TEXT,\n\tx INTEGER NOT NULL, \n\ty INTEGER NOT NULL, \n\tcreated_at INTEGER DEFAULT (strftime('%s','now')),\n\tupdated_at INTEGER DEFAULT (strftime('%s','now'))\n)",
+      "columns": [
+        {
+          "name": "id",
+          "type": "TEXT"
+        },
+        {
+          "name": "name",
+          "type": "TEXT"
+        },
+        {
+          "name": "description",
+          "type": "TEXT"
+        },
+        {
+          "name": "x",
+          "type": "INTEGER"
+        },
+        {
+          "name": "y",
+          "type": "INTEGER"
+        },
+        {
+          "name": "created_at",
+          "type": "INTEGER",
+          "dflt_value": {
+            "type": "function",
+            "name": {
+              "name": [
+                {
+                  "type": "default",
+                  "value": "strftime"
+                }
+              ]
+            },
+            "args": {
+              "type": "expr_list",
+              "value": [
+                {
+                  "type": "single_quote_string",
+                  "value": "%s"
+                },
+                {
+                  "type": "single_quote_string",
+                  "value": "now"
+                }
+              ]
+            },
+            "over": null,
+            "parentheses": true
+          }
+        },
+        {
+          "name": "updated_at",
+          "type": "INTEGER",
+          "dflt_value": {
+            "type": "function",
+            "name": {
+              "name": [
+                {
+                  "type": "default",
+                  "value": "strftime"
+                }
+              ]
+            },
+            "args": {
+              "type": "expr_list",
+              "value": [
+                {
+                  "type": "single_quote_string",
+                  "value": "%s"
+                },
+                {
+                  "type": "single_quote_string",
+                  "value": "now"
+                }
+              ]
+            },
+            "over": null,
+            "parentheses": true
+          }
+        }
+      ],
+      "rowCount": 0
+    },
+    {
+      "type": "table",
+      "name": "star_system_templates",
+      "tbl_name": "star_system_templates",
+      "rootpage": 26,
+      "sql": "CREATE TABLE star_system_templates (\n\tid TEXT PRIMARY KEY,\n\tname TEXT NOT NULL,\n\tgalaxy_id TEXT,\n\tdescription TEXT,\n\tx INTEGER NOT NULL, \n\ty INTEGER NOT NULL, \n\tcreated_at INTEGER DEFAULT (strftime('%s','now')),\n\tupdated_at INTEGER DEFAULT (strftime('%s','now')),\n\tFOREIGN KEY (galaxy_id) REFERENCES galaxy_templates(id)\n)",
+      "columns": [
+        {
+          "name": "id",
+          "type": "TEXT"
+        },
+        {
+          "name": "name",
+          "type": "TEXT"
+        },
+        {
+          "name": "galaxy_id",
+          "type": "TEXT"
+        },
+        {
+          "name": "description",
+          "type": "TEXT"
+        },
+        {
+          "name": "x",
+          "type": "INTEGER"
+        },
+        {
+          "name": "y",
+          "type": "INTEGER"
+        },
+        {
+          "name": "created_at",
+          "type": "INTEGER",
+          "dflt_value": {
+            "type": "function",
+            "name": {
+              "name": [
+                {
+                  "type": "default",
+                  "value": "strftime"
+                }
+              ]
+            },
+            "args": {
+              "type": "expr_list",
+              "value": [
+                {
+                  "type": "single_quote_string",
+                  "value": "%s"
+                },
+                {
+                  "type": "single_quote_string",
+                  "value": "now"
+                }
+              ]
+            },
+            "over": null,
+            "parentheses": true
+          }
+        },
+        {
+          "name": "updated_at",
+          "type": "INTEGER",
+          "dflt_value": {
+            "type": "function",
+            "name": {
+              "name": [
+                {
+                  "type": "default",
+                  "value": "strftime"
+                }
+              ]
+            },
+            "args": {
+              "type": "expr_list",
+              "value": [
+                {
+                  "type": "single_quote_string",
+                  "value": "%s"
+                },
+                {
+                  "type": "single_quote_string",
+                  "value": "now"
+                }
+              ]
+            },
+            "over": null,
+            "parentheses": true
+          }
+        }
+      ],
+      "rowCount": 0
+    },
+    {
+      "type": "table",
+      "name": "planet_templates",
+      "tbl_name": "planet_templates",
+      "rootpage": 28,
+      "sql": "CREATE TABLE planet_templates (\n\tid TEXT PRIMARY KEY,\n\tname TEXT NOT NULL,\n\ttype TEXT NOT NULL, \n\tstar_system_template_id TEXT,\n\tdescription TEXT,\n\tstargate_address TEXT, \n\ttechnology TEXT, \n\tresources TEXT, \n\tcreated_at INTEGER DEFAULT (strftime('%s','now')),\n\tupdated_at INTEGER DEFAULT (strftime('%s','now')),\n\tFOREIGN KEY (star_system_template_id) REFERENCES star_system_templates(id)\n)",
+      "columns": [
+        {
+          "name": "id",
+          "type": "TEXT"
+        },
+        {
+          "name": "name",
+          "type": "TEXT"
+        },
+        {
+          "name": "type",
+          "type": "TEXT"
+        },
+        {
+          "name": "star_system_template_id",
+          "type": "TEXT"
+        },
+        {
+          "name": "description",
+          "type": "TEXT"
+        },
+        {
+          "name": "stargate_address",
+          "type": "TEXT"
+        },
+        {
+          "name": "technology",
+          "type": "TEXT"
+        },
+        {
+          "name": "resources",
+          "type": "TEXT"
+        },
+        {
+          "name": "created_at",
+          "type": "INTEGER",
+          "dflt_value": {
+            "type": "function",
+            "name": {
+              "name": [
+                {
+                  "type": "default",
+                  "value": "strftime"
+                }
+              ]
+            },
+            "args": {
+              "type": "expr_list",
+              "value": [
+                {
+                  "type": "single_quote_string",
+                  "value": "%s"
+                },
+                {
+                  "type": "single_quote_string",
+                  "value": "now"
+                }
+              ]
+            },
+            "over": null,
+            "parentheses": true
+          }
+        },
+        {
+          "name": "updated_at",
+          "type": "INTEGER",
+          "dflt_value": {
+            "type": "function",
+            "name": {
+              "name": [
+                {
+                  "type": "default",
+                  "value": "strftime"
+                }
+              ]
+            },
+            "args": {
+              "type": "expr_list",
+              "value": [
+                {
+                  "type": "single_quote_string",
+                  "value": "%s"
+                },
+                {
+                  "type": "single_quote_string",
+                  "value": "now"
+                }
+              ]
+            },
+            "over": null,
+            "parentheses": true
+          }
+        }
+      ],
+      "rowCount": 0
+    },
+    {
+      "type": "table",
+      "name": "room_technology",
+      "tbl_name": "room_technology",
+      "rootpage": 30,
+      "sql": "CREATE TABLE room_technology (\n\tid TEXT PRIMARY KEY,\n\troom_id TEXT NOT NULL,\n\ttechnology_template_id TEXT NOT NULL,\n\tcount INTEGER NOT NULL DEFAULT 1,\n\tdescription TEXT,\n\tdiscovered BOOLEAN DEFAULT FALSE, \n\tcreated_at INTEGER DEFAULT (strftime('%s','now')),\n\tupdated_at INTEGER DEFAULT (strftime('%s','now')),\n\tFOREIGN KEY (room_id) REFERENCES room_templates(id) ON DELETE CASCADE,\n\tFOREIGN KEY (technology_template_id) REFERENCES technology_templates(id)\n)",
+      "columns": [
+        {
+          "name": "id",
+          "type": "TEXT"
+        },
+        {
+          "name": "room_id",
+          "type": "TEXT"
+        },
+        {
+          "name": "technology_template_id",
+          "type": "TEXT"
+        },
+        {
+          "name": "count",
+          "type": "INTEGER",
+          "dflt_value": {
+            "type": "number",
+            "value": 1
+          }
+        },
+        {
+          "name": "description",
+          "type": "TEXT"
+        },
+        {
+          "name": "discovered",
+          "type": "BOOLEAN",
+          "dflt_value": {
+            "type": "bool",
+            "value": false
+          }
+        },
+        {
+          "name": "created_at",
+          "type": "INTEGER",
+          "dflt_value": {
+            "type": "function",
+            "name": {
+              "name": [
+                {
+                  "type": "default",
+                  "value": "strftime"
+                }
+              ]
+            },
+            "args": {
+              "type": "expr_list",
+              "value": [
+                {
+                  "type": "single_quote_string",
+                  "value": "%s"
+                },
+                {
+                  "type": "single_quote_string",
+                  "value": "now"
+                }
+              ]
+            },
+            "over": null,
+            "parentheses": true
+          }
+        },
+        {
+          "name": "updated_at",
+          "type": "INTEGER",
+          "dflt_value": {
+            "type": "function",
+            "name": {
+              "name": [
+                {
+                  "type": "default",
+                  "value": "strftime"
+                }
+              ]
+            },
+            "args": {
+              "type": "expr_list",
+              "value": [
+                {
+                  "type": "single_quote_string",
+                  "value": "%s"
+                },
+                {
+                  "type": "single_quote_string",
+                  "value": "now"
+                }
+              ]
+            },
+            "over": null,
+            "parentheses": true
+          }
+        }
+      ],
+      "rowCount": 0
+    },
+    {
+      "type": "table",
+      "name": "room_furniture",
+      "tbl_name": "room_furniture",
+      "rootpage": 32,
+      "sql": "CREATE TABLE room_furniture (\n\tid TEXT PRIMARY KEY,\n\troom_id TEXT NOT NULL,\n\tfurniture_type TEXT NOT NULL,\n\tname TEXT NOT NULL,\n\tdescription TEXT,\n\n\t\n\tx REAL NOT NULL,\n\ty REAL NOT NULL,\n\tz REAL NOT NULL,\n\twidth REAL NOT NULL DEFAULT 32,\n\theight REAL NOT NULL DEFAULT 32,\n\trotation REAL NOT NULL DEFAULT 0,\n\n\t\n\timage TEXT,\n\tcolor TEXT,\n\tstyle TEXT,\n\n\t\n\tinteractive BOOLEAN NOT NULL DEFAULT 0,\n\tblocks_movement BOOLEAN NOT NULL DEFAULT 0,\n\trequirements TEXT, \n\tpower_required REAL NOT NULL DEFAULT 0,\n\n\t\n\tactive BOOLEAN NOT NULL DEFAULT 1,\n\tdiscovered BOOLEAN NOT NULL DEFAULT 1,\n\n\tcreated_at INTEGER DEFAULT (strftime('%s','now')),\n\tupdated_at INTEGER DEFAULT (strftime('%s','now')),\n\tFOREIGN KEY (room_id) REFERENCES room_templates(id) ON DELETE CASCADE\n)",
+      "columns": [],
+      "rowCount": 0
+    },
+    {
+      "type": "table",
+      "name": "characters",
+      "tbl_name": "characters",
+      "rootpage": 52,
+      "sql": "CREATE TABLE characters (\n  id TEXT PRIMARY KEY,\n  user_id TEXT NOT NULL,\n  name TEXT NOT NULL,\n  role TEXT NOT NULL,\n  race_template_id TEXT,\n  skills TEXT NOT NULL,\n  description TEXT,\n  image TEXT,\n  current_room_id TEXT NOT NULL,\n  health INTEGER DEFAULT 100,\n  hunger INTEGER DEFAULT 100,\n  thirst INTEGER DEFAULT 100,\n  fatigue INTEGER DEFAULT 100,\n  created_at INTEGER DEFAULT (strftime('%s','now')),\n  updated_at INTEGER DEFAULT (strftime('%s','now')), progression TEXT DEFAULT '{\"total_experience\":0,\"current_level\":0,\"skills\":[]}',\n  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE\n)",
+      "columns": [
+        {
+          "name": "id",
+          "type": "TEXT"
+        },
+        {
+          "name": "user_id",
+          "type": "TEXT"
+        },
+        {
+          "name": "name",
+          "type": "TEXT"
+        },
+        {
+          "name": "role",
+          "type": "TEXT"
+        },
+        {
+          "name": "race_template_id",
+          "type": "TEXT"
+        },
+        {
+          "name": "skills",
+          "type": "TEXT"
+        },
+        {
+          "name": "description",
+          "type": "TEXT"
+        },
+        {
+          "name": "image",
+          "type": "TEXT"
+        },
+        {
+          "name": "current_room_id",
+          "type": "TEXT"
+        },
+        {
+          "name": "health",
+          "type": "INTEGER",
+          "dflt_value": {
+            "type": "number",
+            "value": 100
+          }
+        },
+        {
+          "name": "hunger",
+          "type": "INTEGER",
+          "dflt_value": {
+            "type": "number",
+            "value": 100
+          }
+        },
+        {
+          "name": "thirst",
+          "type": "INTEGER",
+          "dflt_value": {
+            "type": "number",
+            "value": 100
+          }
+        },
+        {
+          "name": "fatigue",
+          "type": "INTEGER",
+          "dflt_value": {
+            "type": "number",
+            "value": 100
+          }
+        },
+        {
+          "name": "created_at",
+          "type": "INTEGER",
+          "dflt_value": {
+            "type": "function",
+            "name": {
+              "name": [
+                {
+                  "type": "default",
+                  "value": "strftime"
+                }
+              ]
+            },
+            "args": {
+              "type": "expr_list",
+              "value": [
+                {
+                  "type": "single_quote_string",
+                  "value": "%s"
+                },
+                {
+                  "type": "single_quote_string",
+                  "value": "now"
+                }
+              ]
+            },
+            "over": null,
+            "parentheses": true
+          }
+        },
+        {
+          "name": "updated_at",
+          "type": "INTEGER",
+          "dflt_value": {
+            "type": "function",
+            "name": {
+              "name": [
+                {
+                  "type": "default",
+                  "value": "strftime"
+                }
+              ]
+            },
+            "args": {
+              "type": "expr_list",
+              "value": [
+                {
+                  "type": "single_quote_string",
+                  "value": "%s"
+                },
+                {
+                  "type": "single_quote_string",
+                  "value": "now"
+                }
+              ]
+            },
+            "over": null,
+            "parentheses": true
+          }
+        },
+        {
+          "name": "progression",
+          "type": "TEXT",
+          "dflt_value": {
+            "type": "single_quote_string",
+            "value": "{\"total_experience\":0,\"current_level\":0,\"skills\":[]}"
+          }
+        }
+      ],
+      "rowCount": 0
+    },
+    {
+      "type": "table",
+      "name": "game_sessions",
+      "tbl_name": "game_sessions",
+      "rootpage": 56,
+      "sql": "CREATE TABLE game_sessions (\n  id TEXT PRIMARY KEY,\n  user_id TEXT NOT NULL,\n  character_id TEXT NOT NULL,\n  session_data TEXT NOT NULL,\n  created_at INTEGER DEFAULT (strftime('%s','now')),\n  updated_at INTEGER DEFAULT (strftime('%s','now')),\n  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,\n  FOREIGN KEY (character_id) REFERENCES characters(id) ON DELETE CASCADE\n)",
+      "columns": [
+        {
+          "name": "id",
+          "type": "TEXT"
+        },
+        {
+          "name": "user_id",
+          "type": "TEXT"
+        },
+        {
+          "name": "character_id",
+          "type": "TEXT"
+        },
+        {
+          "name": "session_data",
+          "type": "TEXT"
+        },
+        {
+          "name": "created_at",
+          "type": "INTEGER",
+          "dflt_value": {
+            "type": "function",
+            "name": {
+              "name": [
+                {
+                  "type": "default",
+                  "value": "strftime"
+                }
+              ]
+            },
+            "args": {
+              "type": "expr_list",
+              "value": [
+                {
+                  "type": "single_quote_string",
+                  "value": "%s"
+                },
+                {
+                  "type": "single_quote_string",
+                  "value": "now"
+                }
+              ]
+            },
+            "over": null,
+            "parentheses": true
+          }
+        },
+        {
+          "name": "updated_at",
+          "type": "INTEGER",
+          "dflt_value": {
+            "type": "function",
+            "name": {
+              "name": [
+                {
+                  "type": "default",
+                  "value": "strftime"
+                }
+              ]
+            },
+            "args": {
+              "type": "expr_list",
+              "value": [
+                {
+                  "type": "single_quote_string",
+                  "value": "%s"
+                },
+                {
+                  "type": "single_quote_string",
+                  "value": "now"
+                }
+              ]
+            },
+            "over": null,
+            "parentheses": true
+          }
+        }
+      ],
+      "rowCount": 0
+    },
+    {
+      "type": "table",
+      "name": "saved_games",
+      "tbl_name": "saved_games",
+      "rootpage": 59,
+      "sql": "CREATE TABLE saved_games (\n\tid TEXT PRIMARY KEY,\n\tuser_id TEXT NOT NULL,\n\tname TEXT NOT NULL,\n\tdescription TEXT,\n\tgame_data TEXT NOT NULL, \n\tcreated_at INTEGER DEFAULT (strftime('%s','now')),\n\tupdated_at INTEGER DEFAULT (strftime('%s','now')), game_time INTEGER DEFAULT 0,\n\tFOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE\n)",
+      "columns": [
+        {
+          "name": "id",
+          "type": "TEXT"
+        },
+        {
+          "name": "user_id",
+          "type": "TEXT"
+        },
+        {
+          "name": "name",
+          "type": "TEXT"
+        },
+        {
+          "name": "description",
+          "type": "TEXT"
+        },
+        {
+          "name": "game_data",
+          "type": "TEXT"
+        },
+        {
+          "name": "created_at",
+          "type": "INTEGER",
+          "dflt_value": {
+            "type": "function",
+            "name": {
+              "name": [
+                {
+                  "type": "default",
+                  "value": "strftime"
+                }
+              ]
+            },
+            "args": {
+              "type": "expr_list",
+              "value": [
+                {
+                  "type": "single_quote_string",
+                  "value": "%s"
+                },
+                {
+                  "type": "single_quote_string",
+                  "value": "now"
+                }
+              ]
+            },
+            "over": null,
+            "parentheses": true
+          }
+        },
+        {
+          "name": "updated_at",
+          "type": "INTEGER",
+          "dflt_value": {
+            "type": "function",
+            "name": {
+              "name": [
+                {
+                  "type": "default",
+                  "value": "strftime"
+                }
+              ]
+            },
+            "args": {
+              "type": "expr_list",
+              "value": [
+                {
+                  "type": "single_quote_string",
+                  "value": "%s"
+                },
+                {
+                  "type": "single_quote_string",
+                  "value": "now"
+                }
+              ]
+            },
+            "over": null,
+            "parentheses": true
+          }
+        },
+        {
+          "name": "game_time",
+          "type": "INTEGER",
+          "dflt_value": {
+            "type": "number",
+            "value": 0
+          }
+        }
+      ],
+      "rowCount": 0
+    }
+  ],
+  "generatedAt": "2025-07-03T17:53:29.546Z",
+  "version": "1.0.0"
+}

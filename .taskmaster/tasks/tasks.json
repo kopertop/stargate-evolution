@@ -1,0 +1,903 @@
+{
+  "master": {
+    "tasks": [
+      {
+        "id": 1,
+        "title": "Setup Project Infrastructure and Authentication System",
+        "description": "Initialize the foundational architecture with React+Vite frontend, Cloudflare Workers backend, D1 database, and Google OAuth authentication",
+        "details": "Create monorepo structure with packages (frontend, backend, common). Setup Vite+React+TypeScript for frontend, Cloudflare Workers for backend, D1 SQLite database with migration system. Implement JWT-based authentication with Google OAuth integration. Setup development environment with Node.js 18+, pnpm workspaces, ESLint, Prettier, and Vitest. Configure environment variables and deployment pipeline. Implement basic user profile management and session handling.",
+        "testStrategy": "Unit tests for authentication flows, integration tests for OAuth callback, end-to-end tests for user registration/login, database migration tests, API endpoint security tests",
+        "priority": "high",
+        "dependencies": [],
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Setup monorepo structure and package management",
+            "description": "Initialize monorepo with proper workspace configuration, shared dependencies, and package management setup",
+            "dependencies": [],
+            "details": "Create root package.json with workspaces configuration, setup shared tooling and dependencies, configure package manager (npm/yarn/pnpm) for monorepo structure, create basic folder structure for frontend, backend, and shared packages",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Initialize frontend application scaffold",
+            "description": "Setup React/Next.js frontend application with TypeScript and basic routing",
+            "dependencies": [
+              1
+            ],
+            "details": "Create frontend workspace, configure TypeScript, setup React/Next.js with routing, add basic component structure, configure bundling and development server",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Setup Cloudflare Workers backend infrastructure",
+            "description": "Initialize Cloudflare Workers setup with TypeScript and basic routing",
+            "dependencies": [
+              1
+            ],
+            "details": "Create workers workspace, configure wrangler.toml, setup TypeScript for workers, implement basic routing structure, configure local development environment for workers",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Initialize database schema and connection setup",
+            "description": "Setup database schema, migrations, and connection configuration for Cloudflare D1 or external database",
+            "dependencies": [
+              3
+            ],
+            "details": "Design initial database schema, setup migration system, configure database connection and ORM/query builder, create seed data scripts, setup database testing utilities",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "Implement OAuth authentication integration",
+            "description": "Setup OAuth providers integration with secure token handling and user session management",
+            "dependencies": [
+              3,
+              4
+            ],
+            "details": "Configure OAuth providers (Google, GitHub, etc.), implement OAuth flow in workers, setup JWT token handling, create user authentication middleware, implement session management\n<info added on 2025-06-30T16:29:38.575Z>\nOAuth authentication system has been fully implemented and is operational. Implementation includes Google OAuth integration using Identity Services, JWT token signing/verification with jose library, access tokens with 15-minute expiration and refresh tokens with 7-day expiration, admin user verification with role-based access control, frontend Google Sign-In button component, secure token handling with proper CORS headers, and comprehensive user validation and session management. System is ready for production use. Next step is to review environment configuration for proper secrets management to ensure all OAuth credentials and JWT secrets are properly secured.\n</info added on 2025-06-30T16:29:38.575Z>",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 6,
+            "title": "Configure development tooling and code quality",
+            "description": "Setup linting, formatting, testing, and code quality tools across the monorepo",
+            "dependencies": [
+              1
+            ],
+            "details": "Configure ESLint, Prettier, TypeScript compiler options, setup Jest/Vitest for testing, configure pre-commit hooks, setup CI/CD quality checks",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 7,
+            "title": "Setup environment configuration and secrets management",
+            "description": "Configure environment variables, secrets management, and configuration for different deployment environments",
+            "dependencies": [
+              2,
+              3
+            ],
+            "details": "Setup environment variable configuration, implement secrets management strategy, configure different environments (dev, staging, prod), setup configuration validation\n<info added on 2025-06-30T16:31:53.196Z>\nEnvironment configuration analysis completed successfully. Current implementation status shows .env files configured for different environments with VITE_PUBLIC_API_URL for frontend and JWT_SECRET fallback with dev default in backend code. Production setup requires configuring Cloudflare Workers secrets, specifically setting JWT_SECRET via wrangler secret put JWT_SECRET command, and potentially GOOGLE_CLIENT_SECRET for OAuth flows. Configuration strategy documented: development uses .env files with dev defaults, production uses Cloudflare Workers secrets for sensitive data, frontend uses VITE_ prefixed variables, backend falls back to secure defaults reading from Workers environment. System is functional for development with proper production patterns established.\n</info added on 2025-06-30T16:31:53.196Z>",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 8,
+            "title": "Implement deployment pipeline and infrastructure",
+            "description": "Setup automated deployment pipeline for both frontend and backend components",
+            "dependencies": [
+              2,
+              3,
+              6,
+              7
+            ],
+            "details": "Configure GitHub Actions or similar CI/CD, setup Cloudflare Workers deployment, configure frontend deployment (Vercel/Cloudflare Pages), implement deployment testing and rollback strategies",
+            "status": "done",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "Implement Common Type System and Data Models",
+        "description": "Create shared TypeScript types and Zod schemas for all game entities across frontend and backend",
+        "details": "Define core entities using Zod schemas: User, GameSession, Character, Room, NPC, Item, Technology. Create template system types: RoomTemplate, PersonTemplate, TechnologyTemplate, DialogueTemplate. Implement runtime validation, type safety, and data transformation utilities. Setup shared utility functions for game logic calculations. Ensure consistent data models between client and server with proper serialization/deserialization.",
+        "testStrategy": "Schema validation tests, type safety verification, data transformation unit tests, serialization/deserialization tests, cross-package type consistency tests",
+        "priority": "high",
+        "dependencies": [
+          1
+        ],
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Design core entity schemas and domain types",
+            "description": "Define foundational TypeScript types for game entities, rooms, players, and core game state structures",
+            "dependencies": [],
+            "details": "Create comprehensive schemas for Room, Player, GameState, Door, and Template entities. Include proper typing for all properties, relationships, and state transitions. Focus on immutability patterns and clear interfaces.",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Implement template system type definitions",
+            "description": "Create robust typing for room templates, door templates, and template validation logic",
+            "dependencies": [
+              1
+            ],
+            "details": "Define Template, RoomTemplate, DoorTemplate interfaces with proper generic constraints. Include template metadata types, configuration options, and template inheritance patterns.",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Build validation utility types and runtime validators",
+            "description": "Develop type-safe validation functions and schema validation utilities",
+            "dependencies": [
+              1,
+              2
+            ],
+            "details": "Create Zod schemas or similar validation logic that matches TypeScript types. Include runtime type guards, validation helpers, and error handling types for all core entities.",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Create transformation function types and utilities",
+            "description": "Define types for data transformation functions between different representations",
+            "dependencies": [
+              1,
+              2
+            ],
+            "details": "Build transformation utilities for converting between API responses, internal state, and UI representations. Include mapper types, serialization/deserialization functions, and format conversion utilities.",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "Implement shared game logic types",
+            "description": "Define types for game rules, state transitions, and business logic operations",
+            "dependencies": [
+              1,
+              2,
+              3
+            ],
+            "details": "Create types for game actions, event handlers, state machine definitions, and rule validation. Include command types, game flow control, and interaction pattern definitions.",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 6,
+            "title": "Establish cross-package consistency verification",
+            "description": "Create type checking utilities and tests to ensure consistency across frontend and backend packages",
+            "dependencies": [
+              1,
+              2,
+              3,
+              4,
+              5
+            ],
+            "details": "Build automated type consistency checks, shared type exports, and integration tests. Include CI/CD type validation, breaking change detection, and cross-package type compatibility verification.",
+            "status": "done",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Build Core API Framework and Database Schema",
+        "description": "Implement RESTful API endpoints and database schema with proper migrations and seeding",
+        "details": "Create API routes: /api/auth/*, /api/game/*, /api/character/*, /api/rooms/*, /api/npcs/*, /api/technology/*. Implement rate limiting, security measures, error handling, and OpenAPI documentation. Design database schema with proper relationships, indexes, and constraints. Create migration system for schema updates and data seeding for initial game content. Implement CRUD operations with proper validation and error responses.",
+        "testStrategy": "API endpoint tests, database migration tests, rate limiting verification, security penetration tests, performance tests for sub-100ms response times",
+        "priority": "high",
+        "dependencies": [
+          2
+        ],
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Design database schema for authentication system",
+            "description": "Create comprehensive database schema for user authentication including users, sessions, roles, and permissions tables with proper relationships and constraints",
+            "dependencies": [],
+            "details": "Design tables for users (id, username, email, password_hash, created_at, updated_at), sessions (id, user_id, token, expires_at), roles (id, name, permissions), and user_roles junction table. Include proper indexes, foreign key constraints, and security considerations for password storage.",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Implement authentication endpoints and middleware",
+            "description": "Build complete authentication API with registration, login, logout, token refresh, and JWT middleware for route protection",
+            "dependencies": [
+              1
+            ],
+            "details": "Create POST /auth/register, POST /auth/login, POST /auth/logout, POST /auth/refresh endpoints. Implement JWT token generation, validation middleware, password hashing with bcrypt, and proper error handling for authentication failures.",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Design and implement game state management schema",
+            "description": "Create database schema and API endpoints for managing game states, sessions, and player progression",
+            "dependencies": [
+              1
+            ],
+            "details": "Design tables for games (id, name, status, created_by, max_players), game_sessions (id, game_id, status, current_turn), player_games (user_id, game_id, role, status). Implement CRUD endpoints for game creation, joining, state updates, and real-time synchronization.",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Implement character operations API",
+            "description": "Build comprehensive character management system with CRUD operations for character creation, customization, and inventory management",
+            "dependencies": [
+              2
+            ],
+            "details": "Create tables for characters (id, user_id, name, class, level, stats), character_inventory (character_id, item_id, quantity), character_skills. Implement endpoints for character creation, updates, skill progression, equipment management, and character deletion with proper authorization checks.",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "Develop room management system",
+            "description": "Create room-based game architecture with dynamic room creation, player management, and real-time communication support",
+            "dependencies": [
+              3
+            ],
+            "details": "Design rooms table (id, name, game_type, max_players, status), room_players (room_id, user_id, role), room_messages. Implement WebSocket support for real-time updates, room creation/joining/leaving endpoints, and proper cleanup mechanisms for abandoned rooms.",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 6,
+            "title": "Build database migration system",
+            "description": "Implement comprehensive database migration framework with version control, rollback capabilities, and automated deployment support",
+            "dependencies": [
+              1
+            ],
+            "details": "Create migrations table for version tracking, implement migration runner with up/down methods, seed data management, and automated backup before migrations. Include CLI commands for creating, running, and rolling back migrations with proper error handling and logging.",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 7,
+            "title": "Create comprehensive API documentation",
+            "description": "Generate complete API documentation with interactive examples, authentication guides, and integration instructions",
+            "dependencies": [
+              2,
+              4,
+              5
+            ],
+            "details": "Set up OpenAPI/Swagger documentation with all endpoints, request/response schemas, authentication requirements, error codes, and rate limiting information. Include Postman collection, SDK examples, and deployment guides for different environments.",
+            "status": "done",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Develop Character System and Game State Management",
+        "description": "Implement player character creation, progression, and real-time game state synchronization",
+        "details": "Create character entity with stats (health, hunger, thirst, fatigue), skills, and progression system. Implement real-time survival mechanics with automatic state updates. Design game state management using React Context for frontend state and optimistic updates. Create save/load system with automatic cloud synchronization, conflict resolution, and offline capability. Implement character progression tracking and skill development.",
+        "testStrategy": "Character creation tests, survival mechanics simulation, state synchronization tests, save/load integrity tests, offline mode functionality tests",
+        "priority": "high",
+        "dependencies": [
+          3
+        ],
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Implement character creation system",
+            "description": "Build comprehensive character creation interface with customization options and validation",
+            "dependencies": [],
+            "details": "Create character creation UI with stats allocation, appearance customization, name validation, and character archetype selection. Include data validation and proper error handling for invalid character configurations.",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Develop survival mechanics implementation",
+            "description": "Implement core survival mechanics including health, hunger, thirst, and environmental effects",
+            "dependencies": [
+              1
+            ],
+            "details": "Build survival mechanics engine with health degradation, resource consumption, environmental damage calculations, and status effect systems. Include edge case handling for extreme values and conflicting effects.",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Create real-time state updates system",
+            "description": "Implement real-time game state broadcasting and client synchronization",
+            "dependencies": [
+              2
+            ],
+            "details": "Build WebSocket-based real-time update system for character states, survival metrics, and world events. Handle connection drops, reconnection logic, and state reconciliation between client and server.",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Build game state synchronization",
+            "description": "Implement conflict resolution and state consistency across multiple clients",
+            "dependencies": [
+              3
+            ],
+            "details": "Create conflict resolution algorithms for simultaneous actions, implement authoritative server model, and handle state desynchronization scenarios. Include rollback mechanisms and state validation.",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "Develop save/load functionality",
+            "description": "Implement persistent game state storage and retrieval system",
+            "dependencies": [
+              4
+            ],
+            "details": "Build robust save/load system with data serialization, corruption detection, backup mechanisms, and migration support. Handle partial saves, concurrent access, and data integrity validation.",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 6,
+            "title": "Create progression tracking system",
+            "description": "Implement character progression, achievements, and milestone tracking",
+            "dependencies": [
+              5
+            ],
+            "details": "Build progression system tracking character stats, skills, achievements, and game milestones. Include progress validation, rollback protection, and progress synchronization across sessions.",
+            "status": "done",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "title": "Create Room System and Ship Navigation",
+        "description": "Build dynamic room exploration system with procedural unlocking and state management",
+        "details": "Implement room navigation with collision detection and movement system. Create room state management (locked/unlocked, damaged/repaired, explored/unexplored). Design room template system for reusable layouts and configurable content. Implement progressive room unlocking based on story progression and technology discovery. Create environmental storytelling through room descriptions and discoverable logs. Build initial ship areas: Stargate room, corridors, quarters, mess hall, medical bay.",
+        "testStrategy": "Room navigation tests, collision detection verification, room state persistence tests, unlock condition validation, template system functionality tests",
+        "priority": "high",
+        "dependencies": [
+          4
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Integrate Sprite-based Rendering for Rooms",
+            "description": "Replace the current PIXI.Graphics-based room rendering with a PIXI.Sprite-based system. This will involve using textures for floors and walls to create a more visually appealing and game-like environment. The system should be able to handle different floor and wall textures for various room types.",
+            "details": "",
+            "status": "done",
+            "dependencies": [],
+            "parentTaskId": 5
+          },
+          {
+            "id": 2,
+            "title": "Implement Sprite-based Rendering for Doors and Furniture",
+            "description": "Upgrade the rendering for doors and furniture from basic PIXI.Graphics shapes to dynamic PIXI.Sprites. This will involve loading appropriate textures for different door states (e.g., open, closed, locked) and various furniture types. The system must select the correct sprite based on the object's state and type.",
+            "details": "",
+            "status": "done",
+            "dependencies": [],
+            "parentTaskId": 5
+          },
+          {
+            "id": 3,
+            "title": "Develop Player Character Sprite and Animation",
+            "description": "Replace the placeholder graphic for the player with a dedicated sprite. This includes creating animations for idle, walking, and running states. The correct animation should play based on the player's movement status.",
+            "details": "",
+            "status": "done",
+            "dependencies": [],
+            "parentTaskId": 5
+          },
+          {
+            "id": 4,
+            "title": "Implement Grid-Based Movement and Collision Detection",
+            "description": "Refactor the current free-form movement system to a grid-based or physics-based model. Implement collision detection that prevents the player from walking through walls and furniture that are marked as `blocks_movement: true`. The player should be able to move through open doors but be blocked by closed or locked ones.",
+            "details": "",
+            "status": "done",
+            "dependencies": [],
+            "parentTaskId": 5
+          },
+          {
+            "id": 5,
+            "title": "Connect Door State to Rendering and Collision",
+            "description": "Dynamically update a door's sprite and collision properties based on its state ('opened', 'closed', 'locked'). An 'opened' door should be visually open and allow the player to pass through. 'closed' and 'locked' doors should be visually closed and block movement. This will require linking the game state to the rendering and physics logic.",
+            "details": "",
+            "status": "done",
+            "dependencies": [],
+            "parentTaskId": 5
+          },
+          {
+            "id": 6,
+            "title": "Implement Interactive Furniture System",
+            "description": "Create a system that allows the player to interact with furniture objects that are marked as `interactive: true`. This should include a visual indicator when the player is near an interactive object and a mechanism (e.g., pressing a key or button) to trigger an interaction event. Initially, this can log a message to the console, with hooks for future game logic.",
+            "details": "",
+            "status": "pending",
+            "dependencies": [],
+            "parentTaskId": 5
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "title": "Implement Inventory and Resource Management System",
+        "description": "Create comprehensive inventory system with resource collection, storage, and strategic allocation mechanics",
+        "details": "Design inventory system with limited storage encouraging strategic decisions. Implement resource collection (parts, food, water, energy cells) and scavenging mechanics. Create resource allocation system affecting ship systems and crew survival. Build trade-off mechanics between immediate needs and long-term improvements. Implement item categories, durability, and usage systems. Add inventory UI with drag-and-drop functionality and sorting options.",
+        "testStrategy": "Inventory capacity tests, resource collection mechanics, allocation decision impact tests, item persistence tests, UI interaction tests",
+        "priority": "medium",
+        "dependencies": [
+          5
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Implement Core Resource Management Tracking",
+            "description": "Implement the backend and frontend systems for tracking player and ship resources (e.g., power, water, spare parts). This includes creating the necessary data models and API endpoints, and a client-side service to manage the state.",
+            "details": "",
+            "status": "pending",
+            "dependencies": [],
+            "parentTaskId": 6
+          },
+          {
+            "id": 2,
+            "title": "Create Resource Management Visual Overlay",
+            "description": "Create a new top-bar UI component, similar to the admin panel's navigation bar, to display the player's current resources in real-time. This component will subscribe to the resource management service for live updates.",
+            "details": "",
+            "status": "pending",
+            "dependencies": [],
+            "parentTaskId": 6
+          },
+          {
+            "id": 3,
+            "title": "Implement 'Container' Items for Inventory Retrieval",
+            "description": "Implement a new type of interactive furniture that acts as a container. When a player interacts with a container, its contents (a list of resources or items) are added to the player's inventory. This requires both backend logic for container contents and frontend interaction handling.",
+            "details": "",
+            "status": "pending",
+            "dependencies": [],
+            "parentTaskId": 6
+          },
+          {
+            "id": 4,
+            "title": "Implement Room and Door Damage/Repair System",
+            "description": "Develop a system for tracking the status of rooms and doors, including damage percentage. Implement the logic for repairs, which will consume resources from the player's inventory and take a certain amount of time to complete. This will involve updating data models, API endpoints, and creating UI feedback for the repair process.",
+            "details": "",
+            "status": "pending",
+            "dependencies": [],
+            "parentTaskId": 6
+          }
+        ]
+      },
+      {
+        "id": 7,
+        "title": "Build NPC Framework and Dialogue System",
+        "description": "Create NPC interaction system with relationship tracking and branching dialogue trees",
+        "details": "Implement NPC system with key Stargate Universe characters (Dr. Rush, Colonel Young, Eli Wallace). Create dynamic relationship system affecting story outcomes and available actions. Build dialogue tree system with meaningful choices impacting character development. Implement NPC-driven quests and storylines advancing main narrative. Create character-specific expertise areas (medical, technical, military, scientific) affecting gameplay options. Design dialogue UI with choice consequences visualization.",
+        "testStrategy": "NPC interaction tests, relationship system functionality, dialogue tree navigation tests, quest progression validation, expertise system verification",
+        "priority": "medium",
+        "dependencies": [
+          6
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Design NPC character framework and data model",
+            "description": "Create the core data structures and schemas for NPC characters including stats, traits, backgrounds, and behavioral parameters",
+            "dependencies": [],
+            "details": "Define NPC character schema with personality traits, skills, relationships, memory system, and dynamic state tracking. Include serialization for save/load functionality.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Implement relationship tracking system",
+            "description": "Build the system to track and manage relationships between player and NPCs, including reputation, trust, and faction standings",
+            "dependencies": [
+              1
+            ],
+            "details": "Create relationship matrices, reputation scoring, faction system integration, and relationship modifier events. Include relationship decay/improvement over time.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Build dialogue tree engine with branching logic",
+            "description": "Develop the core dialogue system that handles conversation trees, conditional branches, and player choice consequences",
+            "dependencies": [
+              1,
+              2
+            ],
+            "details": "Implement dialogue node system, conditional logic evaluation, choice validation, conversation state management, and integration with character relationships and quest states.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Create quest system integration for NPCs",
+            "description": "Integrate quest giving, progression tracking, and completion mechanics with the NPC system",
+            "dependencies": [
+              1,
+              3
+            ],
+            "details": "Implement quest assignment logic, prerequisite checking, progress tracking, reward distribution, and quest state synchronization with dialogue system.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "Develop NPC expertise and knowledge mechanics",
+            "description": "Create systems for NPCs to have specialized knowledge, skills, and ability to teach or share information with the player",
+            "dependencies": [
+              1,
+              2
+            ],
+            "details": "Build expertise domains, knowledge sharing mechanics, skill teaching systems, and information revelation based on relationship levels and quest progress.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 6,
+            "title": "Implement dialogue UI and conversation interface",
+            "description": "Create the user interface for NPC conversations including dialogue display, choice selection, and visual feedback systems",
+            "dependencies": [
+              3,
+              4,
+              5
+            ],
+            "details": "Design and implement conversation UI components, choice highlighting, relationship status indicators, quest markers, and accessibility features for dialogue interactions.",
+            "status": "pending",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 8,
+        "title": "Develop Turn-Based Combat Framework",
+        "description": "Create D&D-style strategic combat system with dice rolls, modifiers, and multiple resolution paths",
+        "details": "Implement turn-based combat mechanics with dice rolls and modifiers. Create combat against ship malfunctions, alien creatures, and environmental hazards. Build multiple combat resolution paths (negotiation, stealth, direct confrontation). Implement combat consequences affecting future encounters and story branches. Design combat UI with clear action options, outcome visualization, and tactical information. Add equipment system affecting combat capabilities.",
+        "testStrategy": "Combat mechanics tests, dice roll probability verification, resolution path validation, consequence tracking tests, equipment impact tests",
+        "priority": "medium",
+        "dependencies": [
+          7
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Design and implement turn-based combat engine",
+            "description": "Create the core turn-based combat system with initiative order, action points, and turn management",
+            "dependencies": [],
+            "details": "Implement initiative system for determining turn order, action point allocation per turn, turn state management, and transition between player/AI turns. Include validation for legal moves and turn completion conditions.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Implement dice roll system and probability mechanics",
+            "description": "Build the dice rolling engine with various dice types, modifiers, and probability calculations",
+            "dependencies": [
+              1
+            ],
+            "details": "Create dice rolling functions supporting multiple dice types (d4, d6, d8, d10, d12, d20), implement modifier system for bonuses/penalties, add probability display for player decision-making, and ensure deterministic seeding for testing.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Create multiple combat resolution paths",
+            "description": "Design various combat actions and resolution mechanics beyond basic attacks",
+            "dependencies": [
+              2
+            ],
+            "details": "Implement attack options (melee, ranged, special abilities), defensive actions (dodge, block, parry), environmental interactions, and skill-based resolution paths. Each path should have distinct risk/reward profiles.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Build consequence tracking and persistence system",
+            "description": "Implement system to track combat outcomes and their effects on the narrative",
+            "dependencies": [
+              3
+            ],
+            "details": "Create data structures to store combat results, character status changes, injury/death consequences, and narrative flags. Implement persistence to save/load combat state and integrate with story progression system.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "Develop combat UI with tactical feedback",
+            "description": "Create user interface for combat with clear action options and outcome visualization",
+            "dependencies": [
+              4
+            ],
+            "details": "Design combat interface showing turn order, available actions, probability indicators, health/status displays, and combat log. Include visual feedback for dice rolls, damage calculations, and tactical information to help players make informed decisions.",
+            "status": "pending",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 9,
+        "title": "Create Game UI/UX and Canvas Rendering System",
+        "description": "Implement responsive game interface with Canvas-based 2D rendering and cross-platform controller support",
+        "details": "Build Canvas-based 2D rendering for game world visualization with 60 FPS performance target. Create responsive UI supporting multiple screen sizes and orientations. Implement clean, minimalist HUD with context-sensitive interaction prompts. Add cross-platform controller support (gamepad, keyboard/mouse, touch). Create accessible design with colorblind support, high contrast modes, and scalable UI elements. Implement PWA capabilities for offline play and mobile app-like experience.",
+        "testStrategy": "Rendering performance tests, cross-platform input tests, accessibility compliance verification, responsive design tests, PWA functionality validation",
+        "priority": "medium",
+        "dependencies": [
+          8
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Implement Texture Atlas and Asset Loader",
+            "description": "Implement a robust texture loading and management system using PIXI.Assets. This system should asynchronously load all necessary image assets (floors, walls, doors, furniture, player sprites) at the start of the game and provide a centralized way to access these textures by a logical name or ID. This will prevent rendering delays and improve performance.",
+            "details": "",
+            "status": "pending",
+            "dependencies": [],
+            "parentTaskId": 9
+          },
+          {
+            "id": 2,
+            "title": "Develop Centralized Game State Context",
+            "description": "Create a centralized game state management context or service. This context will hold the live data for the current game session, including player position, room states, door states, and inventory. The `Game` class and other UI components will subscribe to this context to get real-time updates, ensuring the entire application is driven by a single source of truth.",
+            "details": "",
+            "status": "pending",
+            "dependencies": [],
+            "parentTaskId": 9
+          },
+          {
+            "id": 3,
+            "title": "Create Contextual UI Components (HUD, Modals)",
+            "description": "Create UI components (e.g., popovers, modals, or a HUD) that display information based on the player's context. For example, display a room's name and description upon entering, show details of an interactive object when nearby, or open a dialogue box. This requires the game engine to emit events or update the shared game state context that the UI can react to.",
+            "details": "",
+            "status": "pending",
+            "dependencies": [],
+            "parentTaskId": 9
+          }
+        ]
+      },
+      {
+        "id": 10,
+        "title": "Build Admin Panel and Content Management System",
+        "description": "Create admin interface for content creation, room design, and template management",
+        "details": "Implement admin authentication and role management with /api/admin/* endpoints. Create room designer for ship layouts and room configurations. Build template management for NPCs, items, technologies, and story elements. Implement content pipeline for adding storylines, characters, and areas. Create version control integration for content management and deployment. Add analytics dashboard for player behavior and game balance metrics. Build content creation tools for community-expandable features.",
+        "testStrategy": "Admin authentication tests, room designer functionality tests, template system validation, content pipeline integration tests, analytics data accuracy verification",
+        "priority": "low",
+        "dependencies": [
+          9
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Implement admin authentication and role-based access control",
+            "description": "Create secure login system with role management for admins, content creators, and reviewers",
+            "dependencies": [],
+            "details": "Set up JWT authentication, password hashing, role definitions (admin, editor, viewer), permission middleware, and session management. Include password reset functionality and multi-factor authentication support.",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Build interactive room designer tool interface",
+            "description": "Develop drag-and-drop room layout editor with furniture placement and customization",
+            "dependencies": [
+              1
+            ],
+            "details": "Create canvas-based editor with furniture library, snap-to-grid functionality, room templates, 3D preview capability, and export options. Include undo/redo, copy/paste, and collaborative editing features.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Create template management system",
+            "description": "Build interface for creating, editing, organizing and versioning room and furniture templates",
+            "dependencies": [
+              1,
+              2
+            ],
+            "details": "Implement template CRUD operations, categorization system, search and filtering, bulk operations, template sharing between users, and approval workflow for public templates.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Develop content creation and publishing pipeline",
+            "description": "Build workflow system for content creation, review, approval, and publishing",
+            "dependencies": [
+              1,
+              3
+            ],
+            "details": "Create content staging environment, review assignment system, approval workflows, publishing schedule, content versioning, rollback capabilities, and automated quality checks.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "Implement analytics dashboard and reporting",
+            "description": "Create comprehensive analytics interface showing usage metrics, popular content, and performance data",
+            "dependencies": [
+              1
+            ],
+            "details": "Build dashboard with user engagement metrics, content performance analytics, template usage statistics, export capabilities, custom date ranges, and automated report generation.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 6,
+            "title": "Integrate version control and collaboration features",
+            "description": "Add git-like versioning system with branch management and collaborative editing capabilities",
+            "dependencies": [
+              2,
+              3,
+              4
+            ],
+            "details": "Implement content versioning, branch/merge functionality, conflict resolution, real-time collaborative editing, change tracking, and integration with external version control systems.",
+            "status": "pending",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 100,
+        "title": "Implement offline capability",
+        "description": "Build offline mode with local state management and sync on reconnection",
+        "status": "pending",
+        "dependencies": [
+          6
+        ],
+        "priority": "low",
+        "details": "Create offline gameplay mode with local state persistence, action queuing, and conflict resolution when reconnecting. Handle offline progress validation and merge conflicts with server state.",
+        "testStrategy": "",
+        "subtasks": []
+      },
+      {
+        "id": 101,
+        "title": "Implement Fog of War System",
+        "description": "Create a fog of war system that reveals parts of the game map as the player explores. The system should persist the explored areas.",
+        "details": "The fog of war will hide unexplored areas of the game map. As the player character moves, a certain number of \"nodes\" (e.g., rooms, grid cells) in each direction will be revealed. The state of the fog of war (which areas are revealed) must be saved to the database so that it can be restored when the player resumes their game. This will likely involve modifications to the game state and the database schema.",
+        "testStrategy": "- Unit tests for the fog of war logic (e.g., calculating revealed nodes based on player position).\n- Integration tests to ensure the fog of war state is correctly saved to and loaded from the database with the game session.\n- End-to-end tests to verify that the UI correctly displays the fog of war and updates as the player moves.",
+        "priority": "medium",
+        "dependencies": [],
+        "status": "todo",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Design Fog of War data structure",
+            "description": "Decide how to represent the fog of war data. A 2D array or a set of coordinates for revealed nodes are possibilities. This will be part of the character's progression data.",
+            "dependencies": [],
+            "details": "",
+            "status": "todo",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Modify database schema",
+            "description": "Add a field to a relevant table (e.g., `characters` or a new table) to store the fog of war data. Create a migration for this change.",
+            "dependencies": [
+              1
+            ],
+            "details": "",
+            "status": "todo",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Implement backend logic",
+            "description": "Update the game logic to calculate the visible area around the player. Modify the game state loading/saving logic to include the fog of war data. Create or update API endpoints to expose the fog of war data to the frontend.",
+            "dependencies": [
+              2
+            ],
+            "details": "",
+            "status": "todo",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Implement frontend rendering",
+            "description": "Update the UI to render the fog of war overlay on the game map. The UI should update in real-time as the player explores new areas.",
+            "dependencies": [
+              3
+            ],
+            "details": "",
+            "status": "todo",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "Connect backend and frontend",
+            "description": "Integrate the frontend with the new API endpoints to fetch and display the fog of war.",
+            "dependencies": [
+              4
+            ],
+            "details": "",
+            "status": "todo",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 102,
+        "title": "Implement Save/Load Game System",
+        "description": "Create a system for players to save their game progress and load it later. This involves creating backend APIs for managing save data and frontend UI for player interaction.",
+        "details": "This task covers the full-stack implementation of a save/load game feature.\n\n**Backend:**\n- Create API endpoints under `/api/saves` for creating, listing, and retrieving saved games.\n- The create endpoint will accept a JSON blob of the game state. Storing this in a Cloudflare Durable Object is a strong possibility to consider.\n- The API must be secured so users can only access their own save files.\n- The list endpoint should return metadata for the user's saves (e.g., save name, timestamp).\n- The retrieve endpoint will return the full game state JSON blob for a specific save.\n\n**Frontend:**\n- Implement a 'Save Game' UI, allowing the player to name their save.\n- Implement a 'Load Game' UI that lists the player's existing saves and allows them to select one to restore.\n- Integrate these UI components with the new backend API endpoints.",
+        "testStrategy": "- Backend: Unit tests for the save/load logic and integration tests for the API endpoints, including auth.\n- Frontend: Component tests for the save/load UI and E2E tests for the full save/load user flow.\n- Verification: Ensure that saving and then loading a game restores the exact same game state.",
+        "priority": "high",
+        "dependencies": [
+          4
+        ],
+        "status": "todo",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Backend: Design Save Game Schema & API",
+            "description": "Define the data model for saved games and design the RESTful API endpoints.",
+            "dependencies": [],
+            "details": "",
+            "status": "todo",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Backend: Implement Save/Load API",
+            "description": "Build the backend logic on Cloudflare Workers, using Durable Objects for storage and ensuring endpoints are authenticated.",
+            "dependencies": [
+              102.1
+            ],
+            "details": "",
+            "status": "todo",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Frontend: Create Game State Serialization Service",
+            "description": "Implement a frontend service to gather the entire game state into a serializable JSON object.",
+            "dependencies": [],
+            "details": "",
+            "status": "todo",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Frontend: Build Save/Load UI Components",
+            "description": "Create the React components for the 'Save Game' and 'Load Game' menus.",
+            "dependencies": [],
+            "details": "",
+            "status": "todo",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "Full-Stack: Integrate UI with API",
+            "description": "Connect the frontend UI to the backend API to make the save/load functionality fully operational.",
+            "dependencies": [
+              102.2,
+              102.3,
+              102.4
+            ],
+            "details": "",
+            "status": "todo",
+            "testStrategy": ""
+          }
+        ]
+      }
+    ],
+    "metadata": {
+      "created": "2025-06-30T16:15:40.594Z",
+      "updated": "2025-07-02T16:34:16.152Z",
+      "description": "Tasks for master context"
+    }
+  }
+}

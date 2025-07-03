@@ -1,0 +1,93 @@
+{
+	"meta": {
+		"generatedAt": "2025-06-30T16:18:04.975Z",
+		"tasksAnalyzed": 10,
+		"totalTasks": 10,
+		"analysisCount": 10,
+		"thresholdScore": 5,
+		"projectName": "Taskmaster",
+		"usedResearch": false
+	},
+	"complexityAnalysis": [
+		{
+			"taskId": 1,
+			"taskTitle": "Setup Project Infrastructure and Authentication System",
+			"complexityScore": 9,
+			"recommendedSubtasks": 8,
+			"expansionPrompt": "Break down the foundational infrastructure setup into discrete components: monorepo structure, frontend scaffolding, backend workers setup, database initialization, OAuth integration, development tooling, environment configuration, and deployment pipeline. Each component should be independently testable and deployable.",
+			"reasoning": "Extremely complex task involving multiple technologies, services, and infrastructure components. Requires deep knowledge of Cloudflare Workers, OAuth flows, monorepo management, and deployment pipelines. High risk of blocking other tasks if not properly structured."
+		},
+		{
+			"taskId": 2,
+			"taskTitle": "Implement Common Type System and Data Models",
+			"complexityScore": 7,
+			"recommendedSubtasks": 6,
+			"expansionPrompt": "Separate the type system into logical domains: core entity schemas, template system types, validation utilities, transformation functions, shared game logic, and cross-package consistency verification. Focus on creating a robust foundation that prevents runtime type errors.",
+			"reasoning": "High complexity due to the need for comprehensive type safety across multiple packages and runtime validation. Requires careful schema design to avoid breaking changes and ensure consistency between frontend and backend."
+		},
+		{
+			"taskId": 3,
+			"taskTitle": "Build Core API Framework and Database Schema",
+			"complexityScore": 8,
+			"recommendedSubtasks": 7,
+			"expansionPrompt": "Structure the API development around service domains: authentication endpoints, game state management, character operations, room management, database schema design, migration system, and API documentation. Each domain should have complete CRUD operations and proper error handling.",
+			"reasoning": "Very complex task requiring database design expertise, API architecture decisions, security implementation, and performance optimization. Critical foundation that affects all other backend functionality."
+		},
+		{
+			"taskId": 4,
+			"taskTitle": "Develop Character System and Game State Management",
+			"complexityScore": 8,
+			"recommendedSubtasks": 7,
+			"expansionPrompt": "Divide into character mechanics: character creation system, survival mechanics implementation, real-time state updates, game state synchronization, save/load functionality, progression tracking, and offline capability. Each system should handle edge cases and state conflicts.",
+			"reasoning": "Complex system requiring real-time synchronization, conflict resolution, and robust state management. Involves intricate game mechanics and data persistence challenges that could significantly impact user experience."
+		},
+		{
+			"taskId": 5,
+			"taskTitle": "Create Room System and Ship Navigation",
+			"complexityScore": 7,
+			"recommendedSubtasks": 6,
+			"expansionPrompt": "Break down into navigation components: room navigation mechanics, collision detection system, room state management, template system implementation, unlock progression logic, and initial ship area creation. Focus on creating a flexible system that supports future expansion.",
+			"reasoning": "Moderately complex requiring game engine concepts, state management, and procedural content generation. Needs careful architecture to support future room additions and modifications."
+		},
+		{
+			"taskId": 6,
+			"taskTitle": "Implement Inventory and Resource Management System",
+			"complexityScore": 6,
+			"recommendedSubtasks": 5,
+			"expansionPrompt": "Organize into inventory components: storage system design, resource collection mechanics, allocation algorithms, trade-off decision systems, and inventory UI implementation. Ensure the system creates meaningful strategic choices for players.",
+			"reasoning": "Moderate complexity involving game balance, UI/UX design, and strategic mechanics. Requires careful tuning of resource scarcity and allocation systems to maintain gameplay tension."
+		},
+		{
+			"taskId": 7,
+			"taskTitle": "Build NPC Framework and Dialogue System",
+			"complexityScore": 7,
+			"recommendedSubtasks": 6,
+			"expansionPrompt": "Structure around NPC systems: character framework, relationship tracking, dialogue tree engine, quest system, expertise mechanics, and dialogue UI. Each NPC should have consistent behavior and meaningful story integration.",
+			"reasoning": "Complex system requiring narrative design, state management, and branching logic. Needs careful implementation to ensure dialogue choices have meaningful consequences and character relationships feel authentic."
+		},
+		{
+			"taskId": 8,
+			"taskTitle": "Develop Turn-Based Combat Framework",
+			"complexityScore": 6,
+			"recommendedSubtasks": 5,
+			"expansionPrompt": "Divide into combat mechanics: turn-based engine, dice roll system, multiple resolution paths, consequence tracking, and combat UI. Focus on creating engaging tactical decisions with clear feedback to players.",
+			"reasoning": "Moderate complexity requiring game mechanics design, probability systems, and tactical AI. Needs balance between strategic depth and accessibility while maintaining narrative coherence."
+		},
+		{
+			"taskId": 9,
+			"taskTitle": "Create Game UI/UX and Canvas Rendering System",
+			"complexityScore": 8,
+			"recommendedSubtasks": 7,
+			"expansionPrompt": "Separate into rendering components: Canvas 2D engine, responsive UI framework, HUD system, input handling, accessibility features, performance optimization, and PWA implementation. Each component should be optimized for different platforms and devices.",
+			"reasoning": "Very complex requiring graphics programming, performance optimization, cross-platform compatibility, and accessibility compliance. Critical for user experience and requires expertise in multiple technical domains."
+		},
+		{
+			"taskId": 10,
+			"taskTitle": "Build Admin Panel and Content Management System",
+			"complexityScore": 7,
+			"recommendedSubtasks": 6,
+			"expansionPrompt": "Structure around admin features: authentication and roles, room designer tool, template management interface, content pipeline, analytics dashboard, and version control integration. Each tool should be user-friendly and support collaborative content creation.",
+			"reasoning": "Complex system requiring admin UI design, content management workflows, and analytics integration. Needs careful security implementation and user experience design for non-technical content creators."
+		}
+	]
+}

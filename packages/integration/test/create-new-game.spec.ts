@@ -71,7 +71,9 @@ describe('createNewGame integration', () => {
 		for (const room of rooms) {
 			describe(`${room.id} - ${room.name}`, () => {
 				for (const [connection, reverseConnection] of Object.entries(CONNECTION_REVERSE_MAP)) {
-					if (room[connection] === null) continue;
+					// Skip null connections (both actual null and string "null")
+					if (room[connection] === null || room[connection] === 'null' || !room[connection]) continue;
+
 					const otherRoom = rooms.find((r: any) => r.id === room[connection]);
 					it(`${room[connection]} should exist`, async () => {
 						expect(otherRoom).toBeDefined();

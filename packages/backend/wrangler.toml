@@ -1,5 +1,5 @@
 name = 'stargate-evolution-backend'
-main = 'src/index.ts'
+main = 'src/server.ts'
 compatibility_date = '2025-05-08'
 
 [[d1_databases]]

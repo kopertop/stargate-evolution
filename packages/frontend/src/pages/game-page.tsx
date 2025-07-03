@@ -1,357 +1,769 @@
-import { useQuery } from '@livestore/react';
-import type { DestinyStatus, Galaxy } from '@stargate/common';
+import { Ticker } from 'pixi.js';
 import * as PIXI from 'pixi.js';
+import { InputDevice } from 'pixijs-input-devices';
 import React, { useEffect, useRef, useState } from 'react';
-import { Spinner } from 'react-bootstrap';
-import { GiReturnArrow } from 'react-icons/gi';
-import { Navigate, useNavigate, useParams } from 'react-router-dom';
-import { toast } from 'react-toastify';
+import { Button, Container, Modal, Form, Row, Col, Table } from 'react-bootstrap';
+import { useNavigate } from 'react-router';
 
-import { DestinyStatusBar } from '../components/destiny-status-bar';
-import { GalaxyMap } from '../components/galaxy-map';
-import { GalaxyTravelModal } from '../components/galaxy-travel-modal';
-import { NavButton } from '../components/nav-button';
-import { ShipView } from '../components/ship-view';
-import { DestinyStatusProvider, useDestinyStatus } from '../contexts/destiny-status-context';
-import { GameStateProvider, useGameState } from '../contexts/game-state-context';
+import { renderGoogleSignInButton } from '../auth/google-auth';
+import { InventoryModal } from '../components/inventory-modal';
+import { ResourceBar } from '../components/resource-bar';
+import { GAMEPAD_BUTTONS } from '../constants/gamepad';
+import { useAuth } from '../contexts/auth-context';
+import { useGameState } from '../contexts/game-state-context';
 import { Game } from '../game';
-import { useGameService } from '../services/game-service';
+import { useGameController } from '../services/game-controller';
 
-type ViewMode = 'ship-view' | 'galaxy-map' | 'game-view';
+type Direction = 'up' | 'down' | 'left' | 'right';
+type MenuAction = 'pause' | 'back' | 'activate';
+type Keybindings = Record<Direction, string[]>;
+type GamepadBindings = Record<Direction, number[]> & Record<MenuAction, number[]>;
 
-// Calculate distance between two points
-function calculateDistance(pos1: { x: number; y: number }, pos2: { x: number; y: number }): number {
-	return Math.sqrt((pos1.x - pos2.x) ** 2 + (pos1.y - pos2.y) ** 2);
-}
+const DEFAULT_KEYBINDINGS: Keybindings = {
+	up: ['w', 'ArrowUp'],
+	down: ['s', 'ArrowDown'],
+	left: ['a', 'ArrowLeft'],
+	right: ['d', 'ArrowRight'],
+};
 
-// Calculate travel cost based on distance
-function calculateTravelCost(distance: number): number {
-	return Math.ceil(distance / 10); // 1 power per 10 distance units
-}
+const DEFAULT_GAMEPAD_BINDINGS: GamepadBindings = {
+	up: [GAMEPAD_BUTTONS.DPAD_UP], // D-pad up
+	down: [GAMEPAD_BUTTONS.DPAD_DOWN], // D-pad down
+	left: [GAMEPAD_BUTTONS.DPAD_LEFT], // D-pad left
+	right: [GAMEPAD_BUTTONS.DPAD_RIGHT], // D-pad right
+	pause: [GAMEPAD_BUTTONS.START, GAMEPAD_BUTTONS.BACK], // Start (+) and Select (-) buttons
+	back: [GAMEPAD_BUTTONS.B], // B button
+	activate: [GAMEPAD_BUTTONS.A], // A button
+};
 
-// Inner component that uses the context providers
-const GamePageInner: React.FC<{ game_id: string }> = ({ game_id }) => {
+export const GamePage: React.FC = () => {
 	const canvasRef = useRef<HTMLDivElement>(null);
-	const appRef = useRef<PIXI.Application | null>(null);
-	const gameInstanceRef = useRef<Game | null>(null);
-	const [viewMode, setViewMode] = useState<ViewMode>('ship-view');
-	const [isLoading, setIsLoading] = useState(true);
-	const [currentGalaxyId, setCurrentGalaxyId] = useState<string | null>(null);
-	const [showTravelModal, setShowTravelModal] = useState(false);
-	const [selectedGalaxy, setSelectedGalaxy] = useState<Galaxy | null>(null);
+	const pixiAppRef = useRef<PIXI.Application | null>(null);
+	const gameRef = useRef<Game | null>(null);
 	const navigate = useNavigate();
-	const params = useParams();
+	const [showPause, setShowPause] = useState(false);
+	const [showSettings, setShowSettings] = useState(false);
+	const [showDebug, setShowDebug] = useState(false);
+	const [showInventory, setShowInventory] = useState(false);
+	const [inventoryTab, setInventoryTab] = useState(0);
+	const [speed, setSpeed] = useState(4);
+	const [keybindings, setKeybindings] = useState<Keybindings>(DEFAULT_KEYBINDINGS);
+	const [gamepadBindings, setGamepadBindings] = useState<GamepadBindings>(DEFAULT_GAMEPAD_BINDINGS);
+	const [listeningKey, setListeningKey] = useState<{ action: string; index: number } | null>(null);
+	const [focusedMenuItem, setFocusedMenuItem] = useState(0); // Track focused menu item
+	const [gamepadDebugState, setGamepadDebugState] = useState<any[]>([]); // Debug state for gamepad info
+	const [isFullscreen, setIsFullscreen] = useState(false);
+	const [showReAuthModal, setShowReAuthModal] = useState(false);
 
-	// Use the context providers for data
-	const { game } = useGameState();
-	const { destinyStatus } = useDestinyStatus();
-	const gameService = useGameService();
+	// Use the centralized game controller service
+	const controller = useGameController();
 
-	// Query galaxy and star system data
-	const galaxies = useQuery(gameService.queries.galaxiesByGame(game_id));
-	const starSystems = useQuery(gameService.queries.starSystemsByGame(game_id));
+	// Authentication state
+	const auth = useAuth();
 
-	// Calculate maximum travel range based on power (can be adjusted for game balance)
-	const maxTravelRange = destinyStatus ? Math.floor(destinyStatus.power / 2) : 400;
+	// Game state for resource management
+	const gameState = useGameState();
 
+	// Fullscreen detection
 	useEffect(() => {
-		const initPIXI = async () => {
-			if (!canvasRef.current) {
-				console.log('No canvas found');
-				return;
-			}
-
-			try {
-				const app = new PIXI.Application();
-				await app.init({
-					width: 800,
-					height: 600,
-					background: 0x10101a,
-				});
-
-				// Check if canvasRef is still valid after async operation
-				if (!canvasRef.current) {
-					app.destroy(true);
-					return;
-				}
-
-				canvasRef.current.appendChild(app.canvas);
-				appRef.current = app;
-
-				// Hide the canvas initially
-				if (app.canvas) {
-					app.canvas.style.display = 'none';
-				}
-
-				// Set loading to false when both PIXI and data are ready
-				if (game && destinyStatus) {
-					setIsLoading(false);
-				}
-			} catch (error) {
-				console.error('Failed to initialize PIXI:', error);
-				setIsLoading(false);
-			}
+		const handleFullscreenChange = () => {
+			const isCurrentlyFullscreen = !!(
+				document.fullscreenElement ||
+				(document as any).webkitFullscreenElement ||
+				(document as any).mozFullScreenElement ||
+				(document as any).msFullscreenElement
+			);
+			setIsFullscreen(isCurrentlyFullscreen);
+			console.log('[FULLSCREEN] Fullscreen state changed:', isCurrentlyFullscreen);
 		};
 
-		initPIXI();
+		// Listen for fullscreen changes
+		document.addEventListener('fullscreenchange', handleFullscreenChange);
+		document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+		document.addEventListener('mozfullscreenchange', handleFullscreenChange);
+		document.addEventListener('MSFullscreenChange', handleFullscreenChange);
 
-		// Cleanup function
+		// Check initial state
+		handleFullscreenChange();
+
 		return () => {
-			if (appRef.current) {
-				try {
-					// Safer destroy call - check if destroy method exists and handle errors
-					if (typeof appRef.current.destroy === 'function') {
-						appRef.current.destroy(true);
-					}
-				} catch (error) {
-					console.warn('Error during PIXI cleanup:', error);
-				}
-				appRef.current = null;
-			}
+			document.removeEventListener('fullscreenchange', handleFullscreenChange);
+			document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+			document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
+			document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
 		};
 	}, []);
 
-	// Update loading state when data becomes available
+	// PixiJS setup
 	useEffect(() => {
-		if (game && destinyStatus && appRef.current) {
-			setIsLoading(false);
-		}
-	}, [!!game, !!destinyStatus, !!appRef.current]);
+		let app: PIXI.Application;
+		let destroyed = false;
 
-	const handleGalaxySelect = (galaxy: Galaxy) => {
-		console.log('Selected galaxy:', galaxy);
-		setSelectedGalaxy(galaxy);
-		setShowTravelModal(true);
-	};
-
-	const handleConfirmTravel = async () => {
-		if (!selectedGalaxy || !destinyStatus || !game_id) return;
-
-		const currentGalaxy = galaxies.find(g => g.id === currentGalaxyId);
-		const distance = currentGalaxy ?
-			calculateDistance({
-				x: currentGalaxy.x,
-				y: currentGalaxy.y,
-			}, {
-				x: selectedGalaxy.x,
-				y: selectedGalaxy.y,
-			}) : 0;
-		const cost = calculateTravelCost(distance);
-
-		if (destinyStatus.power >= cost) {
-			// Update destiny status using the context
-			await gameService.updateDestinyStatus(game_id, {
-				power: destinyStatus.power - cost,
-			});
-
-			setCurrentGalaxyId(selectedGalaxy.id);
-			setShowTravelModal(false);
-			setSelectedGalaxy(null);
-			switchToGameView(selectedGalaxy);
-
-			toast.success(`Traveled to ${selectedGalaxy.name}! Used ${cost} power.`, {
-				position: 'top-center',
-				autoClose: 3000,
-			});
-		} else {
-			toast.error(`Not enough power! Need ${cost} power, have ${destinyStatus.power}.`, {
-				position: 'top-center',
-				autoClose: 4000,
-			});
-		}
-	};
-
-	const switchToGameView = (galaxy: Galaxy) => {
-		console.log('Switching to game view for galaxy:', galaxy);
-		setViewMode('game-view');
-
-		if (appRef.current && canvasRef.current) {
+		(async () => {
 			try {
-				const canvas = appRef.current.canvas;
-				if (canvas) {
-					canvas.style.display = 'block';
+				app = new PIXI.Application();
+				await app.init({
+					width: window.innerWidth,
+					height: window.innerHeight,
+					background: 0x10101a,
+					antialias: true,
+					resolution: window.devicePixelRatio || 1,
+				});
+				if (destroyed) {
+					app.destroy(true);
+					return;
 				}
+				pixiAppRef.current = app;
+				if (canvasRef.current) {
+					canvasRef.current.innerHTML = '';
+					canvasRef.current.appendChild(app.canvas);
+				}
+				const game = new Game(app, {
+					speed,
+					keybindings,
+					gamepadBindings,
+					// Pass controller methods to Game class
+					onButtonPress: controller.onButtonPress,
+					onButtonRelease: controller.onButtonRelease,
+					onAxisChange: controller.onAxisChange,
+					getAxisValue: controller.getAxisValue,
+					isPressed: controller.isPressed,
+				});
+				gameRef.current = game;
 
-				// Create a simple ship graphic for the Game instance
-				const ship = new PIXI.Graphics();
-				ship.rect(-30, -10, 60, 20).fill(0xccccff);
-				ship.x = appRef.current.screen.width / 2;
-				ship.y = appRef.current.screen.height / 2;
-
-				// Initialize or update the game instance
-				if (!gameInstanceRef.current) {
-					gameInstanceRef.current = new Game(appRef.current, ship, {});
-					appRef.current.stage.addChild(ship);
+				// Restore game state if there's loaded data waiting
+				const loadedGameData = (window as any).loadedGameData;
+				if (loadedGameData) {
+					console.log('[GAME-PAGE] Restoring game state from loaded data');
+					game.loadFromJSON(loadedGameData);
+					// Clear the loaded data
+					(window as any).loadedGameData = null;
 				}
 			} catch (error) {
-				console.error('Error switching to game view:', error);
+				console.error('[GAME-PAGE] Failed to initialize game:', error);
+				// Display error to user - likely API connection issue
+				if (canvasRef.current) {
+					canvasRef.current.innerHTML = `
+						<div style="
+							display: flex;
+							align-items: center;
+							justify-content: center;
+							height: 100vh;
+							color: #ff6b6b;
+							font-size: 18px;
+							text-align: center;
+							background: #1a1a1a;
+							padding: 20px;
+						">
+							<div>
+								<h3>Game Initialization Failed</h3>
+								<p>Unable to connect to game servers.</p>
+								<p>Please check your authentication and try refreshing the page.</p>
+								<small>Error: ${error instanceof Error ? error.message : 'Unknown error'}</small>
+							</div>
+						</div>
+					`;
+				}
+			}
+		})();
+
+		return () => {
+			destroyed = true;
+			if (gameRef.current) {
+				gameRef.current.destroy();
+				gameRef.current = null;
+			}
+			if (pixiAppRef.current) {
+				pixiAppRef.current.destroy(true);
+				pixiAppRef.current = null;
+			}
+		};
+
+	}, [speed, keybindings, gamepadBindings]);
+
+	// Use refs to avoid stale closure issues
+	const stateRef = useRef({
+		showPause,
+		showSettings,
+		showDebug,
+		showInventory,
+		focusedMenuItem,
+		inventoryTab,
+	});
+
+	// Update refs when state changes
+	useEffect(() => {
+		stateRef.current = {
+			showPause,
+			showSettings,
+			showDebug,
+			showInventory,
+			focusedMenuItem,
+			inventoryTab,
+		};
+	}, [showPause, showSettings, showDebug, showInventory, focusedMenuItem, inventoryTab]);
+
+	// Game controller event subscriptions
+	useEffect(() => {
+		if (!controller.isConnected) return;
+
+		console.log('[GAME-PAGE-CONTROLLER] Setting up controller event subscriptions');
+
+		// Pause button handling (BACK button only)
+		const unsubscribePauseBack = controller.onButtonRelease('BACK', () => {
+			console.log('[GAME-PAGE-CONTROLLER] BACK button released - toggling pause');
+			setShowPause(prev => {
+				console.log('[GAME-PAGE-CONTROLLER] Pause toggled from', prev, 'to', !prev);
+				return !prev;
+			});
+			setFocusedMenuItem(0);
+		});
+
+		// Inventory button handling (START button)
+		const unsubscribeInventory = controller.onButtonRelease('START', () => {
+			console.log('[GAME-PAGE-CONTROLLER] START button released - toggling inventory');
+			setShowInventory(prev => {
+				console.log('[GAME-PAGE-CONTROLLER] Inventory toggled from', prev, 'to', !prev);
+				return !prev;
+			});
+			setInventoryTab(0);
+		});
+
+		// Left D-pad (decrease time speed)
+		const unsubscribeLeftDpad = controller.onButtonRelease('DPAD_LEFT', () => {
+			if (!showPause && !showInventory) { // Only when not in menus
+				const currentSpeed = gameState.destinyStatus?.time_speed || 1;
+				const speeds = [0, 1, 5, 10];
+				const currentIndex = speeds.indexOf(currentSpeed);
+				const newIndex = Math.max(0, currentIndex - 1);
+				gameState.setTimeSpeed(speeds[newIndex]);
+				console.log('[GAME-PAGE-CONTROLLER] Left D-pad - decreased time speed to', speeds[newIndex]);
+			}
+		});
+
+		// Right D-pad (increase time speed)
+		const unsubscribeRightDpad = controller.onButtonRelease('DPAD_RIGHT', () => {
+			if (!showPause && !showInventory) { // Only when not in menus
+				const currentSpeed = gameState.destinyStatus?.time_speed || 1;
+				const speeds = [0, 1, 5, 10];
+				const currentIndex = speeds.indexOf(currentSpeed);
+				const newIndex = Math.min(speeds.length - 1, currentIndex + 1);
+				gameState.setTimeSpeed(speeds[newIndex]);
+				console.log('[GAME-PAGE-CONTROLLER] Right D-pad - increased time speed to', speeds[newIndex]);
+			}
+		});
+
+		// Menu navigation (only when menus are open)
+		const unsubscribeUpNav = controller.onButtonRelease('DPAD_UP', () => {
+			const state = stateRef.current;
+			if (state.showPause || state.showSettings || state.showDebug) {
+				console.log('[GAME-PAGE-CONTROLLER] D-pad UP released - menu navigation');
+				const menuItemCount = state.showPause ? 5 : 1;
+				setFocusedMenuItem(prev => (prev > 0 ? prev - 1 : menuItemCount - 1));
+			} else if (state.showInventory) {
+				console.log('[GAME-PAGE-CONTROLLER] D-pad UP released - inventory tab navigation');
+				setInventoryTab(prev => (prev > 0 ? prev - 1 : 4));
+			}
+		});
+
+		const unsubscribeDownNav = controller.onButtonRelease('DPAD_DOWN', () => {
+			const state = stateRef.current;
+			if (state.showPause || state.showSettings || state.showDebug) {
+				console.log('[GAME-PAGE-CONTROLLER] D-pad DOWN released - menu navigation');
+				const menuItemCount = state.showPause ? 5 : 1;
+				setFocusedMenuItem(prev => (prev < menuItemCount - 1 ? prev + 1 : 0));
+			} else if (state.showInventory) {
+				console.log('[GAME-PAGE-CONTROLLER] D-pad DOWN released - inventory tab navigation');
+				setInventoryTab(prev => (prev < 4 ? prev + 1 : 0));
+			}
+		});
+
+		// Menu back button (B button)
+		const unsubscribeMenuBack = controller.onButtonRelease('B', () => {
+			const state = stateRef.current;
+			if (state.showPause || state.showSettings || state.showDebug) {
+				console.log('[GAME-PAGE-CONTROLLER] B button released - closing menus');
+				setShowPause(false);
+				setShowSettings(false);
+				setShowDebug(false);
+			} else if (state.showInventory) {
+				console.log('[GAME-PAGE-CONTROLLER] B button released - closing inventory');
+				setShowInventory(false);
+			}
+		});
+
+		// Menu activate button (A button)
+		const unsubscribeMenuActivate = controller.onButtonRelease('A', () => {
+			const state = stateRef.current;
+			if (state.showPause) {
+				console.log('[GAME-PAGE-CONTROLLER] A button released - activating menu item:', state.focusedMenuItem);
+				switch (state.focusedMenuItem) {
+				case 0: // Resume
+					console.log('[GAME-PAGE-CONTROLLER] Resuming game');
+					setShowPause(false);
+					break;
+				case 1: // Main Menu
+					console.log('[GAME-PAGE-CONTROLLER] Navigating to main menu');
+					navigate('/');
+					break;
+				case 2: // Save Game
+					console.log('[GAME-PAGE-CONTROLLER] Saving game');
+					gameState.saveGame(undefined, gameRef.current);
+					setShowPause(false);
+					break;
+				case 3: // Settings
+					console.log('[GAME-PAGE-CONTROLLER] Opening settings menu');
+					setShowSettings(true);
+					setShowPause(false);
+					setFocusedMenuItem(0);
+					break;
+				case 4: // Debug
+					console.log('[GAME-PAGE-CONTROLLER] Opening debug menu');
+					setShowDebug(true);
+					setShowPause(false);
+					setFocusedMenuItem(0);
+					break;
+				}
+			} else if (state.showSettings) {
+				console.log('[GAME-PAGE-CONTROLLER] Closing settings menu');
+				setShowSettings(false);
+			} else if (state.showDebug) {
+				console.log('[GAME-PAGE-CONTROLLER] Closing debug menu');
+				setShowDebug(false);
+			} else if (state.showInventory) {
+				console.log('[GAME-PAGE-CONTROLLER] A button released - inventory interaction');
+				// For now, just close inventory on A press - could add item selection later
+				setShowInventory(false);
+			}
+		});
+
+		// Cleanup subscriptions
+		return () => {
+			console.log('[GAME-PAGE-CONTROLLER] Cleaning up controller subscriptions');
+			unsubscribePauseBack();
+			unsubscribeInventory();
+			unsubscribeLeftDpad();
+			unsubscribeRightDpad();
+			unsubscribeUpNav();
+			unsubscribeDownNav();
+			unsubscribeMenuBack();
+			unsubscribeMenuActivate();
+		};
+	}, [controller]);
+
+	// Update game menu state when any menu opens/closes
+	useEffect(() => {
+		if (gameRef.current) {
+			const menuOpen = showPause || showSettings || showDebug || showInventory;
+			gameRef.current.setMenuOpen(menuOpen);
+			console.log('[GAME-PAGE-CONTROLLER] Game menu state updated:', {
+				menuOpen,
+				showPause,
+				showSettings,
+				showDebug,
+				showInventory,
+				timestamp: new Date().toISOString(),
+			});
+		}
+	}, [showPause, showSettings, showDebug, showInventory]);
+
+	// Keyboard controls
+	useEffect(() => {
+		const handleKeyDown = (e: KeyboardEvent) => {
+			if (e.key === 'Escape') {
+				setShowPause((prev) => !prev);
+			}
+			if (e.key === 'i' || e.key === 'I' || e.key === 'Tab') {
+				e.preventDefault();
+				setShowInventory((prev) => !prev);
+				setInventoryTab(0);
+			}
+			if (listeningKey) {
+				setKeybindings((prev) => {
+					const updated: Keybindings = { ...prev };
+					const arr = [...updated[listeningKey.action as Direction]];
+					arr[listeningKey.index] = e.key;
+					updated[listeningKey.action as Direction] = arr;
+					return updated;
+				});
+				setListeningKey(null);
+			}
+		};
+		document.addEventListener('keydown', handleKeyDown);
+		return () => document.removeEventListener('keydown', handleKeyDown);
+	}, [listeningKey]);
+
+	// Monitor FTL status changes and update game background
+	useEffect(() => {
+		if (gameRef.current && gameState.destinyStatus) {
+			gameRef.current.updateFTLStatus(gameState.destinyStatus.ftl_status);
+		}
+	}, [gameState.destinyStatus?.ftl_status]);
+
+	// Load game state into game engine when game loads
+	useEffect(() => {
+		if (gameRef.current && gameState.isInitialized) {
+			// Check if there's loaded game data waiting to be restored
+			const loadedGameData = (window as any).loadedGameData;
+			if (loadedGameData) {
+				console.log('[GAME-PAGE] Restoring game engine state from loaded data');
+				gameRef.current.loadFromJSON(loadedGameData);
+				// Clear the loaded data
+				(window as any).loadedGameData = null;
 			}
 		}
-	};
+	}, [gameState.isInitialized]);
 
-	const handleBackToShip = () => {
-		setViewMode('ship-view');
-		if (appRef.current && appRef.current.canvas) {
-			appRef.current.canvas.style.display = 'none';
+	// Handle token expiration during gameplay
+	useEffect(() => {
+		if (auth.isTokenExpired && auth.user) {
+			// Only show re-auth modal if user was previously authenticated
+			setShowReAuthModal(true);
+		} else {
+			setShowReAuthModal(false);
+		}
+	}, [auth.isTokenExpired, auth.user]);
+
+	// Handle Google Sign-In for re-authentication
+	const handleReAuthentication = async (idToken: string) => {
+		try {
+			await auth.reAuthenticate(idToken);
+			setShowReAuthModal(false);
+		} catch (error) {
+			// Error handling is done in the auth context
 		}
 	};
 
-	const handleBackToGalaxyMap = () => {
-		setViewMode('galaxy-map');
-		if (appRef.current && appRef.current.canvas) {
-			appRef.current.canvas.style.display = 'none';
+	// Set up Google Sign-In button for re-authentication modal
+	useEffect(() => {
+		if (showReAuthModal) {
+			const timer = setTimeout(() => {
+				const container = document.getElementById('reauth-google-signin-button');
+				if (container) {
+					container.innerHTML = ''; // Clear any existing content
+					renderGoogleSignInButton('reauth-google-signin-button', handleReAuthentication);
+				}
+			}, 100); // Small delay to ensure DOM is ready
+
+			return () => clearTimeout(timer);
 		}
-	};
+	}, [showReAuthModal]);
 
-	const handleBackToMenu = () => {
-		navigate('/');
-	};
-
-	const handleNavigateToGalaxyMap = () => {
-		setViewMode('galaxy-map');
-	};
-
-	const handleDestinyStatusUpdate = async (newStatus: DestinyStatus) => {
-		await gameService.updateDestinyStatus(game_id, newStatus);
-	};
-
-	const currentGalaxy = galaxies.find(g => g.id === currentGalaxyId) || null;
-	const travelDistance = selectedGalaxy && currentGalaxy ?
-		calculateDistance({
-			x: currentGalaxy.x,
-			y: currentGalaxy.y,
-		}, {
-			x: selectedGalaxy.x,
-			y: selectedGalaxy.y,
-		}) : 0;
-	const travelCost = calculateTravelCost(travelDistance);
-
-	return (
-		<div style={{
-			background: '#000',
-			minHeight: '100vh',
-			...(viewMode === 'galaxy-map' ? {} : viewMode === 'ship-view' ? {} : {
-				display: 'flex',
-				justifyContent: 'center',
-				alignItems: 'center',
-			}),
-		}}>
-			<div ref={canvasRef} />
-
-			{(isLoading) && (
-				<div className="text-white" style={{
-					position: 'absolute',
-					top: '50%',
-					left: '50%',
-					transform: 'translate(-50%, -50%)',
-					textAlign: 'center',
-				}}>
-					<h3>Loading Stargate Evolution...</h3>
-					<Spinner animation="border" role="status"/>
+	// Show loading state while game initializes
+	if (!gameState.isInitialized || !gameState.destinyStatus) {
+		return (
+			<Container fluid style={{ padding: 0, background: '#000', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+				<div style={{ color: 'white', fontSize: '24px' }}>
+					{gameState.isLoading ? 'Loading game...' : 'Initializing game...'}
 				</div>
-			)}
-
-			{/* Ship View */}
-			{!isLoading && viewMode === 'ship-view' && destinyStatus && (
-				<div style={{ width: '100vw', height: '100vh', position: 'relative', overflow: 'hidden' }}>
-					<NavButton onClick={handleBackToMenu}>
-						<GiReturnArrow size={20} /> Back to Menu
-					</NavButton>
-					<div style={{
-						position: 'absolute',
-						top: '60px', // Space for nav button
-						left: 0,
-						right: 0,
-						bottom: '72px', // Space for destiny status bar (approximately 72px height)
-						overflow: 'hidden',
-					}}>
-						<ShipView
-							destinyStatus={destinyStatus}
-							onStatusUpdate={handleDestinyStatusUpdate}
-							onNavigateToGalaxy={handleNavigateToGalaxyMap}
-							game_id={params.game_id}
-						/>
-					</div>
-				</div>
-			)}
-
-			{/* Galaxy Map View */}
-			{!isLoading && viewMode === 'galaxy-map' && galaxies.length > 0 && (
-				<div style={{ width: '100vw', height: '100vh', position: 'relative' }}>
-					<NavButton onClick={handleBackToShip}>
-						<GiReturnArrow size={20} /> Back to Ship
-					</NavButton>
-					<GalaxyMap
-						galaxies={galaxies as any}
-						onGalaxySelect={handleGalaxySelect}
-						currentGalaxyId={currentGalaxyId || undefined}
-						shipPower={destinyStatus?.power || 0}
-						maxTravelRange={maxTravelRange}
-					/>
-				</div>
-			)}
-
-			{!isLoading && viewMode === 'galaxy-map' && galaxies.length === 0 && (
-				<div style={{ width: '100vw', height: '100vh', position: 'relative' }}>
-					<NavButton onClick={handleBackToShip}>
-						<GiReturnArrow size={20} /> Back to Ship
-					</NavButton>
-					<div className="text-white text-center" style={{
-						position: 'absolute',
-						top: '50%',
-						left: '50%',
-						transform: 'translate(-50%, -50%)',
-					}}>
-						<div className="spinner-border text-primary mb-3" role="status">
-							<span className="visually-hidden">Loading...</span>
-						</div>
-						<h4>Loading Game Data...</h4>
-						<p>Preparing galaxy map...</p>
-					</div>
-				</div>
-			)}
-
-			{viewMode === 'game-view' && (
-				<NavButton onClick={handleBackToGalaxyMap}>
-					<GiReturnArrow size={20} /> Back to Galaxy Map
-				</NavButton>
-			)}
-
-			{/* Travel Modal */}
-			<GalaxyTravelModal
-				show={showTravelModal}
-				onHide={() => {
-					setShowTravelModal(false);
-					setSelectedGalaxy(null);
-				}}
-				onConfirm={handleConfirmTravel}
-				sourceGalaxy={currentGalaxy}
-				targetGalaxy={selectedGalaxy}
-				travelCost={travelCost}
-				currentPower={destinyStatus?.power || 0}
-				distance={travelDistance}
-			/>
-
-			{destinyStatus && (
-				<DestinyStatusBar status={destinyStatus} />
-			)}
-		</div>
-	);
-};
-
-// Main component that provides the context
-export const GamePage: React.FC = () => {
-	const params = useParams();
-
-	if (!params.game_id) {
-		return <Navigate to="/" />;
+			</Container>
+		);
 	}
 
+	const destinyStatus = gameState.destinyStatus;
+
 	return (
-		<GameStateProvider game_id={params.game_id}>
-			<DestinyStatusProvider>
-				<GamePageInner game_id={params.game_id} />
-			</DestinyStatusProvider>
-		</GameStateProvider>
+		<Container
+			fluid
+			style={{
+				padding: 0,
+				background: '#000',
+				minHeight: '100vh',
+				position: 'relative',
+				cursor: isFullscreen ? 'none' : 'default',
+			}}
+		>
+			{/* Resource Bar */}
+			<ResourceBar
+				power={destinyStatus.power}
+				maxPower={destinyStatus.max_power}
+				shields={destinyStatus.shields}
+				maxShields={destinyStatus.max_shields}
+				hull={destinyStatus.hull}
+				maxHull={destinyStatus.max_hull}
+				water={destinyStatus.water}
+				maxWater={destinyStatus.max_water}
+				food={destinyStatus.food}
+				maxFood={destinyStatus.max_food}
+				spareParts={destinyStatus.spare_parts}
+				maxSpareParts={destinyStatus.max_spare_parts}
+				medicalSupplies={destinyStatus.medical_supplies}
+				maxMedicalSupplies={destinyStatus.max_medical_supplies}
+				co2={destinyStatus.co2}
+				o2={destinyStatus.o2}
+				currentTime={destinyStatus.current_time}
+				ftlStatus={destinyStatus.ftl_status}
+				nextFtlTransition={destinyStatus.next_ftl_transition}
+				timeSpeed={destinyStatus.time_speed}
+				characterCount={gameState.characters.length || 4}
+			/>
+
+			{!isFullscreen && (
+				<div style={{ position: 'absolute', top: 56, left: 16, zIndex: 10 }}>
+					<Button variant="secondary" onClick={() => navigate('/')}>Back to Menu</Button>
+				</div>
+			)}
+			<div
+				ref={canvasRef}
+				style={{
+					width: '100vw',
+					height: '100vh',
+					overflow: 'hidden',
+					position: 'relative',
+					zIndex: 1,
+					cursor: isFullscreen ? 'none' : 'default',
+					paddingTop: '48px', // Add padding for resource bar
+				}}
+			/>
+
+			{/* Pause Modal */}
+			<Modal show={showPause} centered backdrop="static" keyboard={false}>
+				<Modal.Header>
+					<Modal.Title>Paused</Modal.Title>
+				</Modal.Header>
+				<Modal.Body>
+					<div className="d-grid gap-2">
+						<Button
+							variant={focusedMenuItem === 0 ? 'primary' : 'outline-primary'}
+							size="lg"
+							onClick={() => setShowPause(false)}
+							style={focusedMenuItem === 0 ? { boxShadow: '0 0 10px rgba(13, 110, 253, 0.8)' } : {}}
+						>
+						Resume
+						</Button>
+						<Button
+							variant={focusedMenuItem === 1 ? 'primary' : 'secondary'}
+							size="lg"
+							onClick={() => navigate('/')}
+							style={focusedMenuItem === 1 ? { boxShadow: '0 0 10px rgba(13, 110, 253, 0.8)' } : {}}
+						>
+						Main Menu
+						</Button>
+						<Button
+							variant={focusedMenuItem === 2 ? 'primary' : 'outline-secondary'}
+							size="lg"
+							onClick={() => {
+								gameState.saveGame(undefined, gameRef.current);
+								setShowPause(false);
+							}}
+							disabled={gameState.isLoading}
+							title={gameState.gameName ? `Save "${gameState.gameName}"` : 'Save current game'}
+							style={focusedMenuItem === 2 ? { boxShadow: '0 0 10px rgba(13, 110, 253, 0.8)' } : {}}
+						>
+							{gameState.isLoading ? 'Saving...' : 'Save Game'}
+						</Button>
+						<Button
+							variant={focusedMenuItem === 3 ? 'primary' : 'outline-secondary'}
+							size="lg"
+							onClick={() => { setShowSettings(true); setShowPause(false); setFocusedMenuItem(0); }}
+							style={focusedMenuItem === 3 ? { boxShadow: '0 0 10px rgba(13, 110, 253, 0.8)' } : {}}
+						>
+						Settings
+						</Button>
+						<Button
+							variant={focusedMenuItem === 4 ? 'primary' : 'outline-secondary'}
+							size="lg"
+							onClick={() => { setShowDebug(true); setShowPause(false); setFocusedMenuItem(0); }}
+							style={focusedMenuItem === 4 ? { boxShadow: '0 0 10px rgba(13, 110, 253, 0.8)' } : {}}
+						>
+						Debug
+						</Button>
+					</div>
+				</Modal.Body>
+			</Modal>
+
+			{/* Settings Modal */}
+			<Modal show={showSettings} centered onHide={() => setShowSettings(false)}>
+				<Modal.Header closeButton>
+					<Modal.Title>Settings</Modal.Title>
+				</Modal.Header>
+				<Modal.Body>
+					<Form>
+						<Form.Group as={Row} className="mb-3" controlId="speed">
+							<Form.Label column sm={4}>Speed</Form.Label>
+							<Col sm={8}>
+								<Form.Range min={1} max={10} value={speed} onChange={e => setSpeed(Number(e.target.value))} />
+								<span>{speed}</span>
+							</Col>
+						</Form.Group>
+						<hr />
+						<h5>Keybindings</h5>
+						<Table size="sm" bordered>
+							<thead>
+								<tr><th>Action</th><th>Primary</th><th>Secondary</th></tr>
+							</thead>
+							<tbody>
+								{Object.entries(keybindings).map(([action, keys]) => (
+									<tr key={action}>
+										<td>{action.charAt(0).toUpperCase() + action.slice(1)}</td>
+										<td>
+											<Button variant={listeningKey?.action === action && listeningKey?.index === 0 ? 'warning' : 'outline-primary'} size="sm" onClick={() => setListeningKey({ action, index: 0 })}>
+												{listeningKey?.action === action && listeningKey?.index === 0 ? 'Press key...' : keys[0]}
+											</Button>
+										</td>
+										<td>
+											<Button variant={listeningKey?.action === action && listeningKey?.index === 1 ? 'warning' : 'outline-primary'} size="sm" onClick={() => setListeningKey({ action, index: 1 })}>
+												{listeningKey?.action === action && listeningKey?.index === 1 ? 'Press key...' : keys[1]}
+											</Button>
+										</td>
+									</tr>
+								))}
+							</tbody>
+						</Table>
+						<hr />
+						<h5>Gamepad Bindings</h5>
+						<Table size="sm" bordered>
+							<thead>
+								<tr><th>Action</th><th>Button Index</th></tr>
+							</thead>
+							<tbody>
+								{Object.entries(gamepadBindings).map(([action, btns]) => (
+									<tr key={action}>
+										<td>{action.charAt(0).toUpperCase() + action.slice(1)}</td>
+										<td>{btns.join(', ')}</td>
+									</tr>
+								))}
+							</tbody>
+						</Table>
+						<div className="text-muted">(Gamepad rebinding coming soon)</div>
+					</Form>
+				</Modal.Body>
+				<Modal.Footer>
+					<Button variant="secondary" onClick={() => setShowSettings(false)}>Close</Button>
+				</Modal.Footer>
+			</Modal>
+
+			{/* Debug Modal */}
+			<Modal show={showDebug} centered onHide={() => setShowDebug(false)} size="lg">
+				<Modal.Header closeButton>
+					<Modal.Title>Gamepad Debug</Modal.Title>
+				</Modal.Header>
+				<Modal.Body>
+					{/* Debug Information Section */}
+					<div style={{ backgroundColor: '#f8f9fa', padding: '10px', borderRadius: '5px', marginBottom: '15px' }}>
+						<h6>Debug Information</h6>
+						<small>
+							<strong>InputDevice gamepads:</strong> {InputDevice.gamepads?.length || 0}<br/>
+							<strong>Native gamepads:</strong> {Array.from(navigator.getGamepads()).filter(Boolean).length}<br/>
+							<strong>InputDevice initialized:</strong> {InputDevice.gamepads ? 'Yes' : 'No'}<br/>
+							<strong>Check console for detailed logs</strong><br/>
+							<br/>
+							<strong>Gamepad Controls:</strong><br/>
+						• Left thumbstick = Move ship (continuous)<br/>
+						• Right thumbstick Y = Zoom in/out (continuous)<br/>
+						• D-pad = Move ship OR navigate menu (on release)<br/>
+						• Start/+ or Select/- = Pause Menu (on release)<br/>
+						• A button = Activate/Select (on release)<br/>
+						• B button = Back/Close menu (on release)
+						</small>
+						<div style={{ marginTop: '10px' }}>
+							<Button
+								size="sm"
+								variant="outline-primary"
+								onClick={() => {
+									console.log('[DEBUG] Manual gamepad refresh triggered');
+									console.log('[DEBUG] InputDevice.gamepads:', InputDevice.gamepads.length);
+									console.log('[DEBUG] navigator.getGamepads():', Array.from(navigator.getGamepads()).filter(Boolean).length);
+									// Force a re-render of gamepad state
+									const currentState = InputDevice.gamepads.map(gp => ({
+										id: gp.id,
+										buttons: Object.entries(gp.button).map(([name, btn]: [string, any]) => ({ name, pressed: !!btn })),
+										leftJoystick: gp.leftJoystick,
+										rightJoystick: gp.rightJoystick,
+									}));
+									setGamepadDebugState(currentState);
+								}}
+							>
+							Refresh Gamepad Detection
+							</Button>
+						</div>
+					</div>
+
+					{gamepadDebugState && gamepadDebugState.length === 0 && (
+						<div style={{ color: 'orange', fontWeight: 'bold' }}>
+						No gamepads detected by InputDevice.
+							<br/><small>Try connecting a gamepad and pressing any button, then refresh this debug panel.</small>
+						</div>
+					)}
+					{gamepadDebugState && gamepadDebugState.map((pad: any, idx: number) => (
+						<div key={pad.id} style={{ marginBottom: 16 }}>
+							<h6>Gamepad #{idx + 1}: {pad.id}</h6>
+							<Table size="sm" bordered>
+								<thead>
+									<tr><th>Button</th><th>Pressed</th></tr>
+								</thead>
+								<tbody>
+									{pad.buttons.map((btn: any, i: number) => (
+										<tr key={i}>
+											<td>{btn.name}</td>
+											<td>{btn.pressed ? 'Yes' : ''}</td>
+										</tr>
+									))}
+								</tbody>
+							</Table>
+							<Table size="sm" bordered>
+								<thead>
+									<tr><th>Stick</th><th>X</th><th>Y</th></tr>
+								</thead>
+								<tbody>
+									<tr><td>Left</td><td>{pad.leftJoystick.x.toFixed(2)}</td><td>{pad.leftJoystick.y.toFixed(2)}</td></tr>
+									<tr><td>Right</td><td>{pad.rightJoystick.x.toFixed(2)}</td><td>{pad.rightJoystick.y.toFixed(2)}</td></tr>
+								</tbody>
+							</Table>
+						</div>
+					))}
+				</Modal.Body>
+				<Modal.Footer>
+					<Button variant="secondary" onClick={() => setShowDebug(false)}>Close</Button>
+				</Modal.Footer>
+			</Modal>
+
+			{/* Inventory Modal */}
+			<InventoryModal
+				show={showInventory}
+				onHide={() => setShowInventory(false)}
+				destinyStatus={destinyStatus}
+				characters={gameState.characters}
+				technologies={gameState.technologies}
+				exploredRooms={gameState.exploredRooms}
+				focusedTab={inventoryTab}
+				onTabChange={setInventoryTab}
+				onStartFTLJump={gameState.startFTLJump}
+				onExitFTL={gameState.exitFTL}
+				onSetTimeSpeed={gameState.setTimeSpeed}
+			/>
+
+			{/* Re-Authentication Modal */}
+			<Modal show={showReAuthModal} centered backdrop="static" keyboard={false}>
+				<Modal.Header>
+					<Modal.Title>Session Expired</Modal.Title>
+				</Modal.Header>
+				<Modal.Body>
+					<div className="text-center">
+						<p className="mb-3">
+							Your session has expired, but don&apos;t worry - your game progress is safe!
+						</p>
+						<p className="mb-4">
+							Please sign in again to continue saving your progress to the server.
+						</p>
+						<div id="reauth-google-signin-button" className="d-flex justify-content-center" />
+						<div className="mt-3">
+							<small className="text-muted">
+								You can continue playing without signing in, but your progress won&apos;t be saved to the server.
+							</small>
+						</div>
+					</div>
+				</Modal.Body>
+				<Modal.Footer>
+					<Button
+						variant="secondary"
+						onClick={() => setShowReAuthModal(false)}
+						title="Continue playing without server saves"
+					>
+						Continue Offline
+					</Button>
+				</Modal.Footer>
+			</Modal>
+		</Container>
 	);
 };

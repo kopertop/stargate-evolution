@@ -12,9 +12,9 @@ describe('technology-templates', () => {
 	});
 
 	it('returns a technology by id', async () => {
-		const tech = await getTechnologyTemplateById((env as Env).DB, 'stargate_device');
+		const tech = await getTechnologyTemplateById((env as Env).DB, 'stargate_dialer');
 		expect(tech).not.toBeNull();
-		expect(tech?.name).toBe('Stargate');
+		expect(tech?.name).toBe('Stargate Dialer');
 	});
 
 	it('returns null for missing technology', async () => {

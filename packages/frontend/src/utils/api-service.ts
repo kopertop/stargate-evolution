@@ -1,39 +1,39 @@
 import type { RoomTechnology } from '@stargate/common/models/room-technology';
 import type { TechnologyTemplate } from '@stargate/common/models/technology-template';
 
-const API_BASE_URL = 'http://localhost:8787';
+import { apiClient } from '../services/api-client';
 
 export class ApiService {
 	/**
 	 * Fetch all technology templates for a specific room
 	 */
 	static async getRoomTechnology(templateId: string): Promise<RoomTechnology[]> {
-		const response = await fetch(`${API_BASE_URL}/api/templates/room-technology/${templateId}`);
-		if (!response.ok) {
-			throw new Error(`Failed to fetch room technology: ${response.statusText}`);
+		const response = await apiClient.get(`/api/templates/room-technology/${templateId}`, false); // Public endpoint
+		if (response.error) {
+			throw new Error(`Failed to fetch room technology: ${response.error}`);
 		}
-		return response.json();
+		return response.data;
 	}
 
 	/**
 	 * Fetch technology template by ID
 	 */
 	static async getTechnologyTemplate(technologyId: string): Promise<TechnologyTemplate> {
-		const response = await fetch(`${API_BASE_URL}/api/templates/technology/${technologyId}`);
-		if (!response.ok) {
-			throw new Error(`Failed to fetch technology template: ${response.statusText}`);
+		const response = await apiClient.get(`/api/templates/technology/${technologyId}`, false); // Public endpoint
+		if (response.error) {
+			throw new Error(`Failed to fetch technology template: ${response.error}`);
 		}
-		return response.json();
+		return response.data;
 	}
 
 	/**
 	 * Fetch all technology templates
 	 */
 	static async getAllTechnologyTemplates(): Promise<TechnologyTemplate[]> {
-		const response = await fetch(`${API_BASE_URL}/api/templates/technology`);
-		if (!response.ok) {
-			throw new Error(`Failed to fetch technology templates: ${response.statusText}`);
+		const response = await apiClient.get('/api/templates/technology', false); // Public endpoint
+		if (response.error) {
+			throw new Error(`Failed to fetch technology templates: ${response.error}`);
 		}
-		return response.json();
+		return response.data;
 	}
 }

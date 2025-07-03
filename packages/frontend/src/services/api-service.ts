@@ -12,6 +12,7 @@ class APIService {
 	constructor() {
 		// Use environment variable if available, otherwise default to localhost
 		this.baseUrl = import.meta.env.VITE_PUBLIC_API_URL || 'http://localhost:8787';
+		console.log('[apiService] API URL', this.baseUrl);
 	}
 
 	private async fetchWithCache<T>(endpoint: string): Promise<T> {
@@ -69,9 +70,7 @@ class APIService {
 		}
 	}
 
-	async getAllRoomTemplates(): Promise<RoomTemplate[]> {
-		return this.fetchWithCache<RoomTemplate[]>('/api/templates/rooms');
-	}
+	
 
 	async getRoomTemplateById(id: string): Promise<RoomTemplate | null> {
 		try {
@@ -136,9 +135,7 @@ class APIService {
 		}
 	}
 
-	async getAllTechnologyTemplates(): Promise<TechnologyTemplate[]> {
-		return this.fetchWithCache<TechnologyTemplate[]>('/api/templates/technology');
-	}
+	
 
 	// Helper methods for parsing JSON fields
 	parseSkills(skillsJson: string | string[]): string[] {

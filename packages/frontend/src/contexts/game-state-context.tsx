@@ -1,282 +1,534 @@
-import { useQuery } from '@livestore/react';
-import { RoomTemplate } from '@stargate/common/models/room-template';
-import React, {
-	createContext,
-	useContext,
-	useState,
-	useCallback,
-	ReactNode,
-	useEffect,
-} from 'react';
+import {
+	DestinyStatus,
+	Character,
+	Galaxy,
+	StarSystem,
+	ExplorationProgress,
+} from '@stargate/common';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
 
-import { useGameService } from '../services/game-service';
-import { ApiService } from '../utils/api-service';
+import { SavedGameService } from '../services/saved-game-service';
 
+import { useAuth } from './auth-context';
+
+// Enhanced game state context for resource management and gameplay
 interface GameStateContextType {
-	isPaused: boolean;
-	timeSpeed: number;
-	gameTime: number;
-	game: any | null;
-	togglePause: () => void;
+	gameId: string | null;
+	setGameId: (id: string | null) => void;
+
+	// Ship Status & Resources
+	destinyStatus: DestinyStatus | null;
+	setDestinyStatus: (status: DestinyStatus | null) => void;
+	updateDestinyStatus: (updates: Partial<DestinyStatus>) => void;
+
+	// Characters & Crew Management
+	characters: Character[];
+	setCharacters: (characters: Character[]) => void;
+	addCharacter: (character: Character) => void;
+	updateCharacter: (id: string, updates: Partial<Character>) => void;
+	removeCharacter: (id: string) => void;
+
+	// Technology & Discoveries
+	technologies: string[]; // Array of discovered technology IDs
+	setTechnologies: (technologies: string[]) => void;
+	addTechnology: (techId: string) => void;
+
+	// Exploration Progress
+	exploredRooms: string[]; // Array of explored room IDs
+	setExploredRooms: (rooms: string[]) => void;
+	addExploredRoom: (roomId: string) => void;
+	explorationProgress: ExplorationProgress[];
+	setExplorationProgress: (progress: ExplorationProgress[]) => void;
+
+	// Galaxy & Location Data
+	currentGalaxy: Galaxy | null;
+	setCurrentGalaxy: (galaxy: Galaxy | null) => void;
+	currentSystem: StarSystem | null;
+	setCurrentSystem: (system: StarSystem | null) => void;
+	knownGalaxies: Galaxy[];
+	setKnownGalaxies: (galaxies: Galaxy[]) => void;
+	knownSystems: StarSystem[];
+	setKnownSystems: (systems: StarSystem[]) => void;
+
+	// FTL State Management
+	startFTLJump: (hours: number) => void;
+	exitFTL: () => void;
+
+	// Time Control
 	setTimeSpeed: (speed: number) => void;
-	resumeGame: () => void;
-	pauseGame: () => void;
-	// Dynamic room management
-	addRoomToGame: (templateId: string, roomConfig?: {
-		name?: string;
-		description?: string;
-		found?: boolean;
-		locked?: boolean;
-		explored?: boolean;
-		status?: string;
-		connections?: Record<string, string>;
-	}) => Promise<any>;
-	updateRoomConnections: (roomId: string, connections: Record<string, string | null>) => Promise<any>;
-	getAvailableRoomTemplates: () => Promise<any[]>;
-	syncRoomFromTemplate: (roomId: string, templateId?: string) => Promise<any>;
+
+	// Game State Actions
+	initializeNewGame: (gameName: string) => void;
+	saveGame: (gameName?: string, gameEngineRef?: any) => Promise<void>;
+	loadGame: (gameId: string) => Promise<void>;
+	isLoading: boolean;
+	isInitialized: boolean;
+	gameName: string | null;
+	setGameName: (name: string | null) => void;
 }
 
 const GameStateContext = createContext<GameStateContextType | undefined>(undefined);
 
-interface GameStateProviderProps {
-	game_id: string;
-	children: ReactNode;
-}
+export const GameStateProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+	const auth = useAuth();
+	const [gameId, setGameId] = useState<string | null>(null);
+	const [gameName, setGameName] = useState<string | null>(null);
+	const [destinyStatus, setDestinyStatus] = useState<DestinyStatus | null>(null);
+	const [characters, setCharacters] = useState<Character[]>([]);
+	const [technologies, setTechnologies] = useState<string[]>([]);
+	const [exploredRooms, setExploredRooms] = useState<string[]>([]);
+	const [isLoading, setIsLoading] = useState(false);
+	const [isInitialized, setIsInitialized] = useState(false);
 
-export const GameStateProvider: React.FC<GameStateProviderProps> = ({ game_id, children }) => {
-	// Start at normal speed
-	const [timeSpeed, setTimeSpeed] = useState(1);
-	const [gameTime, setGameTime] = useState(0);
+	// Exploration Progress
+	const [explorationProgress, setExplorationProgress] = useState<ExplorationProgress[]>([]);
 
-	const gameService = useGameService();
+	// Galaxy & Location Data
+	const [currentGalaxy, setCurrentGalaxy] = useState<Galaxy | null>(null);
+	const [currentSystem, setCurrentSystem] = useState<StarSystem | null>(null);
+	const [knownGalaxies, setKnownGalaxies] = useState<Galaxy[]>([]);
+	const [knownSystems, setKnownSystems] = useState<StarSystem[]>([]);
 
-	// Query the game and rooms using LiveStore
-	const game = useQuery(gameService.queries.gameById(game_id))[0];
-	const rooms = useQuery(gameService.queries.roomsByGame(game_id));
-
-	// Initialize game time from the game data
-	useEffect(() => {
-		if (game) {
-			setGameTime(game.total_time_progressed || 0);
-		}
-	}, [game]);
-
-	/**
-	 * Handle technology discovery when a room is fully explored
-	 */
-	const handleTechnologyDiscovery = async (room: typeof rooms[number], game_id: string) => {
+	// Game initialization function
+	const initializeNewGame = async (newGameName: string) => {
+		setIsLoading(true);
 		try {
-			console.log(`🔬 Checking for technology in room ${room.template_id}...`);
+			const randomJumpHours = 4 + Math.random() * 44; // 4-48 hours
+			const randomJumpSeconds = randomJumpHours * 3600; // Convert to seconds
 
-			// Fetch room technology from backend templates
-			const roomTechnology = await ApiService.getRoomTechnology(room.template_id || room.type);
+			const initialDestinyStatus: DestinyStatus = {
+				id: 'destiny-1',
+				name: 'Destiny',
+				power: 85,
+				max_power: 100,
+				shields: 67,
+				max_shields: 100,
+				hull: 92,
+				max_hull: 100,
+				water: 78,
+				max_water: 100,
+				food: 45,
+				max_food: 100,
+				spare_parts: 34,
+				max_spare_parts: 100,
+				medical_supplies: 89,
+				max_medical_supplies: 100,
+				race_id: 'ancient',
+				location: '{"system":"Pegasus Prime","galaxy":"Pegasus","sector":"Alpha"}',
+				co2: 0.04,
+				o2: 20.9,
+				co2Scrubbers: 5,
+				weapons: '{}',
+				shuttles: '{}',
+				current_time: 0, // Start at mission beginning
+				next_jump_time: randomJumpSeconds, // Random 4-48 hours in seconds
+				time_speed: 1, // 1 second per second by default
+				ftl_status: 'normal_space', // Start in normal space
+				next_ftl_transition: randomJumpHours, // Legacy field in hours
+			};
 
-			if (roomTechnology.length === 0) {
-				console.log('No technology found in this room');
-				return;
+			const gameData = {
+				destinyStatus: initialDestinyStatus,
+				characters: [],
+				technologies: [],
+				exploredRooms: [],
+				playerPosition: { x: 0, y: 0, roomId: 'destiny-bridge' }, // Default starting position
+				doorStates: [], // Will be populated from templates
+				explorationProgress: [],
+				currentGalaxy: null,
+				currentSystem: null,
+				knownGalaxies: [],
+				knownSystems: [],
+			};
+
+			let savedGameId: string;
+			let backendSaveSuccessful = false;
+
+			// Try to save to backend first
+			try {
+				const savedGame = await SavedGameService.createSavedGame({
+					name: newGameName,
+					description: `New game started on ${new Date().toLocaleDateString()}`,
+					game_data: JSON.stringify(gameData),
+				});
+				savedGameId = savedGame.id;
+				backendSaveSuccessful = true;
+				console.log('[GAME-STATE] Game saved to backend successfully:', savedGameId);
+			} catch (backendError) {
+				console.warn('[GAME-STATE] Backend save failed, falling back to local storage:', backendError);
+				// Generate a local game ID if backend fails
+				savedGameId = `local-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+				toast.warning('Could not save to server. Game will be saved locally only.');
 			}
 
-			// Process each piece of technology found
-			for (const roomTech of roomTechnology) {
-				try {
-					// Get the technology template details
-					const techTemplate = await ApiService.getTechnologyTemplate(roomTech.technology_template_id);
+			setGameId(savedGameId);
+			setGameName(newGameName);
+			setDestinyStatus(initialDestinyStatus);
+			setCharacters([]);
+			setTechnologies([]);
+			setExploredRooms([]);
+			setExplorationProgress([]);
+			setCurrentGalaxy(null);
+			setCurrentSystem(null);
+			setKnownGalaxies([]);
+			setKnownSystems([]);
+			setIsInitialized(true);
 
-					// Discover the technology using LiveStore
-					gameService.unlockTechnology(roomTech.technology_template_id, game_id);
+			// Always save to local storage as backup (or primary if backend failed)
+			localStorage.setItem('stargate-current-game-id', savedGameId);
+			localStorage.setItem('stargate-current-game-name', newGameName);
+			localStorage.setItem(`stargate-game-${savedGameId}`, JSON.stringify(gameData));
 
-					gameService.addInventoryItem({
-						game_id,
-						resource_type: roomTech.technology_template_id,
-						amount: roomTech.count,
-						location: roomTech.room_id,
-						description: roomTech.description,
-					});
-					const countText = roomTech.count > 1 ? ` (×${roomTech.count})` : '';
-					toast.success(`🔬 Technology Discovered: ${techTemplate.name}${countText}`, {
-						position: 'top-center',
-						autoClose: 4000,
-						hideProgressBar: false,
-						closeOnClick: true,
-						pauseOnHover: true,
-						draggable: true,
-					});
+			console.log('[GAME-STATE] Initialized new game:', savedGameId, 'with name:', newGameName);
 
-					console.log(`✅ Discovered: ${techTemplate.name} (×${roomTech.count})`);
-				} catch (error) {
-					console.error(`Failed to process technology ${roomTech.technology_template_id}:`, error);
-				}
+			if (backendSaveSuccessful) {
+				toast.success(`New game "${newGameName}" created and saved to server!`);
+			} else {
+				toast.success(`New game "${newGameName}" created and saved locally!`);
 			}
 		} catch (error) {
-			console.error('Failed to handle technology discovery:', error);
+			console.error('[GAME-STATE] Failed to create new game:', error);
+			toast.error('Failed to create new game');
+			throw error;
+		} finally {
+			setIsLoading(false);
 		}
 	};
 
-	/**
-	 * Main Game Loop
-	 */
+	// Game time advancement - runs every second, advances based on time_speed
 	useEffect(() => {
-		if (game && timeSpeed > 0) {
-			const interval = setInterval(async () => {
-				// GameTick: Update game time
-				setGameTime((prev) => {
-					const newTime = prev + timeSpeed;
-					if (game_id) {
-						updateExplorationProgress(newTime);
-						gameService.updateGame(game_id, { total_time_progressed: newTime });
-					}
-					return newTime;
-				});
+		const gameTimer = setInterval(() => {
+			if (destinyStatus) {
+				setDestinyStatus(prev => {
+					if (!prev) return null;
 
-			}, 1000);
-			return () => clearInterval(interval);
-		}
-	}, [game, timeSpeed, game_id, rooms]);
+					// Advance current_time by time_speed seconds per second
+					const newCurrentTime = prev.current_time + prev.time_speed;
 
-	// Handle exploration progress updates
-	const updateExplorationProgress = async (currentGameTime: number) => {
-		if (!game_id) {
-			return;
-		}
+					// Check for FTL transition
+					let newFtlStatus = prev.ftl_status;
+					let newNextJumpTime = prev.next_jump_time;
 
-		try {
-			// Use the rooms from the hook query
-			let exploringRoomsCount = 0;
-
-			for (const room of rooms) {
-				if (room.exploration_data && !room.explored) {
-					exploringRoomsCount++;
-					try {
-						const exploration = JSON.parse(room.exploration_data);
-
-						// Convert game time (seconds) to hours for calculation
-						const timeElapsed = (currentGameTime - exploration.startTime) / 3600;
-						const newProgress = Math.min(100, (timeElapsed / exploration.timeToComplete) * 100);
-						const newTimeRemaining = Math.max(0, exploration.timeToComplete - timeElapsed);
-
-						if (newProgress >= 100) {
-							// Exploration complete - mark room as explored and free crew
-							console.log(`🎉 Exploration of ${room.type} (${room.id}) completed!`);
-
-							// Get crew members to free up
-							const crewAssigned = exploration.crewAssigned || exploration.crew_assigned || [];
-
-							// Free crew members from this room
-							for (const crewId of crewAssigned) {
-								gameService.assignCrewToRoom(crewId, null);
-							}
-
-							// Mark room as explored and clear exploration data
-							gameService.updateRoom(room.id, {
-								explored: true,
-								exploration_data: '',
-							});
-
-							// Complete the exploration using LiveStore events
-							gameService.completeRoomExploration(room.id, []);
-
-							// Add discovered items
-							if (room.layout_id) {
-								try {
-									const inventoryItems = await gameService.getTechnologyForRoom(room.type);
-									if (inventoryItems && inventoryItems.length > 0) {
-										for (const item of inventoryItems) {
-											gameService.addInventoryItem({
-												game_id,
-												resource_type: item.technology_template_id,
-												amount: item.count,
-												location: room.id,
-												description: item.description,
-											});
-										}
-									}
-								} catch (error) {
-									console.log(`No technology found for room type ${room.type}, continuing...`);
-								}
-							}
-
-							// Handle technology discovery
-							await handleTechnologyDiscovery(room, game_id);
-						} else if (Math.abs(newProgress - exploration.progress) > 0.1) {
-							// Update progress - only if exploration is not complete
-							const updatedExploration = {
-								...exploration,
-								progress: newProgress,
-								time_remaining: newTimeRemaining,
-								timeRemaining: newTimeRemaining, // camelCase version for backward compatibility
-							};
-
-							// Update the room with new progress
-							gameService.updateRoom(room.id, {
-								exploration_data: JSON.stringify(updatedExploration),
-							});
+					// Auto-transition when current_time reaches next_jump_time
+					if (newCurrentTime >= prev.next_jump_time && prev.next_jump_time > 0) {
+						if (prev.ftl_status === 'ftl') {
+							newFtlStatus = 'normal_space';
+							newNextJumpTime = 0; // Reset jump time
+							toast.success('Automatically dropped out of hyperspace.');
+						} else {
+							// Could auto-jump if scheduled, but for now just reset
+							newNextJumpTime = 0;
 						}
-					} catch (error) {
-						console.error(`Failed to parse exploration data for room ${room.id}:`, error);
 					}
-				}
-			}
 
-			// Debug log every 10 seconds
-			if (Math.floor(currentGameTime) % 10 === 0) {
-				console.log(`🔍 Game Loop: ${exploringRoomsCount} rooms currently being explored`, {
-					currentGameTime,
+					// Update legacy next_ftl_transition for backward compatibility
+					const newFtlTransition = newNextJumpTime > 0 ?
+						Math.max(0, (newNextJumpTime - newCurrentTime) / 3600) : 0; // Convert to hours
+
+					return {
+						...prev,
+						current_time: newCurrentTime,
+						next_jump_time: newNextJumpTime,
+						next_ftl_transition: newFtlTransition,
+						ftl_status: newFtlStatus,
+					};
 				});
 			}
+		}, 1000); // Run every second
+
+		return () => clearInterval(gameTimer);
+	}, [destinyStatus?.id]); // Only depend on destinyStatus.id to avoid recreating timer
+
+	// Update destiny status with partial updates
+	const updateDestinyStatus = (updates: Partial<DestinyStatus>) => {
+		setDestinyStatus(prev => prev ? { ...prev, ...updates } : null);
+	};
+
+	// Character management functions
+	const addCharacter = (character: Character) => {
+		setCharacters(prev => [...prev, character]);
+	};
+
+	const updateCharacter = (id: string, updates: Partial<Character>) => {
+		setCharacters(prev =>
+			prev.map(char => char.id === id ? { ...char, ...updates } : char),
+		);
+	};
+
+	const removeCharacter = (id: string) => {
+		setCharacters(prev => prev.filter(char => char.id !== id));
+	};
+
+	// Technology management
+	const addTechnology = (techId: string) => {
+		setTechnologies(prev => prev.includes(techId) ? prev : [...prev, techId]);
+	};
+
+	// Exploration management
+	const addExploredRoom = (roomId: string) => {
+		setExploredRooms(prev => prev.includes(roomId) ? prev : [...prev, roomId]);
+	};
+
+	// FTL State Management
+	const startFTLJump = (hours: number) => {
+		if (!destinyStatus) return;
+
+		const jumpTimeInSeconds = hours * 3600; // Convert hours to seconds
+		const nextJumpTime = destinyStatus.current_time + jumpTimeInSeconds;
+
+		updateDestinyStatus({
+			ftl_status: 'ftl',
+			next_jump_time: nextJumpTime,
+			next_ftl_transition: hours, // Update legacy field
+		});
+		toast.info(`Jumping to hyperspace! Exit in ${hours} hours.`);
+	};
+
+	const exitFTL = () => {
+		updateDestinyStatus({
+			ftl_status: 'normal_space',
+			next_jump_time: 0,
+			next_ftl_transition: 0,
+		});
+		toast.success('Dropped out of hyperspace. Now in normal space.');
+	};
+
+	// Time Control
+	const setTimeSpeed = (speed: number) => {
+		updateDestinyStatus({
+			time_speed: Math.max(0, speed), // Ensure non-negative speed
+		});
+		toast.info(`Time speed set to ${speed}x (${speed} seconds per second)`);
+	};
+
+	// Game persistence
+	const saveGame = async (newGameName?: string, gameEngineRef?: any) => {
+		if (!gameId || !destinyStatus) return;
+
+		setIsLoading(true);
+		try {
+			// Get context data (non-game-engine state)
+			const contextData = {
+				destinyStatus,
+				characters,
+				technologies,
+				exploredRooms,
+				explorationProgress,
+				currentGalaxy,
+				currentSystem,
+				knownGalaxies,
+				knownSystems,
+			};
+
+			console.log('[GAME-STATE] Preparing to save game data:', {
+				gameId,
+				hasDestinyStatus: !!destinyStatus,
+				hasGameEngine: !!gameEngineRef,
+				charactersCount: characters.length,
+				technologiesCount: technologies.length,
+				exploredRoomsCount: exploredRooms.length,
+				contextDataSize: JSON.stringify(contextData).length,
+			});
+
+			// If we have a game engine reference, use its save method
+			if (gameEngineRef && typeof gameEngineRef.save === 'function') {
+				await gameEngineRef.save(gameId, newGameName || gameName || 'Unnamed Game', contextData);
+				console.log('[GAME-STATE] Game saved using game engine');
+			} else {
+				// Fallback: save context data only (for cases where game engine isn't available)
+				if (gameEngineRef) {
+					console.warn('[GAME-STATE] Invalid game engine reference provided - missing save method');
+				} else {
+					console.warn('[GAME-STATE] No game engine reference - saving context data only');
+				}
+				await SavedGameService.updateGameState(gameId, contextData);
+			}
+
+			const backendSaveSuccessful = true;
+
+			// Update local state if name changed
+			if (newGameName && newGameName !== gameName) {
+				setGameName(newGameName);
+				localStorage.setItem('stargate-current-game-name', newGameName);
+			}
+
+			// Always save to local storage as backup
+			const fullGameData = gameEngineRef ?
+				{ ...contextData, ...gameEngineRef.toJSON() } :
+				contextData;
+			localStorage.setItem(`stargate-game-${gameId}`, JSON.stringify(fullGameData));
+
+			const displayName = newGameName || gameName || 'Game';
+
+			if (gameId.startsWith('local-')) {
+				toast.success(`"${displayName}" saved locally`);
+				console.log('[GAME-STATE] Local game saved:', gameId, 'name:', displayName);
+			} else if (backendSaveSuccessful) {
+				toast.success(`"${displayName}" saved to server`);
+				console.log('[GAME-STATE] Game saved to server:', gameId, 'name:', displayName);
+			} else if (!auth.isAuthenticated || auth.isTokenExpired) {
+				toast.warning(`"${displayName}" saved locally only (please sign in to save to server)`);
+				console.log('[GAME-STATE] Game saved locally only - authentication required:', gameId, 'name:', displayName);
+			} else {
+				toast.warning(`"${displayName}" saved locally only (server unavailable)`);
+				console.log('[GAME-STATE] Game saved locally only:', gameId, 'name:', displayName);
+			}
 		} catch (error) {
-			console.error('Failed to update exploration progress:', error);
+			console.error('Failed to save game:', error);
+			toast.error('Failed to save game');
+		} finally {
+			setIsLoading(false);
 		}
 	};
 
-	const togglePause = useCallback(() => {
-		setTimeSpeed(prev => prev === 1 ? 0 : 1);
-	}, []);
+	const loadGame = async (newGameId: string) => {
+		setIsLoading(true);
+		try {
+			// Check authentication status
+			if (!auth.isAuthenticated || auth.isTokenExpired) {
+				console.warn('[GAME-STATE] User not authenticated or token expired');
+				toast.error('Please sign in to load saved games');
+				throw new Error('Authentication required to load saved games');
+			}
 
-	const resumeGame = useCallback(() => {
-		setTimeSpeed(1);
-	}, []);
+			const savedGame = await SavedGameService.getSavedGame(newGameId);
+			console.log('[GAME-STATE] Loaded saved game from backend:', {
+				gameId: newGameId,
+				gameName: savedGame.name,
+				gameDataLength: savedGame.game_data?.length || 0,
+				gameDataPreview: savedGame.game_data?.substring(0, 200) + '...',
+			});
+			const gameData = JSON.parse(savedGame.game_data);
 
-	const pauseGame = useCallback(() => {
-		setTimeSpeed(0);
-	}, []);
+			// Set context state (non-game-engine data)
+			setDestinyStatus(gameData.destinyStatus);
+			setCharacters(gameData.characters || []);
+			setTechnologies(gameData.technologies || []);
+			setExploredRooms(gameData.exploredRooms || []);
+			setExplorationProgress(gameData.explorationProgress || []);
+			setCurrentGalaxy(gameData.currentGalaxy || null);
+			setCurrentSystem(gameData.currentSystem || null);
+			setKnownGalaxies(gameData.knownGalaxies || []);
+			setKnownSystems(gameData.knownSystems || []);
+			setGameId(newGameId);
+			setGameName(savedGame.name);
+			setIsInitialized(true);
 
-	const handleSetTimeSpeed = useCallback((speed: number) => {
-		setTimeSpeed(speed);
-	}, []);
+			// Store game data for game engine restoration when it's ready
+			// This will be picked up by the GamePage component
+			(window as any).loadedGameData = gameData;
 
-	const value: GameStateContextType = {
-		isPaused: timeSpeed === 0,
-		gameTime,
-		game,
-		timeSpeed,
-		togglePause,
-		setTimeSpeed: handleSetTimeSpeed,
-		resumeGame,
-		pauseGame,
-		// Dynamic room management
-		addRoomToGame: async (templateId, roomConfig) => {
-			return await gameService.addRoomToGame(game_id, templateId, roomConfig);
-		},
-		updateRoomConnections: async (roomId, connections) => {
-			return await gameService.updateRoomConnections(game_id, roomId, connections);
-		},
-		getAvailableRoomTemplates: async () => {
-			return await gameService.getAvailableRoomTemplates(game_id);
-		},
-		syncRoomFromTemplate: async (roomId, templateId) => {
-			return await gameService.syncRoomFromTemplate(game_id, roomId, templateId);
-		},
+			// Save to local storage as backup
+			localStorage.setItem('stargate-current-game-id', newGameId);
+			localStorage.setItem('stargate-current-game-name', savedGame.name);
+			localStorage.setItem(`stargate-game-${newGameId}`, savedGame.game_data);
+
+			console.log('[GAME-STATE] Loaded game from backend:', newGameId, 'name:', savedGame.name);
+			toast.success(`"${savedGame.name}" loaded successfully`);
+		} catch (error) {
+			console.error('Failed to load game from backend:', error);
+			// Don't fallback to local storage - require authentication
+			throw error;
+		} finally {
+			setIsLoading(false);
+		}
 	};
+
+	// Initialize game state on first load
+	useEffect(() => {
+		// Only try to auto-load if user is authenticated
+		if (auth.isAuthenticated && !auth.isTokenExpired) {
+			const currentGameId = localStorage.getItem('stargate-current-game-id');
+			if (currentGameId) {
+				// Load existing game
+				loadGame(currentGameId).catch(() => {
+					// If loading fails, don't auto-create a new game
+					console.log('[GAME-STATE] Failed to load existing game, waiting for user action');
+				});
+			}
+		} else {
+			console.log('[GAME-STATE] User not authenticated, clearing stored game session');
+			// Clear stored game session when not authenticated
+			localStorage.removeItem('stargate-current-game-id');
+			localStorage.removeItem('stargate-current-game-name');
+			// Reset game state to uninitialized
+			setGameId(null);
+			setGameName(null);
+			setIsInitialized(false);
+			setDestinyStatus(null);
+			setCharacters([]);
+			setTechnologies([]);
+			setExploredRooms([]);
+			setExplorationProgress([]);
+			setCurrentGalaxy(null);
+			setCurrentSystem(null);
+			setKnownGalaxies([]);
+			setKnownSystems([]);
+		}
+		// Don't auto-initialize new game - wait for user to click "Start New Game"
+	}, [auth.isAuthenticated, auth.isTokenExpired]); // Depend on auth state
+
+	// Auto-save every 15 minutes when game is active
+	useEffect(() => {
+		if (!gameId || !destinyStatus) return;
+
+		const autoSaveInterval = setInterval(() => {
+			console.log('[GAME-STATE] Auto-saving game...');
+			saveGame().catch(error => {
+				console.error('[GAME-STATE] Auto-save failed:', error);
+				// Don't show toast for auto-save failures to avoid spam
+			});
+		}, 15 * 60 * 1000); // 15 minutes in milliseconds
+
+		return () => clearInterval(autoSaveInterval);
+	}, [gameId, destinyStatus]);
 
 	return (
-		<GameStateContext.Provider value={value}>
+		<GameStateContext.Provider value={{
+			gameId,
+			setGameId,
+			gameName,
+			setGameName,
+			destinyStatus,
+			setDestinyStatus,
+			updateDestinyStatus,
+			characters,
+			setCharacters,
+			addCharacter,
+			updateCharacter,
+			removeCharacter,
+			technologies,
+			setTechnologies,
+			addTechnology,
+			exploredRooms,
+			setExploredRooms,
+			addExploredRoom,
+			explorationProgress,
+			setExplorationProgress,
+			currentGalaxy,
+			setCurrentGalaxy,
+			currentSystem,
+			setCurrentSystem,
+			knownGalaxies,
+			setKnownGalaxies,
+			knownSystems,
+			setKnownSystems,
+			startFTLJump,
+			exitFTL,
+			setTimeSpeed,
+			initializeNewGame,
+			saveGame,
+			loadGame,
+			isLoading,
+			isInitialized,
+		}}>
 			{children}
 		</GameStateContext.Provider>
 	);
 };
 
-export const useGameState = (): GameStateContextType => {
+export const useGameState = () => {
 	const context = useContext(GameStateContext);
 	if (context === undefined) {
 		throw new Error('useGameState must be used within a GameStateProvider');

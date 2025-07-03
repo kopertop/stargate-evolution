@@ -3,7 +3,7 @@ import { z } from 'zod';
 export const RaceTemplateSchema = z.object({
 	id: z.string(),
 	name: z.string(),
-	description: z.string().optional(),
+	description: z.string().optional().nullable(),
 	default_technology: z.string(),
 	default_ships: z.string(),
 	created_at: z.number(),

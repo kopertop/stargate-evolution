@@ -9,10 +9,10 @@
 
 import { execSync } from 'child_process';
 import { readFileSync, writeFileSync, readdirSync } from 'fs';
+import { DatabaseSync } from 'node:sqlite';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
-import { DatabaseSync } from 'node:sqlite';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);

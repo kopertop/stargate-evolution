@@ -1,9 +1,9 @@
 {
 	"name": "backend",
-	"version": "0.1.0",
+	"version": "0.2.0",
 	"private": true,
 	"scripts": {
-		"dev": "wrangler dev",
+		"start": "wrangler dev",
 		"typecheck": "tsc --noEmit",
 		"db:up": "wrangler d1 migrations apply stargate-game",
 		"db:down": "npx tsx bin/reset-database.ts",
@@ -12,6 +12,11 @@
 		"db:generate": "npx tsx bin/generate-d1-from-models.ts",
 		"db:create-schema": "pnpm run db:generate && pnpm run db:init",
 		"migration:generate": "npx tsx bin/generate-migration.ts",
+		"sync:from-remote": "npx tsx bin/sync-from-remote.ts",
+		"sync:dry-run": "npx tsx bin/sync-from-remote.ts --dry-run",
+		"schema:generate": "npx tsx bin/generate-schema.ts",
+		"prebuild": "pnpm run schema:generate",
+		"build": "echo 'Build step placeholder'",
 		"test": "vitest run",
 		"deploy": "npx wrangler deploy",
 		"postdeploy": "pnpm run db:up --remote"
@@ -24,11 +29,15 @@
 		"typescript": "^5.8.3",
 		"vite-tsconfig-paths": "^5.1.4",
 		"vitest": "^3.1.3",
-		"wrangler": "^4.19.1"
+		"wrangler": "^4.22.0"
 	},
 	"dependencies": {
 		"@stargate/common": "workspace:*",
 		"commander": "^14.0.0",
-		"jose": "^6.0.11"
+		"hono": "^4.5.3",
+		"jose": "^6.0.11",
+		"node-sql-parser": "^5.3.10",
+		"openapi-types": "^12.1.3",
+		"ulid": "^2.4.0"
 	}
 }
