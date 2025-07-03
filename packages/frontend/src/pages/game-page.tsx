@@ -169,6 +169,10 @@ export const GamePage: React.FC = () => {
 
 		return () => {
 			destroyed = true;
+			if (gameRef.current) {
+				gameRef.current.destroy();
+				gameRef.current = null;
+			}
 			if (pixiAppRef.current) {
 				pixiAppRef.current.destroy(true);
 				pixiAppRef.current = null;

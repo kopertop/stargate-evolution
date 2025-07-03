@@ -68,6 +68,7 @@ export class Game {
 
 	// Pending restoration data (stored until room system is ready)
 	private pendingRestoration: any = null;
+	private isDestroyed = false;
 
 	constructor(app: PIXI.Application, options: GameOptions = {}, gameData?: any) {
 		this.app = app;
@@ -699,6 +700,10 @@ export class Game {
 	}
 
 	public destroy() {
+		console.log('[GAME] Destroying game instance');
+		this.isDestroyed = true;
+		this.pendingRestoration = null;
+		
 		// Cleanup controller subscriptions
 		this.controllerUnsubscribers.forEach(unsubscribe => unsubscribe());
 		this.controllerUnsubscribers = [];
@@ -807,14 +812,23 @@ export class Game {
 			fullDataSize: JSON.stringify(fullGameData).length,
 		});
 
-		// Save to backend using SavedGameService
-		await SavedGameService.updateGameState(gameId, fullGameData);
-
-		console.log('[GAME] Game state saved successfully to backend');
+		try {
+			// Save to backend using SavedGameService
+			await SavedGameService.updateGameState(gameId, fullGameData);
+			console.log('[GAME] Game state saved successfully to backend');
+		} catch (error) {
+			console.error('[GAME] Failed to save game state:', error);
+			throw new Error(`Failed to save game: ${error instanceof Error ? error.message : 'Unknown error'}`);
+		}
 	}
 
 	// Load game state from saved data
 	public loadFromJSON(gameData: any): void {
+		if (this.isDestroyed) {
+			console.log('[GAME] Game destroyed - skipping restoration');
+			return;
+		}
+
 		console.log('[GAME] Loading game state from saved data');
 
 		// If room system isn't initialized yet, store data for later restoration
@@ -828,6 +842,11 @@ export class Game {
 	}
 
 	private performRestoration(gameData: any): void {
+		if (this.isDestroyed) {
+			console.log('[GAME] Game destroyed during restoration - aborting');
+			return;
+		}
+
 		console.log('[GAME] Performing game state restoration');
 
 		// Restore player position
@@ -1047,7 +1066,7 @@ export class Game {
 			console.log('[DEBUG] Room system initialized successfully with default zoom:', DEFAULT_ZOOM);
 
 			// Check for pending restoration data now that room system is ready
-			if (this.pendingRestoration) {
+			if (this.pendingRestoration && !this.isDestroyed) {
 				console.log('[GAME] Room system ready - performing pending restoration');
 				this.performRestoration(this.pendingRestoration);
 				this.pendingRestoration = null;

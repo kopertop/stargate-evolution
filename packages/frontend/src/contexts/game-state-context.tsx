@@ -337,7 +337,11 @@ export const GameStateProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 				console.log('[GAME-STATE] Game saved using game engine');
 			} else {
 				// Fallback: save context data only (for cases where game engine isn't available)
-				console.warn('[GAME-STATE] No game engine reference - saving context data only');
+				if (gameEngineRef) {
+					console.warn('[GAME-STATE] Invalid game engine reference provided - missing save method');
+				} else {
+					console.warn('[GAME-STATE] No game engine reference - saving context data only');
+				}
 				await SavedGameService.updateGameState(gameId, contextData);
 			}
 
