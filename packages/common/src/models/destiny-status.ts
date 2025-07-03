@@ -24,8 +24,6 @@ export const DestinyStatusSchema = z.object({
 	co2Scrubbers: z.number(),
 	weapons: z.string(), // JSON
 	shuttles: z.string(), // JSON
-	game_days: z.number(), // Deprecated - keeping for backward compatibility
-	game_hours: z.number(), // Deprecated - keeping for backward compatibility
 	current_time: z.number(), // Seconds since game start
 	next_jump_time: z.number(), // Exact second when next FTL transition occurs
 	time_speed: z.number(), // Seconds per real-world second (default: 1)

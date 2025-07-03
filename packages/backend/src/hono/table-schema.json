@@ -1354,7 +1354,7 @@
       "name": "saved_games",
       "tbl_name": "saved_games",
       "rootpage": 59,
-      "sql": "CREATE TABLE saved_games (\n\tid TEXT PRIMARY KEY,\n\tuser_id TEXT NOT NULL,\n\tname TEXT NOT NULL,\n\tdescription TEXT,\n\tgame_data TEXT NOT NULL, \n\tcreated_at INTEGER DEFAULT (strftime('%s','now')),\n\tupdated_at INTEGER DEFAULT (strftime('%s','now')),\n\tFOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE\n)",
+      "sql": "CREATE TABLE saved_games (\n\tid TEXT PRIMARY KEY,\n\tuser_id TEXT NOT NULL,\n\tname TEXT NOT NULL,\n\tdescription TEXT,\n\tgame_data TEXT NOT NULL, \n\tcreated_at INTEGER DEFAULT (strftime('%s','now')),\n\tupdated_at INTEGER DEFAULT (strftime('%s','now')), game_time INTEGER DEFAULT 0,\n\tFOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE\n)",
       "columns": [
         {
           "name": "id",
@@ -1435,11 +1435,19 @@
             "over": null,
             "parentheses": true
           }
+        },
+        {
+          "name": "game_time",
+          "type": "INTEGER",
+          "dflt_value": {
+            "type": "number",
+            "value": 0
+          }
         }
       ],
       "rowCount": 0
     }
   ],
-  "generatedAt": "2025-07-03T02:07:50.716Z",
+  "generatedAt": "2025-07-03T17:53:29.546Z",
   "version": "1.0.0"
 }

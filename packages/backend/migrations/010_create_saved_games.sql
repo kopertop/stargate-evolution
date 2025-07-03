@@ -2,6 +2,7 @@
 CREATE TABLE IF NOT EXISTS saved_games (
 	id TEXT PRIMARY KEY,
 	user_id TEXT NOT NULL,
+	game_time INTEGER DEFAULT 0,
 	name TEXT NOT NULL,
 	description TEXT,
 	game_data TEXT NOT NULL, -- JSON blob containing complete game state
