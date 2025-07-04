@@ -804,7 +804,7 @@ export const SqlDebugPage: React.FC = () => {
 							<div style={{ color: isDragOver ? '#007bff' : '#6c757d' }}>
 								<strong>📁 Drop JSON file here</strong>
 								<br />
-								<small>or click the "Load from File" button below</small>
+								<small>or click the &quot;Load from File&quot; button below</small>
 							</div>
 						</div>
 						<Form.Control
