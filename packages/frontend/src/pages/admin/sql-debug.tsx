@@ -50,6 +50,7 @@ export const SqlDebugPage: React.FC = () => {
 	const [importMode, setImportMode] = useState<'replace' | 'append'>('replace');
 	const [isExporting, setIsExporting] = useState(false);
 	const [isImporting, setIsImporting] = useState(false);
+	const [isDragOver, setIsDragOver] = useState(false);
 
 	// Load database schema on component mount
 	useEffect(() => {
@@ -222,6 +223,43 @@ export const SqlDebugPage: React.FC = () => {
 	const openImportModal = (tableName: string) => {
 		setImportTableName(tableName);
 		setShowImportModal(true);
+	};
+
+	const handleFileUpload = (file: File) => {
+		if (file.type !== 'application/json' && !file.name.endsWith('.json')) {
+			toast.error('Please select a JSON file');
+			return;
+		}
+
+		const reader = new FileReader();
+		reader.onload = (e) => {
+			setImportData(e.target?.result as string || '');
+			toast.success(`Loaded file: ${file.name}`);
+		};
+		reader.onerror = () => {
+			toast.error('Failed to read file');
+		};
+		reader.readAsText(file);
+	};
+
+	const handleDragOver = (e: React.DragEvent) => {
+		e.preventDefault();
+		setIsDragOver(true);
+	};
+
+	const handleDragLeave = (e: React.DragEvent) => {
+		e.preventDefault();
+		setIsDragOver(false);
+	};
+
+	const handleDrop = (e: React.DragEvent) => {
+		e.preventDefault();
+		setIsDragOver(false);
+
+		const files = Array.from(e.dataTransfer.files);
+		if (files.length > 0) {
+			handleFileUpload(files[0]);
+		}
 	};
 
 	const renderQueryResult = () => {
@@ -749,6 +787,26 @@ export const SqlDebugPage: React.FC = () => {
 
 					<Form.Group className="mb-3">
 						<Form.Label>JSON Data (Array of Objects)</Form.Label>
+						<div
+							onDragOver={handleDragOver}
+							onDragLeave={handleDragLeave}
+							onDrop={handleDrop}
+							style={{
+								border: `2px dashed ${isDragOver ? '#007bff' : '#dee2e6'}`,
+								borderRadius: '0.375rem',
+								padding: '1rem',
+								textAlign: 'center',
+								backgroundColor: isDragOver ? '#f8f9fa' : 'transparent',
+								transition: 'all 0.2s ease',
+								marginBottom: '0.5rem',
+							}}
+						>
+							<div style={{ color: isDragOver ? '#007bff' : '#6c757d' }}>
+								<strong>📁 Drop JSON file here</strong>
+								<br />
+								<small>or click the "Load from File" button below</small>
+							</div>
+						</div>
 						<Form.Control
 							as="textarea"
 							rows={12}
@@ -767,7 +825,7 @@ export const SqlDebugPage: React.FC = () => {
 							style={{ fontFamily: 'monospace', fontSize: '0.875rem' }}
 						/>
 						<Form.Text className="text-muted">
-							Paste JSON array of objects. Each object should match the table&apos;s column structure.
+							Paste JSON array of objects or drag & drop a JSON file. Each object should match the table&apos;s column structure.
 						</Form.Text>
 					</Form.Group>
 
@@ -782,11 +840,7 @@ export const SqlDebugPage: React.FC = () => {
 								input.onchange = (e) => {
 									const file = (e.target as HTMLInputElement).files?.[0];
 									if (file) {
-										const reader = new FileReader();
-										reader.onload = (e) => {
-											setImportData(e.target?.result as string || '');
-										};
-										reader.readAsText(file);
+										handleFileUpload(file);
 									}
 								};
 								input.click();
