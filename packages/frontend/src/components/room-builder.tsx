@@ -662,8 +662,6 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 	};
 
 	const handleCanvasWheel = (event: React.WheelEvent<HTMLCanvasElement>) => {
-		event.preventDefault();
-
 		const canvas = canvasRef.current;
 		if (!canvas) return;
 
@@ -693,6 +691,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 			y: camera.y + (worldBeforeZoom.y - worldAfterZoom.y),
 			zoom: newZoom,
 		});
+		return false;
 	};
 
 	const handleCanvasMouseDown = (event: React.MouseEvent<HTMLCanvasElement>) => {
