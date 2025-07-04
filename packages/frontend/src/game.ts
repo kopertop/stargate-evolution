@@ -2,13 +2,16 @@ import type {
 	RoomTemplate,
 	DoorTemplate,
 	RoomFurniture,
+	NPC,
 } from '@stargate/common';
 import * as PIXI from 'pixi.js';
 
 import { HelpPopover } from './help-popover';
 import type { GamepadAxis, GamepadButton } from './services/game-controller';
+import { NPCManager } from './services/npc-manager';
 import { SavedGameService } from './services/saved-game-service';
 import { TemplateService } from './services/template-service';
+import { exposeNPCTestUtils, addTestNPCsToGame } from './utils/npc-test-utils';
 
 const SHIP_SPEED = 4;
 const SPEED_MULTIPLIER = 5; // 5x speed when running (Shift/Right Trigger)
@@ -62,9 +65,13 @@ export class Game {
 	private roomsLayer: PIXI.Container | null = null;
 	private doorsLayer: PIXI.Container | null = null;
 	private furnitureLayer: PIXI.Container | null = null;
+	private npcLayer: PIXI.Container | null = null;
 	private rooms: RoomTemplate[] = [];
 	private doors: DoorTemplate[] = [];
 	private furniture: RoomFurniture[] = [];
+	
+	// NPC system
+	private npcManager: NPCManager | null = null;
 
 	// Pending restoration data (stored until room system is ready)
 	private pendingRestoration: any = null;
@@ -388,6 +395,11 @@ export class Game {
 		// Player's visual position is player.x * world.scale, so we need to offset by that amount
 		this.world.x = centerX - (this.player.x * this.world.scale.x);
 		this.world.y = centerY - (this.player.y * this.world.scale.y);
+		
+		// Update NPCs
+		if (this.npcManager) {
+			this.npcManager.updateNPCs(this.doors, this.rooms, (doorId, isNPC) => this.activateDoor(doorId, isNPC));
+		}
 	}
 
 	// Collision detection system
@@ -657,7 +669,7 @@ export class Game {
 		}
 	}
 
-	public activateDoor(doorId: string): boolean {
+	public activateDoor(doorId: string, isNPC: boolean = false): boolean {
 		const door = this.doors.find(d => d.id === doorId);
 		if (!door) {
 			console.log('[DOOR] Door not found:', doorId);
@@ -668,6 +680,20 @@ export class Game {
 		if (door.state === 'locked') {
 			console.log('[DOOR] Cannot activate locked door:', doorId);
 			return false;
+		}
+
+		// NPC access control
+		if (isNPC) {
+			// NPCs can only open doors that have been cleared by the user
+			if (!door.cleared) {
+				console.log('[DOOR] NPC cannot open uncleared door:', doorId);
+				return false;
+			}
+			// NPCs cannot open restricted doors
+			if (door.restricted) {
+				console.log('[DOOR] NPC cannot open restricted door:', doorId);
+				return false;
+			}
 		}
 
 		// Check if player has required power/items (placeholder for future implementation)
@@ -686,6 +712,12 @@ export class Game {
 		} else if (door.state === 'closed') {
 			door.state = 'opened';
 			console.log('[DOOR] Opened door:', doorId);
+			
+			// Mark door as cleared when user opens it for the first time
+			if (!isNPC && !door.cleared) {
+				door.cleared = true;
+				console.log('[DOOR] Marked door as cleared by user:', doorId);
+			}
 		}
 
 		// Re-render doors to show state change
@@ -697,6 +729,76 @@ export class Game {
 	public setMenuOpen(isOpen: boolean) {
 		console.log('[GAME] Menu state changed. Is open:', isOpen);
 		this.menuOpen = isOpen;
+	}
+
+	// NPC management methods
+	public addNPC(npc: NPC): void {
+		if (this.npcManager) {
+			this.npcManager.addNPC(npc);
+			console.log('[GAME] Added NPC:', npc.id);
+		}
+	}
+
+	public removeNPC(npcId: string): void {
+		if (this.npcManager) {
+			this.npcManager.removeNPC(npcId);
+			console.log('[GAME] Removed NPC:', npcId);
+		}
+	}
+
+	public getNPCs(): NPC[] {
+		return this.npcManager ? this.npcManager.getNPCs() : [];
+	}
+
+	public getNPC(id: string): NPC | undefined {
+		return this.npcManager ? this.npcManager.getNPC(id) : undefined;
+	}
+
+	// Door restriction management
+	public setDoorRestricted(doorId: string, restricted: boolean): boolean {
+		const door = this.doors.find(d => d.id === doorId);
+		if (!door) {
+			console.log('[DOOR] Door not found for restriction update:', doorId);
+			return false;
+		}
+
+		door.restricted = restricted;
+		console.log('[DOOR] Set door restriction:', doorId, 'restricted:', restricted);
+		
+		// Re-render doors to show potential visual changes
+		this.renderRooms();
+		return true;
+	}
+
+	public getDoorRestrictions(): { doorId: string; restricted: boolean; cleared: boolean }[] {
+		return this.doors.map(door => ({
+			doorId: door.id,
+			restricted: door.restricted || false,
+			cleared: door.cleared || false,
+		}));
+	}
+
+	// Initialize test NPCs for development
+	private initializeTestNPCs(): void {
+		if (this.rooms.length === 0) {
+			console.log('[NPC-TEST] No rooms available - skipping test NPC initialization');
+			return;
+		}
+
+		// Prepare room data for test utility
+		const roomData = this.rooms.map(room => ({
+			id: room.id,
+			centerX: room.startX + (room.endX - room.startX) / 2,
+			centerY: room.startY + (room.endY - room.startY) / 2,
+		}));
+
+		// Add test NPCs
+		try {
+			addTestNPCsToGame(this, roomData);
+			console.log('[NPC-TEST] Test NPCs initialized successfully');
+		} catch (error) {
+			console.error('[NPC-TEST] Failed to initialize test NPCs:', error);
+		}
 	}
 
 	public destroy() {
@@ -1037,14 +1139,20 @@ export class Game {
 			this.roomsLayer = new PIXI.Container();
 			this.doorsLayer = new PIXI.Container();
 			this.furnitureLayer = new PIXI.Container();
+			this.npcLayer = new PIXI.Container();
 
 			console.log('[DEBUG] Created rendering layers');
 
-			// Add layers to world in correct order (rooms first, then doors, then furniture, then player)
+			// Add layers to world in correct order (rooms first, then doors, then furniture, then NPCs, then player)
 			this.world.addChild(this.roomsLayer);
 			this.world.addChild(this.doorsLayer);
 			this.world.addChild(this.furnitureLayer);
+			this.world.addChild(this.npcLayer);
 			this.world.addChild(this.player); // Add player on top of everything
+			
+			// Initialize NPC manager
+			this.npcManager = new NPCManager(this.npcLayer);
+			console.log('[DEBUG] Initialized NPC manager');
 
 			console.log('[DEBUG] Added layers to world');
 
@@ -1064,6 +1172,14 @@ export class Game {
 			this.setMapZoom(DEFAULT_ZOOM);
 
 			console.log('[DEBUG] Room system initialized successfully with default zoom:', DEFAULT_ZOOM);
+
+			// Initialize test NPCs for development
+			this.initializeTestNPCs();
+			
+			// Expose NPC test utilities to console for development
+			if (import.meta.env.DEV) {
+				exposeNPCTestUtils();
+			}
 
 			// Check for pending restoration data now that room system is ready
 			if (this.pendingRestoration && !this.isDestroyed) {

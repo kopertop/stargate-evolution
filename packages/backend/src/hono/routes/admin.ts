@@ -1,11 +1,17 @@
+import { RoomTemplateSchema } from '@stargate/common/zod-templates';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
+import { ZodError } from 'zod';
 
 import type { Env, User } from '../../types';
 import { verifyAdmin } from '../middleware/admin';
 import { verifyJwt } from '../middleware/auth';
 // Import the static schema
 import tableSchema from '../table-schema.json';
+
+const CALCULATED_ROWS_FOR_TABLE = {
+	room_templates: ['width', 'height'],
+};
 
 const admin = new Hono<{ Bindings: Env; Variables: { user: User } }>();
 
@@ -156,10 +162,22 @@ admin.delete('/doors/:id', async (c) => {
 // --- Room Templates ---
 admin.post('/rooms', async (c) => {
 	const body = await c.req.json();
+	console.log('Create Room', body);
+	try {
+		RoomTemplateSchema.parse(body);
+	} catch (error) {
+		console.error('Zod validation error:', error);
+		return c.json({
+			error: 'Invalid Room Template',
+			details: error instanceof Error ? error.message : String(error),
+			issues: error instanceof ZodError ? error.issues : [],
+			errors: error instanceof ZodError ? error.errors : [],
+		}, 400);
+	}
 	// TODO: Add validation
 	try {
 		await c.env.DB.prepare(
-			'INSERT INTO room_templates (id, layout_id, type, name, description, startX, endX, startY, endY, floor, width, height, image, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+			'INSERT INTO room_templates (id, layout_id, type, name, description, startX, endX, startY, endY, floor, image, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
 		)
 			.bind(
 				body.id,
@@ -172,8 +190,6 @@ admin.post('/rooms', async (c) => {
 				body.startY,
 				body.endY,
 				body.floor,
-				body.width,
-				body.height,
 				body.image,
 				Date.now(),
 				Date.now(),
@@ -182,7 +198,10 @@ admin.post('/rooms', async (c) => {
 		return c.json({ message: 'Room template created successfully' }, 201);
 	} catch (error) {
 		console.error('Failed to create room template:', error);
-		return c.json({ error: 'Failed to create room template' }, 500);
+		return c.json({
+			error: 'Failed to create room template',
+			details: error instanceof Error ? error.message : String(error),
+		}, 500);
 	}
 });
 
@@ -192,7 +211,7 @@ admin.put('/rooms/:id', async (c) => {
 	// TODO: Add validation
 	try {
 		await c.env.DB.prepare(
-			'UPDATE room_templates SET layout_id = ?, type = ?, name = ?, description = ?, startX = ?, endX = ?, startY = ?, endY = ?, floor = ?, width = ?, height = ?, image = ?, updated_at = ? WHERE id = ?',
+			'UPDATE room_templates SET layout_id = ?, type = ?, name = ?, description = ?, startX = ?, endX = ?, startY = ?, endY = ?, floor = ?, image = ?, updated_at = ? WHERE id = ?',
 		)
 			.bind(
 				body.layout_id,
@@ -204,8 +223,6 @@ admin.put('/rooms/:id', async (c) => {
 				body.startY,
 				body.endY,
 				body.floor,
-				body.width,
-				body.height,
 				body.image,
 				Date.now(),
 				id,
@@ -801,57 +818,55 @@ admin.post('/sql/import/:tableName', async (c) => {
 			return c.json({ error: 'Data must contain objects' }, 400);
 		}
 
-		const columns = Object.keys(firstRow);
+		// Exclude auto-calculated columns
+		const columns = Object.keys(firstRow).filter(
+			col => !CALCULATED_ROWS_FOR_TABLE[tableName as keyof typeof CALCULATED_ROWS_FOR_TABLE]?.includes(col),
+		);
 		const placeholders = columns.map(() => '?').join(', ');
 		const columnList = columns.join(', ');
 
-		// Start transaction
-		await c.env.DB.prepare('BEGIN TRANSACTION').run();
+		// Prepare all statements for batch execution
+		const statements: any[] = [];
 
-		try {
-			// If replace mode, delete existing data
-			if (mode === 'replace') {
-				const deleteResult = await c.env.DB.prepare(`DELETE FROM ${tableName}`).run();
-				console.log(`[ADMIN-SQL] Deleted ${deleteResult.meta?.changes || 0} existing rows from ${tableName}`);
-			}
-
-			// Insert new data
-			const insertQuery = `INSERT INTO ${tableName} (${columnList}) VALUES (${placeholders})`;
-			const insertStmt = c.env.DB.prepare(insertQuery);
-
-			for (const row of data) {
-				// Ensure all required columns are present and get values in correct order
-				const values = columns.map(col => {
-					const value = row[col];
-					// Handle JSON objects/arrays by stringifying them
-					if (typeof value === 'object' && value !== null) {
-						return JSON.stringify(value);
-					}
-					return value;
-				});
-
-				await insertStmt.bind(...values).run();
-				rowsAffected++;
-			}
-
-			// Commit transaction
-			await c.env.DB.prepare('COMMIT').run();
-
-			console.log(`[ADMIN-SQL] Successfully imported ${rowsAffected} rows to table ${tableName}`);
-
-			return c.json({
-				success: true,
-				message: `Successfully ${mode === 'replace' ? 'replaced' : 'appended'} data in table ${tableName}`,
-				rowsAffected,
-				importedAt: new Date().toISOString(),
-				importedBy: user.email,
-			});
-
-		} catch (error) {
-			// Rollback on error
-			await c.env.DB.prepare('ROLLBACK').run();
-			throw error;
+		// If replace mode, add delete statement
+		if (mode === 'replace') {
+			statements.push(c.env.DB.prepare(`DELETE FROM ${tableName}`));
 		}
+
+		// Add insert statements
+		const insertQuery = `INSERT INTO ${tableName} (${columnList}) VALUES (${placeholders})`;
+		for (const row of data) {
+			const values = columns.map(col => {
+				const value = row[col];
+				if (typeof value === 'object' && value !== null) {
+					return JSON.stringify(value);
+				}
+				return value;
+			});
+			statements.push(c.env.DB.prepare(insertQuery).bind(...values));
+		}
+
+		// Execute all statements in a batch
+		const results = await c.env.DB.batch(statements);
+
+		// Count affected rows
+		if (mode === 'replace') {
+			rowsAffected = results.length - 1; // Subtract 1 for delete statement
+		} else {
+			rowsAffected = results.length;
+		}
+
+		console.log(`[ADMIN-SQL] Successfully imported ${rowsAffected} rows to table ${tableName}`);
+
+		return c.json({
+			success: true,
+			message: `Successfully ${mode === 'replace' ? 'replaced' : 'appended'} data in table ${tableName}`,
+			rowsAffected,
+			importedAt: new Date().toISOString(),
+			importedBy: user.email,
+		});
+
+
 
 	} catch (error) {
 		console.error('[ADMIN-SQL] Import failed:', error);

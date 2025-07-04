@@ -28,20 +28,24 @@ export function calculateRoomPositions(
 	}
 
 	function markOccupied(room: RoomTemplate, gridX: number, gridY: number) {
-		const halfW = Math.floor(room.width / 2);
-		const halfH = Math.floor(room.height / 2);
-		for (let dx = -halfW; dx < room.width - halfW; dx++) {
-			for (let dy = -halfH; dy < room.height - halfH; dy++) {
+		const roomWidth = room.width ?? 1;
+		const roomHeight = room.height ?? 1;
+		const halfW = Math.floor(roomWidth / 2);
+		const halfH = Math.floor(roomHeight / 2);
+		for (let dx = -halfW; dx < roomWidth - halfW; dx++) {
+			for (let dy = -halfH; dy < roomHeight - halfH; dy++) {
 				occupied.add(`${gridX + dx},${gridY + dy}`);
 			}
 		}
 	}
 
 	function isOccupied(room: RoomTemplate, gridX: number, gridY: number) {
-		const halfW = Math.floor(room.width / 2);
-		const halfH = Math.floor(room.height / 2);
-		for (let dx = -halfW; dx < room.width - halfW; dx++) {
-			for (let dy = -halfH; dy < room.height - halfH; dy++) {
+		const roomWidth = room.width ?? 1;
+		const roomHeight = room.height ?? 1;
+		const halfW = Math.floor(roomWidth / 2);
+		const halfH = Math.floor(roomHeight / 2);
+		for (let dx = -halfW; dx < roomWidth - halfW; dx++) {
+			for (let dy = -halfH; dy < roomHeight - halfH; dy++) {
 				if (occupied.has(`${gridX + dx},${gridY + dy}`)) return true;
 			}
 		}
@@ -62,10 +66,10 @@ export function calculateRoomPositions(
 
 		// Calculate the distance from parent center to its edge, plus distance from child edge to its center
 		// Use proper half calculations without Math.floor to handle 1x1 rooms correctly
-		const parentHalfWidth = parentRoom.width / 2;
-		const parentHalfHeight = parentRoom.height / 2;
-		const childHalfWidth = childRoom.width / 2;
-		const childHalfHeight = childRoom.height / 2;
+		const parentHalfWidth = (parentRoom.width ?? 1) / 2;
+		const parentHalfHeight = (parentRoom.height ?? 1) / 2;
+		const childHalfWidth = (childRoom.width ?? 1) / 2;
+		const childHalfHeight = (childRoom.height ?? 1) / 2;
 
 		switch (direction) {
 		case 'north':
@@ -106,10 +110,10 @@ export function calculateRoomPositions(
 		}
 
 		// Try alternative alignments for different sized rooms
-		const parentHalfWidth = parentRoom.width / 2;
-		const parentHalfHeight = parentRoom.height / 2;
-		const childHalfWidth = childRoom.width / 2;
-		const childHalfHeight = childRoom.height / 2;
+		const parentHalfWidth = (parentRoom.width ?? 1) / 2;
+		const parentHalfHeight = (parentRoom.height ?? 1) / 2;
+		const childHalfWidth = (childRoom.width ?? 1) / 2;
+		const childHalfHeight = (childRoom.height ?? 1) / 2;
 
 		// For horizontal connections (east/west), try aligning along the vertical axis
 		if (direction === 'east' || direction === 'west') {
@@ -294,8 +298,8 @@ export function getRoomGridBounds(room: RoomTemplate, positions: Record<string, 
 	// If we have grid positions for this room, use them
 	const gridPos = positions[room.id];
 	if (gridPos) {
-		const halfWidth = room.width / 2;
-		const halfHeight = room.height / 2;
+		const halfWidth = (room.width ?? 1) / 2;
+		const halfHeight = (room.height ?? 1) / 2;
 		return {
 			left: gridPos.gridX - halfWidth,
 			right: gridPos.gridX + halfWidth,
