@@ -25,8 +25,8 @@ export async function createDoorTemplate(db: D1Database, doorData: Omit<DoorTemp
 		INSERT INTO door_templates (
 			id, name, from_room_id, to_room_id, x, y, width, height, rotation,
 			state, is_automatic, open_direction, style, color, requirements, power_required, sound_effect,
-			created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			cleared, restricted, created_at, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`).bind(
 		doorData.id,
 		doorData.name || null,
@@ -45,6 +45,8 @@ export async function createDoorTemplate(db: D1Database, doorData: Omit<DoorTemp
 		doorData.requirements ? JSON.stringify(doorData.requirements) : null,
 		doorData.power_required || 0,
 		doorData.sound_effect || null,
+		doorData.cleared || false,
+		doorData.restricted || false,
 		now,
 		now,
 	).run();
@@ -58,7 +60,7 @@ export async function updateDoorTemplate(db: D1Database, doorId: string, doorDat
 		UPDATE door_templates SET
 			name = ?, from_room_id = ?, to_room_id = ?, x = ?, y = ?, width = ?, height = ?, rotation = ?,
 			state = ?, is_automatic = ?, open_direction = ?, style = ?, color = ?, requirements = ?,
-			power_required = ?, sound_effect = ?, updated_at = ?
+			power_required = ?, sound_effect = ?, cleared = ?, restricted = ?, updated_at = ?
 		WHERE id = ?
 	`).bind(
 		doorData.name || null,
@@ -77,6 +79,8 @@ export async function updateDoorTemplate(db: D1Database, doorId: string, doorDat
 		doorData.requirements ? JSON.stringify(doorData.requirements) : null,
 		doorData.power_required || 0,
 		doorData.sound_effect || null,
+		doorData.cleared || false,
+		doorData.restricted || false,
 		now,
 		doorId,
 	).run();
