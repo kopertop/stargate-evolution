@@ -13,6 +13,7 @@ import {
 	FaUsers,
 	FaCloud,
 	FaLeaf,
+	FaPause,
 } from 'react-icons/fa';
 
 interface ResourceBarProps {
@@ -38,6 +39,7 @@ interface ResourceBarProps {
   characterCount: number;
   currentTime?: number; // Seconds since game start
   onTimeSpeedChange?: (newSpeed: number) => void; // Optional click handler for time speed
+  onShowPause?: () => void; // Optional pause menu handler
 }
 
 interface ResourceItemProps {
@@ -152,6 +154,7 @@ export const ResourceBar: React.FC<ResourceBarProps> = ({
 	characterCount,
 	currentTime,
 	onTimeSpeedChange,
+	onShowPause,
 }) => {
 	// Handle time speed cycling when clicked
 	const handleTimeSpeedClick = () => {
@@ -182,6 +185,45 @@ export const ResourceBar: React.FC<ResourceBarProps> = ({
 				<Row className="align-items-center">
 					<Col xs="auto">
 						<div className="d-flex align-items-center flex-wrap">
+							{/* Pause Menu Button */}
+							{onShowPause && (
+								<OverlayTrigger
+									placement="bottom"
+									delay={{ show: 250, hide: 150 }}
+									overlay={
+										<Tooltip id="pause-menu-tooltip">
+											Pause Game
+										</Tooltip>
+									}
+								>
+									<div
+										className="d-flex align-items-center me-3"
+										onClick={onShowPause}
+										style={{
+											fontSize: '1rem',
+											cursor: 'pointer',
+											padding: '6px 8px',
+											borderRadius: '4px',
+											background: 'rgba(108, 117, 125, 0.1)',
+											border: '1px solid #6c757d',
+											transition: 'all 0.2s ease',
+										}}
+										onMouseEnter={(e) => {
+											e.currentTarget.style.background = 'rgba(108, 117, 125, 0.2)';
+											e.currentTarget.style.transform = 'scale(1.05)';
+										}}
+										onMouseLeave={(e) => {
+											e.currentTarget.style.background = 'rgba(108, 117, 125, 0.1)';
+											e.currentTarget.style.transform = 'scale(1)';
+										}}
+									>
+										<span style={{ color: '#6c757d' }}>
+											<FaPause />
+										</span>
+									</div>
+								</OverlayTrigger>
+							)}
+
 							{/* Power & Critical Systems */}
 							<ResourceItem
 								icon={<FaBolt />}

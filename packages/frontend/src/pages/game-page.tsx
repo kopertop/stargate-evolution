@@ -504,14 +504,9 @@ const GameRenderer: React.FC<GameRendererProps> = ({ gameId, savedGameData }) =>
 				nextFtlTransition={destinyStatus.next_ftl_transition}
 				timeSpeed={destinyStatus.time_speed}
 				onTimeSpeedChange={gameState.setTimeSpeed}
+				onShowPause={() => setShowPause(true)}
 				characterCount={gameState.characters.length || 4}
 			/>
-
-			{!isFullscreen && (
-				<div style={{ position: 'absolute', top: 56, left: 16, zIndex: 10 }}>
-					<Button variant="secondary" onClick={() => navigate('/')}>Back to Menu</Button>
-				</div>
-			)}
 			<div
 				ref={canvasRef}
 				style={{
