@@ -82,6 +82,8 @@ export class Game {
 	private fogOfWarManager: FogOfWarManager | null = null;
 	private fogLayer: PIXI.Container | null = null;
 
+	private furnitureTextureCache: Record<string, PIXI.Texture> = {};
+
 	constructor(app: PIXI.Application, options: GameOptions = {}, gameData?: any) {
 		this.app = app;
 		this.options = options;
@@ -1400,7 +1402,7 @@ export class Game {
 		console.log(`[DEBUG] Rendered door at (${door.x}, ${door.y}) size (${door.width}x${door.height}) rotation: ${door.rotation}° state: ${door.state}`);
 	}
 
-	private renderFurnitureItem(furniture: RoomFurniture) {
+	private async renderFurnitureItem(furniture: RoomFurniture) {
 		if (!this.furnitureLayer) return;
 
 		// Find the room this furniture belongs to
@@ -1414,7 +1416,35 @@ export class Game {
 		const roomCenterX = room.startX + (room.endX - room.startX) / 2;
 		const roomCenterY = room.startY + (room.endY - room.startY) / 2;
 
-		// Create furniture graphics (bright color for visibility)
+		// If furniture has an image, render as PIXI.Sprite
+		if (furniture.image) {
+			let texture = this.furnitureTextureCache[furniture.image];
+			if (!texture) {
+				try {
+					texture = await PIXI.Assets.load(furniture.image);
+					this.furnitureTextureCache[furniture.image] = texture;
+				} catch (err) {
+					console.warn(`[DEBUG] Failed to load furniture image: ${furniture.image}`, err);
+				}
+			}
+			if (texture) {
+				const sprite = new PIXI.Sprite(texture);
+				// Set anchor to center
+				sprite.anchor.set(0.5);
+				// Stretch to furniture width/height
+				sprite.width = furniture.width;
+				sprite.height = furniture.height;
+				// Position relative to room center
+				sprite.x = roomCenterX + furniture.x;
+				sprite.y = roomCenterY + furniture.y;
+				sprite.rotation = (furniture.rotation * Math.PI) / 180;
+				this.furnitureLayer.addChild(sprite);
+				console.log(`[DEBUG] Rendered furniture image: ${furniture.name} at room-relative (${furniture.x}, ${furniture.y})`);
+				return;
+			}
+		}
+
+		// Fallback: Create furniture graphics (bright color for visibility)
 		const furnitureGraphics = new PIXI.Graphics();
 		furnitureGraphics.rect(-furniture.width/2, -furniture.height/2, furniture.width, furniture.height).fill(0x00FF88); // Bright green color
 		furnitureGraphics.rect(-furniture.width/2, -furniture.height/2, furniture.width, furniture.height).stroke({ color: 0xFFFFFF, width: 2 }); // White border
@@ -1425,7 +1455,6 @@ export class Game {
 		furnitureGraphics.rotation = (furniture.rotation * Math.PI) / 180;
 
 		this.furnitureLayer.addChild(furnitureGraphics);
-
 		console.log(`[DEBUG] Rendered furniture: ${furniture.name} at room-relative (${furniture.x}, ${furniture.y})`);
 	}
 
