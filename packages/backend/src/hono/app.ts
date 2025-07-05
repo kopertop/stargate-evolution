@@ -7,11 +7,17 @@ import admin from './routes/admin';
 import auth from './routes/auth';
 import games from './routes/games';
 import templates from './routes/templates';
+import upload from './routes/upload';
 
 const app = new Hono<{ Bindings: Env }>();
 
-// Add CORS middleware
-app.use('*', cors());
+// Add CORS middleware with specific origins for credentials support
+app.use('*', cors({
+	origin: ['http://localhost:5173', 'http://localhost:3000'], // Allow local development origins
+	credentials: true, // Allow credentials (cookies, authorization headers)
+	allowedHeaders: ['Content-Type', 'Authorization'],
+	methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+}));
 
 // Health check endpoint
 app.get('/', (c: Context) => {
@@ -23,5 +29,6 @@ app.route('/api/auth', auth);
 app.route('/api/games', games);
 app.route('/api/admin', admin);
 app.route('/api/templates', templates);
+app.route('/api/upload', upload);
 
 export default app;

@@ -2,6 +2,19 @@ name = 'stargate-evolution-backend'
 main = 'src/server.ts'
 compatibility_date = '2025-05-08'
 
+[vars]
+# CloudFlare account ID for R2 public URLs
+# You can find this in your CloudFlare dashboard under the right sidebar
+CLOUDFLARE_ACCOUNT_ID = "a971b579b0c55c0d35b34695711055a3"
+
+# Development configuration
+[env.development]
+vars = { CLOUDFLARE_ACCOUNT_ID = "a971b579b0c55c0d35b34695711055a3" }
+# Use real R2 bucket in development
+[[env.development.r2_buckets]]
+binding = 'R2_BUCKET'
+bucket_name = 'stargate-universe'
+
 [[d1_databases]]
 binding = 'DB'
 database_name = 'stargate-game'
@@ -9,10 +22,17 @@ database_name = 'stargate-game'
 database_id = '3a8b2474-999f-4a5f-90fa-e43ef815c0aa'
 migrations_dir = 'migrations'
 
+[[r2_buckets]]
+binding = 'R2_BUCKET'
+bucket_name = 'stargate-universe'
+
 # Test environment configuration
 [env.test]
 d1_databases = [
 	{ binding = 'DB', database_name = 'stargate-game-test', database_id = 'test' }
+]
+r2_buckets = [
+	{ binding = 'R2_BUCKET', bucket_name = 'stargate-universe' }
 ]
 
 [observability]

@@ -5,6 +5,7 @@ import { FaPlus, FaEdit, FaTrash, FaEye } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 
 import { adminService } from '../services/admin-service';
+import FileUpload from './file-upload';
 
 interface RoomBuilderProps {
 	selectedFloor: number;
@@ -2770,18 +2771,13 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 							</div>
 						</div>
 
-						<Form.Group className="mb-3">
-							<Form.Label>Image URL</Form.Label>
-							<Form.Control
-								type="text"
-								placeholder="URL to furniture image/sprite"
-								value={editingFurniture.image || ''}
-								onChange={(e) => setEditingFurniture({...editingFurniture, image: e.target.value})}
-							/>
-							<Form.Text className="text-muted">
-								Optional URL to an image or sprite for this furniture piece.
-							</Form.Text>
-						</Form.Group>
+						<FileUpload
+							label="Furniture Image"
+							currentUrl={editingFurniture.image || undefined}
+							onChange={(url) => setEditingFurniture({...editingFurniture, image: url || undefined})}
+							folder="furniture"
+							helpText="Upload an image or sprite for this furniture piece. Will be used for visual representation in the game."
+						/>
 
 						<Form.Group className="mb-3">
 							<Form.Label>Requirements (JSON)</Form.Label>
