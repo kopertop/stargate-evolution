@@ -14,6 +14,7 @@ export class NPCManager {
 	private npcSprites: Map<string, PIXI.Graphics> = new Map();
 	private npcLayer: PIXI.Container;
 	private gameInstance: any; // Reference to Game instance for accessing player position
+	private fidgetLoops: Map<string, NodeJS.Timeout> = new Map(); // Track active fidget loops for each NPC
 
 	constructor(npcLayer: PIXI.Container, gameInstance?: any) {
 		this.npcLayer = npcLayer;
@@ -51,6 +52,14 @@ export class NPCManager {
 			this.npcLayer.removeChild(sprite);
 			this.npcSprites.delete(npcId);
 		}
+		
+		// Clear any active fidget loop
+		const fidgetLoop = this.fidgetLoops.get(npcId);
+		if (fidgetLoop) {
+			clearTimeout(fidgetLoop);
+			this.fidgetLoops.delete(npcId);
+		}
+		
 		this.npcs.delete(npcId);
 	}
 
@@ -146,38 +155,12 @@ export class NPCManager {
 	}
 
 	private updateWanderBehavior(npc: NPC, currentRoom: RoomTemplate): void {
-		// Generate random target within room boundaries
-		if (npc.movement.target_x === null || npc.movement.target_y === null) {
-			const roomCenterX = currentRoom.startX + (currentRoom.endX - currentRoom.startX) / 2;
-			const roomCenterY = currentRoom.startY + (currentRoom.endY - currentRoom.startY) / 2;
-
-			// Find a safe position that avoids collisions
-			const maxRadius = Math.min(npc.behavior.wander_radius,
-				Math.min(currentRoom.endX - currentRoom.startX, currentRoom.endY - currentRoom.startY) / 4);
-			
-			const safePosition = this.findSafePosition(npc, roomCenterX, roomCenterY, maxRadius, currentRoom);
-			if (safePosition) {
-				npc.movement.target_x = safePosition.x;
-				npc.movement.target_y = safePosition.y;
-			}
+		// Start fidget loop if not already running
+		if (!this.fidgetLoops.has(npc.id)) {
+			console.log(`[NPC] Starting fidget loop for wandering ${npc.name}`);
+			this.startFidgetLoop(npc, currentRoom);
 		}
-
-		// Check if reached target
-		if (npc.movement.target_x === null || npc.movement.target_y === null ||
-			npc.movement.target_x === undefined || npc.movement.target_y === undefined) return;
-
-		const distance = Math.sqrt(
-			(npc.movement.x - npc.movement.target_x) ** 2 +
-			(npc.movement.y - npc.movement.target_y) ** 2,
-		);
-
-		if (distance < 5) {
-			// Reached target, pause for 30-120 seconds (game time)
-			setTimeout(() => {
-				npc.movement.target_x = null;
-				npc.movement.target_y = null;
-			}, 30000 + Math.random() * 90000); // Wait 30-120 seconds
-		}
+		// Fidget loop handles all movement and pausing
 	}
 
 	private updateGuardBehavior(npc: NPC, currentRoom: RoomTemplate): void {
@@ -253,13 +236,10 @@ export class NPCManager {
 					npc.behavior.has_exited_gate = true;
 					npc.movement.target_x = null;
 					npc.movement.target_y = null;
-					console.log(`[NPC] ${npc.name} has exited stargate, starting fidget behavior`);
+					console.log(`[NPC] ${npc.name} has exited stargate, starting fidget loop`);
 					
-					// Set a delay before starting to fidget
-					setTimeout(() => {
-						npc.movement.target_x = null;
-						npc.movement.target_y = null;
-					}, 30000 + Math.random() * 90000); // Wait 30-120 seconds before first fidget
+					// Start the fidget loop
+					this.startFidgetLoop(npc, gateRoom);
 				}
 			}
 			return;
@@ -267,37 +247,8 @@ export class NPCManager {
 
 		// Phase 2: Fidget behavior (restricted to gate room)
 		if (npc.behavior.restricted_to_gate_room) {
-			// Occasional small movements within the gate room
-			if (npc.movement.target_x === null || npc.movement.target_y === null) {
-				const roomCenterX = gateRoom.startX + (gateRoom.endX - gateRoom.startX) / 2;
-				const roomCenterY = gateRoom.startY + (gateRoom.endY - gateRoom.startY) / 2;
-
-				// Smaller fidget movements
-				const maxRadius = Math.min(npc.behavior.wander_radius || 50,
-					Math.min(gateRoom.endX - gateRoom.startX, gateRoom.endY - gateRoom.startY) / 3);
-				
-				const safePosition = this.findSafePosition(npc, roomCenterX, roomCenterY, maxRadius, gateRoom);
-				if (safePosition) {
-					npc.movement.target_x = safePosition.x;
-					npc.movement.target_y = safePosition.y;
-				}
-			}
-
-			// Check if reached fidget target
-			if (npc.movement.target_x && npc.movement.target_y) {
-				const distance = Math.sqrt(
-					(npc.movement.x - npc.movement.target_x) ** 2 +
-					(npc.movement.y - npc.movement.target_y) ** 2,
-				);
-
-				if (distance < 5) {
-					// Reached fidget target, pause for 30-120 seconds (game time)
-					setTimeout(() => {
-						npc.movement.target_x = null;
-						npc.movement.target_y = null;
-					}, 30000 + Math.random() * 90000); // Wait 30-120 seconds
-				}
-			}
+			// Fidget loop is now handled independently by startFidgetLoop method
+			// This section is managed by the loop system, no need for manual logic here
 		}
 		// If not restricted, this would be where scripts would take over
 		// For now, keep them in gate room until script system is implemented
@@ -548,5 +499,74 @@ export class NPCManager {
 
 	public getNPC(id: string): NPC | undefined {
 		return this.npcs.get(id);
+	}
+
+	private startFidgetLoop(npc: NPC, room: RoomTemplate): void {
+		// Clear any existing loop for this NPC
+		const existingLoop = this.fidgetLoops.get(npc.id);
+		if (existingLoop) {
+			clearTimeout(existingLoop);
+		}
+
+		const fidgetLoop = () => {
+			// Check if NPC still exists
+			if (!this.npcs.has(npc.id)) {
+				this.fidgetLoops.delete(npc.id);
+				return;
+			}
+
+			// Phase 1: Move in one direction for 5-30 seconds
+			const roomCenterX = room.startX + (room.endX - room.startX) / 2;
+			const roomCenterY = room.startY + (room.endY - room.startY) / 2;
+			
+			// Choose a random direction and distance
+			const angle = Math.random() * Math.PI * 2;
+			const maxRadius = Math.min(npc.behavior.wander_radius || 50,
+				Math.min(room.endX - room.startX, room.endY - room.startY) / 3);
+			const distance = Math.random() * maxRadius;
+			
+			const targetX = roomCenterX + Math.cos(angle) * distance;
+			const targetY = roomCenterY + Math.sin(angle) * distance;
+			
+			// Find a safe position near the target
+			const safePosition = this.findSafePosition(npc, targetX, targetY, 20, room);
+			if (safePosition) {
+				npc.movement.target_x = safePosition.x;
+				npc.movement.target_y = safePosition.y;
+				
+				const moveDuration = 5000 + Math.random() * 25000; // 5-30 seconds
+				console.log(`[NPC] ${npc.name} starting ${(moveDuration/1000).toFixed(1)}s move to (${safePosition.x.toFixed(1)}, ${safePosition.y.toFixed(1)})`);
+				
+				// After move duration, stop and pause
+				const moveTimeout = setTimeout(() => {
+					// Phase 2: Pause for 30-120 seconds
+					npc.movement.target_x = null;
+					npc.movement.target_y = null;
+					
+					const pauseDuration = 30000 + Math.random() * 90000; // 30-120 seconds
+					console.log(`[NPC] ${npc.name} pausing for ${(pauseDuration/1000).toFixed(1)}s`);
+					
+					// After pause, start the next loop iteration
+					const pauseTimeout = setTimeout(() => {
+						fidgetLoop(); // Recursive call to continue the loop
+					}, pauseDuration);
+					
+					this.fidgetLoops.set(npc.id, pauseTimeout);
+				}, moveDuration);
+				
+				this.fidgetLoops.set(npc.id, moveTimeout);
+			} else {
+				// If no safe position found, just pause and try again
+				console.warn(`[NPC] ${npc.name} could not find safe fidget position, pausing`);
+				const retryTimeout = setTimeout(() => {
+					fidgetLoop();
+				}, 10000); // Retry in 10 seconds
+				
+				this.fidgetLoops.set(npc.id, retryTimeout);
+			}
+		};
+
+		// Start the first iteration
+		fidgetLoop();
 	}
 }
