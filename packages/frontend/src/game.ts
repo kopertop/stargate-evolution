@@ -323,9 +323,9 @@ export class Game {
 				dx += 1;
 			}
 
-			// Right bumper (RB/R) - running modifier
-			if (this.options.isPressed('RB')) {
-				console.log('[GAME-INPUT] Right bumper (RB) pressed - running mode');
+			// Right trigger (RT) - running modifier
+			if (this.options.isPressed('RT')) {
+				console.log('[GAME-INPUT] Right trigger (RT) pressed - running mode');
 				isRunning = true;
 			}
 
@@ -852,6 +852,34 @@ export class Game {
 		return { x: this.player.x, y: this.player.y };
 	}
 
+	public getStargatePosition(): { x: number; y: number } | null {
+		// Find the stargate furniture by its specific ID
+		const stargateFurniture = this.furniture.find(f => f.id === 'stargate');
+
+		if (!stargateFurniture) {
+			console.warn('[DEBUG] No stargate furniture found');
+			return null;
+		}
+
+		// Find the room this furniture belongs to
+		const room = this.rooms.find(r => r.id === stargateFurniture.room_id);
+		if (!room) {
+			console.warn(`[DEBUG] Stargate furniture has invalid room_id: ${stargateFurniture.room_id}`);
+			return null;
+		}
+
+		// Calculate room center
+		const roomCenterX = room.startX + (room.endX - room.startX) / 2;
+		const roomCenterY = room.startY + (room.endY - room.startY) / 2;
+
+		// Calculate stargate world position (center of the furniture)
+		const stargateX = roomCenterX + stargateFurniture.x;
+		const stargateY = roomCenterY + stargateFurniture.y;
+
+		console.log(`[DEBUG] Found stargate at world position (${stargateX}, ${stargateY})`);
+		return { x: stargateX, y: stargateY };
+	}
+
 	public getCurrentRoomId(): string | null {
 		const currentRoom = this.findRoomContainingPoint(this.player.x, this.player.y);
 		return currentRoom ? currentRoom.id : null;
@@ -1151,7 +1179,7 @@ export class Game {
 			this.world.addChild(this.player); // Add player on top of everything
 			
 			// Initialize NPC manager
-			this.npcManager = new NPCManager(this.npcLayer);
+			this.npcManager = new NPCManager(this.npcLayer, this);
 			console.log('[DEBUG] Initialized NPC manager');
 
 			console.log('[DEBUG] Added layers to world');

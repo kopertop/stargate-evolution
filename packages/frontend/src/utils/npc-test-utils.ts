@@ -5,8 +5,9 @@ import type { NPC } from '@stargate/common';
  */
 
 export function createTestNPC(overrides: Partial<NPC> = {}): NPC {
+	const now = Date.now();
 	const defaultNPC: NPC = {
-		id: `npc-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+		id: `npc-${now}-${Math.random().toString(36).substr(2, 9)}`,
 		user_id: 'test-user',
 		name: 'Test NPC',
 		role: 'crew-member',
@@ -18,38 +19,45 @@ export function createTestNPC(overrides: Partial<NPC> = {}): NPC {
 		},
 		description: 'A test NPC for development purposes',
 		image: null,
-		current_room_id: 'bridge', // Default to bridge room
+		current_room_id: 'gate_room', // Start in gate room
 		health: 100,
 		hunger: 100,
 		thirst: 100,
 		fatigue: 100,
-		created_at: Date.now(),
-		updated_at: Date.now(),
+		created_at: now,
+		updated_at: now,
 
 		// NPC-specific properties
 		is_npc: true,
 		active: true,
 
 		movement: {
-			x: 0, // Will be set based on room
-			y: 0, // Will be set based on room
+			x: 0, // Always start at 0,0 - gate spawning will position correctly
+			y: 0, // Always start at 0,0 - gate spawning will position correctly
 			target_x: null,
 			target_y: null,
-			speed: 2,
-			last_updated: Date.now(),
+			speed: 0.5, // Slow movement speed
+			last_updated: now,
 		},
 
 		behavior: {
-			type: 'idle',
+			type: 'gate_spawning', // Start with gate spawning behavior
 			patrol_points: null,
 			patrol_index: 0,
 			follow_target_id: null,
-			wander_radius: 50,
-			home_room_id: 'bridge',
+			wander_radius: 50, // Moderate radius for spreading out in gate room
+			home_room_id: 'gate_room',
 			aggression_level: 0,
+			// Gate spawning specific properties
+			spawned_from_gate: true,
+			spawn_time: now,
+			exit_gate_delay: 3000, // 3 seconds before they start moving
+			restricted_to_gate_room: true, // Keep them in gate room until scripted
+			has_exited_gate: false, // Track two-phase spawning behavior
+			script_id: null,
 		},
 
-		color: '#00ff00', // Green
+		color: '#00aaff', // Light blue (default for civilian NPCs)
 		size: 5,
 		can_interact: true,
 		interaction_range: 25,
@@ -77,25 +85,23 @@ export function createPatrolNPC(roomIds: string[], patrolPoints: Array<{x: numbe
 	return createTestNPC({
 		name: 'Patrol Guard',
 		role: 'security',
-		color: '#ff6600', // Orange
+		color: '#00aa44', // Green for security
 		behavior: {
-			type: 'patrol',
+			type: 'gate_spawning', // Start with gate spawning, will change to patrol when released
 			patrol_points: patrolData,
 			patrol_index: 0,
 			follow_target_id: null,
-			wander_radius: 25,
+			wander_radius: 30, // Small radius for security patrol
 			home_room_id: roomIds[0],
 			aggression_level: 2,
+			spawned_from_gate: true,
+			spawn_time: Date.now(),
+			exit_gate_delay: 3000,
+			restricted_to_gate_room: true,
+			has_exited_gate: false,
+			script_id: null,
 		},
-		movement: {
-			x: patrolPoints[0].x,
-			y: patrolPoints[0].y,
-			target_x: null,
-			target_y: null,
-			speed: 3, // Slightly faster for patrol
-			last_updated: Date.now(),
-		},
-		current_room_id: roomIds[0],
+		current_room_id: 'gate_room', // Start in gate room
 		...overrides,
 	});
 }
@@ -104,25 +110,23 @@ export function createWanderingNPC(roomId: string, centerX: number, centerY: num
 	return createTestNPC({
 		name: 'Wandering Crew',
 		role: 'civilian',
-		color: '#0066ff', // Blue
+		color: '#00aaff', // Light blue for civilians
 		behavior: {
-			type: 'wander',
+			type: 'gate_spawning', // Start with gate spawning, will change to wander when released
 			patrol_points: null,
 			patrol_index: 0,
 			follow_target_id: null,
-			wander_radius: 75,
+			wander_radius: 50, // Moderate radius for civilians
 			home_room_id: roomId,
 			aggression_level: 0,
+			spawned_from_gate: true,
+			spawn_time: Date.now(),
+			exit_gate_delay: 3000,
+			restricted_to_gate_room: true,
+			has_exited_gate: false,
+			script_id: null,
 		},
-		movement: {
-			x: centerX,
-			y: centerY,
-			target_x: null,
-			target_y: null,
-			speed: 1.5, // Slower wandering speed
-			last_updated: Date.now(),
-		},
-		current_room_id: roomId,
+		current_room_id: 'gate_room', // Start in gate room
 		...overrides,
 	});
 }
@@ -131,25 +135,23 @@ export function createGuardNPC(roomId: string, x: number, y: number, overrides: 
 	return createTestNPC({
 		name: 'Guard',
 		role: 'security',
-		color: '#ff0000', // Red
+		color: '#00aa44', // Green for security
 		behavior: {
-			type: 'guard',
+			type: 'gate_spawning', // Start with gate spawning, will change to guard when released
 			patrol_points: null,
 			patrol_index: 0,
 			follow_target_id: null,
-			wander_radius: 15, // Small radius for guard posts
+			wander_radius: 20, // Small radius for guard posts
 			home_room_id: roomId,
 			aggression_level: 5,
+			spawned_from_gate: true,
+			spawn_time: Date.now(),
+			exit_gate_delay: 3000,
+			restricted_to_gate_room: true,
+			has_exited_gate: false,
+			script_id: null,
 		},
-		movement: {
-			x: x,
-			y: y,
-			target_x: null,
-			target_y: null,
-			speed: 2.5,
-			last_updated: Date.now(),
-		},
-		current_room_id: roomId,
+		current_room_id: 'gate_room', // Start in gate room
 		can_open_doors: false, // Guards don't leave their posts
 		...overrides,
 	});
@@ -159,7 +161,7 @@ export function createRestrictedAccessNPC(overrides: Partial<NPC> = {}): NPC {
 	return createTestNPC({
 		name: 'Restricted NPC',
 		role: 'maintenance',
-		color: '#666666', // Gray
+		color: '#00aa66', // Green for maintenance
 		can_open_doors: true,
 		respect_restrictions: false, // This NPC ignores restrictions for testing
 		behavior: {
@@ -167,9 +169,15 @@ export function createRestrictedAccessNPC(overrides: Partial<NPC> = {}): NPC {
 			patrol_points: null,
 			patrol_index: 0,
 			follow_target_id: null,
-			wander_radius: 100,
+			wander_radius: 40, // Moderate radius for maintenance
 			home_room_id: 'bridge',
 			aggression_level: 0,
+			spawned_from_gate: false, // This NPC bypasses gate spawning for testing
+			spawn_time: Date.now(),
+			exit_gate_delay: 0,
+			restricted_to_gate_room: false,
+			has_exited_gate: true, // Already exited since it bypasses gate spawning
+			script_id: null,
 		},
 		...overrides,
 	});
@@ -186,47 +194,84 @@ export function addTestNPCsToGame(game: any, roomData: Array<{id: string, center
 
 	console.log('[NPC-TEST] Adding test NPCs to game...');
 
-	// Add a basic idle NPC
-	const idleNPC = createTestNPC({
-		name: 'Idle Officer',
-		role: 'officer',
-		color: '#00ffff',
+	// Find the gate room from available rooms
+	const gateRoom = roomData.find(r => 
+		r.id.toLowerCase().includes('gate') ||
+		r.id.toLowerCase().includes('stargate'),
+	);
+
+	// Set default room ID for NPCs (prefer gate room if found)
+	const defaultRoomId = gateRoom ? gateRoom.id : (roomData.length > 0 ? roomData[0].id : 'gate_room');
+
+	// Add NPCs that spawn from the gate
+	const npcConfigs = [
+		{ name: 'Security Officer Alpha', role: 'security', color: '#00aa44' },
+		{ name: 'Medical Officer', role: 'medical', color: '#00aaff' },
+		{ name: 'Engineer Beta', role: 'engineer', color: '#0088cc' },
+		{ name: 'Science Officer', role: 'science', color: '#00bbdd' },
+	];
+
+	npcConfigs.forEach((config, index) => {
+		const npc = createTestNPC({
+			...config,
+			current_room_id: defaultRoomId,
+			behavior: {
+				type: 'gate_spawning',
+				patrol_points: null,
+				patrol_index: 0,
+				follow_target_id: null,
+				wander_radius: 30,
+				home_room_id: defaultRoomId,
+				aggression_level: 0,
+				spawned_from_gate: true,
+				spawn_time: Date.now() + (index * 1000), // Stagger spawn times
+				exit_gate_delay: 3000 + (index * 500), // Stagger exit delays
+				restricted_to_gate_room: true,
+				has_exited_gate: false,
+				script_id: null,
+			},
+		});
+		game.addNPC(npc);
 	});
-	game.addNPC(idleNPC);
 
-	// Add NPCs based on provided room data
-	if (roomData.length > 0) {
-		// Add a wandering NPC to the first room
-		const wandererNPC = createWanderingNPC(
-			roomData[0].id,
-			roomData[0].centerX,
-			roomData[0].centerY,
-			{ name: 'Wandering Engineer' },
-		);
-		game.addNPC(wandererNPC);
+	console.log(`[NPC-TEST] Added ${npcConfigs.length} gate-spawning NPCs successfully`);
+	console.log('[NPC-TEST] NPCs will emerge from the Stargate and remain in gate room until scripted');
+}
 
-		// Add a patrol NPC if we have multiple rooms
-		if (roomData.length > 1) {
-			const patrolNPC = createPatrolNPC(
-				roomData.slice(0, 3).map(r => r.id), // Use up to 3 rooms for patrol
-				roomData.slice(0, 3).map(r => ({ x: r.centerX, y: r.centerY })),
-				{ name: 'Security Patrol' },
-			);
-			game.addNPC(patrolNPC);
-		}
-
-		// Add a guard to the last room
-		const lastRoom = roomData[roomData.length - 1];
-		const guardNPC = createGuardNPC(
-			lastRoom.id,
-			lastRoom.centerX + 30, // Offset from center
-			lastRoom.centerY - 20,
-			{ name: 'Door Guard' },
-		);
-		game.addNPC(guardNPC);
+/**
+ * Helper function to release NPCs from gate room restriction
+ */
+export function releaseNPCFromGateRoom(game: any, npcId: string, newBehaviorType: 'patrol' | 'wander' | 'guard' | 'idle' = 'wander') {
+	const npc = game.getNPC(npcId);
+	if (!npc) {
+		console.error(`[NPC-TEST] NPC with ID ${npcId} not found`);
+		return false;
 	}
 
-	console.log('[NPC-TEST] Added test NPCs successfully');
+	npc.behavior.restricted_to_gate_room = false;
+	npc.behavior.type = newBehaviorType;
+	
+	console.log(`[NPC-TEST] Released NPC ${npc.name} from gate room with ${newBehaviorType} behavior`);
+	return true;
+}
+
+/**
+ * Helper function to release all NPCs from gate room
+ */
+export function releaseAllNPCsFromGateRoom(game: any, newBehaviorType: 'patrol' | 'wander' | 'guard' | 'idle' = 'wander') {
+	const npcs = game.getNPCs();
+	let releasedCount = 0;
+
+	npcs.forEach((npc: any) => {
+		if (npc.behavior.restricted_to_gate_room) {
+			npc.behavior.restricted_to_gate_room = false;
+			npc.behavior.type = newBehaviorType;
+			releasedCount++;
+		}
+	});
+
+	console.log(`[NPC-TEST] Released ${releasedCount} NPCs from gate room with ${newBehaviorType} behavior`);
+	return releasedCount;
 }
 
 /**
@@ -240,8 +285,12 @@ export function exposeNPCTestUtils() {
 		createGuardNPC,
 		createRestrictedAccessNPC,
 		addTestNPCsToGame,
+		releaseNPCFromGateRoom,
+		releaseAllNPCsFromGateRoom,
 	};
 
 	console.log('[NPC-TEST] NPC test utilities exposed to window.npcTestUtils');
 	console.log('[NPC-TEST] Available methods:', Object.keys((window as any).npcTestUtils));
+	console.log('[NPC-TEST] Use releaseNPCFromGateRoom(game, npcId) to release specific NPCs');
+	console.log('[NPC-TEST] Use releaseAllNPCsFromGateRoom(game) to release all NPCs');
 }

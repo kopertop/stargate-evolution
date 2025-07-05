@@ -37,6 +37,7 @@ interface ResourceBarProps {
   timeSpeed: number;
   characterCount: number;
   currentTime?: number; // Seconds since game start
+  onTimeSpeedChange?: (newSpeed: number) => void; // Optional click handler for time speed
 }
 
 interface ResourceItemProps {
@@ -61,9 +62,11 @@ const ResourceItem: React.FC<ResourceItemProps> = ({
 			return `${Math.round((current / max) * 100)}%`;
 		}
 		if (format === 'time') {
-			const days = Math.floor(current / 24);
-			const hours = Math.floor(current % 24);
-			return `${days}d ${hours}h`;
+			const days = Math.floor(current / 86400);
+			const hours = Math.floor(current % 86400 / 3600);
+			const minutes = Math.floor(current % 3600 / 60);
+			const seconds = Math.floor(current % 60);
+			return `${days}d ${hours}h ${minutes}m ${seconds}s`;
 		}
 		if (max) {
 			return `${current}/${max}`;
@@ -148,7 +151,18 @@ export const ResourceBar: React.FC<ResourceBarProps> = ({
 	timeSpeed,
 	characterCount,
 	currentTime,
+	onTimeSpeedChange,
 }) => {
+	// Handle time speed cycling when clicked
+	const handleTimeSpeedClick = () => {
+		if (onTimeSpeedChange) {
+			const speeds = [0, 1, 60, 1800, 3600]; // 0x (pause), 1x (real-time), 1 min/sec, 30 min/sec, 1 hr/sec
+			const currentIndex = speeds.indexOf(timeSpeed);
+			const nextIndex = (currentIndex + 1) % speeds.length;
+			onTimeSpeedChange(speeds[nextIndex]);
+		}
+	};
+
 	return (
 		<div
 			style={{
@@ -332,15 +346,16 @@ export const ResourceBar: React.FC<ResourceBarProps> = ({
 								delay={{ show: 250, hide: 150 }}
 								overlay={
 									<Tooltip id="time-speed-tooltip">
-                    Time flows at {timeSpeed}x normal speed. Use left/right D-pad to adjust speed.
+                    Time flows at {timeSpeed}x normal speed. Use LB/RB or click here to adjust speed.
 									</Tooltip>
 								}
 							>
 								<div
 									className="d-flex align-items-center"
+									onClick={handleTimeSpeedClick}
 									style={{
 										fontSize: '0.9rem',
-										cursor: 'help',
+										cursor: onTimeSpeedChange ? 'pointer' : 'help',
 										padding: '4px 8px',
 										borderRadius: '4px',
 										background: timeSpeed === 0

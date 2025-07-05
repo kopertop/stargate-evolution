@@ -46,7 +46,7 @@ export const CONTROL_SCHEME = {
 	},
 	running: {
 		keyboard: ['Shift'],
-		gamepad: ['RB (R)'],
+		gamepad: ['RT (ZR)'],
 	},
 	zoom: {
 		keyboard: ['+/-'],
@@ -61,8 +61,8 @@ export const CONTROL_SCHEME = {
 		gamepad: ['Start button'],
 	},
 	timeSpeed: {
-		keyboard: ['N/A'],
-		gamepad: ['Left/Right D-pad (decrease/increase)'],
+		keyboard: ['Click speed indicator'],
+		gamepad: ['LB/RB (decrease/increase)'],
 	},
 	menuNavigation: {
 		keyboard: ['WASD', 'Arrow Keys'],

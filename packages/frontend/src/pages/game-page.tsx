@@ -233,28 +233,24 @@ const GameRenderer: React.FC<GameRendererProps> = ({ gameId, savedGameData }) =>
 			setInventoryTab(0);
 		});
 
-		// Left D-pad (decrease time speed)
-		const unsubscribeLeftDpad = controller.onButtonRelease('DPAD_LEFT', () => {
-			if (!showPause && !showInventory) { // Only when not in menus
-				const currentSpeed = gameState.destinyStatus?.time_speed || 1;
-				const speeds = [0, 1, 5, 10];
-				const currentIndex = speeds.indexOf(currentSpeed);
-				const newIndex = Math.max(0, currentIndex - 1);
-				gameState.setTimeSpeed(speeds[newIndex]);
-				console.log('[GAME-PAGE-CONTROLLER] Left D-pad - decreased time speed to', speeds[newIndex]);
-			}
+		// Left bumper (LB) - decrease time speed (global)
+		const unsubscribeLeftBumper = controller.onButtonRelease('LB', () => {
+			const currentSpeed = gameState.destinyStatus?.time_speed || 1;
+			const speeds = [0, 1, 60, 1800, 3600]; // 0x (pause), 1x (real-time), 1 min/sec, 30 min/sec, 1 hr/sec
+			const currentIndex = speeds.indexOf(currentSpeed);
+			const newIndex = Math.max(0, currentIndex - 1);
+			gameState.setTimeSpeed(speeds[newIndex]);
+			console.log('[GAME-PAGE-CONTROLLER] Left bumper (LB) - decreased time speed to', speeds[newIndex]);
 		});
 
-		// Right D-pad (increase time speed)
-		const unsubscribeRightDpad = controller.onButtonRelease('DPAD_RIGHT', () => {
-			if (!showPause && !showInventory) { // Only when not in menus
-				const currentSpeed = gameState.destinyStatus?.time_speed || 1;
-				const speeds = [0, 1, 5, 10];
-				const currentIndex = speeds.indexOf(currentSpeed);
-				const newIndex = Math.min(speeds.length - 1, currentIndex + 1);
-				gameState.setTimeSpeed(speeds[newIndex]);
-				console.log('[GAME-PAGE-CONTROLLER] Right D-pad - increased time speed to', speeds[newIndex]);
-			}
+		// Right bumper (RB) - increase time speed (global)
+		const unsubscribeRightBumper = controller.onButtonRelease('RB', () => {
+			const currentSpeed = gameState.destinyStatus?.time_speed || 1;
+			const speeds = [0, 1, 60, 1800, 3600]; // 0x (pause), 1x (real-time), 1 min/sec, 30 min/sec, 1 hr/sec
+			const currentIndex = speeds.indexOf(currentSpeed);
+			const newIndex = Math.min(speeds.length - 1, currentIndex + 1);
+			gameState.setTimeSpeed(speeds[newIndex]);
+			console.log('[GAME-PAGE-CONTROLLER] Right bumper (RB) - increased time speed to', speeds[newIndex]);
 		});
 
 		// Menu navigation (only when menus are open)
@@ -278,6 +274,23 @@ const GameRenderer: React.FC<GameRendererProps> = ({ gameId, savedGameData }) =>
 				setFocusedMenuItem(prev => (prev < menuItemCount - 1 ? prev + 1 : 0));
 			} else if (state.showInventory) {
 				console.log('[GAME-PAGE-CONTROLLER] D-pad DOWN released - inventory tab navigation');
+				setInventoryTab(prev => (prev < 4 ? prev + 1 : 0));
+			}
+		});
+
+		// D-pad left/right for inventory tab navigation when in inventory
+		const unsubscribeLeftNav = controller.onButtonRelease('DPAD_LEFT', () => {
+			const state = stateRef.current;
+			if (state.showInventory) {
+				console.log('[GAME-PAGE-CONTROLLER] D-pad LEFT released - inventory tab navigation');
+				setInventoryTab(prev => (prev > 0 ? prev - 1 : 4));
+			}
+		});
+
+		const unsubscribeRightNav = controller.onButtonRelease('DPAD_RIGHT', () => {
+			const state = stateRef.current;
+			if (state.showInventory) {
+				console.log('[GAME-PAGE-CONTROLLER] D-pad RIGHT released - inventory tab navigation');
 				setInventoryTab(prev => (prev < 4 ? prev + 1 : 0));
 			}
 		});
@@ -346,10 +359,12 @@ const GameRenderer: React.FC<GameRendererProps> = ({ gameId, savedGameData }) =>
 			console.log('[GAME-PAGE-CONTROLLER] Cleaning up controller subscriptions');
 			unsubscribePauseBack();
 			unsubscribeInventory();
-			unsubscribeLeftDpad();
-			unsubscribeRightDpad();
+			unsubscribeLeftBumper();
+			unsubscribeRightBumper();
 			unsubscribeUpNav();
 			unsubscribeDownNav();
+			unsubscribeLeftNav();
+			unsubscribeRightNav();
 			unsubscribeMenuBack();
 			unsubscribeMenuActivate();
 		};
@@ -382,6 +397,7 @@ const GameRenderer: React.FC<GameRendererProps> = ({ gameId, savedGameData }) =>
 				setShowInventory((prev) => !prev);
 				setInventoryTab(0);
 			}
+			
 			if (listeningKey) {
 				setKeybindings((prev) => {
 					const updated: Keybindings = { ...prev };
@@ -487,6 +503,7 @@ const GameRenderer: React.FC<GameRendererProps> = ({ gameId, savedGameData }) =>
 				ftlStatus={destinyStatus.ftl_status}
 				nextFtlTransition={destinyStatus.next_ftl_transition}
 				timeSpeed={destinyStatus.time_speed}
+				onTimeSpeedChange={gameState.setTimeSpeed}
 				characterCount={gameState.characters.length || 4}
 			/>
 

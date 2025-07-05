@@ -2620,12 +2620,14 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 										onChange={(e) => setEditingFurniture({...editingFurniture, furniture_type: e.target.value})}
 									>
 										<option value="console">Console</option>
+										<option value="stargate">Stargate</option>
 										<option value="stargate_dialer">Stargate Dialer</option>
 										<option value="bed">Bed</option>
 										<option value="table">Table</option>
 										<option value="chair">Chair</option>
 										<option value="storage">Storage</option>
 										<option value="workstation">Workstation</option>
+										<option value="custom">Custom</option>
 									</Form.Select>
 								</Form.Group>
 							</div>
