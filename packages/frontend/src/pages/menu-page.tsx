@@ -196,13 +196,13 @@ export const MenuPage: React.FC = () => {
 		}
 
 		try {
-			await gameState.initializeNewGame(newGameName.trim());
+			const newGameId = await gameState.initializeNewGame(newGameName.trim());
 			setShowNewGameModal(false);
 			// Refresh saved games list since we just created a new one
 			if (user) {
 				checkForSavedGames();
 			}
-			navigate(`/game/${gameState.gameId}`);
+			navigate(`/game/${newGameId}`);
 		} catch (error) {
 			// Error already handled in gameState.initializeNewGame
 		}

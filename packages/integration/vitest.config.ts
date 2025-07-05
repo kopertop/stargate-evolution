@@ -9,8 +9,8 @@ export default defineWorkersConfig(async () => {
 	return {
 		plugins: [tsconfigPaths()],
 		test: {
-			include: ['test/**/*.spec.ts'],
-			setupFiles: ['./test/apply-migrations.ts'],
+			include: ['__tests__/**/*.spec.ts'],
+			setupFiles: ['./apply-migrations.ts'],
 			poolOptions: {
 				workers: {
 					miniflare: {

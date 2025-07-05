@@ -59,11 +59,12 @@ interface GameStateContextType {
 	setTimeSpeed: (speed: number) => void;
 
 	// Game State Actions
-	initializeNewGame: (gameName: string) => void;
+	initializeNewGame: (gameName: string) => Promise<string>;
 	saveGame: (gameName?: string, gameEngineRef?: any) => Promise<void>;
 	loadGame: (gameId: string) => Promise<void>;
 	isLoading: boolean;
 	isInitialized: boolean;
+	setIsInitialized: (initialized: boolean) => void;
 	gameName: string | null;
 	setGameName: (name: string | null) => void;
 }
@@ -140,6 +141,7 @@ export const GameStateProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 				currentSystem: null,
 				knownGalaxies: [],
 				knownSystems: [],
+				fog_of_war: {}, // Empty fog of war data for new game
 			};
 
 			let savedGameId: string;
@@ -150,7 +152,7 @@ export const GameStateProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 				const savedGame = await SavedGameService.createSavedGame({
 					name: newGameName,
 					description: `New game started on ${new Date().toLocaleDateString()}`,
-					game_data: JSON.stringify(gameData),
+					game_data: gameData,
 				});
 				savedGameId = savedGame.id;
 				backendSaveSuccessful = true;
@@ -187,6 +189,8 @@ export const GameStateProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 			} else {
 				toast.success(`New game "${newGameName}" created and saved locally!`);
 			}
+
+			return savedGameId;
 		} catch (error) {
 			console.error('[GAME-STATE] Failed to create new game:', error);
 			toast.error('Failed to create new game');
@@ -396,10 +400,10 @@ export const GameStateProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 			console.log('[GAME-STATE] Loaded saved game from backend:', {
 				gameId: newGameId,
 				gameName: savedGame.name,
-				gameDataLength: savedGame.game_data?.length || 0,
-				gameDataPreview: savedGame.game_data?.substring(0, 200) + '...',
+				gameDataType: typeof savedGame.game_data,
+				gameDataKeys: savedGame.game_data ? Object.keys(savedGame.game_data) : [],
 			});
-			const gameData = JSON.parse(savedGame.game_data);
+			const gameData = savedGame.game_data;
 
 			// Set context state (non-game-engine data)
 			setDestinyStatus(gameData.destinyStatus);
@@ -421,7 +425,7 @@ export const GameStateProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 			// Save to local storage as backup
 			localStorage.setItem('stargate-current-game-id', newGameId);
 			localStorage.setItem('stargate-current-game-name', savedGame.name);
-			localStorage.setItem(`stargate-game-${newGameId}`, savedGame.game_data);
+			localStorage.setItem(`stargate-game-${newGameId}`, JSON.stringify(savedGame.game_data));
 
 			console.log('[GAME-STATE] Loaded game from backend:', newGameId, 'name:', savedGame.name);
 			toast.success(`"${savedGame.name}" loaded successfully`);
@@ -521,6 +525,7 @@ export const GameStateProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 			loadGame,
 			isLoading,
 			isInitialized,
+			setIsInitialized,
 		}}>
 			{children}
 		</GameStateContext.Provider>

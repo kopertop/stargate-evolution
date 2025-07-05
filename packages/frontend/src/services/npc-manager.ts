@@ -52,14 +52,14 @@ export class NPCManager {
 			this.npcLayer.removeChild(sprite);
 			this.npcSprites.delete(npcId);
 		}
-		
+
 		// Clear any active fidget loop
 		const fidgetLoop = this.fidgetLoops.get(npcId);
 		if (fidgetLoop) {
 			clearTimeout(fidgetLoop);
 			this.fidgetLoops.delete(npcId);
 		}
-		
+
 		this.npcs.delete(npcId);
 	}
 
@@ -211,9 +211,9 @@ export class NPCManager {
 				// Find a safe position that avoids collisions
 				const maxRadius = Math.min(
 					Math.min(gateRoom.endX - gateRoom.startX, gateRoom.endY - gateRoom.startY) / 3,
-					80 // Maximum initial spread
+					80, // Maximum initial spread
 				);
-				
+
 				const safePosition = this.findSafePosition(npc, roomCenterX, roomCenterY, maxRadius, gateRoom);
 				if (safePosition) {
 					npc.movement.target_x = safePosition.x;
@@ -237,7 +237,7 @@ export class NPCManager {
 					npc.movement.target_x = null;
 					npc.movement.target_y = null;
 					console.log(`[NPC] ${npc.name} has exited stargate, starting fidget loop`);
-					
+
 					// Start the fidget loop
 					this.startFidgetLoop(npc, gateRoom);
 				}
@@ -412,11 +412,11 @@ export class NPCManager {
 		// NPCs can pass through each other but shouldn't stop on top of each other
 		if (npc.movement.target_x !== null && npc.movement.target_y !== null) {
 			// Check if this is close to the target position (i.e., about to stop)
-			const distanceToTarget = Math.sqrt((x - npc.movement.target_x) ** 2 + (y - npc.movement.target_y) ** 2);
+			const distanceToTarget = Math.sqrt((x - npc.movement.target_x!) ** 2 + (y - npc.movement.target_y!) ** 2);
 			if (distanceToTarget < 5) { // Close to target, check for NPC collisions
 				for (const otherNpc of this.npcs.values()) {
 					if (otherNpc.id === npc.id) continue; // Skip self
-					
+
 					const otherDistance = Math.sqrt((x - otherNpc.movement.x) ** 2 + (y - otherNpc.movement.y) ** 2);
 					const minNpcDistance = npc.size + otherNpc.size + 3; // Both NPC radii + small buffer
 					if (otherDistance < minNpcDistance) {
@@ -434,43 +434,43 @@ export class NPCManager {
 	private findSafePosition(npc: NPC, centerX: number, centerY: number, maxRadius: number, room: RoomTemplate): { x: number; y: number } | null {
 		// Try to find a position that doesn't have other NPCs stopped there
 		const maxAttempts = 20; // Increased attempts since NPCs can pass through each other
-		
+
 		for (let attempt = 0; attempt < maxAttempts; attempt++) {
 			const angle = Math.random() * Math.PI * 2;
 			const distance = Math.random() * maxRadius;
-			
+
 			const testX = centerX + Math.cos(angle) * distance;
 			const testY = centerY + Math.sin(angle) * distance;
-			
+
 			// Check basic room boundaries and furniture collisions
 			const doors = this.gameInstance ? (this.gameInstance.doors || []) : [];
 			const rooms = this.gameInstance ? (this.gameInstance.rooms || [room]) : [room];
-			
+
 			// Temporarily set target to test position for collision checking
 			const originalTargetX = npc.movement.target_x;
 			const originalTargetY = npc.movement.target_y;
 			npc.movement.target_x = testX;
 			npc.movement.target_y = testY;
-			
+
 			const isValid = this.isValidNPCPosition(testX, testY, npc, doors, rooms);
-			
+
 			// Restore original target
 			npc.movement.target_x = originalTargetX;
 			npc.movement.target_y = originalTargetY;
-			
+
 			if (isValid) {
 				console.log(`[NPC] Found safe position for ${npc.name} at (${testX.toFixed(1)}, ${testY.toFixed(1)}) after ${attempt + 1} attempts`);
 				return { x: testX, y: testY };
 			}
 		}
-		
+
 		// If no safe position found, return a position anyway (fallback)
 		const angle = Math.random() * Math.PI * 2;
 		const distance = Math.random() * maxRadius;
 		console.warn(`[NPC] Could not find safe position for ${npc.name}, using fallback position`);
 		return {
 			x: centerX + Math.cos(angle) * distance,
-			y: centerY + Math.sin(angle) * distance
+			y: centerY + Math.sin(angle) * distance,
 		};
 	}
 
@@ -518,42 +518,42 @@ export class NPCManager {
 			// Phase 1: Move in one direction for 5-30 seconds
 			const roomCenterX = room.startX + (room.endX - room.startX) / 2;
 			const roomCenterY = room.startY + (room.endY - room.startY) / 2;
-			
+
 			// Choose a random direction and distance
 			const angle = Math.random() * Math.PI * 2;
 			const maxRadius = Math.min(npc.behavior.wander_radius || 50,
 				Math.min(room.endX - room.startX, room.endY - room.startY) / 3);
 			const distance = Math.random() * maxRadius;
-			
+
 			const targetX = roomCenterX + Math.cos(angle) * distance;
 			const targetY = roomCenterY + Math.sin(angle) * distance;
-			
+
 			// Find a safe position near the target
 			const safePosition = this.findSafePosition(npc, targetX, targetY, 20, room);
 			if (safePosition) {
 				npc.movement.target_x = safePosition.x;
 				npc.movement.target_y = safePosition.y;
-				
+
 				const moveDuration = 5000 + Math.random() * 25000; // 5-30 seconds
 				console.log(`[NPC] ${npc.name} starting ${(moveDuration/1000).toFixed(1)}s move to (${safePosition.x.toFixed(1)}, ${safePosition.y.toFixed(1)})`);
-				
+
 				// After move duration, stop and pause
 				const moveTimeout = setTimeout(() => {
 					// Phase 2: Pause for 30-120 seconds
 					npc.movement.target_x = null;
 					npc.movement.target_y = null;
-					
+
 					const pauseDuration = 30000 + Math.random() * 90000; // 30-120 seconds
 					console.log(`[NPC] ${npc.name} pausing for ${(pauseDuration/1000).toFixed(1)}s`);
-					
+
 					// After pause, start the next loop iteration
 					const pauseTimeout = setTimeout(() => {
 						fidgetLoop(); // Recursive call to continue the loop
 					}, pauseDuration);
-					
+
 					this.fidgetLoops.set(npc.id, pauseTimeout);
 				}, moveDuration);
-				
+
 				this.fidgetLoops.set(npc.id, moveTimeout);
 			} else {
 				// If no safe position found, just pause and try again
@@ -561,7 +561,7 @@ export class NPCManager {
 				const retryTimeout = setTimeout(() => {
 					fidgetLoop();
 				}, 10000); // Retry in 10 seconds
-				
+
 				this.fidgetLoops.set(npc.id, retryTimeout);
 			}
 		};

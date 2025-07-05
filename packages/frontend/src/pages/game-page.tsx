@@ -397,7 +397,7 @@ const GameRenderer: React.FC<GameRendererProps> = ({ gameId, savedGameData }) =>
 				setShowInventory((prev) => !prev);
 				setInventoryTab(0);
 			}
-			
+
 			if (listeningKey) {
 				setKeybindings((prev) => {
 					const updated: Keybindings = { ...prev };
@@ -849,18 +849,54 @@ export const GamePage: React.FC = () => {
 				setLoadError(null);
 
 				try {
-					await gameState.loadGame(gameIdFromUrl);
-					console.log('[GAME-PAGE] Successfully loaded game from URL:', gameIdFromUrl);
+					// Check if this is a local game
+					if (gameIdFromUrl.startsWith('local-')) {
+						console.log('[GAME-PAGE] Loading local game from localStorage:', gameIdFromUrl);
 
-					// Get the full game data that was just loaded and stored in localStorage
-					const storedGameData = localStorage.getItem(`stargate-game-${gameIdFromUrl}`);
-					if (storedGameData) {
-						try {
-							const fullGameData = JSON.parse(storedGameData);
-							console.log('[GAME-PAGE] Setting full loaded game data for restoration');
-							setSavedGameData(fullGameData);
-						} catch (error) {
-							console.warn('[GAME-PAGE] Failed to parse newly loaded game data:', error);
+						// Try to load from localStorage
+						const storedGameData = localStorage.getItem(`stargate-game-${gameIdFromUrl}`);
+						if (!storedGameData) {
+							throw new Error('Local game data not found. The game may have been deleted.');
+						}
+
+						const gameData = JSON.parse(storedGameData);
+
+						// Set context state directly for local games
+						gameState.setGameId(gameIdFromUrl);
+						gameState.setGameName(localStorage.getItem('stargate-current-game-name') || 'Local Game');
+						gameState.setDestinyStatus(gameData.destinyStatus);
+						gameState.setCharacters(gameData.characters || []);
+						gameState.setTechnologies(gameData.technologies || []);
+						gameState.setExploredRooms(gameData.exploredRooms || []);
+						gameState.setExplorationProgress(gameData.explorationProgress || []);
+						gameState.setCurrentGalaxy(gameData.currentGalaxy || null);
+						gameState.setCurrentSystem(gameData.currentSystem || null);
+						gameState.setKnownGalaxies(gameData.knownGalaxies || []);
+						gameState.setKnownSystems(gameData.knownSystems || []);
+
+						// Update localStorage to current game
+						localStorage.setItem('stargate-current-game-id', gameIdFromUrl);
+
+						console.log('[GAME-PAGE] Local game loaded successfully:', gameIdFromUrl);
+						setSavedGameData(gameData);
+
+						// Mark game as initialized
+						gameState.setIsInitialized(true);
+					} else {
+						// Backend game - use the existing loadGame method
+						await gameState.loadGame(gameIdFromUrl);
+						console.log('[GAME-PAGE] Successfully loaded game from URL:', gameIdFromUrl);
+
+						// Get the full game data that was just loaded and stored in localStorage
+						const storedGameData = localStorage.getItem(`stargate-game-${gameIdFromUrl}`);
+						if (storedGameData) {
+							try {
+								const fullGameData = JSON.parse(storedGameData);
+								console.log('[GAME-PAGE] Setting full loaded game data for restoration');
+								setSavedGameData(fullGameData);
+							} catch (error) {
+								console.warn('[GAME-PAGE] Failed to parse newly loaded game data:', error);
+							}
 						}
 					}
 

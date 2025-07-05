@@ -7,6 +7,7 @@ import type {
 import * as PIXI from 'pixi.js';
 
 import { HelpPopover } from './help-popover';
+import { FogOfWarManager } from './services/fog-of-war-manager';
 import type { GamepadAxis, GamepadButton } from './services/game-controller';
 import { NPCManager } from './services/npc-manager';
 import { SavedGameService } from './services/saved-game-service';
@@ -69,13 +70,17 @@ export class Game {
 	private rooms: RoomTemplate[] = [];
 	private doors: DoorTemplate[] = [];
 	private furniture: RoomFurniture[] = [];
-	
+
 	// NPC system
 	private npcManager: NPCManager | null = null;
 
 	// Pending restoration data (stored until room system is ready)
 	private pendingRestoration: any = null;
 	private isDestroyed = false;
+
+	// Fog of War manager
+	private fogOfWarManager: FogOfWarManager | null = null;
+	private fogLayer: PIXI.Container | null = null;
 
 	constructor(app: PIXI.Application, options: GameOptions = {}, gameData?: any) {
 		this.app = app;
@@ -112,6 +117,13 @@ export class Game {
 			// Show error to user - the game cannot function without room data
 			throw new Error(`Game initialization failed: ${error.message}`);
 		});
+
+		// Initialize Fog of War manager
+		this.fogOfWarManager = new FogOfWarManager();
+
+		// Initialize fog layer
+		this.fogLayer = new PIXI.Container();
+		this.world.addChild(this.fogLayer);
 	}
 
 	private createStarfield(): PIXI.Graphics {
@@ -395,10 +407,22 @@ export class Game {
 		// Player's visual position is player.x * world.scale, so we need to offset by that amount
 		this.world.x = centerX - (this.player.x * this.world.scale.x);
 		this.world.y = centerY - (this.player.y * this.world.scale.y);
-		
+
 		// Update NPCs
 		if (this.npcManager) {
 			this.npcManager.updateNPCs(this.doors, this.rooms, (doorId, isNPC) => this.activateDoor(doorId, isNPC));
+		}
+
+		// Update Fog of War manager
+		if (this.fogOfWarManager) {
+			const currentRoom = this.findRoomContainingPoint(this.player.x, this.player.y);
+			this.fogOfWarManager.updatePlayerPosition({
+				x: this.player.x,
+				y: this.player.y,
+				roomId: currentRoom?.id || 'unknown',
+			});
+			// Re-render fog layer when player moves
+			this.renderFogOfWar();
 		}
 	}
 
@@ -712,7 +736,7 @@ export class Game {
 		} else if (door.state === 'closed') {
 			door.state = 'opened';
 			console.log('[DOOR] Opened door:', doorId);
-			
+
 			// Mark door as cleared when user opens it for the first time
 			if (!isNPC && !door.cleared) {
 				door.cleared = true;
@@ -764,7 +788,7 @@ export class Game {
 
 		door.restricted = restricted;
 		console.log('[DOOR] Set door restriction:', doorId, 'restricted:', restricted);
-		
+
 		// Re-render doors to show potential visual changes
 		this.renderRooms();
 		return true;
@@ -908,17 +932,18 @@ export class Game {
 	// Game state serialization - gets all current game engine state
 	public toJSON(): any {
 		const playerPosition = this.getPlayerPosition();
-		const currentRoomId = this.getCurrentRoomId();
 		const doorStates = this.getDoorStates();
+		const currentRoomId = this.getCurrentRoomId();
 
 		return {
 			playerPosition: {
 				x: playerPosition.x,
 				y: playerPosition.y,
-				roomId: currentRoomId || undefined,
+				roomId: currentRoomId,
 			},
 			doorStates,
-			// Add any other game engine state that needs to be saved
+			fogOfWar: this.fogOfWarManager?.getFogData() || {},
+			// Add other game state as needed
 			mapZoom: this.mapZoom,
 			currentBackgroundType: this.currentBackgroundType,
 		};
@@ -1001,6 +1026,18 @@ export class Game {
 		// Restore door states (only for doors that still exist)
 		if (gameData.doorStates && gameData.doorStates.length > 0) {
 			this.restoreDoorStatesGracefully(gameData.doorStates);
+		}
+
+		// Restore fog of war data
+		if (gameData.fogOfWar && this.fogOfWarManager) {
+			const playerPos = this.getPlayerPosition();
+			const currentRoom = this.findRoomContainingPoint(playerPos.x, playerPos.y);
+			this.fogOfWarManager.initialize(gameData.fogOfWar, {
+				x: playerPos.x,
+				y: playerPos.y,
+				roomId: currentRoom?.id || 'unknown',
+			});
+			console.log('[GAME] Fog of war data restored');
 		}
 
 		// Restore other game engine state
@@ -1177,7 +1214,7 @@ export class Game {
 			this.world.addChild(this.furnitureLayer);
 			this.world.addChild(this.npcLayer);
 			this.world.addChild(this.player); // Add player on top of everything
-			
+
 			// Initialize NPC manager
 			this.npcManager = new NPCManager(this.npcLayer, this);
 			console.log('[DEBUG] Initialized NPC manager');
@@ -1203,7 +1240,7 @@ export class Game {
 
 			// Initialize test NPCs for development
 			this.initializeTestNPCs();
-			
+
 			// Expose NPC test utilities to console for development
 			if (import.meta.env.DEV) {
 				exposeNPCTestUtils();
@@ -1443,5 +1480,77 @@ export class Game {
 				}
 			}
 		}
+	}
+
+	// Fog of War methods
+	public getFogOfWarManager(): FogOfWarManager | null {
+		return this.fogOfWarManager;
+	}
+
+	public isTileDiscovered(worldX: number, worldY: number): boolean {
+		return this.fogOfWarManager?.isTileDiscovered(worldX, worldY) || false;
+	}
+
+	public forceDiscoverArea(centerX: number, centerY: number, radius: number): void {
+		this.fogOfWarManager?.forceDiscoverArea(centerX, centerY, radius);
+	}
+
+	public clearFogOfWar(): void {
+		this.fogOfWarManager?.clearFog();
+	}
+
+	private renderFogOfWar(): void {
+		if (!this.fogLayer || !this.fogOfWarManager) return;
+
+		// Clear existing fog graphics
+		this.fogLayer.removeChildren();
+
+		// Get the current viewport bounds to determine what tiles to render
+		const viewportBounds = this.getViewportBounds();
+		const config = this.fogOfWarManager.getConfig();
+
+		// Calculate tile bounds to render
+		const startTileX = Math.floor(viewportBounds.left / config.tileSize);
+		const endTileX = Math.ceil(viewportBounds.right / config.tileSize);
+		const startTileY = Math.floor(viewportBounds.top / config.tileSize);
+		const endTileY = Math.ceil(viewportBounds.bottom / config.tileSize);
+
+		// Render fog tiles
+		for (let tileX = startTileX; tileX <= endTileX; tileX++) {
+			for (let tileY = startTileY; tileY <= endTileY; tileY++) {
+				const worldX = tileX * config.tileSize;
+				const worldY = tileY * config.tileSize;
+
+				// Check if this tile is discovered
+				const isDiscovered = this.fogOfWarManager.isTileDiscovered(worldX, worldY);
+
+				if (!isDiscovered) {
+					// Create fog tile
+					const fogTile = new PIXI.Graphics();
+					fogTile.rect(0, 0, config.tileSize, config.tileSize)
+						.fill({ color: 0x000000, alpha: 0.7 }); // Semi-transparent black
+
+					fogTile.x = worldX;
+					fogTile.y = worldY;
+
+					this.fogLayer.addChild(fogTile);
+				}
+			}
+		}
+	}
+
+	private getViewportBounds(): { left: number; right: number; top: number; bottom: number } {
+		// Calculate world coordinates of the viewport
+		const screenWidth = this.app.screen.width;
+		const screenHeight = this.app.screen.height;
+		const worldScale = this.world.scale.x;
+
+		// Convert screen coordinates to world coordinates
+		const left = (-this.world.x) / worldScale;
+		const right = (screenWidth - this.world.x) / worldScale;
+		const top = (-this.world.y) / worldScale;
+		const bottom = (screenHeight - this.world.y) / worldScale;
+
+		return { left, right, top, bottom };
 	}
 }
