@@ -876,6 +876,12 @@ export class Game {
 		return { x: this.player.x, y: this.player.y };
 	}
 
+	public getTimeSpeed(): number {
+		// This method should be implemented to return the current game time speed
+		// For now, return 1 as default. This should be connected to the actual time speed system.
+		return 1;
+	}
+
 	public getStargatePosition(): { x: number; y: number } | null {
 		// Find the stargate furniture by its specific ID
 		const stargateFurniture = this.furniture.find(f => f.id === 'stargate');

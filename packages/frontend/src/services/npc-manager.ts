@@ -333,9 +333,11 @@ export class NPCManager {
 			return true;
 		}
 
-		// Calculate movement step
-		const moveX = (dx / distance) * npc.movement.speed;
-		const moveY = (dy / distance) * npc.movement.speed;
+		// Calculate movement step with game time speed multiplier
+		const gameTimeSpeed = this.gameInstance?.getTimeSpeed ? this.gameInstance.getTimeSpeed() : 1;
+		const effectiveSpeed = npc.movement.speed * Math.max(gameTimeSpeed, 0); // Don't move if paused (speed 0)
+		const moveX = (dx / distance) * effectiveSpeed;
+		const moveY = (dy / distance) * effectiveSpeed;
 
 		const newX = npc.movement.x + moveX;
 		const newY = npc.movement.y + moveY;
@@ -534,8 +536,13 @@ export class NPCManager {
 				npc.movement.target_x = safePosition.x;
 				npc.movement.target_y = safePosition.y;
 
-				const moveDuration = 5000 + Math.random() * 25000; // 5-30 seconds
-				console.log(`[NPC] ${npc.name} starting ${(moveDuration/1000).toFixed(1)}s move to (${safePosition.x.toFixed(1)}, ${safePosition.y.toFixed(1)})`);
+				// Calculate durations based on game time speed (faster game = shorter real-time delays)
+				const gameTimeSpeed = this.gameInstance?.getTimeSpeed ? this.gameInstance.getTimeSpeed() : 1;
+				const timeMultiplier = gameTimeSpeed > 0 ? 1 / gameTimeSpeed : 0; // Pause if speed is 0
+				
+				const baseMoveTime = 5000 + Math.random() * 25000; // 5-30 seconds in game time
+				const moveDuration = baseMoveTime * timeMultiplier; // Adjust for real time
+				console.log(`[NPC] ${npc.name} starting ${(baseMoveTime/1000).toFixed(1)}s game-time move (${(moveDuration/1000).toFixed(1)}s real-time) to (${safePosition.x.toFixed(1)}, ${safePosition.y.toFixed(1)})`);
 
 				// After move duration, stop and pause
 				const moveTimeout = setTimeout(() => {
@@ -543,8 +550,9 @@ export class NPCManager {
 					npc.movement.target_x = null;
 					npc.movement.target_y = null;
 
-					const pauseDuration = 30000 + Math.random() * 90000; // 30-120 seconds
-					console.log(`[NPC] ${npc.name} pausing for ${(pauseDuration/1000).toFixed(1)}s`);
+					const basePauseTime = 30000 + Math.random() * 90000; // 30-120 seconds in game time
+					const pauseDuration = basePauseTime * timeMultiplier; // Adjust for real time
+					console.log(`[NPC] ${npc.name} pausing for ${(basePauseTime/1000).toFixed(1)}s game-time (${(pauseDuration/1000).toFixed(1)}s real-time)`);
 
 					// After pause, start the next loop iteration
 					const pauseTimeout = setTimeout(() => {

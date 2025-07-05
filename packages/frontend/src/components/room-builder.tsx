@@ -2193,6 +2193,9 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 								<p>Room Position: ({selectedFurniture.x}, {selectedFurniture.y})</p>
 								<p>Size: {selectedFurniture.width} × {selectedFurniture.height}</p>
 								<p>Active: <span className={`badge bg-${selectedFurniture.active ? 'success' : 'danger'}`}>{selectedFurniture.active ? 'Yes' : 'No'}</span></p>
+								<p>Blocks Movement: <span className={`badge bg-${selectedFurniture.blocks_movement ? 'warning' : 'secondary'}`}>{selectedFurniture.blocks_movement ? 'Yes' : 'No'}</span></p>
+								{selectedFurniture.image && <p>Image: <small className="text-muted">{selectedFurniture.image}</small></p>}
+								{selectedFurniture.requirements && <p>Requirements: <small className="text-muted">{JSON.stringify(selectedFurniture.requirements)}</small></p>}
 								<div className="d-grid gap-2">
 									<Button
 										size="sm"
@@ -2731,7 +2734,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 						</div>
 
 						<div className="row">
-							<div className="col-md-4">
+							<div className="col-md-3">
 								<Form.Group className="mb-3">
 									<Form.Check
 										type="checkbox"
@@ -2741,7 +2744,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 									/>
 								</Form.Group>
 							</div>
-							<div className="col-md-4">
+							<div className="col-md-3">
 								<Form.Check
 									type="checkbox"
 									label="Active"
@@ -2749,7 +2752,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 									onChange={(e) => setEditingFurniture({...editingFurniture, active: e.target.checked})}
 								/>
 							</div>
-							<div className="col-md-4">
+							<div className="col-md-3">
 								<Form.Check
 									type="checkbox"
 									label="Discovered"
@@ -2757,7 +2760,49 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 									onChange={(e) => setEditingFurniture({...editingFurniture, discovered: e.target.checked})}
 								/>
 							</div>
+							<div className="col-md-3">
+								<Form.Check
+									type="checkbox"
+									label="Blocks Movement"
+									checked={editingFurniture.blocks_movement || false}
+									onChange={(e) => setEditingFurniture({...editingFurniture, blocks_movement: e.target.checked})}
+								/>
+							</div>
 						</div>
+
+						<Form.Group className="mb-3">
+							<Form.Label>Image URL</Form.Label>
+							<Form.Control
+								type="text"
+								placeholder="URL to furniture image/sprite"
+								value={editingFurniture.image || ''}
+								onChange={(e) => setEditingFurniture({...editingFurniture, image: e.target.value})}
+							/>
+							<Form.Text className="text-muted">
+								Optional URL to an image or sprite for this furniture piece.
+							</Form.Text>
+						</Form.Group>
+
+						<Form.Group className="mb-3">
+							<Form.Label>Requirements (JSON)</Form.Label>
+							<Form.Control
+								as="textarea"
+								rows={3}
+								placeholder='{"power": 100, "clearance": "admin"}'
+								value={editingFurniture.requirements ? JSON.stringify(editingFurniture.requirements, null, 2) : ''}
+								onChange={(e) => {
+									try {
+										const requirements = e.target.value ? JSON.parse(e.target.value) : null;
+										setEditingFurniture({...editingFurniture, requirements});
+									} catch (err) {
+										// Invalid JSON - don't update the state, let user continue typing
+									}
+								}}
+							/>
+							<Form.Text className="text-muted">
+								JSON object defining requirements to interact with this furniture. Leave empty for no requirements.
+							</Form.Text>
+						</Form.Group>
 					</Form>
 				</Modal.Body>
 				<Modal.Footer>
@@ -3179,6 +3224,14 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 									<tr>
 										<td><strong>Blocks Movement</strong></td>
 										<td>{selectedFurniture.blocks_movement ? 'Yes' : 'No'}</td>
+									</tr>
+									<tr>
+										<td><strong>Image</strong></td>
+										<td>{selectedFurniture.image || 'None'}</td>
+									</tr>
+									<tr>
+										<td><strong>Requirements</strong></td>
+										<td>{selectedFurniture.requirements ? JSON.stringify(selectedFurniture.requirements) : 'None'}</td>
 									</tr>
 									<tr>
 										<td><strong>Requires Power</strong></td>
