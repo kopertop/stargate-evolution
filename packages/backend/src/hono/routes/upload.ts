@@ -69,12 +69,12 @@ upload.post('/image', verifyJwt, async (c: Context) => {
 				uploadedAt: timestamp.toString(),
 			},
 		});
-		console.log('R2 upload result:', putResult);
+		console.log('R2 upload result:', JSON.stringify(putResult, null, 2));
 
 		// Construct public URL
 		// Use custom domain if available, otherwise fall back to R2 dev domain
 		const r2Domain = c.env.R2_PUBLIC_DOMAIN || `pub-${c.env.CLOUDFLARE_ACCOUNT_ID}.r2.dev`;
-		const publicUrl = `https://${r2Domain}/${bucket}/${key}`;
+		const publicUrl = `https://${r2Domain}/${key}`;
 
 		return c.json({
 			success: true,

@@ -6,6 +6,7 @@ compatibility_date = '2025-05-08'
 # CloudFlare account ID for R2 public URLs
 # You can find this in your CloudFlare dashboard under the right sidebar
 CLOUDFLARE_ACCOUNT_ID = "a971b579b0c55c0d35b34695711055a3"
+R2_PUBLIC_DOMAIN = "pub-d9d149dfbb4b40e088b82fd357d00b50.r2.dev"
 
 # Development configuration
 [env.development]
