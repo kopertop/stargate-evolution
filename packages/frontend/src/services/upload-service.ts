@@ -1,6 +1,4 @@
-import { API_BASE_URL } from '../config';
-import { getSession } from '../auth/session';
-
+import { apiClient } from './api-client';
 export interface UploadResponse {
 	success: boolean;
 	url: string;
@@ -9,24 +7,6 @@ export interface UploadResponse {
 }
 
 export class UploadService {
-	private apiBaseUrl: string;
-
-	constructor() {
-		this.apiBaseUrl = API_BASE_URL;
-	}
-
-	/**
-	 * Get authentication headers for requests
-	 */
-	private getAuthHeaders(): Record<string, string> {
-		const session = getSession();
-		if (!session?.token) {
-			throw new Error('No authentication token available');
-		}
-		return {
-			'Authorization': `Bearer ${session.token}`,
-		};
-	}
 
 	/**
 	 * Upload an image file to CloudFlare R2 storage
@@ -50,19 +30,13 @@ export class UploadService {
 		formData.append('bucket', 'stargate-universe');
 
 		try {
-			const response = await fetch(`${this.apiBaseUrl}/api/upload/image`, {
-				method: 'POST',
-				body: formData,
-				headers: this.getAuthHeaders(),
-				credentials: 'include',
-			});
+			const response = await apiClient.postFormData('/api/upload/image', formData);
 
-			if (!response.ok) {
-				const errorData = await response.json().catch(() => ({ message: 'Upload failed' }));
-				throw new Error(errorData.message || `Upload failed with status ${response.status}`);
+			if (response.error) {
+				throw new Error(response.error);
 			}
 
-			const result: UploadResponse = await response.json();
+			const result: UploadResponse = response.data;
 			return result;
 		} catch (error) {
 			console.error('Upload failed:', error);
@@ -75,15 +49,10 @@ export class UploadService {
 	 */
 	async deleteImage(key: string): Promise<void> {
 		try {
-			const response = await fetch(`${this.apiBaseUrl}/api/upload/image/${encodeURIComponent(key)}`, {
-				method: 'DELETE',
-				headers: this.getAuthHeaders(),
-				credentials: 'include',
-			});
+			const response = await apiClient.delete(`/api/upload/image/${encodeURIComponent(key)}`);
 
-			if (!response.ok) {
-				const errorData = await response.json().catch(() => ({ message: 'Delete failed' }));
-				throw new Error(errorData.message || `Delete failed with status ${response.status}`);
+			if (response.error) {
+				throw new Error(response.error);
 			}
 		} catch (error) {
 			console.error('Delete failed:', error);

@@ -10,18 +10,18 @@ const upload = new Hono<{ Bindings: Env }>();
 upload.post('/image', verifyJwt, async (c: Context) => {
 	try {
 		console.log('Upload endpoint hit');
-		const body = await c.req.parseBody();
+		const body = await c.req.raw.formData();
 		console.log('Body parsed:', Object.keys(body));
-		
-		const file = body.file as File;
-		const folder = (body.folder as string) || 'general';
-		const bucket = (body.bucket as string) || 'stargate-universe';
+
+		const file = body.get('file') as File;
+		const folder = (body.get('folder') as string) || 'general';
+		const bucket = (body.get('bucket') as string) || 'stargate-universe';
 
 		console.log('File:', file?.name, 'Size:', file?.size, 'Type:', file?.type);
 		console.log('Folder:', folder, 'Bucket:', bucket);
 
 		if (!file) {
-			console.error('No file in request body');
+			console.error('No file in request body', file);
 			return c.json({ error: 'No file provided' }, 400);
 		}
 

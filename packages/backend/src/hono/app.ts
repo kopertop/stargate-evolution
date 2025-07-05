@@ -12,12 +12,7 @@ import upload from './routes/upload';
 const app = new Hono<{ Bindings: Env }>();
 
 // Add CORS middleware with specific origins for credentials support
-app.use('*', cors({
-	origin: ['http://localhost:5173', 'http://localhost:3000'], // Allow local development origins
-	credentials: true, // Allow credentials (cookies, authorization headers)
-	allowedHeaders: ['Content-Type', 'Authorization'],
-	methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-}));
+app.use('*', cors());
 
 // Health check endpoint
 app.get('/', (c: Context) => {

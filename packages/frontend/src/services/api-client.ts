@@ -36,7 +36,6 @@ export class ApiClient {
 			throw new Error('No authentication token available');
 		}
 		return {
-			'Content-Type': 'application/json',
 			'Authorization': `Bearer ${session.token}`,
 		};
 	}
@@ -77,6 +76,10 @@ export class ApiClient {
 				...options.headers,
 			},
 		};
+		console.log('Request options:', {
+			url,
+			requestOptions,
+		});
 
 		let response = await fetch(url, requestOptions);
 
@@ -104,7 +107,7 @@ export class ApiClient {
 					...options,
 					headers: {
 						...options.headers,
-						'Content-Type': 'application/json',
+						'Accept': 'application/json',
 						'Authorization': `Bearer ${refreshedSession.token}`,
 					},
 				};
@@ -194,10 +197,25 @@ export class ApiClient {
 			: this.makeRequest<T>(endpoint, { method: 'GET' });
 	}
 
+	async postFormData<T = any>(endpoint: string, data: FormData, authenticated = true): Promise<ApiResponse<T>> {
+		const options: RequestInit = {
+			method: 'POST',
+			body: data,
+		};
+
+		return authenticated
+			? this.makeAuthenticatedRequest<T>(endpoint, options)
+			: this.makeRequest<T>(endpoint, options);
+	}
+
+
 	async post<T = any>(endpoint: string, data?: any, authenticated = true): Promise<ApiResponse<T>> {
 		const options: RequestInit = {
 			method: 'POST',
 			body: data ? JSON.stringify(data) : undefined,
+			headers: {
+				'Content-Type': 'application/json',
+			},
 		};
 
 		return authenticated
