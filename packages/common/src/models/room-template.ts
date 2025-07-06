@@ -16,8 +16,8 @@ export const RoomTemplateSchema = z.object({
 	floor: z.number(),
 
 	// Legacy width/height calculated automatically in database
-	width: z.number(),
-	height: z.number(),
+	width: z.number().optional().nullable(),
+	height: z.number().optional().nullable(),
 
 	found: z.union([z.boolean(), z.number()]).optional().transform((val) => val === true || val === 1),
 	locked: z.union([z.boolean(), z.number()]).optional().transform((val) => val === true || val === 1),

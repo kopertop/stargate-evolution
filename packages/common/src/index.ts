@@ -2,7 +2,6 @@ export * from './sleep';
 export * from './time-display';
 export * from './trim-nulls';
 export * from './null-to-undefined';
-export * from './zod-templates';
 export * from './room-utils';
 
 // Export all models
@@ -27,5 +26,6 @@ export * from './models/technology-schema';
 export * from './models/technology-template';
 export * from './models/user';
 export * from './models/character';
+export * from './models/npc';
 export * from './models/progression';
 export * from './models/saved-game';

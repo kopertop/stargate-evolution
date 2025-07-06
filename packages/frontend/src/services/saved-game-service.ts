@@ -77,18 +77,18 @@ export class SavedGameService {
 
 	/**
 	 * Save current game state
-	 * This is a convenience method that serializes the game state and saves it
+	 * This is a convenience method that sends the game state object to the backend
 	 */
 	static async saveCurrentGame(
 		name: string,
 		description: string | undefined,
 		gameState: any,
 	): Promise<SavedGame> {
-		const gameData = JSON.stringify(gameState);
+		// Send the game state object directly (not as JSON string)
 		return this.createSavedGame({
 			name,
 			description,
-			game_data: gameData,
+			game_data: gameState,
 		});
 	}
 
@@ -98,7 +98,10 @@ export class SavedGameService {
 	 */
 	static async loadGame(id: string): Promise<{ savedGame: SavedGame; gameState: any }> {
 		const savedGame = await this.getSavedGame(id);
-		const gameState = JSON.parse(savedGame.game_data);
+		// Backend returns JSON string, so we need to parse it
+		const gameState = typeof savedGame.game_data === 'string'
+			? JSON.parse(savedGame.game_data)
+			: savedGame.game_data;
 		return { savedGame, gameState };
 	}
 
@@ -107,9 +110,9 @@ export class SavedGameService {
 	 * This is a convenience method for updating just the game data
 	 */
 	static async updateGameState(id: string, gameState: any): Promise<SavedGame> {
-		const gameData = JSON.stringify(gameState);
+		// Send the game state object directly (not as JSON string)
 		return this.updateSavedGame(id, {
-			game_data: gameData,
+			game_data: gameState,
 		});
 	}
 }

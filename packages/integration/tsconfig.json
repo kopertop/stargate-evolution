@@ -1,12 +1,15 @@
 {
-"extends": "../../tsconfig.json",
-"include": ["test/**/*.ts", "vitest.config.ts"],
-"compilerOptions": {
-"moduleResolution": "bundler",
-"types": [
-"@cloudflare/vitest-pool-workers",
-"vite/client",
-"node"
-]
-}
+	"extends": "../../tsconfig.json",
+	"include": [
+		"__tests__/**/*.ts",
+		"vitest.config.ts"
+	],
+	"compilerOptions": {
+		"moduleResolution": "bundler",
+		"types": [
+			"@cloudflare/vitest-pool-workers",
+			"vite/client",
+			"node"
+		]
+	}
 }

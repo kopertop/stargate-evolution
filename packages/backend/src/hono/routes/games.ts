@@ -1,4 +1,5 @@
 import { DestinyStatusSchema } from '@stargate/common/models/destiny-status';
+import { GameDataSchema } from '@stargate/common/models/game';
 import {
 	SavedGameSchema,
 	SavedGameListItemSchema,
@@ -87,7 +88,14 @@ games.get('/saves/:id', async (c) => {
 			return c.json({ error: 'Saved game not found' }, 404);
 		}
 
-		const parsed = SavedGameSchema.safeParse(result);
+		// Parse the game_data from JSON string to object
+		const gameDataParsed = JSON.parse(result.game_data as string);
+		const resultWithParsedData = {
+			...result,
+			game_data: gameDataParsed,
+		};
+
+		const parsed = SavedGameSchema.safeParse(resultWithParsedData);
 		if (!parsed.success) {
 			console.error('Failed to parse saved game:', parsed.error);
 			return c.json({ error: 'Failed to parse saved game' }, 500);
@@ -114,12 +122,17 @@ games.post('/saves', async (c) => {
 		// Generate a unique ID prefixed with user ID
 		const gameId = `${user.id}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-		// Validate that game_data is valid JSON
-		try {
-			JSON.parse(parsed.data.game_data);
-		} catch {
-			return c.json({ error: 'Invalid JSON in game_data' }, 400);
+		// Validate the GameData object with Zod
+		const gameDataValidation = GameDataSchema.safeParse(parsed.data.game_data);
+		if (!gameDataValidation.success) {
+			return c.json({
+				error: 'Invalid game data structure',
+				details: gameDataValidation.error,
+			}, 400);
 		}
+
+		// Stringify the validated GameData for database storage
+		const gameDataString = JSON.stringify(parsed.data.game_data);
 
 		const stmt = c.env.DB.prepare(`
 			INSERT INTO saved_games (id, user_id, name, description, game_data)
@@ -131,7 +144,7 @@ games.post('/saves', async (c) => {
 			user.id,
 			parsed.data.name,
 			parsed.data.description || null,
-			parsed.data.game_data,
+			gameDataString,
 		).run();
 
 		// Return the created saved game
@@ -139,7 +152,14 @@ games.post('/saves', async (c) => {
 			SELECT * FROM saved_games WHERE id = ?
 		`).bind(gameId).first();
 
-		const newGameParsed = SavedGameSchema.safeParse(newGame);
+		// Parse the game_data from JSON string to object for response
+		const gameDataParsed = JSON.parse(newGame!.game_data as string);
+		const newGameWithParsedData = {
+			...newGame,
+			game_data: gameDataParsed,
+		};
+
+		const newGameParsed = SavedGameSchema.safeParse(newGameWithParsedData);
 		if (!newGameParsed.success) {
 			console.error('Failed to parse newly created saved game:', newGameParsed.error);
 			return c.json({ error: 'Failed to create saved game' }, 500);
@@ -177,18 +197,25 @@ games.put('/saves/:id', async (c) => {
 		const updates = [];
 		const values = [];
 
-		// Validate game_data if provided
+		// Validate and process game_data if provided
 		if (parsed.data.game_data) {
-			try {
-				const gameData = JSON.parse(parsed.data.game_data);
-				if (gameData.current_time) {
-					// If the current_time is updated, save it to our updated values too
-					updates.push('game_time = ?');
-					values.push(gameData.current_time);
-				}
-			} catch {
-				return c.json({ error: 'Invalid JSON in game_data' }, 400);
+			const gameDataValidation = GameDataSchema.safeParse(parsed.data.game_data);
+			if (!gameDataValidation.success) {
+				return c.json({
+					error: 'Invalid game data structure',
+					details: gameDataValidation.error,
+				}, 400);
 			}
+
+			// Extract current_time for game_time field if it exists
+			if (parsed.data.game_data.destinyStatus?.current_time) {
+				updates.push('game_time = ?');
+				values.push(parsed.data.game_data.destinyStatus.current_time);
+			}
+
+			// Stringify the validated GameData for database storage
+			updates.push('game_data = ?');
+			values.push(JSON.stringify(parsed.data.game_data));
 		}
 
 		if (parsed.data.name) {
@@ -199,11 +226,6 @@ games.put('/saves/:id', async (c) => {
 		if (parsed.data.description !== undefined) {
 			updates.push('description = ?');
 			values.push(parsed.data.description || null);
-		}
-
-		if (parsed.data.game_data) {
-			updates.push('game_data = ?');
-			values.push(parsed.data.game_data);
 		}
 
 		if (updates.length === 0) {
@@ -226,7 +248,14 @@ games.put('/saves/:id', async (c) => {
 			SELECT * FROM saved_games WHERE id = ?
 		`).bind(gameId).first();
 
-		const updatedGameParsed = SavedGameSchema.safeParse(updatedGame);
+		// Parse the game_data from JSON string to object for response
+		const gameDataParsed = JSON.parse(updatedGame!.game_data as string);
+		const updatedGameWithParsedData = {
+			...updatedGame,
+			game_data: gameDataParsed,
+		};
+
+		const updatedGameParsed = SavedGameSchema.safeParse(updatedGameWithParsedData);
 		if (!updatedGameParsed.success) {
 			console.error('Failed to parse updated saved game:', updatedGameParsed.error);
 			return c.json({ error: 'Failed to update saved game' }, 500);

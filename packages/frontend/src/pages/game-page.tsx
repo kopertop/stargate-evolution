@@ -3,7 +3,7 @@ import * as PIXI from 'pixi.js';
 import { InputDevice } from 'pixijs-input-devices';
 import React, { useEffect, useRef, useState } from 'react';
 import { Button, Container, Modal, Form, Row, Col, Table } from 'react-bootstrap';
-import { useNavigate } from 'react-router';
+import { useNavigate, useParams } from 'react-router';
 
 import { renderGoogleSignInButton } from '../auth/google-auth';
 import { InventoryModal } from '../components/inventory-modal';
@@ -36,7 +36,14 @@ const DEFAULT_GAMEPAD_BINDINGS: GamepadBindings = {
 	activate: [GAMEPAD_BUTTONS.A], // A button
 };
 
-export const GamePage: React.FC = () => {
+// Props interface for the GameRenderer component
+interface GameRendererProps {
+	gameId: string;
+	savedGameData: any;
+}
+
+// Separate component that handles the actual game rendering
+const GameRenderer: React.FC<GameRendererProps> = ({ gameId, savedGameData }) => {
 	const canvasRef = useRef<HTMLDivElement>(null);
 	const pixiAppRef = useRef<PIXI.Application | null>(null);
 	const gameRef = useRef<Game | null>(null);
@@ -131,13 +138,10 @@ export const GamePage: React.FC = () => {
 				});
 				gameRef.current = game;
 
-				// Restore game state if there's loaded data waiting
-				const loadedGameData = (window as any).loadedGameData;
-				if (loadedGameData) {
-					console.log('[GAME-PAGE] Restoring game state from loaded data');
-					game.loadFromJSON(loadedGameData);
-					// Clear the loaded data
-					(window as any).loadedGameData = null;
+				// Restore game state if there's saved data from props
+				if (savedGameData) {
+					console.log('[GAME-RENDERER] Restoring game state from saved data');
+					game.loadFromJSON(savedGameData);
 				}
 			} catch (error) {
 				console.error('[GAME-PAGE] Failed to initialize game:', error);
@@ -179,7 +183,7 @@ export const GamePage: React.FC = () => {
 			}
 		};
 
-	}, [speed, keybindings, gamepadBindings]);
+	}, [speed, keybindings, gamepadBindings, savedGameData]);
 
 	// Use refs to avoid stale closure issues
 	const stateRef = useRef({
@@ -229,28 +233,24 @@ export const GamePage: React.FC = () => {
 			setInventoryTab(0);
 		});
 
-		// Left D-pad (decrease time speed)
-		const unsubscribeLeftDpad = controller.onButtonRelease('DPAD_LEFT', () => {
-			if (!showPause && !showInventory) { // Only when not in menus
-				const currentSpeed = gameState.destinyStatus?.time_speed || 1;
-				const speeds = [0, 1, 5, 10];
-				const currentIndex = speeds.indexOf(currentSpeed);
-				const newIndex = Math.max(0, currentIndex - 1);
-				gameState.setTimeSpeed(speeds[newIndex]);
-				console.log('[GAME-PAGE-CONTROLLER] Left D-pad - decreased time speed to', speeds[newIndex]);
-			}
+		// Left bumper (LB) - decrease time speed (global)
+		const unsubscribeLeftBumper = controller.onButtonRelease('LB', () => {
+			const currentSpeed = gameState.destinyStatus?.time_speed || 1;
+			const speeds = [0, 1, 60, 1800, 3600]; // 0x (pause), 1x (real-time), 1 min/sec, 30 min/sec, 1 hr/sec
+			const currentIndex = speeds.indexOf(currentSpeed);
+			const newIndex = Math.max(0, currentIndex - 1);
+			gameState.setTimeSpeed(speeds[newIndex]);
+			console.log('[GAME-PAGE-CONTROLLER] Left bumper (LB) - decreased time speed to', speeds[newIndex]);
 		});
 
-		// Right D-pad (increase time speed)
-		const unsubscribeRightDpad = controller.onButtonRelease('DPAD_RIGHT', () => {
-			if (!showPause && !showInventory) { // Only when not in menus
-				const currentSpeed = gameState.destinyStatus?.time_speed || 1;
-				const speeds = [0, 1, 5, 10];
-				const currentIndex = speeds.indexOf(currentSpeed);
-				const newIndex = Math.min(speeds.length - 1, currentIndex + 1);
-				gameState.setTimeSpeed(speeds[newIndex]);
-				console.log('[GAME-PAGE-CONTROLLER] Right D-pad - increased time speed to', speeds[newIndex]);
-			}
+		// Right bumper (RB) - increase time speed (global)
+		const unsubscribeRightBumper = controller.onButtonRelease('RB', () => {
+			const currentSpeed = gameState.destinyStatus?.time_speed || 1;
+			const speeds = [0, 1, 60, 1800, 3600]; // 0x (pause), 1x (real-time), 1 min/sec, 30 min/sec, 1 hr/sec
+			const currentIndex = speeds.indexOf(currentSpeed);
+			const newIndex = Math.min(speeds.length - 1, currentIndex + 1);
+			gameState.setTimeSpeed(speeds[newIndex]);
+			console.log('[GAME-PAGE-CONTROLLER] Right bumper (RB) - increased time speed to', speeds[newIndex]);
 		});
 
 		// Menu navigation (only when menus are open)
@@ -274,6 +274,23 @@ export const GamePage: React.FC = () => {
 				setFocusedMenuItem(prev => (prev < menuItemCount - 1 ? prev + 1 : 0));
 			} else if (state.showInventory) {
 				console.log('[GAME-PAGE-CONTROLLER] D-pad DOWN released - inventory tab navigation');
+				setInventoryTab(prev => (prev < 4 ? prev + 1 : 0));
+			}
+		});
+
+		// D-pad left/right for inventory tab navigation when in inventory
+		const unsubscribeLeftNav = controller.onButtonRelease('DPAD_LEFT', () => {
+			const state = stateRef.current;
+			if (state.showInventory) {
+				console.log('[GAME-PAGE-CONTROLLER] D-pad LEFT released - inventory tab navigation');
+				setInventoryTab(prev => (prev > 0 ? prev - 1 : 4));
+			}
+		});
+
+		const unsubscribeRightNav = controller.onButtonRelease('DPAD_RIGHT', () => {
+			const state = stateRef.current;
+			if (state.showInventory) {
+				console.log('[GAME-PAGE-CONTROLLER] D-pad RIGHT released - inventory tab navigation');
 				setInventoryTab(prev => (prev < 4 ? prev + 1 : 0));
 			}
 		});
@@ -342,10 +359,12 @@ export const GamePage: React.FC = () => {
 			console.log('[GAME-PAGE-CONTROLLER] Cleaning up controller subscriptions');
 			unsubscribePauseBack();
 			unsubscribeInventory();
-			unsubscribeLeftDpad();
-			unsubscribeRightDpad();
+			unsubscribeLeftBumper();
+			unsubscribeRightBumper();
 			unsubscribeUpNav();
 			unsubscribeDownNav();
+			unsubscribeLeftNav();
+			unsubscribeRightNav();
 			unsubscribeMenuBack();
 			unsubscribeMenuActivate();
 		};
@@ -378,6 +397,7 @@ export const GamePage: React.FC = () => {
 				setShowInventory((prev) => !prev);
 				setInventoryTab(0);
 			}
+
 			if (listeningKey) {
 				setKeybindings((prev) => {
 					const updated: Keybindings = { ...prev };
@@ -400,19 +420,7 @@ export const GamePage: React.FC = () => {
 		}
 	}, [gameState.destinyStatus?.ftl_status]);
 
-	// Load game state into game engine when game loads
-	useEffect(() => {
-		if (gameRef.current && gameState.isInitialized) {
-			// Check if there's loaded game data waiting to be restored
-			const loadedGameData = (window as any).loadedGameData;
-			if (loadedGameData) {
-				console.log('[GAME-PAGE] Restoring game engine state from loaded data');
-				gameRef.current.loadFromJSON(loadedGameData);
-				// Clear the loaded data
-				(window as any).loadedGameData = null;
-			}
-		}
-	}, [gameState.isInitialized]);
+	// Game state restoration is now handled via props in the PixiJS useEffect
 
 	// Handle token expiration during gameplay
 	useEffect(() => {
@@ -495,14 +503,10 @@ export const GamePage: React.FC = () => {
 				ftlStatus={destinyStatus.ftl_status}
 				nextFtlTransition={destinyStatus.next_ftl_transition}
 				timeSpeed={destinyStatus.time_speed}
+				onTimeSpeedChange={gameState.setTimeSpeed}
+				onShowPause={() => setShowPause(true)}
 				characterCount={gameState.characters.length || 4}
 			/>
-
-			{!isFullscreen && (
-				<div style={{ position: 'absolute', top: 56, left: 16, zIndex: 10 }}>
-					<Button variant="secondary" onClick={() => navigate('/')}>Back to Menu</Button>
-				</div>
-			)}
 			<div
 				ref={canvasRef}
 				style={{
@@ -765,5 +769,189 @@ export const GamePage: React.FC = () => {
 				</Modal.Footer>
 			</Modal>
 		</Container>
+	);
+};
+
+export const GamePage: React.FC = () => {
+	const { id: gameIdFromUrl } = useParams<{ id: string }>();
+	const navigate = useNavigate();
+	const auth = useAuth();
+	const gameState = useGameState();
+	const [savedGameData, setSavedGameData] = useState<any>(null);
+	const [isLoadingGameData, setIsLoadingGameData] = useState(false);
+	const [loadError, setLoadError] = useState<string | null>(null);
+
+	// Handle game ID from URL - load the correct game if needed
+	useEffect(() => {
+		const handleGameFromUrl = async () => {
+			if (!gameIdFromUrl) {
+				console.log('[GAME-PAGE] No game ID in URL - redirecting to menu');
+				navigate('/');
+				return;
+			}
+
+			// Wait for auth to finish loading
+			if (auth.isLoading) {
+				console.log('[GAME-PAGE] Auth still loading - waiting...');
+				return;
+			}
+
+			// If we already have the correct game loaded, get the full saved data
+			if (gameState.gameId === gameIdFromUrl && gameState.isInitialized) {
+				console.log('[GAME-PAGE] Correct game already loaded:', gameIdFromUrl);
+
+				// Try to get the full game data from localStorage first
+				const storedGameData = localStorage.getItem(`stargate-game-${gameIdFromUrl}`);
+				if (storedGameData) {
+					try {
+						const fullGameData = JSON.parse(storedGameData);
+						console.log('[GAME-PAGE] Using full stored game data for restoration');
+						setSavedGameData(fullGameData);
+						return;
+					} catch (error) {
+						console.warn('[GAME-PAGE] Failed to parse stored game data:', error);
+					}
+				}
+
+				// Fallback: create basic game data from current context (may be missing engine data)
+				console.warn('[GAME-PAGE] No stored game data found - using context data only');
+				const gameData = {
+					destinyStatus: gameState.destinyStatus,
+					characters: gameState.characters,
+					technologies: gameState.technologies,
+					exploredRooms: gameState.exploredRooms,
+					explorationProgress: gameState.explorationProgress,
+					currentGalaxy: gameState.currentGalaxy,
+					currentSystem: gameState.currentSystem,
+					knownGalaxies: gameState.knownGalaxies,
+					knownSystems: gameState.knownSystems,
+				};
+				setSavedGameData(gameData);
+				return;
+			}
+
+			// Check authentication - if not authenticated, redirect but be patient with token refresh
+			if (!auth.isAuthenticated || auth.isTokenExpired) {
+				console.log('[GAME-PAGE] User not authenticated - redirecting to menu');
+				navigate('/');
+				return;
+			}
+
+			// If we have a different game loaded, or no game loaded, try to load the URL game
+			if (gameState.gameId !== gameIdFromUrl) {
+				console.log('[GAME-PAGE] Loading game from URL:', gameIdFromUrl, 'current:', gameState.gameId);
+				setIsLoadingGameData(true);
+				setLoadError(null);
+
+				try {
+					// Check if this is a local game
+					if (gameIdFromUrl.startsWith('local-')) {
+						console.log('[GAME-PAGE] Loading local game from localStorage:', gameIdFromUrl);
+
+						// Try to load from localStorage
+						const storedGameData = localStorage.getItem(`stargate-game-${gameIdFromUrl}`);
+						if (!storedGameData) {
+							throw new Error('Local game data not found. The game may have been deleted.');
+						}
+
+						const gameData = JSON.parse(storedGameData);
+
+						// Set context state directly for local games
+						gameState.setGameId(gameIdFromUrl);
+						gameState.setGameName(localStorage.getItem('stargate-current-game-name') || 'Local Game');
+						gameState.setDestinyStatus(gameData.destinyStatus);
+						gameState.setCharacters(gameData.characters || []);
+						gameState.setTechnologies(gameData.technologies || []);
+						gameState.setExploredRooms(gameData.exploredRooms || []);
+						gameState.setExplorationProgress(gameData.explorationProgress || []);
+						gameState.setCurrentGalaxy(gameData.currentGalaxy || null);
+						gameState.setCurrentSystem(gameData.currentSystem || null);
+						gameState.setKnownGalaxies(gameData.knownGalaxies || []);
+						gameState.setKnownSystems(gameData.knownSystems || []);
+
+						// Update localStorage to current game
+						localStorage.setItem('stargate-current-game-id', gameIdFromUrl);
+
+						console.log('[GAME-PAGE] Local game loaded successfully:', gameIdFromUrl);
+						setSavedGameData(gameData);
+
+						// Mark game as initialized
+						gameState.setIsInitialized(true);
+					} else {
+						// Backend game - use the existing loadGame method
+						await gameState.loadGame(gameIdFromUrl);
+						console.log('[GAME-PAGE] Successfully loaded game from URL:', gameIdFromUrl);
+
+						// Get the full game data that was just loaded and stored in localStorage
+						const storedGameData = localStorage.getItem(`stargate-game-${gameIdFromUrl}`);
+						if (storedGameData) {
+							try {
+								const fullGameData = JSON.parse(storedGameData);
+								console.log('[GAME-PAGE] Setting full loaded game data for restoration');
+								setSavedGameData(fullGameData);
+							} catch (error) {
+								console.warn('[GAME-PAGE] Failed to parse newly loaded game data:', error);
+							}
+						}
+					}
+
+					// Game state will be updated, which will trigger another run of this effect
+				} catch (error) {
+					console.error('[GAME-PAGE] Failed to load game from URL:', gameIdFromUrl, error);
+					setLoadError(`Failed to load game: ${error instanceof Error ? error.message : 'Unknown error'}`);
+					// Don't redirect immediately - let user see the error
+				} finally {
+					setIsLoadingGameData(false);
+				}
+			}
+		};
+
+		handleGameFromUrl();
+	}, [gameIdFromUrl, auth.isLoading, auth.isAuthenticated, auth.isTokenExpired, gameState.gameId, gameState.isInitialized, navigate]);
+
+	// Show loading state while auth is loading or while loading game from URL
+	if (auth.isLoading || isLoadingGameData ||
+		(gameIdFromUrl && gameState.gameId !== gameIdFromUrl && auth.isAuthenticated && !auth.isTokenExpired)) {
+		return (
+			<Container fluid style={{ padding: 0, background: '#000', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+				<div style={{ color: 'white', fontSize: '24px' }}>
+					{auth.isLoading
+						? 'Checking authentication...'
+						: isLoadingGameData
+							? 'Loading game...'
+							: 'Initializing game...'}
+				</div>
+			</Container>
+		);
+	}
+
+	// Show error state if game loading failed
+	if (loadError) {
+		return (
+			<Container fluid style={{ padding: 0, background: '#000', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+				<div style={{ color: '#ff6b6b', fontSize: '18px', textAlign: 'center' }}>
+					<h3>Failed to Load Game</h3>
+					<p>{loadError}</p>
+					<Button variant="primary" onClick={() => navigate('/')}>
+						Back to Menu
+					</Button>
+				</div>
+			</Container>
+		);
+	}
+
+	// Only render GameRenderer when we have a valid game ID and the game state is loaded
+	if (!gameIdFromUrl || !gameState.isInitialized || gameState.gameId !== gameIdFromUrl) {
+		return (
+			<Container fluid style={{ padding: 0, background: '#000', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+				<div style={{ color: 'white', fontSize: '24px' }}>
+					Preparing game...
+				</div>
+			</Container>
+		);
+	}
+
+	return (
+		<GameRenderer gameId={gameIdFromUrl} savedGameData={savedGameData} />
 	);
 };

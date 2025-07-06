@@ -2,6 +2,18 @@ import { RoomFurniture, RoomFurnitureSchema } from '@stargate/common';
 
 import { Env } from '../types';
 
+// Helper to parse image field from DB row
+function parseImageField(row: any) {
+	if (row && typeof row.image === 'string') {
+		try {
+			row.image = row.image ? JSON.parse(row.image) : undefined;
+		} catch {
+			row.image = undefined;
+		}
+	}
+	return row;
+}
+
 // Get all room furniture
 export async function getAllRoomFurniture(env: Env): Promise<RoomFurniture[]> {
 	const result = await env.DB.prepare(`
@@ -9,7 +21,7 @@ export async function getAllRoomFurniture(env: Env): Promise<RoomFurniture[]> {
 		ORDER BY room_id, furniture_type, name
 	`).all();
 
-	return result.results.map(row => RoomFurnitureSchema.parse(row));
+	return result.results.map(row => RoomFurnitureSchema.parse(parseImageField(row)));
 }
 
 // Get furniture for a specific room
@@ -20,7 +32,7 @@ export async function getRoomFurniture(env: Env, roomId: string): Promise<RoomFu
 		ORDER BY furniture_type, name
 	`).bind(roomId).all();
 
-	return result.results.map(row => RoomFurnitureSchema.parse(row));
+	return result.results.map(row => RoomFurnitureSchema.parse(parseImageField(row)));
 }
 
 // Get furniture by type
@@ -31,7 +43,7 @@ export async function getFurnitureByType(env: Env, furnitureType: string): Promi
 		ORDER BY room_id, name
 	`).bind(furnitureType).all();
 
-	return result.results.map(row => RoomFurnitureSchema.parse(row));
+	return result.results.map(row => RoomFurnitureSchema.parse(parseImageField(row)));
 }
 
 // Get single furniture item by ID
@@ -42,7 +54,18 @@ export async function getRoomFurnitureById(env: Env, furnitureId: string): Promi
 	`).bind(furnitureId).first();
 
 	if (!result) return null;
-	return RoomFurnitureSchema.parse(result);
+	return RoomFurnitureSchema.parse(parseImageField(result));
+}
+
+// Utility to normalize image field for DB storage (always JSON.stringify)
+function normalizeImageField(image: any): string | null {
+	console.log('normalizeImageField', image);
+	if (!image) return null;
+	try {
+		return JSON.stringify(image);
+	} catch {
+		return null;
+	}
 }
 
 // Create new room furniture
@@ -54,7 +77,7 @@ export async function createRoomFurniture(env: Env, furniture: Omit<RoomFurnitur
 		updated_at: now,
 	};
 
-	const validated = RoomFurnitureSchema.parse(furnitureWithTimestamps);
+	const validated = RoomFurnitureSchema.parse({ ...furnitureWithTimestamps, image: furnitureWithTimestamps.image });
 
 	await env.DB.prepare(`
 		INSERT INTO room_furniture (
@@ -77,7 +100,7 @@ export async function createRoomFurniture(env: Env, furniture: Omit<RoomFurnitur
 		validated.width,
 		validated.height,
 		validated.rotation,
-		validated.image || null,
+		normalizeImageField(validated.image),
 		validated.color || null,
 		validated.style || null,
 		validated.interactive ? 1 : 0,
@@ -106,7 +129,7 @@ export async function updateRoomFurniture(env: Env, furnitureId: string, updates
 		updated_at: Date.now(),
 	};
 
-	const validated = RoomFurnitureSchema.parse(updated);
+	const validated = RoomFurnitureSchema.parse({ ...updated, image: updates.image ?? existing.image });
 
 	await env.DB.prepare(`
 		UPDATE room_furniture SET
@@ -127,7 +150,7 @@ export async function updateRoomFurniture(env: Env, furnitureId: string, updates
 		validated.width,
 		validated.height,
 		validated.rotation,
-		validated.image || null,
+		normalizeImageField(validated.image),
 		validated.color || null,
 		validated.style || null,
 		validated.interactive ? 1 : 0,

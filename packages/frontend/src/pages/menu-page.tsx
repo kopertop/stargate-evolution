@@ -196,13 +196,13 @@ export const MenuPage: React.FC = () => {
 		}
 
 		try {
-			await gameState.initializeNewGame(newGameName.trim());
+			const newGameId = await gameState.initializeNewGame(newGameName.trim());
 			setShowNewGameModal(false);
 			// Refresh saved games list since we just created a new one
 			if (user) {
 				checkForSavedGames();
 			}
-			navigate('/game');
+			navigate(`/game/${newGameId}`);
 		} catch (error) {
 			// Error already handled in gameState.initializeNewGame
 		}
@@ -224,7 +224,7 @@ export const MenuPage: React.FC = () => {
 			setCheckingSavedGames(true);
 			console.log('[MENU] Loading most recent game:', mostRecentGame.name);
 			await gameState.loadGame(mostRecentGame.id);
-			navigate('/game');
+			navigate(`/game/${mostRecentGame.id}`);
 		} catch (error) {
 			console.error('Failed to load most recent game:', error);
 			toast.error('Failed to load game');
@@ -275,7 +275,7 @@ export const MenuPage: React.FC = () => {
 			setShowLoadGameModal(false);
 			// Refresh the most recent game since we just loaded one (it becomes the most recent)
 			checkForSavedGames();
-			navigate('/game');
+			navigate(`/game/${selectedGameId}`);
 		} catch (error) {
 			console.error('Failed to load game:', error);
 			toast.error('Failed to load game');

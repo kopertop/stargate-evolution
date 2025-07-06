@@ -1,11 +1,17 @@
+import { RoomTemplateSchema } from '@stargate/common/zod-templates';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
+import { ZodError } from 'zod';
 
 import type { Env, User } from '../../types';
 import { verifyAdmin } from '../middleware/admin';
 import { verifyJwt } from '../middleware/auth';
 // Import the static schema
 import tableSchema from '../table-schema.json';
+
+const CALCULATED_ROWS_FOR_TABLE = {
+	room_templates: ['width', 'height'],
+};
 
 const admin = new Hono<{ Bindings: Env; Variables: { user: User } }>();
 
@@ -156,10 +162,22 @@ admin.delete('/doors/:id', async (c) => {
 // --- Room Templates ---
 admin.post('/rooms', async (c) => {
 	const body = await c.req.json();
+	console.log('Create Room', body);
+	try {
+		RoomTemplateSchema.parse(body);
+	} catch (error) {
+		console.error('Zod validation error:', error);
+		return c.json({
+			error: 'Invalid Room Template',
+			details: error instanceof Error ? error.message : String(error),
+			issues: error instanceof ZodError ? error.issues : [],
+			errors: error instanceof ZodError ? error.errors : [],
+		}, 400);
+	}
 	// TODO: Add validation
 	try {
 		await c.env.DB.prepare(
-			'INSERT INTO room_templates (id, layout_id, type, name, description, startX, endX, startY, endY, floor, width, height, image, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+			'INSERT INTO room_templates (id, layout_id, type, name, description, startX, endX, startY, endY, floor, image, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
 		)
 			.bind(
 				body.id,
@@ -172,8 +190,6 @@ admin.post('/rooms', async (c) => {
 				body.startY,
 				body.endY,
 				body.floor,
-				body.width,
-				body.height,
 				body.image,
 				Date.now(),
 				Date.now(),
@@ -182,7 +198,10 @@ admin.post('/rooms', async (c) => {
 		return c.json({ message: 'Room template created successfully' }, 201);
 	} catch (error) {
 		console.error('Failed to create room template:', error);
-		return c.json({ error: 'Failed to create room template' }, 500);
+		return c.json({
+			error: 'Failed to create room template',
+			details: error instanceof Error ? error.message : String(error),
+		}, 500);
 	}
 });
 
@@ -192,7 +211,7 @@ admin.put('/rooms/:id', async (c) => {
 	// TODO: Add validation
 	try {
 		await c.env.DB.prepare(
-			'UPDATE room_templates SET layout_id = ?, type = ?, name = ?, description = ?, startX = ?, endX = ?, startY = ?, endY = ?, floor = ?, width = ?, height = ?, image = ?, updated_at = ? WHERE id = ?',
+			'UPDATE room_templates SET layout_id = ?, type = ?, name = ?, description = ?, startX = ?, endX = ?, startY = ?, endY = ?, floor = ?, image = ?, updated_at = ? WHERE id = ?',
 		)
 			.bind(
 				body.layout_id,
@@ -204,8 +223,6 @@ admin.put('/rooms/:id', async (c) => {
 				body.startY,
 				body.endY,
 				body.floor,
-				body.width,
-				body.height,
 				body.image,
 				Date.now(),
 				id,
@@ -548,13 +565,20 @@ admin.put('/furniture/:id', async (c) => {
 		const { updateRoomFurniture } = await import('../../templates/room-furniture-templates');
 		const furnitureId = c.req.param('id');
 		if (!furnitureId) throw new Error('Furniture ID required');
+		console.log('updateRoomFurniture', furnitureId);
 
 		const updateData = await c.req.json();
+		console.log('updateData', updateData);
 		const furniture = await updateRoomFurniture(c.env, furnitureId, updateData);
 		return c.json(furniture);
 	} catch (err: any) {
+		console.error('Failed to update furniture', err);
 		const status = err.message?.includes('not found') ? 404 : 500;
-		return c.json({ error: err.message || 'Failed to update furniture' }, status);
+		return c.json({
+			error: err.message || 'Failed to update furniture',
+			errors: err.errors,
+			issues: err.issues,
+		}, status);
 	}
 });
 
@@ -801,62 +825,225 @@ admin.post('/sql/import/:tableName', async (c) => {
 			return c.json({ error: 'Data must contain objects' }, 400);
 		}
 
-		const columns = Object.keys(firstRow);
+		// Exclude auto-calculated columns
+		const columns = Object.keys(firstRow).filter(
+			col => !CALCULATED_ROWS_FOR_TABLE[tableName as keyof typeof CALCULATED_ROWS_FOR_TABLE]?.includes(col),
+		);
 		const placeholders = columns.map(() => '?').join(', ');
 		const columnList = columns.join(', ');
 
-		// Start transaction
-		await c.env.DB.prepare('BEGIN TRANSACTION').run();
+		// Prepare all statements for batch execution
+		const statements: any[] = [];
 
-		try {
-			// If replace mode, delete existing data
-			if (mode === 'replace') {
-				const deleteResult = await c.env.DB.prepare(`DELETE FROM ${tableName}`).run();
-				console.log(`[ADMIN-SQL] Deleted ${deleteResult.meta?.changes || 0} existing rows from ${tableName}`);
-			}
-
-			// Insert new data
-			const insertQuery = `INSERT INTO ${tableName} (${columnList}) VALUES (${placeholders})`;
-			const insertStmt = c.env.DB.prepare(insertQuery);
-
-			for (const row of data) {
-				// Ensure all required columns are present and get values in correct order
-				const values = columns.map(col => {
-					const value = row[col];
-					// Handle JSON objects/arrays by stringifying them
-					if (typeof value === 'object' && value !== null) {
-						return JSON.stringify(value);
-					}
-					return value;
-				});
-
-				await insertStmt.bind(...values).run();
-				rowsAffected++;
-			}
-
-			// Commit transaction
-			await c.env.DB.prepare('COMMIT').run();
-
-			console.log(`[ADMIN-SQL] Successfully imported ${rowsAffected} rows to table ${tableName}`);
-
-			return c.json({
-				success: true,
-				message: `Successfully ${mode === 'replace' ? 'replaced' : 'appended'} data in table ${tableName}`,
-				rowsAffected,
-				importedAt: new Date().toISOString(),
-				importedBy: user.email,
-			});
-
-		} catch (error) {
-			// Rollback on error
-			await c.env.DB.prepare('ROLLBACK').run();
-			throw error;
+		// If replace mode, add delete statement
+		if (mode === 'replace') {
+			statements.push(c.env.DB.prepare(`DELETE FROM ${tableName}`));
 		}
+
+		// Add insert statements
+		const insertQuery = `INSERT INTO ${tableName} (${columnList}) VALUES (${placeholders})`;
+		for (const row of data) {
+			const values = columns.map(col => {
+				const value = row[col];
+				if (typeof value === 'object' && value !== null) {
+					return JSON.stringify(value);
+				}
+				return value;
+			});
+			statements.push(c.env.DB.prepare(insertQuery).bind(...values));
+		}
+
+		// Execute all statements in a batch
+		const results = await c.env.DB.batch(statements);
+
+		// Count affected rows
+		if (mode === 'replace') {
+			rowsAffected = results.length - 1; // Subtract 1 for delete statement
+		} else {
+			rowsAffected = results.length;
+		}
+
+		console.log(`[ADMIN-SQL] Successfully imported ${rowsAffected} rows to table ${tableName}`);
+
+		return c.json({
+			success: true,
+			message: `Successfully ${mode === 'replace' ? 'replaced' : 'appended'} data in table ${tableName}`,
+			rowsAffected,
+			importedAt: new Date().toISOString(),
+			importedBy: user.email,
+		});
 
 	} catch (error) {
 		console.error('[ADMIN-SQL] Import failed:', error);
 		return c.json({
 			error: 'Table import failed',
+			details: error instanceof Error ? error.message : 'Unknown error',
+		}, 500);
+	}
+});
+
+// Export all template data as comprehensive JSON
+admin.get('/templates/export', async (c) => {
+	try {
+		const user = c.get('user');
+		console.log(`[ADMIN-TEMPLATES] User ${user.email} (${user.id}) exporting all template data`);
+
+		// Define the template tables in dependency order
+		const templateTables = [
+			'race_templates',
+			'technology_templates',
+			'galaxy_templates',
+			'star_system_templates',
+			'planet_templates',
+			'room_templates',
+			'door_templates',
+			'room_furniture',
+			'room_technology',
+			'person_templates',
+		];
+
+		const exportData: Record<string, any[]> = {};
+
+		// Export each table
+		for (const tableName of templateTables) {
+			try {
+				const result = await c.env.DB.prepare(`SELECT * FROM ${tableName}`).all();
+				exportData[tableName] = result.results || [];
+				console.log(`[ADMIN-TEMPLATES] Exported ${exportData[tableName].length} records from ${tableName}`);
+			} catch (tableError) {
+				console.warn(`[ADMIN-TEMPLATES] Failed to export ${tableName}:`, tableError);
+				exportData[tableName] = [];
+			}
+		}
+
+		// Add metadata
+		const metadata = {
+			exported_at: new Date().toISOString(),
+			exported_by: user.email,
+			version: '1.0',
+			total_tables: templateTables.length,
+			total_records: Object.values(exportData).reduce((sum, arr) => sum + (Array.isArray(arr) ? arr.length : 0), 0),
+		};
+
+		console.log(`[ADMIN-TEMPLATES] Export complete: ${metadata.total_records} total records across ${templateTables.length} tables`);
+
+		return c.json({
+			_metadata: metadata,
+			data: exportData,
+		});
+
+	} catch (error) {
+		console.error('[ADMIN-TEMPLATES] Export failed:', error);
+		return c.json({
+			error: 'Template export failed',
+			details: error instanceof Error ? error.message : 'Unknown error',
+		}, 500);
+	}
+});
+
+// Import all template data from comprehensive JSON
+admin.post('/templates/import', async (c) => {
+	try {
+		const user = c.get('user');
+		const importData = await c.req.json();
+
+		console.log(`[ADMIN-TEMPLATES] User ${user.email} (${user.id}) importing template data`);
+
+		// Validate import data structure
+		if (!importData || typeof importData !== 'object') {
+			return c.json({ error: 'Invalid import data format' }, 400);
+		}
+
+		// Define tables in dependency order (dependencies first)
+		const templateTables = [
+			'race_templates',
+			'technology_templates',
+			'galaxy_templates',
+			'star_system_templates',
+			'planet_templates',
+			'room_templates',
+			'door_templates',
+			'room_furniture',
+			'room_technology',
+			'person_templates',
+		];
+
+		let totalImported = 0;
+		const importResults: Record<string, { imported: number; errors: number }> = {};
+
+		// Clear existing data in reverse dependency order
+		console.log('[ADMIN-TEMPLATES] Clearing existing template data...');
+		for (const tableName of [...templateTables].reverse()) {
+			try {
+				await c.env.DB.prepare(`DELETE FROM ${tableName}`).run();
+				console.log(`[ADMIN-TEMPLATES] Cleared ${tableName}`);
+			} catch (clearError) {
+				console.warn(`[ADMIN-TEMPLATES] Failed to clear ${tableName}:`, clearError);
+			}
+		}
+
+		// Import data in dependency order
+		for (const tableName of templateTables) {
+			importResults[tableName] = { imported: 0, errors: 0 };
+
+			const tableData = importData.data[tableName];
+			if (!Array.isArray(tableData) || tableData.length === 0) {
+				console.log(`[ADMIN-TEMPLATES] No data to import for ${tableName}`);
+				continue;
+			}
+
+			console.log(`[ADMIN-TEMPLATES] Importing ${tableData.length} records to ${tableName}`);
+
+			// Get table columns from schema
+			const tableInfo = await c.env.DB.prepare(`PRAGMA table_info(${tableName})`).all();
+			const columns = tableInfo.results?.map((col: any) => col.name) || [];
+			const calculatedColumns = CALCULATED_ROWS_FOR_TABLE[tableName as keyof typeof CALCULATED_ROWS_FOR_TABLE] || [];
+			const insertableColumns = columns.filter(col => !calculatedColumns.includes(col));
+
+			for (const record of tableData) {
+				try {
+					// Filter record to only include insertable columns
+					const filteredRecord: Record<string, any> = {};
+					for (const col of insertableColumns) {
+						if (Object.prototype.hasOwnProperty.call(record, col)) {
+							filteredRecord[col] = record[col];
+						}
+					}
+
+					// Build INSERT statement
+					const columnNames = Object.keys(filteredRecord);
+					const placeholders = columnNames.map(() => '?').join(', ');
+					const values = columnNames.map(col => filteredRecord[col]);
+
+					const sql = `INSERT INTO ${tableName} (${columnNames.join(', ')}) VALUES (${placeholders})`;
+					await c.env.DB.prepare(sql).bind(...values).run();
+
+					importResults[tableName].imported++;
+					totalImported++;
+
+				} catch (recordError) {
+					console.error(`[ADMIN-TEMPLATES] Failed to import record to ${tableName}:`, recordError);
+					importResults[tableName].errors++;
+				}
+			}
+
+			console.log(`[ADMIN-TEMPLATES] ${tableName}: ${importResults[tableName].imported} imported, ${importResults[tableName].errors} errors`);
+		}
+
+		console.log(`[ADMIN-TEMPLATES] Import complete: ${totalImported} total records imported`);
+
+		return c.json({
+			success: true,
+			message: 'Template data imported successfully',
+			totalImported,
+			results: importResults,
+			metadata: importData._metadata || null,
+		});
+
+	} catch (error) {
+		console.error('[ADMIN-TEMPLATES] Import failed:', error);
+		return c.json({
+			error: 'Template import failed',
 			details: error instanceof Error ? error.message : 'Unknown error',
 		}, 500);
 	}

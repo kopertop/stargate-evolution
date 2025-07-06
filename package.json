@@ -1,6 +1,6 @@
 {
 	"name": "stargate-evolution",
-	"version": "0.2.0",
+	"version": "0.2.1",
 	"private": true,
 	"scripts": {
 		"start": "turbo --ui tui run start",
@@ -13,7 +13,17 @@
 		"db:generate": "pnpm --filter backend run db:generate",
 		"db:create-schema": "pnpm --filter backend run db:create-schema",
 		"test": "pnpm -r test",
-		"deploy": "pnpm -r run deploy"
+		"deploy": "pnpm -r run deploy",
+		"release": "run-s release:*",
+		"release:test": "pnpm --filter backend run test && pnpm --filter frontend run test",
+		"release:start": "echo 'Starting release process...'",
+		"release:sync": "CURRENT_BRANCH=`git rev-parse --abbrev-ref HEAD` && git checkout --quiet main && git pull --quiet && git checkout --quiet develop && git pull --quiet && git checkout --quiet $CURRENT_BRANCH",
+		"release:release": "git flow release start $npm_package_version",
+		"release:commit": "git add package.json pnpm-lock.yaml packages/*/package.json && git diff --cached --quiet || git commit -m \"Bumped to $npm_package_version\" --no-verify",
+		"release:push": "git push origin release/$npm_package_version",
+		"release:pr": "gh pr create --base main --head release/$npm_package_version --title \"Merge release/$npm_package_version into main\" --body \"Release version $npm_package_version\"",
+		"release:sync-develop": "git checkout develop && git pull && git merge release/$npm_package_version && git push origin develop",
+		"release:beep": "tput bel"
 	},
 	"devDependencies": {
 		"@cloudflare/vitest-pool-workers": "^0.8.34",
@@ -31,6 +41,7 @@
 		"eslint-plugin-react-native": "^5.0.0",
 		"eslint-plugin-unicorn": "^59.0.1",
 		"globals": "^16.2.0",
+		"npm-run-all": "^4.1.5",
 		"sass": "^1.89.0",
 		"typescript": "^5.8.3",
 		"vite": "^6.3.5",

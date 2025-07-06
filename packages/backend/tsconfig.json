@@ -1,6 +1,6 @@
 {
 	"extends": "../../tsconfig.json",
-	"include": ["src", "vitest.config.ts", "test/*.ts"],
+	"include": ["src", "vitest.config.ts", "__tests__/*.ts"],
 	"compilerOptions": {
 		"moduleResolution": "bundler",
 		"types": [

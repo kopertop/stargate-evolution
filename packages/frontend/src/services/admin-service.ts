@@ -195,6 +195,59 @@ export class AdminService {
 		}
 		return response.data;
 	}
+	// Comprehensive template data export/import
+	async exportAllTemplateData() {
+		const response = await apiClient.get('/api/admin/templates/export', true);
+		if (response.error) {
+			throw new Error(response.error);
+		}
+		return response.data;
+	}
+
+	async importAllTemplateData(templateData: any) {
+		const response = await apiClient.post('/api/admin/templates/import', templateData, true);
+		if (response.error) {
+			throw new Error(response.error);
+		}
+		return response.data;
+	}
+
+	// Utility method to download template data as JSON file
+	async downloadTemplateData() {
+		try {
+			const data = await this.exportAllTemplateData();
+			
+			// Create downloadable file
+			const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+			const url = URL.createObjectURL(blob);
+			
+			// Create download link
+			const link = document.createElement('a');
+			link.href = url;
+			link.download = `stargate-templates-${new Date().toISOString().split('T')[0]}.json`;
+			document.body.appendChild(link);
+			link.click();
+			document.body.removeChild(link);
+			URL.revokeObjectURL(url);
+			
+			return data;
+		} catch (error) {
+			console.error('Failed to download template data:', error);
+			throw error;
+		}
+	}
+
+	// Utility method to upload template data from JSON file
+	async uploadTemplateDataFromFile(file: File) {
+		try {
+			const text = await file.text();
+			const data = JSON.parse(text);
+			return await this.importAllTemplateData(data);
+		} catch (error) {
+			console.error('Failed to upload template data:', error);
+			throw error;
+		}
+	}
 }
 
 export const adminService = new AdminService();

@@ -2,10 +2,10 @@
 
 /**
  * Sync Data from Remote D1 Database to Local Database
- * 
+ *
  * This script downloads data from the production D1 database and imports it into
  * the local database for testing and development purposes.
- * 
+ *
  * Usage:
  *   pnpm run sync:from-remote
  *   pnpm run sync:from-remote --tables users,rooms  # sync specific tables
@@ -22,23 +22,19 @@ interface SyncOptions {
   verbose?: boolean;
 }
 
-// Table mapping: remote table name -> local table name
-const TABLE_MAPPING: Record<string, string> = {
-	'users': 'users',
-	'galaxy_templates': 'galaxy_templates',
-	'star_system_templates': 'star_system_templates',
-	'planet_templates': 'planet_templates',
-	'room_templates': 'room_templates',
-	'door_templates': 'door_templates',
-	'room_furniture': 'room_furniture',
-	'room_technology': 'room_technology',
-	'person_templates': 'person_templates',
-	'race_templates': 'race_templates',
-	'technology_templates': 'technology_templates',
-};
-
-// Tables to sync (remote table names in dependency order)
-const DEFAULT_TABLES = Object.keys(TABLE_MAPPING);
+// Define tables in dependency order (dependencies first)
+const TABLE_ORDER = [
+	'race_templates',
+	'technology_templates',
+	'galaxy_templates',
+	'star_system_templates',
+	'planet_templates',
+	'room_templates',
+	'door_templates',
+	'room_furniture',
+	'room_technology',
+	'person_templates',
+];
 
 const TEMP_DIR = join(process.cwd(), '.temp-sync');
 
@@ -101,18 +97,18 @@ function cleanupTempDir(): void {
 
 function getTableRowCount(tableName: string, isRemote = false): number {
 	try {
-		const command = isRemote 
+		const command = isRemote
 			? `wrangler d1 execute stargate-game --remote --command "SELECT COUNT(*) as count FROM ${tableName}" --json`
 			: `wrangler d1 execute stargate-game --local --command "SELECT COUNT(*) as count FROM ${tableName}" --json`;
-    
+
 		const output = execSync(command, { encoding: 'utf8', stdio: 'pipe' });
 		const parsed = JSON.parse(output);
-    
+
 		// Handle wrangler JSON response format
 		if (Array.isArray(parsed) && parsed[0] && Array.isArray(parsed[0].results) && parsed[0].results[0]) {
 			return parseInt(parsed[0].results[0].count) || 0;
 		}
-    
+
 		return 0;
 	} catch (error) {
 		log(`Warning: Could not get row count for ${tableName}: ${error}`, true);
@@ -120,18 +116,17 @@ function getTableRowCount(tableName: string, isRemote = false): number {
 	}
 }
 
-function exportTableData(remoteTableName: string): string {
-	const localTableName = TABLE_MAPPING[remoteTableName];
-	const outputFile = join(TEMP_DIR, `${remoteTableName}.sql`);
-  
+function exportTableData(tableName: string): string | null {
+	const outputFile = join(TEMP_DIR, `${tableName}.sql`);
+
 	try {
 		// Export data from remote database using remote table name
-		const command = `wrangler d1 execute stargate-game --remote --command "SELECT * FROM ${remoteTableName}" --json`;
-		const output = execCommand(command, `Exporting ${remoteTableName} from remote`);
-    
+		const command = `wrangler d1 execute stargate-game --remote --command "SELECT * FROM ${tableName}" --json`;
+		const output = execCommand(command, `Exporting ${tableName} from remote`);
+
 		// Parse JSON output and convert to SQL INSERT statements
 		const parsed = JSON.parse(output);
-    
+
 		// Handle wrangler response format: array of response objects with results arrays
 		let rows: any[] = [];
 		if (Array.isArray(parsed)) {
@@ -142,16 +137,16 @@ function exportTableData(remoteTableName: string): string {
 		} else if (parsed && typeof parsed === 'object' && Array.isArray(parsed.results)) {
 			rows = parsed.results;
 		}
-    
+
 		if (!Array.isArray(rows) || rows.length === 0) {
-			log(`  ⚠️  No data found in ${remoteTableName}`);
+			log(`  ⚠️  No data found in ${tableName}`);
 			return '';
 		}
 
 		// Get column names from first row
 		const columns = Object.keys(rows[0]);
 		const columnList = columns.map(col => `"${col}"`).join(', ');
-    
+
 		// Generate INSERT statements using local table name
 		const insertStatements = rows.map(row => {
 			const values = columns.map(col => {
@@ -161,40 +156,44 @@ function exportTableData(remoteTableName: string): string {
 				if (typeof value === 'boolean') return value ? '1' : '0';
 				return String(value);
 			}).join(', ');
-      
-			return `INSERT OR REPLACE INTO "${localTableName}" (${columnList}) VALUES (${values});`;
+
+			return `INSERT OR REPLACE INTO "${tableName}" (${columnList}) VALUES (${values});`;
 		}).join('\n');
 
-		const sqlContent = `-- Data export for ${remoteTableName} -> ${localTableName} (${rows.length} rows)\n${insertStatements}\n`;
+		if (rows.length === 0) {
+			log(`  ⚠️  No data found in ${tableName}`);
+			return null;
+		}
+
+		const sqlContent = `-- Data export for ${tableName} (${rows.length} rows)\n${insertStatements}\n`;
 		writeFileSync(outputFile, sqlContent);
-    
-		log(`  ✅ Exported ${rows.length} rows from ${remoteTableName} -> ${localTableName}`);
+
+		log(`  ✅ Exported ${rows.length} rows from ${tableName}`);
 		return outputFile;
-    
+
 	} catch (error: any) {
-		log(`  ❌ Failed to export ${remoteTableName}: ${error.message}`);
+		log(`  ❌ Failed to export ${tableName}: ${error.message}`);
 		return '';
 	}
 }
 
-function importTableData(sqlFile: string, remoteTableName: string): void {
-	const localTableName = TABLE_MAPPING[remoteTableName];
-  
+function importTableData(sqlFile: string, tableName: string): void {
+
 	if (!existsSync(sqlFile)) {
-		log(`  ⚠️  No data file found for ${remoteTableName}`, true);
+		log(`  ⚠️  No data file found for ${tableName}`, true);
 		return;
 	}
 
 	try {
 		const sqlContent = readFileSync(sqlFile, 'utf8');
 		if (!sqlContent.trim()) {
-			log(`  ⚠️  Empty data file for ${remoteTableName}`);
+			log(`  ⚠️  Empty data file for ${tableName}`);
 			return;
 		}
 
 		// Fix schema differences for room_templates
 		let processedSqlContent = sqlContent;
-		if (localTableName === 'room_templates') {
+		if (tableName === 'room_templates') {
 			// Remove width and height columns from INSERT statements since they're generated in local schema
 			processedSqlContent = processedSqlContent.replace(/, "width", "height"/g, '');
 			// Remove the corresponding values (last two values in the INSERT)
@@ -203,11 +202,11 @@ function importTableData(sqlFile: string, remoteTableName: string): void {
 
 		// Create a single SQL script that disables FK constraints, clears table, imports data, and re-enables constraints
 		const combinedSql = `
-PRAGMA foreign_keys = OFF;
-DELETE FROM ${localTableName};
-${processedSqlContent}
-PRAGMA foreign_keys = ON;
-`;
+			PRAGMA foreign_keys = OFF;
+			DELETE FROM ${tableName};
+			${processedSqlContent}
+			PRAGMA foreign_keys = ON;
+		`;
 
 		// Write combined content to temp file
 		const processedFile = sqlFile.replace('.sql', '_processed.sql');
@@ -216,32 +215,30 @@ PRAGMA foreign_keys = ON;
 		// Execute the combined script
 		execCommand(
 			`wrangler d1 execute stargate-game --local --file "${processedFile}"`,
-			`Importing ${remoteTableName} -> ${localTableName} data to local database`,
+			`Importing ${tableName} data to local database`,
 		);
 
-		log(`  ✅ Imported ${remoteTableName} -> ${localTableName} data successfully`);
-    
+		log(`  ✅ Imported ${tableName} data successfully`);
+
 	} catch (error: any) {
-		log(`  ❌ Failed to import ${remoteTableName} -> ${localTableName}: ${error.message}`);
+		log(`  ❌ Failed to import ${tableName}: ${error.message}`);
 	}
 }
 
-function validateSync(remoteTableName: string): boolean {
-	const localTableName = TABLE_MAPPING[remoteTableName];
-  
+function validateSync(tableName: string): boolean {
 	try {
-		const remoteCount = getTableRowCount(remoteTableName, true);
-		const localCount = getTableRowCount(localTableName, false);
-    
+		const remoteCount = getTableRowCount(tableName, true);
+		const localCount = getTableRowCount(tableName, false);
+
 		if (remoteCount === localCount) {
-			log(`  ✅ ${remoteTableName} -> ${localTableName}: ${localCount} rows (matched)`);
+			log(`  ✅ ${tableName}: ${localCount} rows (matched)`);
 			return true;
 		} else {
-			log(`  ⚠️  ${remoteTableName} -> ${localTableName}: remote=${remoteCount}, local=${localCount} (mismatch)`);
+			log(`  ⚠️  ${tableName}: remote=${remoteCount}, local=${localCount} (mismatch)`);
 			return false;
 		}
 	} catch (error) {
-		log(`  ❌ Could not validate ${remoteTableName} -> ${localTableName}: ${error}`);
+		log(`  ❌ Could not validate ${tableName}: ${error}`);
 		return false;
 	}
 }
@@ -250,7 +247,7 @@ async function main(): Promise<void> {
 	console.log('🔄 Stargate Evolution - Remote to Local Database Sync\n');
 
 	const options = parseArgs();
-	const tablesToSync = options.tables || DEFAULT_TABLES;
+	const tablesToSync = options.tables || TABLE_ORDER;
 
 	if (options.dryRun) {
 		console.log('🔍 DRY RUN MODE - No changes will be made\n');
@@ -265,7 +262,7 @@ async function main(): Promise<void> {
 		// Step 1: Export data from remote
 		console.log('\n📤 Exporting data from remote database...');
 		const exportedFiles: { table: string; file: string }[] = [];
-    
+
 		for (const tableName of tablesToSync) {
 			const sqlFile = exportTableData(tableName);
 			if (sqlFile) {
@@ -281,7 +278,7 @@ async function main(): Promise<void> {
 		// Step 2: Import data to local (if not dry run)
 		if (!options.dryRun) {
 			console.log('\n📥 Importing data to local database...');
-      
+
 			for (const { table, file } of exportedFiles) {
 				importTableData(file, table);
 			}
@@ -297,7 +294,7 @@ async function main(): Promise<void> {
 			const totalCount = validationResults.length;
 
 			console.log(`\n📊 Sync Summary: ${successCount}/${totalCount} tables synced successfully`);
-      
+
 			if (successCount === totalCount) {
 				console.log('🎉 All tables synced successfully!');
 			} else {

@@ -5,6 +5,7 @@ import { DestinyStatusSchema, type DestinyStatus } from '@stargate/common/models
  */
 export function getDefaultDestinyStatusTemplate(): DestinyStatus {
 	// Fill with reasonable defaults for a new game
+	const now = Date.now();
 	return DestinyStatusSchema.parse({
 		id: 'destiny-status-default',
 		name: 'Destiny',
@@ -26,6 +27,9 @@ export function getDefaultDestinyStatusTemplate(): DestinyStatus {
 		star_system_id: 'system-destiny',
 		stargate_id: 'destiny',
 		game_time: 0,
+		current_time: now,
+		next_jump_time: now + (Math.floor(Math.random() * 43) + 6) * 3600 * 1000, // 6-49 hours from now
+		time_speed: 1.0, // Normal time speed
 		ftl_status: 'ftl',
 		location: '{"systemId": "system-destiny"}',
 		co2: 0.04,
@@ -34,7 +38,7 @@ export function getDefaultDestinyStatusTemplate(): DestinyStatus {
 		weapons: '{"mainGun": false, "turrets": {"total": 12, "working": 6}}',
 		shuttles: '{"total": 2, "working": 1, "damaged": 1}',
 		next_ftl_transition: (Math.floor(Math.random() * 43) + 6) * 3600,
-		created_at: Date.now(),
-		updated_at: Date.now(),
+		created_at: now,
+		updated_at: now,
 	});
 }

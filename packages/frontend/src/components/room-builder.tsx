@@ -1,10 +1,12 @@
 import { RoomTemplate, DoorTemplate, RoomFurniture, roomToWorldCoordinates, worldToRoomCoordinates } from '@stargate/common';
+import { DEFAULT_IMAGE_KEYS } from '@stargate/common/src/models/room-furniture';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Button, Card, Form, Modal, Table, Nav, Tab, Alert, InputGroup, OverlayTrigger, Tooltip, Dropdown } from 'react-bootstrap';
 import { FaPlus, FaEdit, FaTrash, FaEye } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 
 import { adminService } from '../services/admin-service';
+import FileUpload from './file-upload';
 
 interface RoomBuilderProps {
 	selectedFloor: number;
@@ -662,8 +664,6 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 	};
 
 	const handleCanvasWheel = (event: React.WheelEvent<HTMLCanvasElement>) => {
-		event.preventDefault();
-
 		const canvas = canvasRef.current;
 		if (!canvas) return;
 
@@ -693,6 +693,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 			y: camera.y + (worldBeforeZoom.y - worldAfterZoom.y),
 			zoom: newZoom,
 		});
+		return false;
 	};
 
 	const handleCanvasMouseDown = (event: React.MouseEvent<HTMLCanvasElement>) => {
@@ -2053,6 +2054,26 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 		}
 	};
 
+	// Utility to normalize image value for editingFurniture
+	function normalizeImageInput(val: string | Record<string, string> | null | undefined): Record<string, string> | null | undefined {
+		if (!val) return undefined;
+		if (typeof val === 'string') {
+			if (val.trim().startsWith('{')) {
+				try {
+					const parsed = JSON.parse(val);
+					if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+						return parsed;
+					}
+				} catch (e) {
+					// ignore
+				}
+			}
+			return { default: val };
+		}
+		if (typeof val === 'object') return val;
+		return undefined;
+	}
+
 	return (
 		<div className="room-builder">
 			<div className="d-flex">
@@ -2194,6 +2215,23 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 								<p>Room Position: ({selectedFurniture.x}, {selectedFurniture.y})</p>
 								<p>Size: {selectedFurniture.width} × {selectedFurniture.height}</p>
 								<p>Active: <span className={`badge bg-${selectedFurniture.active ? 'success' : 'danger'}`}>{selectedFurniture.active ? 'Yes' : 'No'}</span></p>
+								<p>Blocks Movement: <span className={`badge bg-${selectedFurniture.blocks_movement ? 'warning' : 'secondary'}`}>{selectedFurniture.blocks_movement ? 'Yes' : 'No'}</span></p>
+								{selectedFurniture.image && (typeof selectedFurniture.image === 'object' && selectedFurniture.image !== null ? (
+									<div>
+										<strong>Images:</strong>
+										<Table size="sm" bordered>
+											<thead><tr><th>Key</th><th>URL</th></tr></thead>
+											<tbody>
+												{Object.entries(selectedFurniture.image).map(([key, url]) => (
+													<tr key={key}><td>{key}</td><td><code>{url}</code></td></tr>
+												))}
+											</tbody>
+										</Table>
+									</div>
+								) : (
+									<p>Image: <small className="text-muted">{typeof selectedFurniture.image === 'string' ? selectedFurniture.image : ''}</small></p>
+								))}
+								{selectedFurniture.requirements && <p>Requirements: <small className="text-muted">{JSON.stringify(selectedFurniture.requirements)}</small></p>}
 								<div className="d-grid gap-2">
 									<Button
 										size="sm"
@@ -2573,7 +2611,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 			</Modal>
 
 			{/* Furniture Modal */}
-			<Modal show={showFurnitureModal} onHide={() => setShowFurnitureModal(false)}>
+			<Modal show={showFurnitureModal} onHide={() => setShowFurnitureModal(false)} size='xl'>
 				<Modal.Header closeButton>
 					<Modal.Title>Furniture Properties</Modal.Title>
 				</Modal.Header>
@@ -2621,12 +2659,14 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 										onChange={(e) => setEditingFurniture({...editingFurniture, furniture_type: e.target.value})}
 									>
 										<option value="console">Console</option>
+										<option value="stargate">Stargate</option>
 										<option value="stargate_dialer">Stargate Dialer</option>
 										<option value="bed">Bed</option>
 										<option value="table">Table</option>
 										<option value="chair">Chair</option>
 										<option value="storage">Storage</option>
 										<option value="workstation">Workstation</option>
+										<option value="custom">Custom</option>
 									</Form.Select>
 								</Form.Group>
 							</div>
@@ -2730,7 +2770,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 						</div>
 
 						<div className="row">
-							<div className="col-md-4">
+							<div className="col-md-3">
 								<Form.Group className="mb-3">
 									<Form.Check
 										type="checkbox"
@@ -2740,7 +2780,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 									/>
 								</Form.Group>
 							</div>
-							<div className="col-md-4">
+							<div className="col-md-3">
 								<Form.Check
 									type="checkbox"
 									label="Active"
@@ -2748,7 +2788,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 									onChange={(e) => setEditingFurniture({...editingFurniture, active: e.target.checked})}
 								/>
 							</div>
-							<div className="col-md-4">
+							<div className="col-md-3">
 								<Form.Check
 									type="checkbox"
 									label="Discovered"
@@ -2756,7 +2796,135 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 									onChange={(e) => setEditingFurniture({...editingFurniture, discovered: e.target.checked})}
 								/>
 							</div>
+							<div className="col-md-3">
+								<Form.Check
+									type="checkbox"
+									label="Blocks Movement"
+									checked={editingFurniture.blocks_movement || false}
+									onChange={(e) => setEditingFurniture({...editingFurniture, blocks_movement: e.target.checked})}
+								/>
+							</div>
 						</div>
+
+						<Form.Group className="mb-3">
+							<Form.Label>Furniture Images</Form.Label>
+							<Table size='sm' bordered>
+								<thead>
+									<tr>
+										<th style={{ width: '30%' }}>Key</th>
+										<th>Image</th>
+										<th style={{ width: '10%' }}></th>
+									</tr>
+								</thead>
+								<tbody>
+									{/* First loop: show all keys currently in editingFurniture.image */}
+									{Object.entries(editingFurniture.image || {}).map(([key, url]) => (
+										<tr key={key}>
+											<td>
+												{DEFAULT_IMAGE_KEYS.includes(key as any) ? (
+													<strong>{key}</strong>
+												) : (
+													<Form.Control
+														type='text'
+														value={key}
+														disabled={DEFAULT_IMAGE_KEYS.includes(key as any)}
+														onChange={e => {
+															const newKey = e.target.value.trim();
+															if (!newKey || newKey === key || (editingFurniture.image && editingFurniture.image[newKey])) return;
+															const newImage = { ...editingFurniture.image };
+															newImage[newKey] = newImage[key];
+															delete newImage[key];
+															setEditingFurniture({ ...editingFurniture, image: newImage });
+														}}
+													/>
+												)}
+											</td>
+											<td>
+												<FileUpload
+													label={''}
+													currentUrl={url}
+													onChange={newUrl => {
+														setEditingFurniture({
+															...editingFurniture,
+															image: { ...editingFurniture.image, [key]: newUrl || '' },
+														});
+													}}
+													folder='furniture'
+													helpText={''}
+													thumbnailMode={true}
+												/>
+											</td>
+											<td>
+												{!DEFAULT_IMAGE_KEYS.includes(key as any) && (
+													<Button size='sm' variant='outline-danger' onClick={() => {
+														const newImage = { ...editingFurniture.image };
+														delete newImage[key];
+														setEditingFurniture({ ...editingFurniture, image: newImage });
+													}}>Remove</Button>
+												)}
+											</td>
+										</tr>
+									))}
+									{/* Second loop: show any default keys not present in editingFurniture.image */}
+									{DEFAULT_IMAGE_KEYS.filter(key => !editingFurniture.image || !(key in editingFurniture.image)).map((key) => (
+										<tr key={key}>
+											<td><strong>{key}</strong></td>
+											<td>
+												<FileUpload
+													label={''}
+													currentUrl={''}
+													onChange={newUrl => {
+														if (!newUrl) return;
+														setEditingFurniture({
+															...editingFurniture,
+															image: { ...editingFurniture.image, [key]: newUrl },
+														});
+													}}
+													folder='furniture'
+													helpText={''}
+													thumbnailMode={true}
+												/>
+											</td>
+											<td></td>
+										</tr>
+									))}
+									<tr>
+										<td colSpan={3}>
+											<Button size='sm' variant='outline-primary' onClick={() => {
+												const customKey = prompt('Enter custom image key (e.g. "broken", "locked"):');
+												if (customKey && customKey.trim() && !editingFurniture.image?.[customKey] && !DEFAULT_IMAGE_KEYS.includes(customKey as any)) {
+													setEditingFurniture({
+														...editingFurniture,
+														image: { ...editingFurniture.image, [customKey]: '' },
+													});
+												}
+											}}>Add Custom Key</Button>
+										</td>
+									</tr>
+								</tbody>
+							</Table>
+						</Form.Group>
+
+						<Form.Group className="mb-3">
+							<Form.Label>Requirements (JSON)</Form.Label>
+							<Form.Control
+								as="textarea"
+								rows={3}
+								placeholder='{"power": 100, "clearance": "admin"}'
+								value={editingFurniture.requirements ? JSON.stringify(editingFurniture.requirements, null, 2) : ''}
+								onChange={(e) => {
+									try {
+										const requirements = e.target.value ? JSON.parse(e.target.value) : null;
+										setEditingFurniture({...editingFurniture, requirements});
+									} catch (err) {
+										// Invalid JSON - don't update the state, let user continue typing
+									}
+								}}
+							/>
+							<Form.Text className="text-muted">
+								JSON object defining requirements to interact with this furniture. Leave empty for no requirements.
+							</Form.Text>
+						</Form.Group>
 					</Form>
 				</Modal.Body>
 				<Modal.Footer>
@@ -3178,6 +3346,23 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 									<tr>
 										<td><strong>Blocks Movement</strong></td>
 										<td>{selectedFurniture.blocks_movement ? 'Yes' : 'No'}</td>
+									</tr>
+									<tr>
+										<td><strong>Image</strong></td>
+										<td>{typeof selectedFurniture.image === 'object' && selectedFurniture.image !== null ? (
+											<Table size="sm" bordered>
+												<thead><tr><th>Key</th><th>URL</th></tr></thead>
+												<tbody>
+													{Object.entries(selectedFurniture.image).map(([key, url]) => (
+														<tr key={key}><td>{key}</td><td><code>{url}</code></td></tr>
+													))}
+												</tbody>
+											</Table>
+										) : (typeof selectedFurniture.image === 'string' ? selectedFurniture.image : 'None')}</td>
+									</tr>
+									<tr>
+										<td><strong>Requirements</strong></td>
+										<td>{selectedFurniture.requirements ? JSON.stringify(selectedFurniture.requirements) : 'None'}</td>
 									</tr>
 									<tr>
 										<td><strong>Requires Power</strong></td>

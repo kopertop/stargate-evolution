@@ -89,8 +89,8 @@ export const RoomEditVisualization: React.FC<RoomEditVisualizationProps> = ({
 
 		for (const displayRoom of roomsToDisplay) {
 			const position = getRoomScreenPosition(displayRoom, roomPositions);
-			const roomWidth = displayRoom.width * GRID_UNIT;
-			const roomHeight = displayRoom.height * GRID_UNIT;
+			const roomWidth = (displayRoom.width ?? 1) * GRID_UNIT;
+			const roomHeight = (displayRoom.height ?? 1) * GRID_UNIT;
 
 			minX = Math.min(minX, position.x - roomWidth / 2);
 			maxX = Math.max(maxX, position.x + roomWidth / 2);
@@ -101,8 +101,8 @@ export const RoomEditVisualization: React.FC<RoomEditVisualizationProps> = ({
 		// Include potential connection areas in the bounds
 		if (room && onAddConnectingRoom) {
 			const roomPosition = getRoomScreenPosition(room, roomPositions);
-			const roomWidth = room.width * GRID_UNIT;
-			const roomHeight = room.height * GRID_UNIT;
+			const roomWidth = (room.width ?? 1) * GRID_UNIT;
+			const roomHeight = (room.height ?? 1) * GRID_UNIT;
 			const spacing = GRID_UNIT * 0.5;
 
 			// Check bounds for potential connections
@@ -187,8 +187,8 @@ export const RoomEditVisualization: React.FC<RoomEditVisualizationProps> = ({
 	// Render a single room
 	const renderRoom = (displayRoom: RoomTemplate, isSelected: boolean) => {
 		const position = getRoomScreenPosition(displayRoom, roomPositions);
-		const roomWidth = displayRoom.width * GRID_UNIT;
-		const roomHeight = displayRoom.height * GRID_UNIT;
+		const roomWidth = (displayRoom.width ?? 1) * GRID_UNIT;
+		const roomHeight = (displayRoom.height ?? 1) * GRID_UNIT;
 		const isConnected = connectedRooms.some(cr => cr.id === displayRoom.id);
 		const isClickable = !isSelected; // All rooms except selected are clickable
 
@@ -270,7 +270,7 @@ export const RoomEditVisualization: React.FC<RoomEditVisualizationProps> = ({
 					fontSize="9"
 					opacity="0.8"
 				>
-					{displayRoom.width}×{displayRoom.height}
+					{displayRoom.width ?? 1}×{displayRoom.height ?? 1}
 				</text>
 
 				{/* Room type */}
@@ -500,8 +500,8 @@ export const RoomEditVisualization: React.FC<RoomEditVisualizationProps> = ({
 
 		const potentialConnections = [];
 		const roomPosition = getRoomScreenPosition(room, roomPositions);
-		const roomWidth = room.width * GRID_UNIT;
-		const roomHeight = room.height * GRID_UNIT;
+		const roomWidth = (room.width ?? 1) * GRID_UNIT;
+		const roomHeight = (room.height ?? 1) * GRID_UNIT;
 		const spacing = GRID_UNIT * 0.5; // Gap between rooms
 
 		// Check each direction for potential connections

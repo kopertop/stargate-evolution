@@ -2,13 +2,17 @@ import type {
 	RoomTemplate,
 	DoorTemplate,
 	RoomFurniture,
+	NPC,
 } from '@stargate/common';
 import * as PIXI from 'pixi.js';
 
 import { HelpPopover } from './help-popover';
+import { FogOfWarManager } from './services/fog-of-war-manager';
 import type { GamepadAxis, GamepadButton } from './services/game-controller';
+import { NPCManager } from './services/npc-manager';
 import { SavedGameService } from './services/saved-game-service';
 import { TemplateService } from './services/template-service';
+import { exposeNPCTestUtils, addTestNPCsToGame } from './utils/npc-test-utils';
 
 const SHIP_SPEED = 4;
 const SPEED_MULTIPLIER = 5; // 5x speed when running (Shift/Right Trigger)
@@ -62,13 +66,23 @@ export class Game {
 	private roomsLayer: PIXI.Container | null = null;
 	private doorsLayer: PIXI.Container | null = null;
 	private furnitureLayer: PIXI.Container | null = null;
+	private npcLayer: PIXI.Container | null = null;
 	private rooms: RoomTemplate[] = [];
 	private doors: DoorTemplate[] = [];
 	private furniture: RoomFurniture[] = [];
 
+	// NPC system
+	private npcManager: NPCManager | null = null;
+
 	// Pending restoration data (stored until room system is ready)
 	private pendingRestoration: any = null;
 	private isDestroyed = false;
+
+	// Fog of War manager
+	private fogOfWarManager: FogOfWarManager | null = null;
+	private fogLayer: PIXI.Container | null = null;
+
+	private furnitureTextureCache: Record<string, PIXI.Texture> = {};
 
 	constructor(app: PIXI.Application, options: GameOptions = {}, gameData?: any) {
 		this.app = app;
@@ -105,6 +119,13 @@ export class Game {
 			// Show error to user - the game cannot function without room data
 			throw new Error(`Game initialization failed: ${error.message}`);
 		});
+
+		// Initialize Fog of War manager
+		this.fogOfWarManager = new FogOfWarManager();
+
+		// Initialize fog layer
+		this.fogLayer = new PIXI.Container();
+		this.world.addChild(this.fogLayer);
 	}
 
 	private createStarfield(): PIXI.Graphics {
@@ -207,10 +228,9 @@ export class Game {
 	private setupInput() {
 		window.addEventListener('keydown', (e) => {
 			this.keys[e.key.toLowerCase()] = true;
-
-			// Handle door activation
 			if (e.key.toLowerCase() === 'e' || e.key === 'Enter' || e.key === ' ') {
 				this.handleDoorActivation();
+				this.handleFurnitureActivation();
 			}
 		});
 		window.addEventListener('keyup', (e) => {
@@ -243,8 +263,9 @@ export class Game {
 		// Subscribe to A button for door activation
 		const unsubscribeAButton = this.options.onButtonRelease?.('A', () => {
 			if (!this.menuOpen) {
-				console.log('[GAME-INPUT] A button released - checking for door activation');
+				console.log('[GAME-INPUT] A button released - checking for door/furniture activation');
 				this.handleDoorActivation();
+				this.handleFurnitureActivation();
 			}
 		});
 
@@ -316,9 +337,9 @@ export class Game {
 				dx += 1;
 			}
 
-			// Right bumper (RB/R) - running modifier
-			if (this.options.isPressed('RB')) {
-				console.log('[GAME-INPUT] Right bumper (RB) pressed - running mode');
+			// Right trigger (RT) - running modifier
+			if (this.options.isPressed('RT')) {
+				console.log('[GAME-INPUT] Right trigger (RT) pressed - running mode');
 				isRunning = true;
 			}
 
@@ -388,6 +409,23 @@ export class Game {
 		// Player's visual position is player.x * world.scale, so we need to offset by that amount
 		this.world.x = centerX - (this.player.x * this.world.scale.x);
 		this.world.y = centerY - (this.player.y * this.world.scale.y);
+
+		// Update NPCs
+		if (this.npcManager) {
+			this.npcManager.updateNPCs(this.doors, this.rooms, (doorId, isNPC) => this.activateDoor(doorId, isNPC));
+		}
+
+		// Update Fog of War manager
+		if (this.fogOfWarManager) {
+			const currentRoom = this.findRoomContainingPoint(this.player.x, this.player.y);
+			this.fogOfWarManager.updatePlayerPosition({
+				x: this.player.x,
+				y: this.player.y,
+				roomId: currentRoom?.id || 'unknown',
+			});
+			// Re-render fog layer when player moves
+			this.renderFogOfWar();
+		}
 	}
 
 	// Collision detection system
@@ -657,7 +695,7 @@ export class Game {
 		}
 	}
 
-	public activateDoor(doorId: string): boolean {
+	public activateDoor(doorId: string, isNPC: boolean = false): boolean {
 		const door = this.doors.find(d => d.id === doorId);
 		if (!door) {
 			console.log('[DOOR] Door not found:', doorId);
@@ -668,6 +706,20 @@ export class Game {
 		if (door.state === 'locked') {
 			console.log('[DOOR] Cannot activate locked door:', doorId);
 			return false;
+		}
+
+		// NPC access control
+		if (isNPC) {
+			// NPCs can only open doors that have been cleared by the user
+			if (!door.cleared) {
+				console.log('[DOOR] NPC cannot open uncleared door:', doorId);
+				return false;
+			}
+			// NPCs cannot open restricted doors
+			if (door.restricted) {
+				console.log('[DOOR] NPC cannot open restricted door:', doorId);
+				return false;
+			}
 		}
 
 		// Check if player has required power/items (placeholder for future implementation)
@@ -686,6 +738,12 @@ export class Game {
 		} else if (door.state === 'closed') {
 			door.state = 'opened';
 			console.log('[DOOR] Opened door:', doorId);
+
+			// Mark door as cleared when user opens it for the first time
+			if (!isNPC && !door.cleared) {
+				door.cleared = true;
+				console.log('[DOOR] Marked door as cleared by user:', doorId);
+			}
 		}
 
 		// Re-render doors to show state change
@@ -699,11 +757,81 @@ export class Game {
 		this.menuOpen = isOpen;
 	}
 
+	// NPC management methods
+	public addNPC(npc: NPC): void {
+		if (this.npcManager) {
+			this.npcManager.addNPC(npc);
+			console.log('[GAME] Added NPC:', npc.id);
+		}
+	}
+
+	public removeNPC(npcId: string): void {
+		if (this.npcManager) {
+			this.npcManager.removeNPC(npcId);
+			console.log('[GAME] Removed NPC:', npcId);
+		}
+	}
+
+	public getNPCs(): NPC[] {
+		return this.npcManager ? this.npcManager.getNPCs() : [];
+	}
+
+	public getNPC(id: string): NPC | undefined {
+		return this.npcManager ? this.npcManager.getNPC(id) : undefined;
+	}
+
+	// Door restriction management
+	public setDoorRestricted(doorId: string, restricted: boolean): boolean {
+		const door = this.doors.find(d => d.id === doorId);
+		if (!door) {
+			console.log('[DOOR] Door not found for restriction update:', doorId);
+			return false;
+		}
+
+		door.restricted = restricted;
+		console.log('[DOOR] Set door restriction:', doorId, 'restricted:', restricted);
+
+		// Re-render doors to show potential visual changes
+		this.renderRooms();
+		return true;
+	}
+
+	public getDoorRestrictions(): { doorId: string; restricted: boolean; cleared: boolean }[] {
+		return this.doors.map(door => ({
+			doorId: door.id,
+			restricted: door.restricted || false,
+			cleared: door.cleared || false,
+		}));
+	}
+
+	// Initialize test NPCs for development
+	private initializeTestNPCs(): void {
+		if (this.rooms.length === 0) {
+			console.log('[NPC-TEST] No rooms available - skipping test NPC initialization');
+			return;
+		}
+
+		// Prepare room data for test utility
+		const roomData = this.rooms.map(room => ({
+			id: room.id,
+			centerX: room.startX + (room.endX - room.startX) / 2,
+			centerY: room.startY + (room.endY - room.startY) / 2,
+		}));
+
+		// Add test NPCs
+		try {
+			addTestNPCsToGame(this, roomData);
+			console.log('[NPC-TEST] Test NPCs initialized successfully');
+		} catch (error) {
+			console.error('[NPC-TEST] Failed to initialize test NPCs:', error);
+		}
+	}
+
 	public destroy() {
 		console.log('[GAME] Destroying game instance');
 		this.isDestroyed = true;
 		this.pendingRestoration = null;
-		
+
 		// Cleanup controller subscriptions
 		this.controllerUnsubscribers.forEach(unsubscribe => unsubscribe());
 		this.controllerUnsubscribers = [];
@@ -750,6 +878,40 @@ export class Game {
 		return { x: this.player.x, y: this.player.y };
 	}
 
+	public getTimeSpeed(): number {
+		// This method should be implemented to return the current game time speed
+		// For now, return 1 as default. This should be connected to the actual time speed system.
+		return 1;
+	}
+
+	public getStargatePosition(): { x: number; y: number } | null {
+		// Find the stargate furniture by its specific ID
+		const stargateFurniture = this.furniture.find(f => f.id === 'stargate');
+
+		if (!stargateFurniture) {
+			console.warn('[DEBUG] No stargate furniture found');
+			return null;
+		}
+
+		// Find the room this furniture belongs to
+		const room = this.rooms.find(r => r.id === stargateFurniture.room_id);
+		if (!room) {
+			console.warn(`[DEBUG] Stargate furniture has invalid room_id: ${stargateFurniture.room_id}`);
+			return null;
+		}
+
+		// Calculate room center
+		const roomCenterX = room.startX + (room.endX - room.startX) / 2;
+		const roomCenterY = room.startY + (room.endY - room.startY) / 2;
+
+		// Calculate stargate world position (center of the furniture)
+		const stargateX = roomCenterX + stargateFurniture.x;
+		const stargateY = roomCenterY + stargateFurniture.y;
+
+		console.log(`[DEBUG] Found stargate at world position (${stargateX}, ${stargateY})`);
+		return { x: stargateX, y: stargateY };
+	}
+
 	public getCurrentRoomId(): string | null {
 		const currentRoom = this.findRoomContainingPoint(this.player.x, this.player.y);
 		return currentRoom ? currentRoom.id : null;
@@ -778,17 +940,18 @@ export class Game {
 	// Game state serialization - gets all current game engine state
 	public toJSON(): any {
 		const playerPosition = this.getPlayerPosition();
-		const currentRoomId = this.getCurrentRoomId();
 		const doorStates = this.getDoorStates();
+		const currentRoomId = this.getCurrentRoomId();
 
 		return {
 			playerPosition: {
 				x: playerPosition.x,
 				y: playerPosition.y,
-				roomId: currentRoomId || undefined,
+				roomId: currentRoomId,
 			},
 			doorStates,
-			// Add any other game engine state that needs to be saved
+			fogOfWar: this.fogOfWarManager?.getFogData() || {},
+			// Add other game state as needed
 			mapZoom: this.mapZoom,
 			currentBackgroundType: this.currentBackgroundType,
 		};
@@ -871,6 +1034,18 @@ export class Game {
 		// Restore door states (only for doors that still exist)
 		if (gameData.doorStates && gameData.doorStates.length > 0) {
 			this.restoreDoorStatesGracefully(gameData.doorStates);
+		}
+
+		// Restore fog of war data
+		if (gameData.fogOfWar && this.fogOfWarManager) {
+			const playerPos = this.getPlayerPosition();
+			const currentRoom = this.findRoomContainingPoint(playerPos.x, playerPos.y);
+			this.fogOfWarManager.initialize(gameData.fogOfWar, {
+				x: playerPos.x,
+				y: playerPos.y,
+				roomId: currentRoom?.id || 'unknown',
+			});
+			console.log('[GAME] Fog of war data restored');
 		}
 
 		// Restore other game engine state
@@ -1037,14 +1212,20 @@ export class Game {
 			this.roomsLayer = new PIXI.Container();
 			this.doorsLayer = new PIXI.Container();
 			this.furnitureLayer = new PIXI.Container();
+			this.npcLayer = new PIXI.Container();
 
 			console.log('[DEBUG] Created rendering layers');
 
-			// Add layers to world in correct order (rooms first, then doors, then furniture, then player)
+			// Add layers to world in correct order (rooms first, then doors, then furniture, then NPCs, then player)
 			this.world.addChild(this.roomsLayer);
 			this.world.addChild(this.doorsLayer);
 			this.world.addChild(this.furnitureLayer);
+			this.world.addChild(this.npcLayer);
 			this.world.addChild(this.player); // Add player on top of everything
+
+			// Initialize NPC manager
+			this.npcManager = new NPCManager(this.npcLayer, this);
+			console.log('[DEBUG] Initialized NPC manager');
 
 			console.log('[DEBUG] Added layers to world');
 
@@ -1064,6 +1245,14 @@ export class Game {
 			this.setMapZoom(DEFAULT_ZOOM);
 
 			console.log('[DEBUG] Room system initialized successfully with default zoom:', DEFAULT_ZOOM);
+
+			// Initialize test NPCs for development
+			this.initializeTestNPCs();
+
+			// Expose NPC test utilities to console for development
+			if (import.meta.env.DEV) {
+				exposeNPCTestUtils();
+			}
 
 			// Check for pending restoration data now that room system is ready
 			if (this.pendingRestoration && !this.isDestroyed) {
@@ -1213,7 +1402,7 @@ export class Game {
 		console.log(`[DEBUG] Rendered door at (${door.x}, ${door.y}) size (${door.width}x${door.height}) rotation: ${door.rotation}° state: ${door.state}`);
 	}
 
-	private renderFurnitureItem(furniture: RoomFurniture) {
+	private async renderFurnitureItem(furniture: RoomFurniture) {
 		if (!this.furnitureLayer) return;
 
 		// Find the room this furniture belongs to
@@ -1227,7 +1416,54 @@ export class Game {
 		const roomCenterX = room.startX + (room.endX - room.startX) / 2;
 		const roomCenterY = room.startY + (room.endY - room.startY) / 2;
 
-		// Create furniture graphics (bright color for visibility)
+		// --- IMAGE LOGIC ---
+		let imageUrl: string | undefined;
+		if (furniture.image && typeof furniture.image === 'object') {
+			// Try to pick the best image key based on state
+			if (furniture.active && furniture.image.active) imageUrl = furniture.image.active;
+			else if (furniture.image.default) imageUrl = furniture.image.default;
+			else {
+				// Try other common keys
+				const fallbackKeys = ['broken', 'locked', 'danger'];
+				for (const key of fallbackKeys) {
+					if (furniture.image[key]) {
+						imageUrl = furniture.image[key];
+						break;
+					}
+				}
+			}
+		} else if (typeof furniture.image === 'string') {
+			imageUrl = furniture.image;
+		}
+
+		if (imageUrl) {
+			let texture = this.furnitureTextureCache[imageUrl];
+			if (!texture) {
+				try {
+					texture = await PIXI.Assets.load(imageUrl);
+					this.furnitureTextureCache[imageUrl] = texture;
+				} catch (err) {
+					console.warn(`[DEBUG] Failed to load furniture image: ${imageUrl}`, err);
+				}
+			}
+			if (texture) {
+				const sprite = new PIXI.Sprite(texture);
+				// Set anchor to center
+				sprite.anchor.set(0.5);
+				// Stretch to furniture width/height
+				sprite.width = furniture.width;
+				sprite.height = furniture.height;
+				// Position relative to room center
+				sprite.x = roomCenterX + furniture.x;
+				sprite.y = roomCenterY + furniture.y;
+				sprite.rotation = (furniture.rotation * Math.PI) / 180;
+				this.furnitureLayer.addChild(sprite);
+				console.log(`[DEBUG] Rendered furniture image: ${furniture.name} at room-relative (${furniture.x}, ${furniture.y})`);
+				return;
+			}
+		}
+
+		// Fallback: Create furniture graphics (bright color for visibility)
 		const furnitureGraphics = new PIXI.Graphics();
 		furnitureGraphics.rect(-furniture.width/2, -furniture.height/2, furniture.width, furniture.height).fill(0x00FF88); // Bright green color
 		furnitureGraphics.rect(-furniture.width/2, -furniture.height/2, furniture.width, furniture.height).stroke({ color: 0xFFFFFF, width: 2 }); // White border
@@ -1238,7 +1474,6 @@ export class Game {
 		furnitureGraphics.rotation = (furniture.rotation * Math.PI) / 180;
 
 		this.furnitureLayer.addChild(furnitureGraphics);
-
 		console.log(`[DEBUG] Rendered furniture: ${furniture.name} at room-relative (${furniture.x}, ${furniture.y})`);
 	}
 
@@ -1298,6 +1533,106 @@ export class Game {
 					return;
 				}
 			}
+		}
+	}
+
+	// Fog of War methods
+	public getFogOfWarManager(): FogOfWarManager | null {
+		return this.fogOfWarManager;
+	}
+
+	public isTileDiscovered(worldX: number, worldY: number): boolean {
+		return this.fogOfWarManager?.isTileDiscovered(worldX, worldY) || false;
+	}
+
+	public forceDiscoverArea(centerX: number, centerY: number, radius: number): void {
+		this.fogOfWarManager?.forceDiscoverArea(centerX, centerY, radius);
+	}
+
+	public clearFogOfWar(): void {
+		this.fogOfWarManager?.clearFog();
+	}
+
+	private renderFogOfWar(): void {
+		if (!this.fogLayer || !this.fogOfWarManager) return;
+
+		// Clear existing fog graphics
+		this.fogLayer.removeChildren();
+
+		// Get the current viewport bounds to determine what tiles to render
+		const viewportBounds = this.getViewportBounds();
+		const config = this.fogOfWarManager.getConfig();
+
+		// Calculate tile bounds to render
+		const startTileX = Math.floor(viewportBounds.left / config.tileSize);
+		const endTileX = Math.ceil(viewportBounds.right / config.tileSize);
+		const startTileY = Math.floor(viewportBounds.top / config.tileSize);
+		const endTileY = Math.ceil(viewportBounds.bottom / config.tileSize);
+
+		// Render fog tiles
+		for (let tileX = startTileX; tileX <= endTileX; tileX++) {
+			for (let tileY = startTileY; tileY <= endTileY; tileY++) {
+				const worldX = tileX * config.tileSize;
+				const worldY = tileY * config.tileSize;
+
+				// Check if this tile is discovered
+				const isDiscovered = this.fogOfWarManager.isTileDiscovered(worldX, worldY);
+
+				if (!isDiscovered) {
+					// Create fog tile
+					const fogTile = new PIXI.Graphics();
+					fogTile.rect(0, 0, config.tileSize, config.tileSize)
+						.fill({ color: 0x000000, alpha: 0.7 }); // Semi-transparent black
+
+					fogTile.x = worldX;
+					fogTile.y = worldY;
+
+					this.fogLayer.addChild(fogTile);
+				}
+			}
+		}
+	}
+
+	private getViewportBounds(): { left: number; right: number; top: number; bottom: number } {
+		// Calculate world coordinates of the viewport
+		const screenWidth = this.app.screen.width;
+		const screenHeight = this.app.screen.height;
+		const worldScale = this.world.scale.x;
+
+		// Convert screen coordinates to world coordinates
+		const left = (-this.world.x) / worldScale;
+		const right = (screenWidth - this.world.x) / worldScale;
+		const top = (-this.world.y) / worldScale;
+		const bottom = (screenHeight - this.world.y) / worldScale;
+
+		return { left, right, top, bottom };
+	}
+
+	private handleFurnitureActivation(): void {
+		const interactionRadius = 25;
+		let closestFurniture: RoomFurniture | null = null;
+		let closestDistance = Infinity;
+		for (const furniture of this.furniture) {
+			if (!furniture.interactive) continue;
+			// Find the room this furniture belongs to
+			const room = this.rooms.find(r => r.id === furniture.room_id);
+			if (!room) continue;
+			const roomCenterX = room.startX + (room.endX - room.startX) / 2;
+			const roomCenterY = room.startY + (room.endY - room.startY) / 2;
+			const furnitureWorldX = roomCenterX + furniture.x;
+			const furnitureWorldY = roomCenterY + furniture.y;
+			const distance = Math.sqrt((this.player.x - furnitureWorldX) ** 2 + (this.player.y - furnitureWorldY) ** 2);
+			if (distance <= interactionRadius && distance < closestDistance) {
+				closestDistance = distance;
+				closestFurniture = furniture;
+			}
+		}
+		if (closestFurniture && closestFurniture.image && typeof closestFurniture.image === 'object' && 'active' in closestFurniture.image) {
+			closestFurniture.active = !closestFurniture.active;
+			this.renderRooms();
+			console.log(`[INTERACTION] Toggled furniture '${closestFurniture.name}' to active=${closestFurniture.active}`);
+		} else {
+			console.log('[INTERACTION] No interactive furniture nearby to activate');
 		}
 	}
 }

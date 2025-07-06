@@ -1,5 +1,8 @@
 import { z } from 'zod';
 
+/**
+ * NPC - Non-Player Characte
+ */
 export const PersonTemplateSchema = z.object({
 	id: z.string(),
 	name: z.string(),

@@ -34,6 +34,10 @@ export const DoorTemplateSchema = z.object({
 	requirements: z.array(DoorRequirementSchema).optional().nullable(),
 	power_required: z.number().default(0), // Power needed to operate
 	sound_effect: z.string().optional().nullable(), // Sound to play when opened/closed
+	
+	// NPC access control
+	cleared: z.union([z.boolean(), z.number()]).transform((val) => val === true || val === 1).default(false), // Opened by user for first time
+	restricted: z.union([z.boolean(), z.number()]).transform((val) => val === true || val === 1).default(false), // Only user can open
 
 	created_at: z.number(),
 	updated_at: z.number(),
