@@ -1,6 +1,6 @@
 {
 	"name": "stargate-evolution",
-	"version": "0.2.2",
+	"version": "0.2.3",
 	"private": true,
 	"scripts": {
 		"start": "turbo --ui tui run start",
@@ -24,7 +24,7 @@
 		"release:pr": "gh pr create --base main --head release/$npm_package_version --title \"Merge release/$npm_package_version into main\" --body \"Release version $npm_package_version\"",
 		"release:sync-develop": "git checkout develop && git pull && git merge release/$npm_package_version && git push origin develop",
 		"release:beep": "tput bel",
-		"postversion": "pnpm -r version $npm_package_version --no-git-tag-version"
+		"postversion": "pnpm -r version $npm_package_version --no-git-tag-version && git commit -a --amend -m 'Bumped to version $npm_package_version'"
 	},
 	"devDependencies": {
 		"@cloudflare/vitest-pool-workers": "^0.8.34",
