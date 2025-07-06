@@ -1,10 +1,11 @@
 {
 	"name": "backend",
-	"version": "0.2.0",
+	"version": "0.2.2",
 	"private": true,
 	"scripts": {
 		"start": "wrangler dev",
 		"typecheck": "tsc --noEmit",
+		"version": "pnpm version",
 		"db:up": "wrangler d1 migrations apply stargate-game",
 		"db:down": "npx tsx bin/reset-database.ts",
 		"db:init": "npx tsx bin/init-db.ts",

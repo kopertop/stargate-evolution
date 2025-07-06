@@ -7,6 +7,7 @@ import { toast } from 'react-toastify';
 
 
 import { renderGoogleSignInButton } from '../auth/google-auth';
+import { VersionInfo } from '../components/version-info';
 import { useAuth } from '../contexts/auth-context';
 import { useGameState } from '../contexts/game-state-context';
 import { useGameController } from '../services/game-controller';
@@ -505,6 +506,11 @@ export const MenuPage: React.FC = () => {
 					</Col>
 				</Row>
 			</Container>
+
+			{/* Version Information */}
+			<div className="position-fixed bottom-0 start-0 p-3">
+				<VersionInfo />
+			</div>
 
 			{/* New Game Modal */}
 			<Modal show={showNewGameModal} onHide={() => setShowNewGameModal(false)} centered>

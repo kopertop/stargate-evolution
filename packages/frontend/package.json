@@ -1,11 +1,12 @@
 {
 	"name": "@stargate/frontend",
-	"version": "0.2.0",
+	"version": "0.2.2",
 	"private": true,
 	"scripts": {
 		"start": "vite",
 		"build": "vite build --mode production",
 		"typecheck": "tsc --noEmit",
+		"version": "pnpm version",
 		"test": "vitest run",
 		"predeploy": "pnpm run build",
 		"deploy": "wrangler pages deploy ./dist --project-name stargate-frontend"

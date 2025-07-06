@@ -6,6 +6,7 @@ import type { Env } from '../types';
 import admin from './routes/admin';
 import auth from './routes/auth';
 import games from './routes/games';
+import status from './routes/status';
 import templates from './routes/templates';
 import upload from './routes/upload';
 
@@ -23,6 +24,7 @@ app.get('/', (c: Context) => {
 app.route('/api/auth', auth);
 app.route('/api/games', games);
 app.route('/api/admin', admin);
+app.route('/api/status', status);
 app.route('/api/templates', templates);
 app.route('/api/upload', upload);
 
