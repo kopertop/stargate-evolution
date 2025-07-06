@@ -228,10 +228,9 @@ export class Game {
 	private setupInput() {
 		window.addEventListener('keydown', (e) => {
 			this.keys[e.key.toLowerCase()] = true;
-
-			// Handle door activation
 			if (e.key.toLowerCase() === 'e' || e.key === 'Enter' || e.key === ' ') {
 				this.handleDoorActivation();
+				this.handleFurnitureActivation();
 			}
 		});
 		window.addEventListener('keyup', (e) => {
@@ -264,8 +263,9 @@ export class Game {
 		// Subscribe to A button for door activation
 		const unsubscribeAButton = this.options.onButtonRelease?.('A', () => {
 			if (!this.menuOpen) {
-				console.log('[GAME-INPUT] A button released - checking for door activation');
+				console.log('[GAME-INPUT] A button released - checking for door/furniture activation');
 				this.handleDoorActivation();
+				this.handleFurnitureActivation();
 			}
 		});
 
@@ -1606,5 +1606,33 @@ export class Game {
 		const bottom = (screenHeight - this.world.y) / worldScale;
 
 		return { left, right, top, bottom };
+	}
+
+	private handleFurnitureActivation(): void {
+		const interactionRadius = 25;
+		let closestFurniture: RoomFurniture | null = null;
+		let closestDistance = Infinity;
+		for (const furniture of this.furniture) {
+			if (!furniture.interactive) continue;
+			// Find the room this furniture belongs to
+			const room = this.rooms.find(r => r.id === furniture.room_id);
+			if (!room) continue;
+			const roomCenterX = room.startX + (room.endX - room.startX) / 2;
+			const roomCenterY = room.startY + (room.endY - room.startY) / 2;
+			const furnitureWorldX = roomCenterX + furniture.x;
+			const furnitureWorldY = roomCenterY + furniture.y;
+			const distance = Math.sqrt((this.player.x - furnitureWorldX) ** 2 + (this.player.y - furnitureWorldY) ** 2);
+			if (distance <= interactionRadius && distance < closestDistance) {
+				closestDistance = distance;
+				closestFurniture = furniture;
+			}
+		}
+		if (closestFurniture && closestFurniture.image && typeof closestFurniture.image === 'object' && 'active' in closestFurniture.image) {
+			closestFurniture.active = !closestFurniture.active;
+			this.renderRooms();
+			console.log(`[INTERACTION] Toggled furniture '${closestFurniture.name}' to active=${closestFurniture.active}`);
+		} else {
+			console.log('[INTERACTION] No interactive furniture nearby to activate');
+		}
 	}
 }
