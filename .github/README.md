@@ -1,19 +1,18 @@
 # GitHub Actions Workflows
 
-## Deployment Workflows
+## Deployment Workflow
 
-### `deploy.yml` - Simple Deployment
-Basic deployment workflow that runs on pushes to main or when PRs are merged.
-
-### `release-deploy.yml` - Full Release Pipeline
-Comprehensive deployment workflow with:
-- Dependency caching
+### `release-deploy.yml` - Production Deployment Pipeline
+Comprehensive deployment workflow using official Cloudflare wrangler-action with:
+- Node.js 22 and pnpm support
+- Dependency caching with pnpm
 - Linting and type checking
-- Testing
-- Building applications
-- Deploying backend and frontend
-- Running database migrations
-- Deployment summaries
+- Testing (backend and frontend)
+- Building frontend application
+- Deploying backend to Cloudflare Workers
+- Deploying frontend to Cloudflare Pages
+- Running D1 database migrations
+- Deployment summaries and notifications
 
 ## Required Secrets
 
@@ -27,11 +26,11 @@ Add these secrets to your GitHub repository settings:
 1. **Get Cloudflare API Token**:
    - Go to https://dash.cloudflare.com/profile/api-tokens
    - Create a custom token with permissions:
-     - Zone:Zone:Read
-     - Zone:Zone Settings:Edit
-     - Zone:Page Rules:Edit
      - Account:Cloudflare Workers:Edit
+     - Account:Cloudflare Pages:Edit
+     - Account:D1:Edit
      - Account:Account Settings:Read
+     - Zone:Zone:Read (if using custom domain)
 
 2. **Get Account ID**:
    - Go to your Cloudflare dashboard
