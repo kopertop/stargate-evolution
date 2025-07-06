@@ -1,4 +1,5 @@
 import { RoomTemplate, DoorTemplate, RoomFurniture, roomToWorldCoordinates, worldToRoomCoordinates } from '@stargate/common';
+import { DEFAULT_IMAGE_KEYS } from '@stargate/common/src/models/room-furniture';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Button, Card, Form, Modal, Table, Nav, Tab, Alert, InputGroup, OverlayTrigger, Tooltip, Dropdown } from 'react-bootstrap';
 import { FaPlus, FaEdit, FaTrash, FaEye } from 'react-icons/fa';
@@ -2053,6 +2054,26 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 		}
 	};
 
+	// Utility to normalize image value for editingFurniture
+	function normalizeImageInput(val: string | Record<string, string> | null | undefined): Record<string, string> | null | undefined {
+		if (!val) return undefined;
+		if (typeof val === 'string') {
+			if (val.trim().startsWith('{')) {
+				try {
+					const parsed = JSON.parse(val);
+					if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+						return parsed;
+					}
+				} catch (e) {
+					// ignore
+				}
+			}
+			return { default: val };
+		}
+		if (typeof val === 'object') return val;
+		return undefined;
+	}
+
 	return (
 		<div className="room-builder">
 			<div className="d-flex">
@@ -2195,7 +2216,21 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 								<p>Size: {selectedFurniture.width} × {selectedFurniture.height}</p>
 								<p>Active: <span className={`badge bg-${selectedFurniture.active ? 'success' : 'danger'}`}>{selectedFurniture.active ? 'Yes' : 'No'}</span></p>
 								<p>Blocks Movement: <span className={`badge bg-${selectedFurniture.blocks_movement ? 'warning' : 'secondary'}`}>{selectedFurniture.blocks_movement ? 'Yes' : 'No'}</span></p>
-								{selectedFurniture.image && <p>Image: <small className="text-muted">{selectedFurniture.image}</small></p>}
+								{selectedFurniture.image && (typeof selectedFurniture.image === 'object' && selectedFurniture.image !== null ? (
+									<div>
+										<strong>Images:</strong>
+										<Table size="sm" bordered>
+											<thead><tr><th>Key</th><th>URL</th></tr></thead>
+											<tbody>
+												{Object.entries(selectedFurniture.image).map(([key, url]) => (
+													<tr key={key}><td>{key}</td><td><code>{url}</code></td></tr>
+												))}
+											</tbody>
+										</Table>
+									</div>
+								) : (
+									<p>Image: <small className="text-muted">{typeof selectedFurniture.image === 'string' ? selectedFurniture.image : ''}</small></p>
+								))}
 								{selectedFurniture.requirements && <p>Requirements: <small className="text-muted">{JSON.stringify(selectedFurniture.requirements)}</small></p>}
 								<div className="d-grid gap-2">
 									<Button
@@ -2576,7 +2611,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 			</Modal>
 
 			{/* Furniture Modal */}
-			<Modal show={showFurnitureModal} onHide={() => setShowFurnitureModal(false)}>
+			<Modal show={showFurnitureModal} onHide={() => setShowFurnitureModal(false)} size='xl'>
 				<Modal.Header closeButton>
 					<Modal.Title>Furniture Properties</Modal.Title>
 				</Modal.Header>
@@ -2771,13 +2806,104 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 							</div>
 						</div>
 
-						<FileUpload
-							label="Furniture Image"
-							currentUrl={editingFurniture.image || undefined}
-							onChange={(url) => setEditingFurniture({...editingFurniture, image: url || undefined})}
-							folder="furniture"
-							helpText="Upload an image or sprite for this furniture piece. Will be used for visual representation in the game."
-						/>
+						<Form.Group className="mb-3">
+							<Form.Label>Furniture Images</Form.Label>
+							<Table size='sm' bordered>
+								<thead>
+									<tr>
+										<th style={{ width: '30%' }}>Key</th>
+										<th>Image</th>
+										<th style={{ width: '10%' }}></th>
+									</tr>
+								</thead>
+								<tbody>
+									{/* First loop: show all keys currently in editingFurniture.image */}
+									{Object.entries(editingFurniture.image || {}).map(([key, url]) => (
+										<tr key={key}>
+											<td>
+												{DEFAULT_IMAGE_KEYS.includes(key as any) ? (
+													<strong>{key}</strong>
+												) : (
+													<Form.Control
+														type='text'
+														value={key}
+														disabled={DEFAULT_IMAGE_KEYS.includes(key as any)}
+														onChange={e => {
+															const newKey = e.target.value.trim();
+															if (!newKey || newKey === key || (editingFurniture.image && editingFurniture.image[newKey])) return;
+															const newImage = { ...editingFurniture.image };
+															newImage[newKey] = newImage[key];
+															delete newImage[key];
+															setEditingFurniture({ ...editingFurniture, image: newImage });
+														}}
+													/>
+												)}
+											</td>
+											<td>
+												<FileUpload
+													label={''}
+													currentUrl={url}
+													onChange={newUrl => {
+														setEditingFurniture({
+															...editingFurniture,
+															image: { ...editingFurniture.image, [key]: newUrl || '' },
+														});
+													}}
+													folder='furniture'
+													helpText={''}
+													thumbnailMode={true}
+												/>
+											</td>
+											<td>
+												{!DEFAULT_IMAGE_KEYS.includes(key as any) && (
+													<Button size='sm' variant='outline-danger' onClick={() => {
+														const newImage = { ...editingFurniture.image };
+														delete newImage[key];
+														setEditingFurniture({ ...editingFurniture, image: newImage });
+													}}>Remove</Button>
+												)}
+											</td>
+										</tr>
+									))}
+									{/* Second loop: show any default keys not present in editingFurniture.image */}
+									{DEFAULT_IMAGE_KEYS.filter(key => !editingFurniture.image || !(key in editingFurniture.image)).map((key) => (
+										<tr key={key}>
+											<td><strong>{key}</strong></td>
+											<td>
+												<FileUpload
+													label={''}
+													currentUrl={''}
+													onChange={newUrl => {
+														if (!newUrl) return;
+														setEditingFurniture({
+															...editingFurniture,
+															image: { ...editingFurniture.image, [key]: newUrl },
+														});
+													}}
+													folder='furniture'
+													helpText={''}
+													thumbnailMode={true}
+												/>
+											</td>
+											<td></td>
+										</tr>
+									))}
+									<tr>
+										<td colSpan={3}>
+											<Button size='sm' variant='outline-primary' onClick={() => {
+												const customKey = prompt('Enter custom image key (e.g. "broken", "locked"):');
+												if (customKey && customKey.trim() && !editingFurniture.image?.[customKey] && !DEFAULT_IMAGE_KEYS.includes(customKey as any)) {
+													setEditingFurniture({
+														...editingFurniture,
+														image: { ...editingFurniture.image, [customKey]: '' },
+													});
+												}
+											}}>Add Custom Key</Button>
+										</td>
+									</tr>
+								</tbody>
+							</Table>
+						</Form.Group>
 
 						<Form.Group className="mb-3">
 							<Form.Label>Requirements (JSON)</Form.Label>
@@ -3223,7 +3349,16 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 									</tr>
 									<tr>
 										<td><strong>Image</strong></td>
-										<td>{selectedFurniture.image || 'None'}</td>
+										<td>{typeof selectedFurniture.image === 'object' && selectedFurniture.image !== null ? (
+											<Table size="sm" bordered>
+												<thead><tr><th>Key</th><th>URL</th></tr></thead>
+												<tbody>
+													{Object.entries(selectedFurniture.image).map(([key, url]) => (
+														<tr key={key}><td>{key}</td><td><code>{url}</code></td></tr>
+													))}
+												</tbody>
+											</Table>
+										) : (typeof selectedFurniture.image === 'string' ? selectedFurniture.image : 'None')}</td>
 									</tr>
 									<tr>
 										<td><strong>Requirements</strong></td>

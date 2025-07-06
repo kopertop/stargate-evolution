@@ -1416,15 +1416,34 @@ export class Game {
 		const roomCenterX = room.startX + (room.endX - room.startX) / 2;
 		const roomCenterY = room.startY + (room.endY - room.startY) / 2;
 
-		// If furniture has an image, render as PIXI.Sprite
-		if (furniture.image) {
-			let texture = this.furnitureTextureCache[furniture.image];
+		// --- IMAGE LOGIC ---
+		let imageUrl: string | undefined;
+		if (furniture.image && typeof furniture.image === 'object') {
+			// Try to pick the best image key based on state
+			if (furniture.active && furniture.image.active) imageUrl = furniture.image.active;
+			else if (furniture.image.default) imageUrl = furniture.image.default;
+			else {
+				// Try other common keys
+				const fallbackKeys = ['broken', 'locked', 'danger'];
+				for (const key of fallbackKeys) {
+					if (furniture.image[key]) {
+						imageUrl = furniture.image[key];
+						break;
+					}
+				}
+			}
+		} else if (typeof furniture.image === 'string') {
+			imageUrl = furniture.image;
+		}
+
+		if (imageUrl) {
+			let texture = this.furnitureTextureCache[imageUrl];
 			if (!texture) {
 				try {
-					texture = await PIXI.Assets.load(furniture.image);
-					this.furnitureTextureCache[furniture.image] = texture;
+					texture = await PIXI.Assets.load(imageUrl);
+					this.furnitureTextureCache[imageUrl] = texture;
 				} catch (err) {
-					console.warn(`[DEBUG] Failed to load furniture image: ${furniture.image}`, err);
+					console.warn(`[DEBUG] Failed to load furniture image: ${imageUrl}`, err);
 				}
 			}
 			if (texture) {

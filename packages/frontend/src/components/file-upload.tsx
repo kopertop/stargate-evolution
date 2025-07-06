@@ -6,12 +6,13 @@ import { toast } from 'react-toastify';
 import { uploadService, UploadResponse } from '../services/upload-service';
 
 interface FileUploadProps {
-	label: string;
+	label?: string;
 	currentUrl?: string;
 	onChange: (url: string | null) => void;
 	folder?: string;
 	accept?: string;
 	helpText?: string;
+	thumbnailMode?: boolean;
 }
 
 export const FileUpload: React.FC<FileUploadProps> = ({
@@ -21,6 +22,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
 	folder = 'furniture',
 	accept = 'image/*',
 	helpText,
+	thumbnailMode = false,
 }) => {
 	const [isUploading, setIsUploading] = useState(false);
 	const [isDragOver, setIsDragOver] = useState(false);
@@ -49,7 +51,6 @@ export const FileUpload: React.FC<FileUploadProps> = ({
 		if (file) {
 			handleFileUpload(file);
 		}
-		// Reset the input value so the same file can be selected again if needed
 		if (fileInputRef.current) {
 			fileInputRef.current.value = '';
 		}
@@ -81,39 +82,84 @@ export const FileUpload: React.FC<FileUploadProps> = ({
 		setIsDragOver(false);
 	}, []);
 
-	const handleRemove = useCallback(() => {
-		onChange(null);
-		setUploadError(null);
-	}, [onChange]);
-
-	const handleBrowseClick = useCallback(() => {
-		fileInputRef.current?.click();
+	const handleClick = useCallback(() => {
+		if (fileInputRef.current) {
+			fileInputRef.current.click();
+		}
 	}, []);
+
+	if (typeof currentUrl !== 'string' && currentUrl !== undefined) {
+		return <div className='alert alert-warning'>File upload is only available for single image URLs. Use the JSON editor for advanced image mapping.</div>;
+	}
+
+	if (thumbnailMode) {
+		return (
+			<div
+				className={`file-upload-thumbnail-dropzone${isDragOver ? ' drag-over' : ''}`}
+				onDrop={handleDrop}
+				onDragOver={handleDragOver}
+				onDragLeave={handleDragLeave}
+				onClick={handleClick}
+				style={{
+					width: 80,
+					height: 80,
+					border: '2px dashed #aaa',
+					borderRadius: 8,
+					display: 'flex',
+					alignItems: 'center',
+					justifyContent: 'center',
+					background: isDragOver ? '#f0f0f0' : '#fff',
+					cursor: 'pointer',
+					position: 'relative',
+					overflow: 'hidden',
+				}}
+			>
+				{isUploading ? (
+					<span>Uploading...</span>
+				) : currentUrl ? (
+					<img
+						src={currentUrl}
+						alt='Furniture'
+						style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
+					/>
+				) : (
+					<span style={{ color: '#888', fontSize: 32 }}>+</span>
+				)}
+				<input
+					type='file'
+					accept={accept}
+					ref={fileInputRef}
+					style={{ display: 'none' }}
+					onChange={handleFileSelect}
+				/>
+			</div>
+		);
+	}
 
 	return (
 		<Form.Group className="mb-3">
 			<Form.Label>{label}</Form.Label>
-			
+
 			{/* Current Image Preview */}
 			{currentUrl && (
 				<div className="mb-2 d-flex align-items-center gap-2">
-					<img 
-						src={currentUrl} 
-						alt="Current" 
-						style={{ 
-							width: '60px', 
-							height: '60px', 
-							objectFit: 'cover', 
+					<img
+						src={currentUrl}
+						alt="Current"
+						style={{
+							width: '60px',
+							height: '60px',
+							objectFit: 'cover',
 							borderRadius: '4px',
-							border: '1px solid #dee2e6'
-						}} 
+							border: '1px solid #dee2e6',
+						}}
 					/>
 					<div className="flex-grow-1">
 						<small className="text-muted d-block">{currentUrl}</small>
-						<Button 
-							variant="outline-danger" 
-							size="sm" 
-							onClick={handleRemove}
+						<Button
+							variant="outline-danger"
+							size="sm"
+							onClick={() => onChange(null)}
 							disabled={isUploading}
 						>
 							<FaTrash /> Remove
@@ -140,7 +186,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
 				onDrop={handleDrop}
 				onDragOver={handleDragOver}
 				onDragLeave={handleDragLeave}
-				onClick={!isUploading ? handleBrowseClick : undefined}
+				onClick={!isUploading ? handleClick : undefined}
 			>
 				{isUploading ? (
 					<>

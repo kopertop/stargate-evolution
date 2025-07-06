@@ -16,7 +16,17 @@ export const RoomFurnitureSchema = z.object({
 	rotation: z.number().default(0), // Rotation in degrees (0, 90, 180, 270)
 
 	// Visual properties
-	image: z.string().optional().nullable(), // Image asset for rendering
+	image: z.record(z.string())
+		.transform((img) => {
+			const out: Record<string, string> = { ...img };
+			for (const key of DEFAULT_IMAGE_KEYS) {
+				if (!(key in out)) out[key] = '';
+			}
+			return out;
+		})
+		.refine(obj => typeof obj.default === 'string' && obj.default.length > 0, {
+			message: 'Image mapping must include a "default" key with a non-empty URL',
+		}).optional().nullable(),
 	color: z.string().optional().nullable(), // Hex color code for tinting
 	style: z.string().optional().nullable(), // Style variant ('ancient', 'modern', etc.)
 
@@ -68,3 +78,5 @@ export function worldToRoomCoordinates(
 		y: worldY - roomCenterY,
 	};
 }
+
+export const DEFAULT_IMAGE_KEYS = ['default', 'active', 'damaged', 'danger'] as const;

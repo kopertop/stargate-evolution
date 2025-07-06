@@ -565,13 +565,20 @@ admin.put('/furniture/:id', async (c) => {
 		const { updateRoomFurniture } = await import('../../templates/room-furniture-templates');
 		const furnitureId = c.req.param('id');
 		if (!furnitureId) throw new Error('Furniture ID required');
+		console.log('updateRoomFurniture', furnitureId);
 
 		const updateData = await c.req.json();
+		console.log('updateData', updateData);
 		const furniture = await updateRoomFurniture(c.env, furnitureId, updateData);
 		return c.json(furniture);
 	} catch (err: any) {
+		console.error('Failed to update furniture', err);
 		const status = err.message?.includes('not found') ? 404 : 500;
-		return c.json({ error: err.message || 'Failed to update furniture' }, status);
+		return c.json({
+			error: err.message || 'Failed to update furniture',
+			errors: err.errors,
+			issues: err.issues,
+		}, status);
 	}
 });
 
@@ -865,8 +872,6 @@ admin.post('/sql/import/:tableName', async (c) => {
 			importedAt: new Date().toISOString(),
 			importedBy: user.email,
 		});
-
-
 
 	} catch (error) {
 		console.error('[ADMIN-SQL] Import failed:', error);
