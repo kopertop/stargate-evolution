@@ -789,7 +789,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 			let originalDoorPosition: { x: number; y: number } | undefined;
 			let originalFurniturePosition: { x: number; y: number } | undefined;
 
-			if (dragType === 'room' && selectedRoom) {
+			if ((dragType === 'room' || dragType === 'resize') && selectedRoom) {
 				originalRoomPosition = {
 					startX: selectedRoom.startX,
 					endX: selectedRoom.endX,
@@ -835,6 +835,31 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 		const scaleY = CANVAS_HEIGHT / rect.height;
 		const screenX = (event.clientX - rect.left) * scaleX;
 		const screenY = (event.clientY - rect.top) * scaleY;
+
+		// Update cursor style when hovering over resize handles
+		if (!dragState.isDragging && selectedRoom) {
+			const detectedHandle = getResizeHandle(screenX, screenY, selectedRoom);
+			if (detectedHandle) {
+				// Set appropriate resize cursor based on handle type
+				const cursorMap = {
+					nw: 'nw-resize',
+					ne: 'ne-resize',
+					sw: 'sw-resize',
+					se: 'se-resize',
+					n: 'n-resize',
+					s: 's-resize',
+					e: 'e-resize',
+					w: 'w-resize',
+				};
+				canvas.style.cursor = cursorMap[detectedHandle];
+			} else {
+				// Reset to default cursor when not over resize handles
+				canvas.style.cursor = dragState.isDragging ?
+					(dragState.dragType === 'camera' ? 'grabbing' : 'move') :
+					(selectedRoom || selectedDoor || selectedFurniture) ? 'move' :
+						isMouseDown ? 'grabbing' : 'grab';
+			}
+		}
 
 		// If mouse is down but not yet dragging, check if we should start dragging
 		if (isMouseDown && !dragState.isDragging && dragState.dragType !== 'none') {
@@ -895,10 +920,16 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 					setIsSnapped(true);
 				} else {
 					// If no room snapping, apply grid snapping as fallback
-					const gridSnappedStartX = Math.round(updatedRoom.startX / GRID_SIZE) * GRID_SIZE;
-					const gridSnappedStartY = Math.round(updatedRoom.startY / GRID_SIZE) * GRID_SIZE;
-					const roomWidth = updatedRoom.endX - updatedRoom.startX;
-					const roomHeight = updatedRoom.endY - updatedRoom.startY;
+					// Ensure all coordinates are whole numbers first
+					const normalizedStartX = Math.round(updatedRoom.startX);
+					const normalizedStartY = Math.round(updatedRoom.startY);
+					const normalizedEndX = Math.round(updatedRoom.endX);
+					const normalizedEndY = Math.round(updatedRoom.endY);
+
+					const gridSnappedStartX = Math.round(normalizedStartX / GRID_SIZE) * GRID_SIZE;
+					const gridSnappedStartY = Math.round(normalizedStartY / GRID_SIZE) * GRID_SIZE;
+					const roomWidth = normalizedEndX - normalizedStartX;
+					const roomHeight = normalizedEndY - normalizedStartY;
 
 					updatedRoom = {
 						...updatedRoom,
@@ -920,9 +951,9 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 				const worldDeltaX = worldCurrent.x - worldStart.x;
 				const worldDeltaY = worldCurrent.y - worldStart.y;
 
-				// Snap to grid (16-point grid for doors)
-				const snappedDeltaX = Math.round(worldDeltaX / 16) * 16;
-				const snappedDeltaY = Math.round(worldDeltaY / 16) * 16;
+				// Snap to grid (16-point grid for doors), ensuring whole numbers
+				const snappedDeltaX = Math.round(Math.round(worldDeltaX) / 16) * 16;
+				const snappedDeltaY = Math.round(Math.round(worldDeltaY) / 16) * 16;
 
 				// Update door position based on stored original position + snapped delta
 				const updatedDoor = {
@@ -948,9 +979,9 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 					const roomRelativeDeltaX = worldDeltaX;
 					const roomRelativeDeltaY = worldDeltaY;
 
-					// Snap to grid (8-point grid for furniture)
-					const snappedDeltaX = Math.round(roomRelativeDeltaX / 8) * 8;
-					const snappedDeltaY = Math.round(roomRelativeDeltaY / 8) * 8;
+					// Snap to grid (8-point grid for furniture), ensuring whole numbers
+					const snappedDeltaX = Math.round(Math.round(roomRelativeDeltaX) / 8) * 8;
+					const snappedDeltaY = Math.round(Math.round(roomRelativeDeltaY) / 8) * 8;
 
 					// Update furniture position based on stored original position + snapped delta
 					const updatedFurniture = {
@@ -1009,36 +1040,49 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 					}
 				}
 
-				// Snap to grid
-				newStartX = Math.round(newStartX / GRID_SIZE) * GRID_SIZE;
-				newEndX = Math.round(newEndX / GRID_SIZE) * GRID_SIZE;
-				newStartY = Math.round(newStartY / GRID_SIZE) * GRID_SIZE;
-				newEndY = Math.round(newEndY / GRID_SIZE) * GRID_SIZE;
-
-				// Ensure minimum size after snapping
-				if (newEndX - newStartX < minSize) {
-					if (handle.includes('w')) {
-						newStartX = newEndX - minSize;
-					} else {
-						newEndX = newStartX + minSize;
-					}
-				}
-				if (newEndY - newStartY < minSize) {
-					if (handle.includes('n')) {
-						newStartY = newEndY - minSize;
-					} else {
-						newEndY = newStartY + minSize;
-					}
-				}
-
-				// Create updated room
-				const updatedRoom = {
+				// Create temporary room with new bounds for snapping
+				let tempRoom = {
 					...selectedRoom,
 					startX: newStartX,
 					endX: newEndX,
 					startY: newStartY,
 					endY: newEndY,
 				};
+
+				// Apply room-to-room snapping first
+				const otherRooms = floorRooms.filter(r => r.id !== selectedRoom.id);
+				const snapResult = findResizeSnapPosition(tempRoom, otherRooms, handle);
+				if (snapResult.hasSnapped) {
+					tempRoom = snapResult.snappedRoom;
+					setIsSnapped(true);
+				} else {
+					// If no room snapping, apply grid snapping as fallback
+					// Ensure all coordinates are whole numbers first, then snap to grid
+					tempRoom.startX = Math.round(Math.round(tempRoom.startX) / GRID_SIZE) * GRID_SIZE;
+					tempRoom.endX = Math.round(Math.round(tempRoom.endX) / GRID_SIZE) * GRID_SIZE;
+					tempRoom.startY = Math.round(Math.round(tempRoom.startY) / GRID_SIZE) * GRID_SIZE;
+					tempRoom.endY = Math.round(Math.round(tempRoom.endY) / GRID_SIZE) * GRID_SIZE;
+					setIsSnapped(false);
+				}
+
+				// Ensure minimum size after snapping
+				if (tempRoom.endX - tempRoom.startX < minSize) {
+					if (handle.includes('w')) {
+						tempRoom.startX = tempRoom.endX - minSize;
+					} else {
+						tempRoom.endX = tempRoom.startX + minSize;
+					}
+				}
+				if (tempRoom.endY - tempRoom.startY < minSize) {
+					if (handle.includes('n')) {
+						tempRoom.startY = tempRoom.endY - minSize;
+					} else {
+						tempRoom.endY = tempRoom.startY + minSize;
+					}
+				}
+
+				// Create updated room
+				const updatedRoom = tempRoom;
 
 				setSelectedRoom(updatedRoom);
 				// Update in rooms array for immediate visual feedback
@@ -1426,9 +1470,9 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 				// Find the best adjacent position relative to the closest room
 				const bestPosition = findBestAdjacentPosition(worldX, worldY, closestRoom, newRoomWidth, newRoomHeight);
 
-				// Snap to grid (ensure room aligns with 32-pixel grid)
-				finalX = Math.round(bestPosition.x / GRID_SIZE) * GRID_SIZE;
-				finalY = Math.round(bestPosition.y / GRID_SIZE) * GRID_SIZE;
+				// Snap to grid (ensure room aligns with 32-pixel grid) with whole numbers
+				finalX = Math.round(Math.round(bestPosition.x) / GRID_SIZE) * GRID_SIZE;
+				finalY = Math.round(Math.round(bestPosition.y) / GRID_SIZE) * GRID_SIZE;
 
 				// Double-check for overlaps after grid snapping
 				let finalRoom = {
@@ -1495,8 +1539,8 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 					// Try each position and use the first one that doesn't overlap
 					let foundPosition = false;
 					for (const pos of potentialPositions) {
-						const testX = Math.round(pos.x / GRID_SIZE) * GRID_SIZE;
-						const testY = Math.round(pos.y / GRID_SIZE) * GRID_SIZE;
+						const testX = Math.round(Math.round(pos.x) / GRID_SIZE) * GRID_SIZE;
+						const testY = Math.round(Math.round(pos.y) / GRID_SIZE) * GRID_SIZE;
 
 						const testRoom = {
 							startX: testX,
@@ -1522,20 +1566,20 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 
 								switch (direction) {
 								case 'east':
-									testX = Math.round((closestRoom.endX + distance * GRID_SIZE) / GRID_SIZE) * GRID_SIZE;
-									testY = Math.round((roomCenterY - newRoomHeight / 2) / GRID_SIZE) * GRID_SIZE;
+									testX = Math.round(Math.round(closestRoom.endX + distance * GRID_SIZE) / GRID_SIZE) * GRID_SIZE;
+									testY = Math.round(Math.round(roomCenterY - newRoomHeight / 2) / GRID_SIZE) * GRID_SIZE;
 									break;
 								case 'west':
-									testX = Math.round((closestRoom.startX - distance * GRID_SIZE - newRoomWidth) / GRID_SIZE) * GRID_SIZE;
-									testY = Math.round((roomCenterY - newRoomHeight / 2) / GRID_SIZE) * GRID_SIZE;
+									testX = Math.round(Math.round(closestRoom.startX - distance * GRID_SIZE - newRoomWidth) / GRID_SIZE) * GRID_SIZE;
+									testY = Math.round(Math.round(roomCenterY - newRoomHeight / 2) / GRID_SIZE) * GRID_SIZE;
 									break;
 								case 'south':
-									testX = Math.round((roomCenterX - newRoomWidth / 2) / GRID_SIZE) * GRID_SIZE;
-									testY = Math.round((closestRoom.endY + distance * GRID_SIZE) / GRID_SIZE) * GRID_SIZE;
+									testX = Math.round(Math.round(roomCenterX - newRoomWidth / 2) / GRID_SIZE) * GRID_SIZE;
+									testY = Math.round(Math.round(closestRoom.endY + distance * GRID_SIZE) / GRID_SIZE) * GRID_SIZE;
 									break;
 								case 'north':
-									testX = Math.round((roomCenterX - newRoomWidth / 2) / GRID_SIZE) * GRID_SIZE;
-									testY = Math.round((closestRoom.startY - distance * GRID_SIZE - newRoomHeight) / GRID_SIZE) * GRID_SIZE;
+									testX = Math.round(Math.round(roomCenterX - newRoomWidth / 2) / GRID_SIZE) * GRID_SIZE;
+									testY = Math.round(Math.round(closestRoom.startY - distance * GRID_SIZE - newRoomHeight) / GRID_SIZE) * GRID_SIZE;
 									break;
 								default:
 									continue;
@@ -1561,14 +1605,14 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 					}
 				}
 			} else {
-				// Fallback to basic grid snapping if no closest room found
-				finalX = Math.round((worldX - newRoomWidth / 2) / GRID_SIZE) * GRID_SIZE;
-				finalY = Math.round((worldY - newRoomHeight / 2) / GRID_SIZE) * GRID_SIZE;
+			// Fallback to basic grid snapping if no closest room found
+				finalX = Math.round(Math.round(worldX - newRoomWidth / 2) / GRID_SIZE) * GRID_SIZE;
+				finalY = Math.round(Math.round(worldY - newRoomHeight / 2) / GRID_SIZE) * GRID_SIZE;
 			}
 		} else {
-			// No existing rooms, just center on click position with grid snap
-			finalX = Math.round((worldX - newRoomWidth / 2) / GRID_SIZE) * GRID_SIZE;
-			finalY = Math.round((worldY - newRoomHeight / 2) / GRID_SIZE) * GRID_SIZE;
+		// No existing rooms, just center on click position with grid snap
+			finalX = Math.round(Math.round(worldX - newRoomWidth / 2) / GRID_SIZE) * GRID_SIZE;
+			finalY = Math.round(Math.round(worldY - newRoomHeight / 2) / GRID_SIZE) * GRID_SIZE;
 		}
 
 		setEditingRoom({
@@ -1608,9 +1652,9 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 		// Convert world coordinates to room-relative coordinates
 		const roomCoords = worldToRoomCoordinates(worldX, worldY, selectedRoom);
 
-		// Snap to furniture grid (8-point)
-		const snappedX = Math.round(roomCoords.x / 8) * 8;
-		const snappedY = Math.round(roomCoords.y / 8) * 8;
+		// Snap to furniture grid (8-point), ensuring whole numbers
+		const snappedX = Math.round(Math.round(roomCoords.x) / 8) * 8;
+		const snappedY = Math.round(Math.round(roomCoords.y) / 8) * 8;
 
 		// Store the position for use after template selection
 		setPendingFurniturePosition({ x: snappedX, y: snappedY });
@@ -1688,9 +1732,9 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 			return;
 		}
 
-		// Snap to door grid (16-point)
-		const snappedX = Math.round(worldX / 16) * 16;
-		const snappedY = Math.round(worldY / 16) * 16;
+		// Snap to door grid (16-point), ensuring whole numbers
+		const snappedX = Math.round(Math.round(worldX) / 16) * 16;
+		const snappedY = Math.round(Math.round(worldY) / 16) * 16;
 
 		setEditingDoor({
 			id: `door_${Date.now()}`,
@@ -1758,7 +1802,8 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 	};
 
 	// Room snapping and auto-door creation utilities
-	const SNAP_THRESHOLD = 16; // Distance threshold for snapping (in world units)
+	const SNAP_THRESHOLD = 32; // Distance threshold for snapping (in world units)
+	const EDGE_ALIGN_THRESHOLD = 64; // Distance threshold for edge alignment snapping
 
 	/**
 	 * Find the closest room to a given world position
@@ -1864,67 +1909,234 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 	};
 
 	const findSnapPosition = (room: RoomTemplate, otherRooms: RoomTemplate[]) => {
-		const snappedRoom = { ...room };
+		// First, ensure all coordinates are whole numbers
+		const normalizedRoom = {
+			...room,
+			startX: Math.round(room.startX),
+			endX: Math.round(room.endX),
+			startY: Math.round(room.startY),
+			endY: Math.round(room.endY),
+		};
+
+		const snappedRoom = { ...normalizedRoom };
 		let hasSnapped = false;
 		let bestSnapDistance = SNAP_THRESHOLD;
 		let bestSnapDelta = { x: 0, y: 0 };
 
 		for (const otherRoom of otherRooms) {
-			if (otherRoom.id === room.id) continue; // Skip self
+			if (otherRoom.id === normalizedRoom.id) continue; // Skip self
+
+			// Ensure other room coordinates are also whole numbers
+			const normalizedOtherRoom = {
+				...otherRoom,
+				startX: Math.round(otherRoom.startX),
+				endX: Math.round(otherRoom.endX),
+				startY: Math.round(otherRoom.startY),
+				endY: Math.round(otherRoom.endY),
+			};
 
 			// Check for horizontal snapping (rooms side by side)
 			// Left edge of moving room to right edge of other room
-			const leftToRightDistance = Math.abs(room.startX - otherRoom.endX);
+			const leftToRightDistance = Math.abs(normalizedRoom.startX - normalizedOtherRoom.endX);
 			if (leftToRightDistance <= SNAP_THRESHOLD &&
-				!(room.endY <= otherRoom.startY || room.startY >= otherRoom.endY)) {
+				!(normalizedRoom.endY <= normalizedOtherRoom.startY || normalizedRoom.startY >= normalizedOtherRoom.endY)) {
 				if (leftToRightDistance < bestSnapDistance) {
 					bestSnapDistance = leftToRightDistance;
-					bestSnapDelta = { x: otherRoom.endX - room.startX, y: 0 };
+					bestSnapDelta = { x: normalizedOtherRoom.endX - normalizedRoom.startX, y: 0 };
 					hasSnapped = true;
 				}
 			}
 
 			// Right edge of moving room to left edge of other room
-			const rightToLeftDistance = Math.abs(room.endX - otherRoom.startX);
+			const rightToLeftDistance = Math.abs(normalizedRoom.endX - normalizedOtherRoom.startX);
 			if (rightToLeftDistance <= SNAP_THRESHOLD &&
-				!(room.endY <= otherRoom.startY || room.startY >= otherRoom.endY)) {
+				!(normalizedRoom.endY <= normalizedOtherRoom.startY || normalizedRoom.startY >= normalizedOtherRoom.endY)) {
 				if (rightToLeftDistance < bestSnapDistance) {
 					bestSnapDistance = rightToLeftDistance;
-					bestSnapDelta = { x: otherRoom.startX - room.endX, y: 0 };
+					bestSnapDelta = { x: normalizedOtherRoom.startX - normalizedRoom.endX, y: 0 };
 					hasSnapped = true;
 				}
 			}
 
 			// Check for vertical snapping (rooms above/below)
 			// Top edge of moving room to bottom edge of other room
-			const topToBottomDistance = Math.abs(room.startY - otherRoom.endY);
+			const topToBottomDistance = Math.abs(normalizedRoom.startY - normalizedOtherRoom.endY);
 			if (topToBottomDistance <= SNAP_THRESHOLD &&
-				!(room.endX <= otherRoom.startX || room.startX >= otherRoom.endX)) {
+				!(normalizedRoom.endX <= normalizedOtherRoom.startX || normalizedRoom.startX >= normalizedOtherRoom.endX)) {
 				if (topToBottomDistance < bestSnapDistance) {
 					bestSnapDistance = topToBottomDistance;
-					bestSnapDelta = { x: 0, y: otherRoom.endY - room.startY };
+					bestSnapDelta = { x: 0, y: normalizedOtherRoom.endY - normalizedRoom.startY };
 					hasSnapped = true;
 				}
 			}
 
 			// Bottom edge of moving room to top edge of other room
-			const bottomToTopDistance = Math.abs(room.endY - otherRoom.startY);
+			const bottomToTopDistance = Math.abs(normalizedRoom.endY - normalizedOtherRoom.startY);
 			if (bottomToTopDistance <= SNAP_THRESHOLD &&
-				!(room.endX <= otherRoom.startX || room.startX >= otherRoom.endX)) {
+				!(normalizedRoom.endX <= normalizedOtherRoom.startX || normalizedRoom.startX >= normalizedOtherRoom.endX)) {
 				if (bottomToTopDistance < bestSnapDistance) {
 					bestSnapDistance = bottomToTopDistance;
-					bestSnapDelta = { x: 0, y: otherRoom.startY - room.endY };
+					bestSnapDelta = { x: 0, y: normalizedOtherRoom.startY - normalizedRoom.endY };
 					hasSnapped = true;
 				}
+			}
+
+			// Edge alignment snapping (align edges even if not directly adjacent)
+			// Horizontal edge alignment (top/bottom edges align)
+			const topEdgeAlignDistance = Math.abs(normalizedRoom.startY - normalizedOtherRoom.startY);
+			if (topEdgeAlignDistance <= EDGE_ALIGN_THRESHOLD && topEdgeAlignDistance < bestSnapDistance) {
+				bestSnapDistance = topEdgeAlignDistance;
+				bestSnapDelta = { x: 0, y: normalizedOtherRoom.startY - normalizedRoom.startY };
+				hasSnapped = true;
+			}
+
+			const bottomEdgeAlignDistance = Math.abs(normalizedRoom.endY - normalizedOtherRoom.endY);
+			if (bottomEdgeAlignDistance <= EDGE_ALIGN_THRESHOLD && bottomEdgeAlignDistance < bestSnapDistance) {
+				bestSnapDistance = bottomEdgeAlignDistance;
+				bestSnapDelta = { x: 0, y: normalizedOtherRoom.endY - normalizedRoom.endY };
+				hasSnapped = true;
+			}
+
+			// Vertical edge alignment (left/right edges align)
+			const leftEdgeAlignDistance = Math.abs(normalizedRoom.startX - normalizedOtherRoom.startX);
+			if (leftEdgeAlignDistance <= EDGE_ALIGN_THRESHOLD && leftEdgeAlignDistance < bestSnapDistance) {
+				bestSnapDistance = leftEdgeAlignDistance;
+				bestSnapDelta = { x: normalizedOtherRoom.startX - normalizedRoom.startX, y: 0 };
+				hasSnapped = true;
+			}
+
+			const rightEdgeAlignDistance = Math.abs(normalizedRoom.endX - normalizedOtherRoom.endX);
+			if (rightEdgeAlignDistance <= EDGE_ALIGN_THRESHOLD && rightEdgeAlignDistance < bestSnapDistance) {
+				bestSnapDistance = rightEdgeAlignDistance;
+				bestSnapDelta = { x: normalizedOtherRoom.endX - normalizedRoom.endX, y: 0 };
+				hasSnapped = true;
 			}
 		}
 
 		// Apply the best snap delta if we found one
 		if (hasSnapped) {
-			snappedRoom.startX += bestSnapDelta.x;
-			snappedRoom.endX += bestSnapDelta.x;
-			snappedRoom.startY += bestSnapDelta.y;
-			snappedRoom.endY += bestSnapDelta.y;
+			snappedRoom.startX = Math.round(snappedRoom.startX + bestSnapDelta.x);
+			snappedRoom.endX = Math.round(snappedRoom.endX + bestSnapDelta.x);
+			snappedRoom.startY = Math.round(snappedRoom.startY + bestSnapDelta.y);
+			snappedRoom.endY = Math.round(snappedRoom.endY + bestSnapDelta.y);
+		}
+
+		return { snappedRoom, hasSnapped };
+	};
+
+	/**
+	 * Find snap position for resize operations - snaps to nearby room edges
+	 */
+	const findResizeSnapPosition = (
+		room: RoomTemplate,
+		otherRooms: RoomTemplate[],
+		handle: 'nw' | 'ne' | 'sw' | 'se' | 'n' | 's' | 'e' | 'w',
+	) => {
+		// First, ensure all coordinates are whole numbers
+		const normalizedRoom = {
+			...room,
+			startX: Math.round(room.startX),
+			endX: Math.round(room.endX),
+			startY: Math.round(room.startY),
+			endY: Math.round(room.endY),
+		};
+
+		const snappedRoom = { ...normalizedRoom };
+		let hasSnapped = false;
+		let bestSnapDistance = SNAP_THRESHOLD;
+
+		for (const otherRoom of otherRooms) {
+			if (otherRoom.id === normalizedRoom.id) continue; // Skip self
+
+			// Ensure other room coordinates are also whole numbers
+			const normalizedOtherRoom = {
+				...otherRoom,
+				startX: Math.round(otherRoom.startX),
+				endX: Math.round(otherRoom.endX),
+				startY: Math.round(otherRoom.startY),
+				endY: Math.round(otherRoom.endY),
+			};
+
+			// Handle-specific snapping logic
+			if (handle.includes('e')) { // East side (right edge)
+				// Snap right edge to left edge of rooms to the right
+				const distance = Math.abs(normalizedRoom.endX - normalizedOtherRoom.startX);
+				if (distance <= SNAP_THRESHOLD && distance < bestSnapDistance &&
+					!(normalizedRoom.endY <= normalizedOtherRoom.startY || normalizedRoom.startY >= normalizedOtherRoom.endY)) {
+					snappedRoom.endX = normalizedOtherRoom.startX;
+					bestSnapDistance = distance;
+					hasSnapped = true;
+				}
+				// Also snap to right edge of other rooms (alignment)
+				const alignDistance = Math.abs(normalizedRoom.endX - normalizedOtherRoom.endX);
+				if (alignDistance <= SNAP_THRESHOLD && alignDistance < bestSnapDistance) {
+					snappedRoom.endX = normalizedOtherRoom.endX;
+					bestSnapDistance = alignDistance;
+					hasSnapped = true;
+				}
+			}
+
+			if (handle.includes('w')) { // West side (left edge)
+				// Snap left edge to right edge of rooms to the left
+				const distance = Math.abs(normalizedRoom.startX - normalizedOtherRoom.endX);
+				if (distance <= SNAP_THRESHOLD && distance < bestSnapDistance &&
+					!(normalizedRoom.endY <= normalizedOtherRoom.startY || normalizedRoom.startY >= normalizedOtherRoom.endY)) {
+					snappedRoom.startX = normalizedOtherRoom.endX;
+					bestSnapDistance = distance;
+					hasSnapped = true;
+				}
+				// Also snap to left edge of other rooms (alignment)
+				const alignDistance = Math.abs(normalizedRoom.startX - normalizedOtherRoom.startX);
+				if (alignDistance <= SNAP_THRESHOLD && alignDistance < bestSnapDistance) {
+					snappedRoom.startX = normalizedOtherRoom.startX;
+					bestSnapDistance = alignDistance;
+					hasSnapped = true;
+				}
+			}
+
+			if (handle.includes('s')) { // South side (bottom edge)
+				// Snap bottom edge to top edge of rooms below
+				const distance = Math.abs(normalizedRoom.endY - normalizedOtherRoom.startY);
+				if (distance <= SNAP_THRESHOLD && distance < bestSnapDistance &&
+					!(normalizedRoom.endX <= normalizedOtherRoom.startX || normalizedRoom.startX >= normalizedOtherRoom.endX)) {
+					snappedRoom.endY = normalizedOtherRoom.startY;
+					bestSnapDistance = distance;
+					hasSnapped = true;
+				}
+				// Also snap to bottom edge of other rooms (alignment)
+				const alignDistance = Math.abs(normalizedRoom.endY - normalizedOtherRoom.endY);
+				if (alignDistance <= SNAP_THRESHOLD && alignDistance < bestSnapDistance) {
+					snappedRoom.endY = normalizedOtherRoom.endY;
+					bestSnapDistance = alignDistance;
+					hasSnapped = true;
+				}
+			}
+
+			if (handle.includes('n')) { // North side (top edge)
+				// Snap top edge to bottom edge of rooms above
+				const distance = Math.abs(normalizedRoom.startY - normalizedOtherRoom.endY);
+				if (distance <= SNAP_THRESHOLD && distance < bestSnapDistance &&
+					!(normalizedRoom.endX <= normalizedOtherRoom.startX || normalizedRoom.startX >= normalizedOtherRoom.endX)) {
+					snappedRoom.startY = normalizedOtherRoom.endY;
+					bestSnapDistance = distance;
+					hasSnapped = true;
+				}
+				// Also snap to top edge of other rooms (alignment)
+				const alignDistance = Math.abs(normalizedRoom.startY - normalizedOtherRoom.startY);
+				if (alignDistance <= SNAP_THRESHOLD && alignDistance < bestSnapDistance) {
+					snappedRoom.startY = normalizedOtherRoom.startY;
+					bestSnapDistance = alignDistance;
+					hasSnapped = true;
+				}
+			}
+		}
+
+		// If we snapped, ensure coordinates are still whole numbers
+		if (hasSnapped) {
+			snappedRoom.startX = Math.round(snappedRoom.startX);
+			snappedRoom.endX = Math.round(snappedRoom.endX);
+			snappedRoom.startY = Math.round(snappedRoom.startY);
+			snappedRoom.endY = Math.round(snappedRoom.endY);
 		}
 
 		return { snappedRoom, hasSnapped };
@@ -3495,7 +3707,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 					<p className="text-muted mb-3">
 						Choose a template to auto-populate furniture properties, or skip to create custom furniture.
 					</p>
-					
+
 					{furnitureTemplates.length === 0 ? (
 						<Alert variant="info">
 							No furniture templates available. You can create custom furniture by skipping template selection.
@@ -3504,8 +3716,8 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 						<div className="row">
 							{furnitureTemplates.map((template) => (
 								<div key={template.id} className="col-md-6 col-lg-4 mb-3">
-									<Card 
-										className="h-100 template-card" 
+									<Card
+										className="h-100 template-card"
 										style={{ cursor: 'pointer' }}
 										onClick={() => handleTemplateSelected(template)}
 									>
@@ -3531,16 +3743,16 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 													</small>
 												</div>
 											</div>
-											
+
 											{template.description && (
 												<Card.Text className="small text-muted mb-2">
-													{template.description.length > 80 
+													{template.description.length > 80
 														? `${template.description.substring(0, 80)}...`
 														: template.description
 													}
 												</Card.Text>
 											)}
-											
+
 											<div className="d-flex justify-content-between align-items-center">
 												<small className="text-muted">
 													{template.default_width}×{template.default_height}
