@@ -28,6 +28,17 @@ templates.get('/persons', async (c) => {
 	}
 });
 
+// Alias for integration tests
+templates.get('/people', async (c) => {
+	try {
+		const { results } = await c.env.DB.prepare('SELECT * FROM person_templates').all();
+		return c.json(results);
+	} catch (error) {
+		console.error('Failed to fetch person templates:', error);
+		return c.json({ error: 'Failed to fetch person templates' }, 500);
+	}
+});
+
 templates.get('/galaxies', async (c) => {
 	try {
 		const { results } = await c.env.DB.prepare('SELECT * FROM galaxy_templates').all();
@@ -49,6 +60,16 @@ templates.get('/galaxies/:id', async (c) => {
 	} catch (error) {
 		console.error(`Failed to fetch galaxy template ${id}:`, error);
 		return c.json({ error: 'Failed to fetch galaxy template' }, 500);
+	}
+});
+
+templates.get('/star-systems', async (c) => {
+	try {
+		const { results } = await c.env.DB.prepare('SELECT * FROM star_system_templates').all();
+		return c.json(results);
+	} catch (error) {
+		console.error('Failed to fetch star system templates:', error);
+		return c.json({ error: 'Failed to fetch star system templates' }, 500);
 	}
 });
 
@@ -151,6 +172,45 @@ templates.get('/technologies/:id', async (c) => {
 	} catch (error) {
 		console.error(`Failed to fetch technology template ${id}:`, error);
 		return c.json({ error: 'Failed to fetch technology template' }, 500);
+	}
+});
+
+templates.get('/starting-inventory', async (c) => {
+	try {
+		// Return basic starting inventory items for new games
+		const startingInventory = [
+			{
+				id: 'radio',
+				name: 'Tactical Radio',
+				type: 'communication',
+				description: 'Basic team communication device',
+				quantity: 1,
+				created_at: Math.floor(Date.now() / 1000),
+				updated_at: Math.floor(Date.now() / 1000),
+			},
+			{
+				id: 'flashlight',
+				name: 'Military Flashlight',
+				type: 'tool',
+				description: 'High-powered LED flashlight',
+				quantity: 1,
+				created_at: Math.floor(Date.now() / 1000),
+				updated_at: Math.floor(Date.now() / 1000),
+			},
+			{
+				id: 'medkit',
+				name: 'Basic Medical Kit',
+				type: 'medical',
+				description: 'Basic medical supplies for field use',
+				quantity: 1,
+				created_at: Math.floor(Date.now() / 1000),
+				updated_at: Math.floor(Date.now() / 1000),
+			},
+		];
+		return c.json(startingInventory);
+	} catch (error) {
+		console.error('Failed to fetch starting inventory:', error);
+		return c.json({ error: 'Failed to fetch starting inventory' }, 500);
 	}
 });
 

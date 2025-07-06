@@ -1,8 +1,7 @@
 import { Hono } from 'hono';
-import type { Env } from '../../types';
 
-// Import package.json to get version
-const packageJson = require('../../../package.json');
+import packageJson from '../../../package.json';
+import type { Env } from '../../types';
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -12,7 +11,7 @@ app.get('/', (c) => {
 		version: packageJson.version,
 		name: packageJson.name,
 		timestamp: new Date().toISOString(),
-		environment: c.env?.ENVIRONMENT || 'development'
+		environment: c.env?.ENVIRONMENT || 'development',
 	};
 	
 	return c.json(status);
