@@ -6,6 +6,23 @@ export interface UploadResponse {
 	key: string;
 }
 
+export interface UploadedFile {
+	key: string;
+	url: string;
+	filename: string;
+	size: number;
+	lastModified: Date;
+	contentType?: string;
+	originalName?: string;
+}
+
+export interface ListFilesResponse {
+	success: boolean;
+	files: UploadedFile[];
+	total: number;
+	truncated: boolean;
+}
+
 export class UploadService {
 
 	/**
@@ -56,6 +73,29 @@ export class UploadService {
 			}
 		} catch (error) {
 			console.error('Delete failed:', error);
+			throw error;
+		}
+	}
+
+	/**
+	 * List uploaded files from CloudFlare R2 storage
+	 */
+	async listFiles(folder: string = '', limit: number = 100): Promise<UploadedFile[]> {
+		try {
+			const params = new URLSearchParams();
+			if (folder) params.append('folder', folder);
+			if (limit !== 100) params.append('limit', limit.toString());
+
+			const response = await apiClient.get(`/api/upload/files?${params.toString()}`, true);
+
+			if (response.error) {
+				throw new Error(response.error);
+			}
+
+			const result: ListFilesResponse = response.data;
+			return result.files;
+		} catch (error) {
+			console.error('List files failed:', error);
 			throw error;
 		}
 	}

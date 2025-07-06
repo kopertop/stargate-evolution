@@ -15,6 +15,7 @@ import {
 	AdminRooms,
 	AdminTechnologies,
 	SqlDebugPage,
+	FurnitureTemplatesAdmin,
 } from './pages/admin';
 import { GamePage } from './pages/game-page';
 import { MenuPage } from './pages/menu-page';
@@ -36,6 +37,7 @@ export const App: React.FC = () => {
 							<Route path="map" element={<AdminMapBuilder />} />
 							<Route path="users" element={<AdminUsers />} />
 							<Route path="rooms" element={<AdminRooms />} />
+							<Route path="furniture-templates" element={<FurnitureTemplatesAdmin />} />
 							<Route path="technologies" element={<AdminTechnologies />} />
 							<Route path="sql-debug" element={<SqlDebugPage />} />
 						</Route>

@@ -1,11 +1,12 @@
-import { RoomTemplate, DoorTemplate, RoomFurniture, roomToWorldCoordinates, worldToRoomCoordinates } from '@stargate/common';
+import { RoomTemplate, DoorTemplate, RoomFurniture, FurnitureTemplate, roomToWorldCoordinates, worldToRoomCoordinates, mergeFurnitureWithTemplate } from '@stargate/common';
 import { DEFAULT_IMAGE_KEYS } from '@stargate/common/src/models/room-furniture';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Button, Card, Form, Modal, Table, Nav, Tab, Alert, InputGroup, OverlayTrigger, Tooltip, Dropdown } from 'react-bootstrap';
+import { Button, Card, Form, Modal, Table, Nav, Tab, Alert, InputGroup, OverlayTrigger, Tooltip, Dropdown, Badge } from 'react-bootstrap';
 import { FaPlus, FaEdit, FaTrash, FaEye } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 
 import { adminService } from '../services/admin-service';
+import { apiClient } from '../services/api-client';
 
 import FileUpload from './file-upload';
 
@@ -52,12 +53,15 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 	const [rooms, setRooms] = useState<RoomTemplate[]>([]);
 	const [doors, setDoors] = useState<DoorTemplate[]>([]);
 	const [furniture, setFurniture] = useState<RoomFurniture[]>([]);
+	const [furnitureTemplates, setFurnitureTemplates] = useState<FurnitureTemplate[]>([]);
+	const [selectedTemplate, setSelectedTemplate] = useState<FurnitureTemplate | null>(null);
 	const [selectedRoom, setSelectedRoom] = useState<RoomTemplate | null>(null);
 	const [selectedDoor, setSelectedDoor] = useState<DoorTemplate | null>(null);
 	const [selectedFurniture, setSelectedFurniture] = useState<RoomFurniture | null>(null);
 	const [showRoomModal, setShowRoomModal] = useState(false);
 	const [showDoorModal, setShowDoorModal] = useState(false);
 	const [showFurnitureModal, setShowFurnitureModal] = useState(false);
+	const [showTemplateSelectionModal, setShowTemplateSelectionModal] = useState(false);
 	const [showInspectorModal, setShowInspectorModal] = useState(false);
 	const [editingRoom, setEditingRoom] = useState<Partial<RoomTemplate>>({});
 	const [editingDoor, setEditingDoor] = useState<Partial<DoorTemplate>>({});
@@ -80,6 +84,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 		worldY: 0,
 	});
 	const [editingFurniture, setEditingFurniture] = useState<Partial<RoomFurniture>>({});
+	const [pendingFurniturePosition, setPendingFurniturePosition] = useState<{x: number, y: number} | null>(null);
 	const [inspectorTarget, setInspectorTarget] = useState<{
 		type: 'room' | 'door' | 'furniture';
 		data: any;
@@ -242,15 +247,28 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 				toast.warning('Failed to load furniture: ' + err.message);
 			}
 
+			let furnitureTemplatesData: FurnitureTemplate[] = [];
+			try {
+				const response = await apiClient.get('/api/templates/furniture-templates');
+				if (response.data) {
+					furnitureTemplatesData = response.data;
+				}
+			} catch (err: any) {
+				console.error('Room Builder - Failed to load furniture templates:', err);
+				toast.warning('Failed to load furniture templates: ' + err.message);
+			}
+
 			console.log('Room Builder - Data loaded:', {
 				rooms: roomsData.length,
 				doors: doorsData.length,
 				furniture: furnitureData.length,
+				furnitureTemplates: furnitureTemplatesData.length,
 			});
 
 			setRooms(roomsData);
 			setDoors(doorsData);
 			setFurniture(furnitureData);
+			setFurnitureTemplates(furnitureTemplatesData);
 		} catch (err: any) {
 			console.error('Room Builder - Failed to load data:', err);
 			toast.error(err.message || 'Failed to load room builder data');
@@ -1594,15 +1612,59 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 		const snappedX = Math.round(roomCoords.x / 8) * 8;
 		const snappedY = Math.round(roomCoords.y / 8) * 8;
 
+		// Store the position for use after template selection
+		setPendingFurniturePosition({ x: snappedX, y: snappedY });
+		setSelectedTemplate(null);
+		setShowTemplateSelectionModal(true);
+	};
+
+	const handleTemplateSelected = (template: FurnitureTemplate) => {
+		if (!selectedRoom || !pendingFurniturePosition) {
+			toast.error('Invalid state for furniture creation');
+			return;
+		}
+
+		// Create furniture with template defaults and position
+		const mergedData = mergeFurnitureWithTemplate(
+			{
+				room_id: selectedRoom.id,
+				x: pendingFurniturePosition.x,
+				y: pendingFurniturePosition.y,
+				z: 1,
+			},
+			template,
+		);
+
+		const newFurniture = {
+			id: `furniture_${Date.now()}`,
+			...mergedData,
+			created_at: Date.now(),
+			updated_at: Date.now(),
+		};
+
+		setEditingFurniture(newFurniture);
+		setSelectedTemplate(template);
+		setShowTemplateSelectionModal(false);
+		setShowFurnitureModal(true);
+		setPendingFurniturePosition(null);
+	};
+
+	const handleSkipTemplate = () => {
+		if (!selectedRoom || !pendingFurniturePosition) {
+			toast.error('Invalid state for furniture creation');
+			return;
+		}
+
+		// Create furniture with defaults (no template)
 		setEditingFurniture({
 			id: `furniture_${Date.now()}`,
 			room_id: selectedRoom.id,
 			furniture_type: 'console',
 			name: 'New Furniture',
 			description: '',
-			x: snappedX,
-			y: snappedY,
-			z: 1, // Default z-index
+			x: pendingFurniturePosition.x,
+			y: pendingFurniturePosition.y,
+			z: 1,
 			width: 32,
 			height: 32,
 			rotation: 0,
@@ -1614,7 +1676,10 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 			created_at: Date.now(),
 			updated_at: Date.now(),
 		});
+		setSelectedTemplate(null);
+		setShowTemplateSelectionModal(false);
 		setShowFurnitureModal(true);
+		setPendingFurniturePosition(null);
 	};
 
 	const handleCreateDoorAtPosition = (worldX: number, worldY: number) => {
@@ -2049,6 +2114,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 				toast.success('Furniture created successfully');
 			}
 			setShowFurnitureModal(false);
+			setSelectedTemplate(null);
 			loadData();
 		} catch (err: any) {
 			toast.error(err.message || 'Failed to save furniture');
@@ -2612,9 +2678,16 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 			</Modal>
 
 			{/* Furniture Modal */}
-			<Modal show={showFurnitureModal} onHide={() => setShowFurnitureModal(false)} size='xl'>
+			<Modal show={showFurnitureModal} onHide={() => { setShowFurnitureModal(false); setSelectedTemplate(null); }} size='xl'>
 				<Modal.Header closeButton>
-					<Modal.Title>Furniture Properties</Modal.Title>
+					<Modal.Title>
+						Furniture Properties
+						{selectedTemplate && (
+							<small className="text-muted ms-2">
+								(using template: {selectedTemplate.name})
+							</small>
+						)}
+					</Modal.Title>
 				</Modal.Header>
 				<Modal.Body>
 					<Form>
@@ -2853,6 +2926,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 													folder='furniture'
 													helpText={''}
 													thumbnailMode={true}
+													allowSelection={true}
 												/>
 											</td>
 											<td>
@@ -2884,6 +2958,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 													folder='furniture'
 													helpText={''}
 													thumbnailMode={true}
+													allowSelection={true}
 												/>
 											</td>
 											<td></td>
@@ -2929,7 +3004,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 					</Form>
 				</Modal.Body>
 				<Modal.Footer>
-					<Button variant="secondary" onClick={() => setShowFurnitureModal(false)}>
+					<Button variant="secondary" onClick={() => { setShowFurnitureModal(false); setSelectedTemplate(null); }}>
 						Cancel
 					</Button>
 					<Button variant="primary" onClick={handleSaveFurniture}>
@@ -3407,6 +3482,88 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 				<Modal.Footer>
 					<Button variant="secondary" onClick={() => setShowInspectorModal(false)}>
 						Close
+					</Button>
+				</Modal.Footer>
+			</Modal>
+
+			{/* Template Selection Modal */}
+			<Modal show={showTemplateSelectionModal} onHide={() => setShowTemplateSelectionModal(false)} size="lg">
+				<Modal.Header closeButton>
+					<Modal.Title>Select Furniture Template</Modal.Title>
+				</Modal.Header>
+				<Modal.Body>
+					<p className="text-muted mb-3">
+						Choose a template to auto-populate furniture properties, or skip to create custom furniture.
+					</p>
+					
+					{furnitureTemplates.length === 0 ? (
+						<Alert variant="info">
+							No furniture templates available. You can create custom furniture by skipping template selection.
+						</Alert>
+					) : (
+						<div className="row">
+							{furnitureTemplates.map((template) => (
+								<div key={template.id} className="col-md-6 col-lg-4 mb-3">
+									<Card 
+										className="h-100 template-card" 
+										style={{ cursor: 'pointer' }}
+										onClick={() => handleTemplateSelected(template)}
+									>
+										<Card.Body>
+											<div className="d-flex align-items-center mb-2">
+												{template.default_image?.thumbnail && (
+													<img
+														src={template.default_image.thumbnail}
+														alt={template.name}
+														style={{
+															width: '40px',
+															height: '40px',
+															objectFit: 'cover',
+															borderRadius: '4px',
+															marginRight: '10px',
+														}}
+													/>
+												)}
+												<div>
+													<Card.Title className="mb-1 h6">{template.name}</Card.Title>
+													<small className="text-muted">
+														<code>{template.furniture_type}</code>
+													</small>
+												</div>
+											</div>
+											
+											{template.description && (
+												<Card.Text className="small text-muted mb-2">
+													{template.description.length > 80 
+														? `${template.description.substring(0, 80)}...`
+														: template.description
+													}
+												</Card.Text>
+											)}
+											
+											<div className="d-flex justify-content-between align-items-center">
+												<small className="text-muted">
+													{template.default_width}×{template.default_height}
+												</small>
+												{template.category && (
+													<Badge bg="secondary" className="small">
+														{template.category}
+													</Badge>
+												)}
+											</div>
+										</Card.Body>
+									</Card>
+								</div>
+							))}
+						</div>
+					)}
+				</Modal.Body>
+				<Modal.Footer>
+					<Button variant="secondary" onClick={() => setShowTemplateSelectionModal(false)}>
+						Cancel
+					</Button>
+					<Button variant="outline-primary" onClick={handleSkipTemplate}>
+						Skip Template
 					</Button>
 				</Modal.Footer>
 			</Modal>
