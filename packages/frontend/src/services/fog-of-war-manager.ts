@@ -14,12 +14,43 @@ export class FogOfWarManager {
 	private config: FogOfWarConfig;
 	private playerPosition: PlayerPosition | null = null;
 
+	// Performance optimization fields
+	private lastPlayerTileX: number = Number.MAX_SAFE_INTEGER;
+	private lastPlayerTileY: number = Number.MAX_SAFE_INTEGER;
+	private discoveredTilesCache: Set<string> = new Set();
+	private hasNewDiscoveriesFlag: boolean = false;
+
+	// Pre-calculated visibility pattern for circular discovery
+	private visibilityPattern: Array<{ dx: number; dy: number; distance: number }> = [];
+
 	constructor(config: FogOfWarConfig = {
 		tileSize: 64,
 		visibilityRange: 5,
 		useLineOfSight: true,
 	}) {
 		this.config = config;
+		this.precalculateVisibilityPattern();
+	}
+
+	/**
+	 * Pre-calculate the visibility pattern for circular discovery
+	 * This avoids expensive distance calculations in the main loop
+	 */
+	private precalculateVisibilityPattern(): void {
+		this.visibilityPattern = [];
+		const range = this.config.visibilityRange;
+
+		for (let dx = -range; dx <= range; dx++) {
+			for (let dy = -range; dy <= range; dy++) {
+				const distance = Math.sqrt(dx * dx + dy * dy);
+				if (distance <= range) {
+					this.visibilityPattern.push({ dx, dy, distance });
+				}
+			}
+		}
+
+		// Sort by distance for more natural discovery order
+		this.visibilityPattern.sort((a, b) => a.distance - b.distance);
 	}
 
 	/**
@@ -28,6 +59,20 @@ export class FogOfWarManager {
 	public initialize(fogData: FogOfWarData, playerPosition: PlayerPosition): void {
 		this.fogData = { ...fogData };
 		this.playerPosition = { ...playerPosition };
+
+		// Update cache
+		this.discoveredTilesCache.clear();
+		for (const [key, value] of Object.entries(this.fogData)) {
+			if (value) {
+				this.discoveredTilesCache.add(key);
+			}
+		}
+
+		// Reset position tracking
+		const { tileX, tileY } = this.worldToFogTile(playerPosition.x, playerPosition.y);
+		this.lastPlayerTileX = tileX;
+		this.lastPlayerTileY = tileY;
+		this.hasNewDiscoveriesFlag = false;
 	}
 
 	/**
@@ -39,10 +84,31 @@ export class FogOfWarManager {
 
 	/**
 	 * Update the player's position and discover new tiles
+	 * Returns true if new tiles were discovered
 	 */
-	public updatePlayerPosition(position: PlayerPosition): void {
+	public updatePlayerPosition(position: PlayerPosition): boolean {
 		this.playerPosition = { ...position };
+
+		const { tileX, tileY } = this.worldToFogTile(position.x, position.y);
+
+		// Check if player moved to a different tile
+		if (tileX === this.lastPlayerTileX && tileY === this.lastPlayerTileY) {
+			return false; // No tile change, no need to discover
+		}
+
+		this.lastPlayerTileX = tileX;
+		this.lastPlayerTileY = tileY;
+		this.hasNewDiscoveriesFlag = false;
+
 		this.discoverVisibleTiles();
+		return this.hasNewDiscoveriesFlag;
+	}
+
+	/**
+	 * Check if there are new discoveries since last update
+	 */
+	public hasNewDiscoveries(): boolean {
+		return this.hasNewDiscoveriesFlag;
 	}
 
 	/**
@@ -78,7 +144,7 @@ export class FogOfWarManager {
 	public isTileDiscovered(worldX: number, worldY: number): boolean {
 		const { tileX, tileY } = this.worldToFogTile(worldX, worldY);
 		const key = this.getTileKey(tileX, tileY);
-		return this.fogData[key] === true;
+		return this.discoveredTilesCache.has(key);
 	}
 
 	/**
@@ -86,7 +152,11 @@ export class FogOfWarManager {
 	 */
 	private discoverTile(tileX: number, tileY: number): void {
 		const key = this.getTileKey(tileX, tileY);
-		this.fogData[key] = true;
+		if (!this.discoveredTilesCache.has(key)) {
+			this.fogData[key] = true;
+			this.discoveredTilesCache.add(key);
+			this.hasNewDiscoveriesFlag = true;
+		}
 	}
 
 	/**
@@ -108,6 +178,7 @@ export class FogOfWarManager {
 
 	/**
 	 * Discover all tiles within the player's current visibility range
+	 * Now uses pre-calculated pattern for better performance
 	 */
 	private discoverVisibleTiles(): void {
 		if (!this.playerPosition) return;
@@ -117,18 +188,13 @@ export class FogOfWarManager {
 			this.playerPosition.y,
 		);
 
-		// Discover tiles in a circular area around the player
-		const range = this.config.visibilityRange;
-		for (let dx = -range; dx <= range; dx++) {
-			for (let dy = -range; dy <= range; dy++) {
-				const targetTileX = playerTileX + dx;
-				const targetTileY = playerTileY + dy;
+		// Use pre-calculated visibility pattern for efficiency
+		for (const { dx, dy } of this.visibilityPattern) {
+			const targetTileX = playerTileX + dx;
+			const targetTileY = playerTileY + dy;
 
-				if (this.isWithinRange(playerTileX, playerTileY, targetTileX, targetTileY)) {
-					if (!this.config.useLineOfSight || this.hasLineOfSight(playerTileX, playerTileY, targetTileX, targetTileY)) {
-						this.discoverTile(targetTileX, targetTileY);
-					}
-				}
+			if (!this.config.useLineOfSight || this.hasLineOfSight(playerTileX, playerTileY, targetTileX, targetTileY)) {
+				this.discoverTile(targetTileX, targetTileY);
 			}
 		}
 	}
@@ -203,13 +269,11 @@ export class FogOfWarManager {
 	 * Get all discovered tiles as an array of coordinates
 	 */
 	public getDiscoveredTiles(): Array<{ tileX: number; tileY: number; worldX: number; worldY: number }> {
-		return Object.keys(this.fogData)
-			.filter(key => this.fogData[key])
-			.map(key => {
-				const [tileX, tileY] = key.split(',').map(Number);
-				const { worldX, worldY } = this.fogTileToWorld(tileX, tileY);
-				return { tileX, tileY, worldX, worldY };
-			});
+		return Array.from(this.discoveredTilesCache).map(key => {
+			const [tileX, tileY] = key.split(',').map(Number);
+			const { worldX, worldY } = this.fogTileToWorld(tileX, tileY);
+			return { tileX, tileY, worldX, worldY };
+		});
 	}
 
 	/**
@@ -217,6 +281,12 @@ export class FogOfWarManager {
 	 */
 	public clearFog(): void {
 		this.fogData = {};
+		this.discoveredTilesCache.clear();
+		this.hasNewDiscoveriesFlag = false;
+
+		// Reset position tracking to force rediscovery on next update
+		this.lastPlayerTileX = Number.MAX_SAFE_INTEGER;
+		this.lastPlayerTileY = Number.MAX_SAFE_INTEGER;
 	}
 
 	/**
@@ -258,6 +328,12 @@ export class FogOfWarManager {
 	 * Update configuration
 	 */
 	public updateConfig(newConfig: Partial<FogOfWarConfig>): void {
+		const oldRange = this.config.visibilityRange;
 		this.config = { ...this.config, ...newConfig };
+
+		// Recalculate visibility pattern if range changed
+		if (oldRange !== this.config.visibilityRange) {
+			this.precalculateVisibilityPattern();
+		}
 	}
 }

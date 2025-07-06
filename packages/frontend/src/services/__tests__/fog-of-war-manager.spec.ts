@@ -69,7 +69,10 @@ describe('FogOfWarManager', () => {
 		it('should discover tiles when player moves', () => {
 			const playerPos: PlayerPosition = { x: 32, y: 32, roomId: 'test-room' }; // Center of tile (0,0)
 
-			fogManager.updatePlayerPosition(playerPos);
+			const hasNewDiscoveries = fogManager.updatePlayerPosition(playerPos);
+
+			// Should have new discoveries on first update
+			expect(hasNewDiscoveries).toBe(true);
 
 			// Player tile should be discovered
 			expect(fogManager.isTileDiscovered(32, 32)).toBe(true);
@@ -103,6 +106,19 @@ describe('FogOfWarManager', () => {
 
 			// Diagonal tiles within range
 			expect(fogManager.isTileDiscovered(224, 224)).toBe(true); // Down-right
+		});
+
+		it('should not discover new tiles if player stays in same tile', () => {
+			const playerPos: PlayerPosition = { x: 32, y: 32, roomId: 'test-room' };
+
+			// First update should discover tiles
+			const firstUpdate = fogManager.updatePlayerPosition(playerPos);
+			expect(firstUpdate).toBe(true);
+
+			// Moving within same tile should not discover new tiles
+			const samePos = { x: 40, y: 40, roomId: 'test-room' }; // Still in tile (0,0)
+			const secondUpdate = fogManager.updatePlayerPosition(samePos);
+			expect(secondUpdate).toBe(false);
 		});
 	});
 

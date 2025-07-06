@@ -81,6 +81,10 @@ export class Game {
 	// Fog of War manager
 	private fogOfWarManager: FogOfWarManager | null = null;
 	private fogLayer: PIXI.Container | null = null;
+	// Fog tile object pool for performance
+	private fogTilePool: PIXI.Graphics[] = [];
+	private activeFogTiles: PIXI.Graphics[] = [];
+	private lastViewportBounds: { left: number; right: number; top: number; bottom: number } | null = null;
 
 	private furnitureTextureCache: Record<string, PIXI.Texture> = {};
 
@@ -418,13 +422,15 @@ export class Game {
 		// Update Fog of War manager
 		if (this.fogOfWarManager) {
 			const currentRoom = this.findRoomContainingPoint(this.player.x, this.player.y);
-			this.fogOfWarManager.updatePlayerPosition({
+			const hasNewDiscoveries = this.fogOfWarManager.updatePlayerPosition({
 				x: this.player.x,
 				y: this.player.y,
 				roomId: currentRoom?.id || 'unknown',
 			});
-			// Re-render fog layer when player moves
-			this.renderFogOfWar();
+			// Only re-render fog layer when player discovers new tiles
+			if (hasNewDiscoveries) {
+				this.renderFogOfWar();
+			}
 		}
 	}
 
@@ -828,14 +834,19 @@ export class Game {
 	}
 
 	public destroy() {
-		console.log('[GAME] Destroying game instance');
 		this.isDestroyed = true;
-		this.pendingRestoration = null;
 
-		// Cleanup controller subscriptions
+		// Clean up controller subscriptions
 		this.controllerUnsubscribers.forEach(unsubscribe => unsubscribe());
 		this.controllerUnsubscribers = [];
-		console.log('[GAME] Controller subscriptions cleaned up');
+
+		// Clean up fog resources
+		this.destroyFogResources();
+
+		if (this.app.ticker) {
+			this.app.ticker.stop();
+		}
+		this.app.destroy();
 	}
 
 	// Game state restoration methods
@@ -1556,12 +1567,23 @@ export class Game {
 	private renderFogOfWar(): void {
 		if (!this.fogLayer || !this.fogOfWarManager) return;
 
-		// Clear existing fog graphics
-		this.fogLayer.removeChildren();
-
 		// Get the current viewport bounds to determine what tiles to render
 		const viewportBounds = this.getViewportBounds();
 		const config = this.fogOfWarManager.getConfig();
+
+		// Check if viewport has changed significantly to avoid unnecessary work
+		if (this.lastViewportBounds &&
+			Math.abs(viewportBounds.left - this.lastViewportBounds.left) < config.tileSize &&
+			Math.abs(viewportBounds.right - this.lastViewportBounds.right) < config.tileSize &&
+			Math.abs(viewportBounds.top - this.lastViewportBounds.top) < config.tileSize &&
+			Math.abs(viewportBounds.bottom - this.lastViewportBounds.bottom) < config.tileSize) {
+			return; // Viewport hasn't changed enough to warrant re-rendering
+		}
+
+		this.lastViewportBounds = { ...viewportBounds };
+
+		// Return all active fog tiles to the pool
+		this.returnFogTilesToPool();
 
 		// Calculate tile bounds to render
 		const startTileX = Math.floor(viewportBounds.left / config.tileSize);
@@ -1579,18 +1601,66 @@ export class Game {
 				const isDiscovered = this.fogOfWarManager.isTileDiscovered(worldX, worldY);
 
 				if (!isDiscovered) {
-					// Create fog tile
-					const fogTile = new PIXI.Graphics();
-					fogTile.rect(0, 0, config.tileSize, config.tileSize)
-						.fill({ color: 0x000000, alpha: 0.7 }); // Semi-transparent black
-
+					// Get or create fog tile from pool
+					const fogTile = this.getFogTileFromPool();
 					fogTile.x = worldX;
 					fogTile.y = worldY;
+					fogTile.visible = true;
 
 					this.fogLayer.addChild(fogTile);
+					this.activeFogTiles.push(fogTile);
 				}
 			}
 		}
+	}
+
+	/**
+	 * Get a fog tile from the pool or create a new one
+	 */
+	private getFogTileFromPool(): PIXI.Graphics {
+		if (this.fogTilePool.length > 0) {
+			return this.fogTilePool.pop()!;
+		}
+
+		// Create new fog tile
+		const fogTile = new PIXI.Graphics();
+		const config = this.fogOfWarManager?.getConfig();
+		if (config) {
+			fogTile.rect(0, 0, config.tileSize, config.tileSize)
+				.fill({ color: 0x000000, alpha: 0.7 }); // Semi-transparent black
+		}
+		return fogTile;
+	}
+
+	/**
+	 * Return all active fog tiles to the pool
+	 */
+	private returnFogTilesToPool(): void {
+		// Remove from display and return to pool
+		for (const fogTile of this.activeFogTiles) {
+			if (fogTile.parent) {
+				fogTile.parent.removeChild(fogTile);
+			}
+			fogTile.visible = false;
+			this.fogTilePool.push(fogTile);
+		}
+		this.activeFogTiles = [];
+	}
+
+	/**
+	 * Clean up fog resources
+	 */
+	private destroyFogResources(): void {
+		this.returnFogTilesToPool();
+
+		// Destroy all pooled fog tiles
+		for (const fogTile of this.fogTilePool) {
+			fogTile.destroy();
+		}
+		this.fogTilePool = [];
+
+		// Clear viewport tracking
+		this.lastViewportBounds = null;
 	}
 
 	private getViewportBounds(): { left: number; right: number; top: number; bottom: number } {
