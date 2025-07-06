@@ -633,11 +633,17 @@ export class Game {
 
 	private pushPlayerOutOfDoor(door: any): void {
 		const playerRadius = PLAYER_RADIUS;
-		const safeDistance = playerRadius + 3; // Reduced margin for smaller player (was 5, now 3)
+		const safeDistance = playerRadius + 15; // Increased safety margin (was 3, now 15)
 
 		// Check if player is colliding with the door
 		const collidingDoor = this.findCollidingDoor(this.player.x, this.player.y, playerRadius);
 		if (collidingDoor && collidingDoor.id === door.id) {
+			console.log('[DOOR] Player is colliding with door - attempting to push out');
+
+			// Store original position in case we need to revert
+			const originalX = this.player.x;
+			const originalY = this.player.y;
+
 			// Transform player position to door's local coordinate system
 			const dx = this.player.x - door.x;
 			const dy = this.player.y - door.y;
@@ -651,31 +657,129 @@ export class Game {
 			const localX = dx * cos - dy * sin;
 			const localY = dx * sin + dy * cos;
 
-			// Determine which side of the door to push the player to
+			// Calculate door bounds
 			const halfWidth = door.width / 2;
 			const halfHeight = door.height / 2;
 
-			// Find the closest edge and push player out in that direction
-			let pushLocalX = localX;
-			let pushLocalY = localY;
+			// Try multiple push directions in order of preference
+			const pushAttempts = [
+				// Primary direction based on player's relative position
+				{
+					localX: Math.abs(localX) > Math.abs(localY)
+						? (localX > 0 ? halfWidth + safeDistance : -halfWidth - safeDistance)
+						: localX,
+					localY: Math.abs(localX) > Math.abs(localY)
+						? localY
+						: (localY > 0 ? halfHeight + safeDistance : -halfHeight - safeDistance),
+					description: 'primary direction',
+				},
+				// Try all four cardinal directions with larger safe distance
+				{
+					localX: halfWidth + safeDistance,
+					localY: 0,
+					description: 'right side',
+				},
+				{
+					localX: -halfWidth - safeDistance,
+					localY: 0,
+					description: 'left side',
+				},
+				{
+					localX: 0,
+					localY: halfHeight + safeDistance,
+					description: 'bottom side',
+				},
+				{
+					localX: 0,
+					localY: -halfHeight - safeDistance,
+					description: 'top side',
+				},
+				// Try diagonal directions with even larger safe distance
+				{
+					localX: halfWidth + safeDistance * 1.5,
+					localY: halfHeight + safeDistance * 1.5,
+					description: 'bottom-right diagonal',
+				},
+				{
+					localX: -halfWidth - safeDistance * 1.5,
+					localY: halfHeight + safeDistance * 1.5,
+					description: 'bottom-left diagonal',
+				},
+				{
+					localX: halfWidth + safeDistance * 1.5,
+					localY: -halfHeight - safeDistance * 1.5,
+					description: 'top-right diagonal',
+				},
+				{
+					localX: -halfWidth - safeDistance * 1.5,
+					localY: -halfHeight - safeDistance * 1.5,
+					description: 'top-left diagonal',
+				},
+			];
 
-			// Push to the nearest edge with safe distance
-			if (Math.abs(localX) > Math.abs(localY)) {
-				// Push horizontally
-				pushLocalX = localX > 0 ? halfWidth + safeDistance : -halfWidth - safeDistance;
-			} else {
-				// Push vertically
-				pushLocalY = localY > 0 ? halfHeight + safeDistance : -halfHeight - safeDistance;
+			// Try each push direction
+			for (const attempt of pushAttempts) {
+				// Transform back to world coordinates
+				const worldDx = attempt.localX * cos + attempt.localY * sin;
+				const worldDy = -attempt.localX * sin + attempt.localY * cos;
+
+				const candidateX = door.x + worldDx;
+				const candidateY = door.y + worldDy;
+
+				// Validate the candidate position using existing collision system
+				const validatedPosition = this.checkCollision(originalX, originalY, candidateX, candidateY);
+
+				// If the validated position is the same as candidate, it's safe
+				if (Math.abs(validatedPosition.x - candidateX) < 0.1 &&
+					Math.abs(validatedPosition.y - candidateY) < 0.1) {
+
+					this.player.x = candidateX;
+					this.player.y = candidateY;
+
+					console.log(`[DOOR] Successfully pushed player out of door to ${attempt.description}:`,
+						this.player.x.toFixed(1), this.player.y.toFixed(1));
+					return;
+				} else {
+					console.log(`[DOOR] Push attempt to ${attempt.description} failed - position not safe`);
+				}
 			}
 
-			// Transform back to world coordinates
-			const worldDx = pushLocalX * cos + pushLocalY * sin;
-			const worldDy = -pushLocalX * sin + pushLocalY * cos;
+			// If all push attempts failed, try to move player to center of current room
+			const currentRoom = this.findRoomContainingPoint(originalX, originalY);
+			if (currentRoom) {
+				const roomCenterX = currentRoom.startX + (currentRoom.endX - currentRoom.startX) / 2;
+				const roomCenterY = currentRoom.startY + (currentRoom.endY - currentRoom.startY) / 2;
 
-			this.player.x = door.x + worldDx;
-			this.player.y = door.y + worldDy;
+				// Validate room center position
+				const validatedCenter = this.checkCollision(originalX, originalY, roomCenterX, roomCenterY);
 
-			console.log('[DOOR] Pushed player out of closed door to:', this.player.x.toFixed(1), this.player.y.toFixed(1));
+				if (Math.abs(validatedCenter.x - roomCenterX) < 0.1 &&
+					Math.abs(validatedCenter.y - roomCenterY) < 0.1) {
+
+					this.player.x = roomCenterX;
+					this.player.y = roomCenterY;
+
+					console.log('[DOOR] Moved player to safe room center:',
+						this.player.x.toFixed(1), this.player.y.toFixed(1));
+					return;
+				}
+			}
+
+			// Last resort: find any safe position in the current room
+			const safePosition = this.findSafePositionInRoom(originalX, originalY);
+			if (safePosition) {
+				this.player.x = safePosition.x;
+				this.player.y = safePosition.y;
+
+				console.log('[DOOR] Moved player to emergency safe position:',
+					this.player.x.toFixed(1), this.player.y.toFixed(1));
+				return;
+			}
+
+			// If all else fails, keep player at original position and log error
+			console.error('[DOOR] Failed to find safe position - keeping player at original location');
+			this.player.x = originalX;
+			this.player.y = originalY;
 		}
 	}
 
@@ -1704,5 +1808,69 @@ export class Game {
 		} else {
 			console.log('[INTERACTION] No interactive furniture nearby to activate');
 		}
+	}
+
+	/**
+	 * Find a safe position within the current room for the player
+	 * @param originalX Current player X position
+	 * @param originalY Current player Y position
+	 * @returns Safe position coordinates or null if none found
+	 */
+	private findSafePositionInRoom(originalX: number, originalY: number): { x: number; y: number } | null {
+		const currentRoom = this.findRoomContainingPoint(originalX, originalY);
+		if (!currentRoom) return null;
+
+		const playerRadius = PLAYER_RADIUS;
+		const wallThreshold = 15; // Larger threshold for safety
+		const stepSize = 10; // Grid step size for testing positions
+
+		// Calculate safe bounds within the room
+		const safeStartX = currentRoom.startX + wallThreshold;
+		const safeEndX = currentRoom.endX - wallThreshold;
+		const safeStartY = currentRoom.startY + wallThreshold;
+		const safeEndY = currentRoom.endY - wallThreshold;
+
+		// Try positions in a spiral pattern starting from room center
+		const roomCenterX = currentRoom.startX + (currentRoom.endX - currentRoom.startX) / 2;
+		const roomCenterY = currentRoom.startY + (currentRoom.endY - currentRoom.startY) / 2;
+
+		// Test positions in expanding rings around the center
+		for (let radius = 0; radius < Math.max(currentRoom.endX - currentRoom.startX, currentRoom.endY - currentRoom.startY) / 2; radius += stepSize) {
+			const testPositions = [];
+
+			if (radius === 0) {
+				// Test center position first
+				testPositions.push({ x: roomCenterX, y: roomCenterY });
+			} else {
+				// Test positions in a circle around the center
+				const numSteps = Math.max(8, Math.floor(radius / stepSize * 2));
+				for (let i = 0; i < numSteps; i++) {
+					const angle = (i / numSteps) * 2 * Math.PI;
+					const testX = roomCenterX + Math.cos(angle) * radius;
+					const testY = roomCenterY + Math.sin(angle) * radius;
+
+					// Keep within room bounds
+					if (testX >= safeStartX && testX <= safeEndX && testY >= safeStartY && testY <= safeEndY) {
+						testPositions.push({ x: testX, y: testY });
+					}
+				}
+			}
+
+			// Test each position
+			for (const testPos of testPositions) {
+				const validatedPosition = this.checkCollision(originalX, originalY, testPos.x, testPos.y);
+
+				// If the validated position matches the test position, it's safe
+				if (Math.abs(validatedPosition.x - testPos.x) < 0.1 &&
+					Math.abs(validatedPosition.y - testPos.y) < 0.1) {
+
+					console.log(`[DOOR] Found safe position at radius ${radius}:`, testPos.x.toFixed(1), testPos.y.toFixed(1));
+					return { x: testPos.x, y: testPos.y };
+				}
+			}
+		}
+
+		console.log('[DOOR] No safe position found in room');
+		return null;
 	}
 }
