@@ -15,7 +15,7 @@
 		"test": "pnpm -r test",
 		"deploy": "pnpm -r run deploy",
 		"release": "run-s release:*",
-		"release:test": "pnpm run test",
+		"release:test": "pnpm --filter backend run test && pnpm --filter frontend run test",
 		"release:start": "git stash",
 		"release:sync": "CURRENT_BRANCH=`git rev-parse --abbrev-ref HEAD` && git checkout --quiet main && git pull --quiet && git checkout --quiet develop && git pull --quiet && git checkout --quiet $CURRENT_BRANCH && git stash pop",
 		"release:release": "git stash && git flow release start $npm_package_version && git stash pop",
