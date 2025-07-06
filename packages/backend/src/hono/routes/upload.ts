@@ -123,4 +123,58 @@ upload.delete('/image/:key', verifyJwt, async (c: Context) => {
 	}
 });
 
+// List uploaded files from CloudFlare R2
+upload.get('/files', verifyJwt, async (c: Context) => {
+	try {
+		const folder = c.req.query('folder') || '';
+		const limit = parseInt(c.req.query('limit') || '100');
+
+		// Get CloudFlare R2 binding
+		const r2 = c.env.R2_BUCKET;
+		if (!r2) {
+			console.error('R2_BUCKET binding not found in environment');
+			return c.json({ error: 'Storage service not configured' }, 500);
+		}
+
+		// List objects in the specified folder
+		const listResult = await r2.list({
+			prefix: folder ? `${folder}/` : '',
+			limit: Math.min(limit, 1000), // Cap at 1000 for safety
+		});
+
+		// Get public URL domain
+		const r2Domain = c.env.R2_PUBLIC_DOMAIN || `pub-${c.env.CLOUDFLARE_ACCOUNT_ID}.r2.dev`;
+
+		// Transform results to include public URLs and metadata
+		const files = listResult.objects?.map((obj: any) => {
+			const publicUrl = `https://${r2Domain}/${obj.key}`;
+			return {
+				key: obj.key,
+				url: publicUrl,
+				filename: obj.key.split('/').pop() || obj.key,
+				size: obj.size,
+				lastModified: obj.uploaded,
+				contentType: obj.httpMetadata?.contentType,
+				originalName: obj.customMetadata?.originalName,
+			};
+		}) || [];
+
+		// Filter for image files only
+		const imageFiles = files.filter((file: any) => 
+			file.contentType?.startsWith('image/') || 
+			/\.(jpg|jpeg|png|gif|webp|svg)$/i.test(file.filename),
+		);
+
+		return c.json({
+			success: true,
+			files: imageFiles,
+			total: imageFiles.length,
+			truncated: listResult.truncated || false,
+		});
+	} catch (error) {
+		console.error('List files error:', error);
+		return c.json({ error: 'Failed to list files' }, 500);
+	}
+});
+
 export default upload;
