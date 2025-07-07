@@ -13,7 +13,7 @@ import { useAuth } from '../contexts/auth-context';
 import { useGameState } from '../contexts/game-state-context';
 import { Game } from '../game';
 import { useGameController } from '../services/game-controller';
-import { onFullscreenChange, getDeviceInfo } from '../utils/mobile-utils';
+import { onFullscreenChange, getDeviceInfo, isMobileDevice } from '../utils/mobile-utils';
 
 type Direction = 'up' | 'down' | 'left' | 'right';
 type MenuAction = 'pause' | 'back' | 'activate';
@@ -504,7 +504,11 @@ const GameRenderer: React.FC<GameRendererProps> = ({ gameId, savedGameData }) =>
 					position: 'relative',
 					zIndex: 1,
 					cursor: isFullscreen ? 'none' : 'default',
-					paddingTop: '48px', // Add padding for resource bar
+					...(isMobileDevice() ? {
+						paddingBottom: '48px', // Padding for bottom resource bar on mobile
+					} : {
+						paddingTop: '48px', // Padding for top resource bar on desktop
+					}),
 				}}
 			/>
 
