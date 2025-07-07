@@ -1,22 +1,30 @@
 {
 	"name": "Stargate Evolution",
 	"short_name": "Stargate",
+	"description": "A space exploration and strategy game",
 	"icons": [
 		{
 			"src": "/assets/android-chrome-192x192.png",
 			"sizes": "192x192",
-			"type": "image/png"
+			"type": "image/png",
+			"purpose": "any maskable"
 		},
 		{
 			"src": "/assets/android-chrome-512x512.png",
 			"sizes": "512x512",
-			"type": "image/png"
+			"type": "image/png",
+			"purpose": "any maskable"
 		}
 	],
 	"theme_color": "#0a0f2c",
 	"background_color": "#000000",
-       "display": "standalone",
+	"display": "standalone",
 	"start_url": "/",
 	"scope": "/",
-	"orientation": "any"
+	"orientation": "any",
+	"prefer_related_applications": false,
+	"categories": ["games", "entertainment"],
+	"launch_handler": {
+		"client_mode": "navigate-existing"
+	}
 }

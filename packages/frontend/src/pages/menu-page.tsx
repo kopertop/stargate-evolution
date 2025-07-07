@@ -12,13 +12,18 @@ import { useAuth } from '../contexts/auth-context';
 import { useGameState } from '../contexts/game-state-context';
 import { useGameController } from '../services/game-controller';
 import { SavedGameService } from '../services/saved-game-service';
-import { isMobileDevice } from '../utils/mobile-utils';
+import { isMobileDevice, debugPWADetection } from '../utils/mobile-utils';
 
 import './google-login.css';
 
 export const MenuPage: React.FC = () => {
 	const navigate = useNavigate();
 	const { user, isLoading: loading, isTokenExpired, signIn, signOut, reAuthenticate } = useAuth();
+	
+	// Debug PWA detection on component mount
+	useEffect(() => {
+		debugPWADetection();
+	}, []);
 	const [focusedMenuItem, setFocusedMenuItem] = useState(0);
 	const [showNewGameModal, setShowNewGameModal] = useState(false);
 	const [newGameName, setNewGameName] = useState('');

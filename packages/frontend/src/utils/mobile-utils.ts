@@ -30,18 +30,26 @@ export function getDeviceInfo(): DeviceInfo {
   
   const isDesktop = !isMobile && !isTablet;
   
-  // PWA/Standalone detection
-  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || 
-    (window.navigator as any).standalone === true;
-  
-  // iOS PWA detection specifically
-  const isPWA = isStandalone || 
-    window.matchMedia('(display-mode: fullscreen)').matches ||
-    window.matchMedia('(display-mode: minimal-ui)').matches;
-  
   // Platform detection
   const isIOS = /iphone|ipad|ipod/i.test(userAgent);
   const isAndroid = /android/i.test(userAgent);
+  
+  // PWA/Standalone detection with enhanced iOS support
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || 
+    (window.navigator as any).standalone === true;
+  
+  // Enhanced iOS PWA detection
+  const isIOSPWA = isIOS && (
+    (window.navigator as any).standalone === true ||
+    window.matchMedia('(display-mode: standalone)').matches ||
+    (window.outerHeight === window.innerHeight && window.outerWidth === window.innerWidth)
+  );
+  
+  // General PWA detection
+  const isPWA = isStandalone || 
+    isIOSPWA ||
+    window.matchMedia('(display-mode: fullscreen)').matches ||
+    window.matchMedia('(display-mode: minimal-ui)').matches;
   
   // Fullscreen detection (document fullscreen API only)
   const isDocumentFullscreen = !!(
@@ -134,4 +142,32 @@ export function requestFullscreen(): void {
   else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
   else if (el.mozRequestFullScreen) el.mozRequestFullScreen();
   else if (el.msRequestFullscreen) el.msRequestFullscreen();
+}
+
+/**
+ * Debug function to log PWA detection information
+ */
+export function debugPWADetection(): void {
+  const device = getDeviceInfo();
+  console.log('[PWA DEBUG] Device detection:', {
+    userAgent: navigator.userAgent,
+    isMobile: device.isMobile,
+    isTablet: device.isTablet,
+    isIOS: device.isIOS,
+    isAndroid: device.isAndroid,
+    isPWA: device.isPWA,
+    isStandalone: device.isStandalone,
+    isFullscreen: device.isFullscreen,
+    navigatorStandalone: (window.navigator as any).standalone,
+    displayModeStandalone: window.matchMedia('(display-mode: standalone)').matches,
+    displayModeFullscreen: window.matchMedia('(display-mode: fullscreen)').matches,
+    displayModeMinimalUI: window.matchMedia('(display-mode: minimal-ui)').matches,
+    windowDimensions: {
+      outerWidth: window.outerWidth,
+      outerHeight: window.outerHeight,
+      innerWidth: window.innerWidth,
+      innerHeight: window.innerHeight,
+      dimensionsMatch: window.outerHeight === window.innerHeight && window.outerWidth === window.innerWidth
+    }
+  });
 }
