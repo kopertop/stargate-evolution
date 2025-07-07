@@ -1,6 +1,8 @@
-import { RoomFurniture, RoomFurnitureSchema } from '@stargate/common';
+import { RoomFurniture, RoomFurnitureSchema, mergeFurnitureWithTemplate } from '@stargate/common';
 
 import { Env } from '../types';
+
+import { getFurnitureTemplateByType } from './furniture-template-manager';
 
 // Helper to parse image field from DB row
 function parseImageField(row: any) {
@@ -68,16 +70,58 @@ function normalizeImageField(image: any): string | null {
 	}
 }
 
-// Create new room furniture
+// Create new room furniture with template defaults
 export async function createRoomFurniture(env: Env, furniture: Omit<RoomFurniture, 'created_at' | 'updated_at'>): Promise<RoomFurniture> {
+	return await createRoomFurnitureWithTemplate(env, furniture);
+}
+
+// Create new room furniture with template defaults applied
+export async function createRoomFurnitureWithTemplate(
+	env: Env, 
+	furniture: Partial<Omit<RoomFurniture, 'id' | 'created_at' | 'updated_at'>> & { id: string; room_id: string; furniture_type: string },
+): Promise<RoomFurniture> {
+	// Get the furniture template for this type
+	const template = await getFurnitureTemplateByType(env, furniture.furniture_type);
+	
+	let mergedFurniture: Omit<RoomFurniture, 'id' | 'created_at' | 'updated_at'>;
+	
+	if (template) {
+		// Merge furniture data with template defaults
+		mergedFurniture = mergeFurnitureWithTemplate(furniture, template);
+	} else {
+		// No template found, use furniture data as-is with basic defaults
+		mergedFurniture = {
+			room_id: furniture.room_id,
+			furniture_type: furniture.furniture_type,
+			name: furniture.name || furniture.furniture_type,
+			description: furniture.description || null,
+			x: furniture.x || 0,
+			y: furniture.y || 0,
+			z: furniture.z ?? 1,
+			width: furniture.width ?? 32,
+			height: furniture.height ?? 32,
+			rotation: furniture.rotation ?? 0,
+			image: furniture.image || null,
+			color: furniture.color || null,
+			style: furniture.style || null,
+			interactive: furniture.interactive ?? false,
+			blocks_movement: furniture.blocks_movement ?? true,
+			requirements: furniture.requirements || null,
+			power_required: furniture.power_required ?? 0,
+			active: furniture.active ?? true,
+			discovered: furniture.discovered ?? false,
+		};
+	}
+
 	const now = Date.now();
 	const furnitureWithTimestamps = {
-		...furniture,
+		id: furniture.id,
+		...mergedFurniture,
 		created_at: now,
 		updated_at: now,
 	};
 
-	const validated = RoomFurnitureSchema.parse({ ...furnitureWithTimestamps, image: furnitureWithTimestamps.image });
+	const validated = RoomFurnitureSchema.parse(furnitureWithTimestamps);
 
 	await env.DB.prepare(`
 		INSERT INTO room_furniture (
@@ -182,4 +226,75 @@ export async function deleteRoomFurnitureByRoom(env: Env, roomId: string): Promi
 	`).bind(roomId).run();
 
 	return result.meta.changes;
+}
+
+// Utility function to create furniture instances from templates for room setup
+export async function createFurnitureFromTemplate(
+	env: Env,
+	templateId: string,
+	roomId: string,
+	overrides: Partial<Pick<RoomFurniture, 'x' | 'y' | 'z' | 'name' | 'rotation'>> = {},
+): Promise<RoomFurniture> {
+	const { getFurnitureTemplateById } = await import('./furniture-template-manager');
+	const template = await getFurnitureTemplateById(env, templateId);
+	
+	if (!template) {
+		throw new Error(`Furniture template with ID ${templateId} not found`);
+	}
+
+	const furnitureId = `${roomId}-${template.furniture_type}-${Date.now()}`;
+	
+	const furnitureData = {
+		id: furnitureId,
+		room_id: roomId,
+		furniture_type: template.furniture_type,
+		name: overrides.name,
+		x: overrides.x,
+		y: overrides.y,
+		z: overrides.z,
+		rotation: overrides.rotation,
+	};
+
+	return await createRoomFurnitureWithTemplate(env, furnitureData);
+}
+
+// Utility function to populate a room with furniture based on room type and templates
+export async function populateRoomWithDefaultFurniture(
+	env: Env,
+	roomId: string,
+	roomType?: string,
+): Promise<RoomFurniture[]> {
+	const { getAllFurnitureTemplates } = await import('./furniture-template-manager');
+	const templates = await getAllFurnitureTemplates(env);
+	
+	// Filter templates that are compatible with this room type
+	const compatibleTemplates = templates.filter(template => {
+		if (!template.compatible_room_types || !roomType) return false;
+		
+		try {
+			const compatibleTypes = JSON.parse(template.compatible_room_types);
+			return Array.isArray(compatibleTypes) && compatibleTypes.includes(roomType);
+		} catch {
+			return false;
+		}
+	});
+
+	const furniture: RoomFurniture[] = [];
+	
+	// Create furniture instances from compatible templates
+	for (const template of compatibleTemplates) {
+		try {
+			// Basic placement logic - center the furniture
+			const furnitureInstance = await createFurnitureFromTemplate(env, template.id, roomId, {
+				x: 0, // Room center
+				y: 0, // Room center
+			});
+			
+			furniture.push(furnitureInstance);
+		} catch (error) {
+			console.error(`Failed to create furniture from template ${template.id}:`, error);
+		}
+	}
+
+	return furniture;
 }

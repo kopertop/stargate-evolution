@@ -8,11 +8,14 @@ import { useNavigate, useParams } from 'react-router';
 import { renderGoogleSignInButton } from '../auth/google-auth';
 import { InventoryModal } from '../components/inventory-modal';
 import { ResourceBar } from '../components/resource-bar';
+import { TouchFeedback } from '../components/touch-feedback';
+import { TouchControlsHelp } from '../components/touch-controls-help';
 import { GAMEPAD_BUTTONS } from '../constants/gamepad';
 import { useAuth } from '../contexts/auth-context';
 import { useGameState } from '../contexts/game-state-context';
 import { Game } from '../game';
 import { useGameController } from '../services/game-controller';
+import { onFullscreenChange, getDeviceInfo, isMobileDevice } from '../utils/mobile-utils';
 
 type Direction = 'up' | 'down' | 'left' | 'right';
 type MenuAction = 'pause' | 'back' | 'activate';
@@ -73,32 +76,19 @@ const GameRenderer: React.FC<GameRendererProps> = ({ gameId, savedGameData }) =>
 
 	// Fullscreen detection
 	useEffect(() => {
-		const handleFullscreenChange = () => {
-			const isCurrentlyFullscreen = !!(
-				document.fullscreenElement ||
-				(document as any).webkitFullscreenElement ||
-				(document as any).mozFullScreenElement ||
-				(document as any).msFullscreenElement
-			);
+		const handleFullscreenChange = (isCurrentlyFullscreen: boolean) => {
 			setIsFullscreen(isCurrentlyFullscreen);
 			console.log('[FULLSCREEN] Fullscreen state changed:', isCurrentlyFullscreen);
 		};
 
-		// Listen for fullscreen changes
-		document.addEventListener('fullscreenchange', handleFullscreenChange);
-		document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
-		document.addEventListener('mozfullscreenchange', handleFullscreenChange);
-		document.addEventListener('MSFullscreenChange', handleFullscreenChange);
+		// Use our centralized fullscreen detection
+		const cleanup = onFullscreenChange(handleFullscreenChange);
 
 		// Check initial state
-		handleFullscreenChange();
+		const device = getDeviceInfo();
+		handleFullscreenChange(device.isFullscreen);
 
-		return () => {
-			document.removeEventListener('fullscreenchange', handleFullscreenChange);
-			document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
-			document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
-			document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
-		};
+		return cleanup;
 	}, []);
 
 	// PixiJS setup
@@ -516,9 +506,19 @@ const GameRenderer: React.FC<GameRendererProps> = ({ gameId, savedGameData }) =>
 					position: 'relative',
 					zIndex: 1,
 					cursor: isFullscreen ? 'none' : 'default',
-					paddingTop: '48px', // Add padding for resource bar
+					...(isMobileDevice() ? {
+						paddingBottom: '48px', // Padding for bottom resource bar on mobile
+					} : {
+						paddingTop: '48px', // Padding for top resource bar on desktop
+					}),
 				}}
 			/>
+
+			{/* Touch Feedback Component for mobile */}
+			<TouchFeedback />
+
+			{/* Touch Controls Help for mobile */}
+			<TouchControlsHelp gameStarted={true} />
 
 			{/* Pause Modal */}
 			<Modal show={showPause} centered backdrop="static" keyboard={false}>

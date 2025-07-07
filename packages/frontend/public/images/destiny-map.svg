@@ -1,0 +1,100 @@
+<svg width="1000" height="600" viewBox="0 0 1000 600" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    /* Default Styles */
+    .ship-outline { fill: none; stroke: #F0E68C; stroke-width: 3; }
+    .ship-lines { fill: none; stroke: #F0E68C; stroke-width: 1; }
+    .room-marker { fill: none; stroke: #6495ED; stroke-width: 1.5; }
+    .room-label { font-family: sans-serif; font-size: 14px; fill: #6495ED; text-anchor: middle; dominant-baseline: central; }
+    .connector-line { fill: none; stroke: #6495ED; stroke-width: 1; }
+    .critical-system { fill: #DC143C; } /* Crimson */
+    .flow-indicator { fill: #FFD700; } /* Gold */
+    .ui-element { fill: none; stroke: #F0E68C; }
+
+    /* Status Styles */
+    .damaged .room-marker, .damaged .room-label, .damaged.critical-system {
+        fill: #FF4500; /* OrangeRed */
+        stroke: #FF4500;
+    }
+    .offline .room-marker, .offline .room-label, .offline.critical-system {
+        fill: #808080; /* Gray */
+        stroke: #808080;
+        opacity: 0.6;
+    }
+  </style>
+
+  <g id="destiny-schematic">
+    <!-- Main ship hull -->
+    <path id="ship-hull" class="ship-outline" d="M 100,300 L 250,270 L 600,250 L 750,200 L 820,210 C 900,230 900,370 820,390 L 750,400 L 600,350 L 250,330 Z" />
+
+    <!-- Stargate Room at the front -->
+    <g id="stargate-room">
+        <path class="ship-lines" d="M 100,300 L 150,290 L 150,310 Z" />
+        <circle cx="125" cy="300" r="5" fill="#00FFFF" />
+    </g>
+
+    <!-- Internal ship lines (simplified) -->
+    <g id="internal-details" class="ship-lines">
+        <path d="M 250,270 L 250,330" />
+        <path d="M 250,300 L 700,300" />
+        <path d="M 600,250 L 600,350" />
+        <path d="M 750,200 L 750,400" />
+        <path d="M 600,250 L 700,225" />
+        <path d="M 600,350 L 700,375" />
+        <path d="M 750,280 L 800,280" />
+        <path d="M 750,320 L 800,320" />
+    </g>
+
+    <!-- Critical Systems (Red Squares) -->
+    <g id="critical-systems">
+        <rect id="critical-system-1" class="critical-system" x="350" y="260" width="20" height="15" />
+        <rect id="critical-system-2" class="critical-system" x="350" y="325" width="20" height="15" />
+        <rect id="critical-system-3" class="critical-system" x="680" y="290" width="40" height="20" />
+    </g>
+
+    <!-- Flow Indicators (Yellow) -->
+    <g id="flow-indicators">
+        <circle id="flow-indicator-1" class="flow-indicator" cx="200" cy="290" r="5" />
+        <circle id="flow-indicator-2" class="flow-indicator" cx="200" cy="310" r="5" />
+        <polygon id="flow-indicator-3" class="flow-indicator" points="760,230 770,220 760,210" />
+        <polygon id="flow-indicator-4" class="flow-indicator" points="760,370 770,380 760,390" />
+    </g>
+
+    <!-- Rooms with 'G' labels -->
+    <g id="rooms">
+        <!-- Top row -->
+        <g id="room-g1"><circle class="room-marker" cx="200" cy="200" r="15" /><text class="room-label" x="200" y="200">G</text><path class="connector-line" d="M 200,215 V 250 H 270" /></g>
+        <g id="room-g2"><circle class="room-marker" cx="300" cy="200" r="15" /><text class="room-label" x="300" y="200">G</text><path class="connector-line" d="M 300,215 V 260 H 350" /></g>
+        <g id="room-g3"><circle class="room-marker" cx="400" cy="200" r="15" /><text class="room-label" x="400" y="200">G</text><path class="connector-line" d="M 400,215 V 255 H 450" /></g>
+        <g id="room-g4"><circle class="room-marker" cx="500" cy="200" r="15" /><text class="room-label" x="500" y="200">G</text><path class="connector-line" d="M 500,215 V 250 H 550" /></g>
+        <g id="room-g5"><circle class="room-marker" cx="600" cy="180" r="15" /><text class="room-label" x="600" y="180">G</text><path class="connector-line" d="M 600,195 V 240" /></g>
+        <g id="room-g6"><circle class="room-marker" cx="700" cy="180" r="15" /><text class="room-label" x="700" y="180">G</text><path class="connector-line" d="M 700,195 V 210" /></g>
+        <g id="room-g7"><circle class="room-marker" cx="780" cy="250" r="15" /><text class="room-label" x="780" y="250">G</text><path class="connector-line" d="M 765,250 H 750" /></g>
+        <!-- Bottom row -->
+        <g id="room-g8"><circle class="room-marker" cx="200" cy="400" r="15" /><text class="room-label" x="200" y="400">G</text><path class="connector-line" d="M 200,385 V 350 H 270" /></g>
+        <g id="room-g9"><circle class="room-marker" cx="300" cy="400" r="15" /><text class="room-label" x="300" y="400">G</text><path class="connector-line" d="M 300,385 V 340 H 350" /></g>
+        <g id="room-g10"><circle class="room-marker" cx="400" cy="400" r="15" /><text class="room-label" x="400" y="400">G</text><path class="connector-line" d="M 400,385 V 345 H 450" /></g>
+        <g id="room-g11"><circle class="room-marker" cx="500" cy="400" r="15" /><text class="room-label" x="500" y="400">G</text><path class="connector-line" d="M 500,385 V 350 H 550" /></g>
+        <g id="room-g12"><circle class="room-marker" cx="600" cy="420" r="15" /><text class="room-label" x="600" y="420">G</text><path class="connector-line" d="M 600,405 V 360" /></g>
+        <g id="room-g13"><circle class="room-marker" cx="700" cy="420" r="15" /><text class="room-label" x="700" y="420">G</text><path class="connector-line" d="M 700,405 V 390" /></g>
+        <g id="room-g14"><circle class="room-marker" cx="780" cy="350" r="15" /><text class="room-label" x="780" y="350">G</text><path class="connector-line" d="M 765,350 H 750" /></g>
+    </g>
+
+    <!-- UI Elements -->
+    <g id="ui-elements">
+        <!-- Bottom-left UI -->
+        <g id="ui-left">
+            <circle class="ui-element" stroke-width="5" cx="100" cy="500" r="50" />
+            <circle class="ui-element" stroke-width="2" cx="100" cy="500" r="30" />
+            <path class="ui-element" stroke-width="5" d="M 50,500 A 50 50 0 0 1 100 450" />
+        </g>
+
+        <!-- Right-side UI -->
+        <g id="ui-right" class="ui-element" stroke-width="2">
+            <g id="status-1"><circle cx="900" cy="150" r="20" /><path d="M 890,150 L 910,150" /></g>
+            <g id="status-2"><circle cx="900" cy="225" r="20" /><path d="M 890,225 L 910,225" /></g>
+            <g id="status-3"><circle cx="900" cy="300" r="20" /><path d="M 890,300 L 910,300" /></g>
+            <g id="status-4"><circle cx="900" cy="375" r="20" /><path d="M 890,375 L 910,375" /></g>
+        </g>
+    </g>
+  </g>
+</svg>

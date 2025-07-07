@@ -63,31 +63,32 @@ describe('createNewGame integration', () => {
 		console.log(`- Star Systems: ${systemsT.length} templates`);
 		console.log(`- Starting Inventory: ${invT.length} templates`);
 	});
-	// Make sure all rooms have at least one connection, and all connections
-	// are also connected in reverse (i.e. connection_north on Room A is connection_south on Room B)
-	describe('connections', async () => {
-		const roomsRes = await SELF.fetch('https://example.com/api/templates/rooms');
-		const rooms = await roomsRes.json();
-		for (const room of rooms) {
-			describe(`${room.id} - ${room.name}`, () => {
+	describe('connections', () => {
+		it('should have valid bidirectional connections between rooms', async () => {
+			// Make sure all rooms have valid connections, and all connections
+			// are also connected in reverse (i.e. connection_north on Room A is connection_south on Room B)
+			const roomsRes = await SELF.fetch('https://example.com/api/templates/rooms');
+			const rooms = await roomsRes.json();
+			
+			expect(Array.isArray(rooms)).toBe(true);
+			expect(rooms.length).toBeGreaterThan(0);
+
+			for (const room of rooms) {
 				for (const [connection, reverseConnection] of Object.entries(CONNECTION_REVERSE_MAP)) {
 					// Skip null connections (both actual null and string "null")
 					if (room[connection] === null || room[connection] === 'null' || !room[connection]) continue;
 
 					const otherRoom = rooms.find((r: any) => r.id === room[connection]);
-					it(`${room[connection]} should exist`, async () => {
-						expect(otherRoom).toBeDefined();
-						expect(otherRoom?.id).toBeDefined();
-					});
-
-					it(`${room[connection]} should have a valid ${reverseConnection} connection to ${room.id}`, async () => {
-						expect(otherRoom).toBeDefined();
-						expect(otherRoom?.id).toBeDefined();
-						expect(otherRoom?.[reverseConnection]).toBe(room.id);
-					});
+					
+					// Verify the connected room exists
+					expect(otherRoom).toBeDefined();
+					expect(otherRoom?.id).toBeDefined();
+					
+					// Verify the reverse connection exists and points back to this room
+					expect(otherRoom?.[reverseConnection]).toBe(room.id);
 				}
-			});
-		}
+			}
+		});
 	});
 
 	describe('template event mapping', () => {

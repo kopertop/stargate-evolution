@@ -11,6 +11,7 @@ export interface Env {
 	GOOGLE_CLIENT_SECRET: string;
 	CLOUDFLARE_ACCOUNT_ID: string;
 	R2_PUBLIC_DOMAIN?: string;
+	ENVIRONMENT?: string;
 }
 
 export type { User };

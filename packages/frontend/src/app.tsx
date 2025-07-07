@@ -1,11 +1,13 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router';
+import { Routes, Route, Navigate } from 'react-router';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import 'bootstrap/dist/css/bootstrap.min.css';
 
 import { AuthProvider } from './contexts/auth-context';
 import { GameStateProvider } from './contexts/game-state-context';
+import { MobileGuard } from './components/mobile-guard';
+import { PWARouter } from './components/pwa-router';
 import {
 	AdminLayout,
 	AdminOverview,
@@ -15,6 +17,7 @@ import {
 	AdminRooms,
 	AdminTechnologies,
 	SqlDebugPage,
+	FurnitureTemplatesAdmin,
 } from './pages/admin';
 import { GamePage } from './pages/game-page';
 import { MenuPage } from './pages/menu-page';
@@ -26,16 +29,21 @@ export const App: React.FC = () => {
 	return (
 		<AuthProvider>
 			<GameStateProvider>
-				<Router>
+				<PWARouter>
 					<Routes>
 						<Route path="/" element={<MenuPage />} />
 						<Route path="/game/:id" element={<GamePage />} />
-						<Route path="/admin" element={<AdminLayout />}>
+						<Route path="/admin" element={
+							<MobileGuard message="Admin panel is not available on mobile devices">
+								<AdminLayout />
+							</MobileGuard>
+						}>
 							<Route index element={<AdminOverview />} />
 							<Route path="characters" element={<AdminCharacters />} />
 							<Route path="map" element={<AdminMapBuilder />} />
 							<Route path="users" element={<AdminUsers />} />
 							<Route path="rooms" element={<AdminRooms />} />
+							<Route path="furniture-templates" element={<FurnitureTemplatesAdmin />} />
 							<Route path="technologies" element={<AdminTechnologies />} />
 							<Route path="sql-debug" element={<SqlDebugPage />} />
 						</Route>
@@ -52,7 +60,7 @@ export const App: React.FC = () => {
 						draggable
 						pauseOnHover
 					/>
-				</Router>
+				</PWARouter>
 			</GameStateProvider>
 		</AuthProvider>
 	);

@@ -1,5 +1,6 @@
 import React from 'react';
 import { Container, Row, Col, OverlayTrigger, Tooltip } from 'react-bootstrap';
+import { isMobileDevice } from '../utils/mobile-utils';
 import {
 	FaBolt,
 	FaShieldAlt,
@@ -59,6 +60,7 @@ const ResourceItem: React.FC<ResourceItemProps> = ({
 	color,
 	format = 'number',
 }) => {
+	const isMobile = isMobileDevice();
 	const getDisplayValue = () => {
 		if (format === 'percentage' && max) {
 			return `${Math.round((current / max) * 100)}%`;
@@ -112,18 +114,30 @@ const ResourceItem: React.FC<ResourceItemProps> = ({
 
 	return (
 		<OverlayTrigger
-			placement="bottom"
+			placement={isMobile ? "top" : "bottom"}
 			delay={{ show: 250, hide: 150 }}
 			overlay={tooltip}
 		>
 			<div
-				className="d-flex align-items-center me-3"
-				style={{ fontSize: '0.9rem', cursor: 'help' }}
+				className="d-flex align-items-center"
+				style={{ 
+					fontSize: isMobile ? '0.75rem' : '0.9rem', 
+					cursor: 'help',
+					marginRight: isMobile ? '8px' : '12px'
+				}}
 			>
-				<span style={{ color: getColorStyle(), marginRight: '4px' }}>
+				<span style={{ 
+					color: getColorStyle(), 
+					marginRight: isMobile ? '2px' : '4px',
+					fontSize: isMobile ? '0.8rem' : '1rem'
+				}}>
 					{icon}
 				</span>
-				<span style={{ color: getColorStyle(), fontWeight: '500' }}>
+				<span style={{ 
+					color: getColorStyle(), 
+					fontWeight: '500',
+					fontSize: isMobile ? '0.75rem' : '0.9rem'
+				}}>
 					{getDisplayValue()}
 				</span>
 			</div>
@@ -166,19 +180,28 @@ export const ResourceBar: React.FC<ResourceBarProps> = ({
 		}
 	};
 
+	const isMobile = isMobileDevice();
+	
 	return (
 		<div
 			style={{
 				position: 'absolute',
-				top: 0,
+				...(isMobile ? {
+					bottom: 0,
+					borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+					borderBottom: 'none',
+				} : {
+					top: 0,
+					borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+				}),
 				left: 0,
 				right: 0,
-				background: 'rgba(0, 0, 0, 0.8)',
+				background: 'rgba(0, 0, 0, 0.9)',
 				backdropFilter: 'blur(10px)',
-				borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-				padding: '8px 16px',
+				padding: isMobile ? '6px 12px' : '8px 16px',
 				zIndex: 1000,
 				color: 'white',
+				fontSize: isMobile ? '0.8rem' : '0.9rem',
 			}}
 		>
 			<Container fluid>
@@ -188,7 +211,7 @@ export const ResourceBar: React.FC<ResourceBarProps> = ({
 							{/* Pause Menu Button */}
 							{onShowPause && (
 								<OverlayTrigger
-									placement="bottom"
+									placement={isMobile ? "top" : "bottom"}
 									delay={{ show: 250, hide: 150 }}
 									overlay={
 										<Tooltip id="pause-menu-tooltip">
@@ -197,12 +220,12 @@ export const ResourceBar: React.FC<ResourceBarProps> = ({
 									}
 								>
 									<div
-										className="d-flex align-items-center me-3"
+										className="d-flex align-items-center me-2"
 										onClick={onShowPause}
 										style={{
-											fontSize: '1rem',
+											fontSize: isMobile ? '0.9rem' : '1rem',
 											cursor: 'pointer',
-											padding: '6px 8px',
+											padding: isMobile ? '4px 6px' : '6px 8px',
 											borderRadius: '4px',
 											background: 'rgba(108, 117, 125, 0.1)',
 											border: '1px solid #6c757d',
@@ -224,7 +247,7 @@ export const ResourceBar: React.FC<ResourceBarProps> = ({
 								</OverlayTrigger>
 							)}
 
-							{/* Power & Critical Systems */}
+							{/* Critical Systems - Always show */}
 							<ResourceItem
 								icon={<FaBolt />}
 								current={power}
@@ -252,7 +275,7 @@ export const ResourceBar: React.FC<ResourceBarProps> = ({
 								format="percentage"
 							/>
 
-							{/* Life Support */}
+							{/* Life Support - Always show */}
 							<ResourceItem
 								icon={<FaLeaf />}
 								current={o2}
@@ -260,14 +283,16 @@ export const ResourceBar: React.FC<ResourceBarProps> = ({
 								color="#28a745"
 							/>
 
-							<ResourceItem
-								icon={<FaCloud />}
-								current={co2}
-								label="CO2"
-								color="#6c757d"
-							/>
+							{!isMobile && (
+								<ResourceItem
+									icon={<FaCloud />}
+									current={co2}
+									label="CO2"
+									color="#6c757d"
+								/>
+							)}
 
-							{/* Resources */}
+							{/* Essential Resources - Show on mobile */}
 							<ResourceItem
 								icon={<FaTint />}
 								current={water}
@@ -286,29 +311,34 @@ export const ResourceBar: React.FC<ResourceBarProps> = ({
 								format="percentage"
 							/>
 
-							<ResourceItem
-								icon={<FaCog />}
-								current={spareParts}
-								max={maxSpareParts}
-								label="Spare Parts"
-								color="#6c757d"
-								format="percentage"
-							/>
+							{/* Secondary Resources - Hide on mobile */}
+							{!isMobile && (
+								<>
+									<ResourceItem
+										icon={<FaCog />}
+										current={spareParts}
+										max={maxSpareParts}
+										label="Spare Parts"
+										color="#6c757d"
+										format="percentage"
+									/>
 
-							<ResourceItem
-								icon={<FaMedkit />}
-								current={medicalSupplies}
-								max={maxMedicalSupplies}
-								label="Medical Supplies"
-								color="#dc3545"
-								format="percentage"
-							/>
+									<ResourceItem
+										icon={<FaMedkit />}
+										current={medicalSupplies}
+										max={maxMedicalSupplies}
+										label="Medical Supplies"
+										color="#dc3545"
+										format="percentage"
+									/>
+								</>
+							)}
 						</div>
 					</Col>
 
 					<Col xs="auto" className="ms-auto">
 						<div className="d-flex align-items-center">
-							{/* Crew */}
+							{/* Crew - Always show */}
 							<ResourceItem
 								icon={<FaUsers />}
 								current={characterCount}
@@ -316,79 +346,83 @@ export const ResourceBar: React.FC<ResourceBarProps> = ({
 								color="#6f42c1"
 							/>
 
-							{/* Time */}
-							<ResourceItem
-								icon={<FaClock />}
-								current={currentTime ?? 0}
-								label="Mission Time"
-								color="#20c997"
-								format="time"
-							/>
+							{/* Mission Time - Hide on mobile or make compact */}
+							{!isMobile && (
+								<ResourceItem
+									icon={<FaClock />}
+									current={currentTime ?? 0}
+									label="Mission Time"
+									color="#20c997"
+									format="time"
+								/>
+							)}
 
-							{/* FTL Status & Countdown Clock */}
-							<OverlayTrigger
-								placement="bottom"
-								delay={{ show: 250, hide: 150 }}
-								overlay={
-									<Tooltip id="ftl-status-tooltip">
-										{ftlStatus === 'ftl'
-											? `Ship in hyperspace. Dropping to normal space in ${Math.floor(nextFtlTransition)}h ${Math.round((nextFtlTransition % 1) * 60)}m.`
-											: `Ship in normal space. ${nextFtlTransition > 0 ? `Next FTL jump in ${Math.floor(nextFtlTransition)}h ${Math.round((nextFtlTransition % 1) * 60)}m.` : 'Ready for FTL jump.'}`
-										}
-									</Tooltip>
-								}
-							>
-								<div
-									className="d-flex align-items-center me-3"
-									style={{
-										fontSize: '0.9rem',
-										cursor: 'help',
-										padding: '4px 8px',
-										borderRadius: '4px',
-										background: ftlStatus === 'ftl'
-											? 'rgba(0, 123, 255, 0.1)'
-											: 'rgba(40, 167, 69, 0.1)',
-										border: `1px solid ${ftlStatus === 'ftl' ? '#007bff' : '#28a745'}`,
-									}}
+							{/* FTL Status & Countdown Clock - More compact on mobile */}
+							{!isMobile && (
+								<OverlayTrigger
+									placement="bottom"
+									delay={{ show: 250, hide: 150 }}
+									overlay={
+										<Tooltip id="ftl-status-tooltip">
+											{ftlStatus === 'ftl'
+												? `Ship in hyperspace. Dropping to normal space in ${Math.floor(nextFtlTransition)}h ${Math.round((nextFtlTransition % 1) * 60)}m.`
+												: `Ship in normal space. ${nextFtlTransition > 0 ? `Next FTL jump in ${Math.floor(nextFtlTransition)}h ${Math.round((nextFtlTransition % 1) * 60)}m.` : 'Ready for FTL jump.'}`
+											}
+										</Tooltip>
+									}
 								>
-									<span style={{
-										color: ftlStatus === 'ftl' ? '#007bff' : '#28a745',
-										marginRight: '6px',
-										fontSize: '1rem',
-									}}>
-										<FaRocket />
-									</span>
-									<div className="d-flex flex-column align-items-start">
+									<div
+										className="d-flex align-items-center me-3"
+										style={{
+											fontSize: '0.9rem',
+											cursor: 'help',
+											padding: '4px 8px',
+											borderRadius: '4px',
+											background: ftlStatus === 'ftl'
+												? 'rgba(0, 123, 255, 0.1)'
+												: 'rgba(40, 167, 69, 0.1)',
+											border: `1px solid ${ftlStatus === 'ftl' ? '#007bff' : '#28a745'}`,
+										}}
+									>
 										<span style={{
 											color: ftlStatus === 'ftl' ? '#007bff' : '#28a745',
-											fontWeight: '600',
-											fontSize: '0.85rem',
-											lineHeight: '1',
+											marginRight: '6px',
+											fontSize: '1rem',
 										}}>
-											{ftlStatus === 'ftl' ? 'HYPERSPACE' : 'NORMAL SPACE'}
+											<FaRocket />
 										</span>
-										{nextFtlTransition > 0 && (
+										<div className="d-flex flex-column align-items-start">
 											<span style={{
-												color: '#ffc107',
-												fontSize: '0.75rem',
-												fontWeight: '500',
+												color: ftlStatus === 'ftl' ? '#007bff' : '#28a745',
+												fontWeight: '600',
+												fontSize: '0.85rem',
 												lineHeight: '1',
 											}}>
-												{ftlStatus === 'ftl' ? 'EXIT: ' : 'JUMP: '}
-												{Math.floor(nextFtlTransition)}h {Math.round((nextFtlTransition % 1) * 60)}m
+												{ftlStatus === 'ftl' ? 'HYPERSPACE' : 'NORMAL SPACE'}
 											</span>
-										)}
+											{nextFtlTransition > 0 && (
+												<span style={{
+													color: '#ffc107',
+													fontSize: '0.75rem',
+													fontWeight: '500',
+													lineHeight: '1',
+												}}>
+													{ftlStatus === 'ftl' ? 'EXIT: ' : 'JUMP: '}
+													{Math.floor(nextFtlTransition)}h {Math.round((nextFtlTransition % 1) * 60)}m
+												</span>
+											)}
+										</div>
 									</div>
-								</div>
-							</OverlayTrigger>
+								</OverlayTrigger>
+							)}
 
-							{/* Time Speed Display */}
+							{/* Time Speed Display - Simplified on mobile */}
 							<OverlayTrigger
-								placement="bottom"
+								placement={isMobile ? "top" : "bottom"}
 								delay={{ show: 250, hide: 150 }}
 								overlay={
 									<Tooltip id="time-speed-tooltip">
-                    Time flows at {timeSpeed}x normal speed. Use LB/RB or click here to adjust speed.
+                    Time flows at {timeSpeed}x normal speed. {isMobile ? 'Tap' : 'Use LB/RB or click'} to adjust speed.
 									</Tooltip>
 								}
 							>
@@ -396,9 +430,9 @@ export const ResourceBar: React.FC<ResourceBarProps> = ({
 									className="d-flex align-items-center"
 									onClick={handleTimeSpeedClick}
 									style={{
-										fontSize: '0.9rem',
+										fontSize: isMobile ? '0.8rem' : '0.9rem',
 										cursor: onTimeSpeedChange ? 'pointer' : 'help',
-										padding: '4px 8px',
+										padding: isMobile ? '3px 6px' : '4px 8px',
 										borderRadius: '4px',
 										background: timeSpeed === 0
 											? 'rgba(255, 193, 7, 0.1)'
@@ -420,12 +454,13 @@ export const ResourceBar: React.FC<ResourceBarProps> = ({
 											: timeSpeed === 1
 												? '#28a745'
 												: '#007bff',
-										marginRight: '6px',
-										fontSize: '1rem',
+										marginRight: isMobile ? '3px' : '6px',
+										fontSize: isMobile ? '0.85rem' : '1rem',
 									}}>
 										<FaClock />
 									</span>
-									<div className="d-flex flex-column align-items-start">
+									{isMobile ? (
+										// Compact mobile view - just show speed
 										<span style={{
 											color: timeSpeed === 0
 												? '#ffc107'
@@ -433,23 +468,38 @@ export const ResourceBar: React.FC<ResourceBarProps> = ({
 													? '#28a745'
 													: '#007bff',
 											fontWeight: '600',
-											fontSize: '0.85rem',
-											lineHeight: '1',
+											fontSize: '0.8rem',
 										}}>
-											{timeSpeed === 0 ? 'PAUSED' : `${timeSpeed}x SPEED`}
+											{timeSpeed === 0 ? 'PAUSE' : `${timeSpeed}x`}
 										</span>
-										<span style={{
-											color: '#aaa',
-											fontSize: '0.7rem',
-											fontWeight: '400',
-											lineHeight: '1',
-										}}>
-											{timeSpeed === 0
-												? 'Time stopped'
-												: `${timeSpeed} min/sec`
-											}
-										</span>
-									</div>
+									) : (
+										// Full desktop view
+										<div className="d-flex flex-column align-items-start">
+											<span style={{
+												color: timeSpeed === 0
+													? '#ffc107'
+													: timeSpeed === 1
+														? '#28a745'
+														: '#007bff',
+												fontWeight: '600',
+												fontSize: '0.85rem',
+												lineHeight: '1',
+											}}>
+												{timeSpeed === 0 ? 'PAUSED' : `${timeSpeed}x SPEED`}
+											</span>
+											<span style={{
+												color: '#aaa',
+												fontSize: '0.7rem',
+												fontWeight: '400',
+												lineHeight: '1',
+											}}>
+												{timeSpeed === 0
+													? 'Time stopped'
+													: `${timeSpeed} min/sec`
+												}
+											</span>
+										</div>
+									)}
 								</div>
 							</OverlayTrigger>
 						</div>

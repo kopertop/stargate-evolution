@@ -7,16 +7,23 @@ import { toast } from 'react-toastify';
 
 
 import { renderGoogleSignInButton } from '../auth/google-auth';
+import { VersionInfo } from '../components/version-info';
 import { useAuth } from '../contexts/auth-context';
 import { useGameState } from '../contexts/game-state-context';
 import { useGameController } from '../services/game-controller';
 import { SavedGameService } from '../services/saved-game-service';
+import { isMobileDevice, debugPWADetection } from '../utils/mobile-utils';
 
 import './google-login.css';
 
 export const MenuPage: React.FC = () => {
 	const navigate = useNavigate();
 	const { user, isLoading: loading, isTokenExpired, signIn, signOut, reAuthenticate } = useAuth();
+	
+	// Debug PWA detection on component mount
+	useEffect(() => {
+		debugPWADetection();
+	}, []);
 	const [focusedMenuItem, setFocusedMenuItem] = useState(0);
 	const [showNewGameModal, setShowNewGameModal] = useState(false);
 	const [newGameName, setNewGameName] = useState('');
@@ -53,11 +60,11 @@ export const MenuPage: React.FC = () => {
 
 		console.log('[MENU-PAGE-CONTROLLER] Setting up gamepad navigation');
 
-		// Get menu item count based on auth state
+		// Get menu item count based on auth state and device
 		const getMenuItemCount = (currentUser: any) => {
 			if (!currentUser) return 1; // Just sign in button
 			let count = 3; // Start Game + Continue + Load Game
-			if (currentUser.is_admin) count++; // Admin Panel
+			if (currentUser.is_admin && !isMobileDevice()) count++; // Admin Panel (only on desktop)
 			count++; // Sign Out
 			return count;
 		};
@@ -106,11 +113,11 @@ export const MenuPage: React.FC = () => {
 			} else if (itemIndex === 2) {
 				// Load Game
 				handleLoadGame();
-			} else if (state.user.is_admin && itemIndex === 3) {
-				// Admin Panel (only if admin)
+			} else if (state.user.is_admin && !isMobileDevice() && itemIndex === 3) {
+				// Admin Panel (only if admin and not mobile)
 				handleAdminAccess();
-			} else if (itemIndex === (state.user.is_admin ? 4 : 3)) {
-				// Sign Out (last item)
+			} else if (itemIndex === (state.user.is_admin && !isMobileDevice() ? 4 : 3)) {
+				// Sign Out (last item, accounting for admin button visibility)
 				handleSignOut();
 			}
 		});
@@ -179,6 +186,10 @@ export const MenuPage: React.FC = () => {
 		}
 		if (!user.is_admin) {
 			toast.error('Admin access required');
+			return;
+		}
+		if (isMobileDevice()) {
+			toast.error('Admin panel is not available on mobile devices');
 			return;
 		}
 		navigate('/admin');
@@ -442,7 +453,7 @@ export const MenuPage: React.FC = () => {
 									</div>
 
 									<div className="d-grid gap-2">
-										{user.is_admin ? (
+										{user.is_admin && !isMobileDevice() ? (
 											<Button
 												variant={focusedMenuItem === 3 ? 'primary' : 'outline-primary'}
 												size="lg"
@@ -452,17 +463,17 @@ export const MenuPage: React.FC = () => {
 												<FaTools className="me-2" />
 												Admin Panel
 											</Button>
-										) : (
+										) : !user.is_admin && !isMobileDevice() ? (
 											<div className="text-center text-muted">
 												<p>Admin access required for this application.</p>
 												<p>Please contact an administrator for access.</p>
 											</div>
-										)}
+										) : null}
 
 										<Button
-											variant={focusedMenuItem === (user.is_admin ? 4 : 3) ? 'secondary' : 'outline-secondary'}
+											variant={focusedMenuItem === (user.is_admin && !isMobileDevice() ? 4 : 3) ? 'secondary' : 'outline-secondary'}
 											onClick={handleSignOut}
-											style={focusedMenuItem === (user.is_admin ? 4 : 3) ? { boxShadow: '0 0 10px rgba(108, 117, 125, 0.8)' } : {}}
+											style={focusedMenuItem === (user.is_admin && !isMobileDevice() ? 4 : 3) ? { boxShadow: '0 0 10px rgba(108, 117, 125, 0.8)' } : {}}
 										>
 											<FaSignOutAlt className="me-2" />
 											Sign Out
@@ -505,6 +516,11 @@ export const MenuPage: React.FC = () => {
 					</Col>
 				</Row>
 			</Container>
+
+			{/* Version Information */}
+			<div className="position-fixed bottom-0 start-0 p-3">
+				<VersionInfo />
+			</div>
 
 			{/* New Game Modal */}
 			<Modal show={showNewGameModal} onHide={() => setShowNewGameModal(false)} centered>
