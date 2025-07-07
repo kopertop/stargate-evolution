@@ -6,6 +6,7 @@ import 'bootstrap/dist/css/bootstrap.min.css';
 
 import { AuthProvider } from './contexts/auth-context';
 import { GameStateProvider } from './contexts/game-state-context';
+import { MobileGuard } from './components/mobile-guard';
 import {
 	AdminLayout,
 	AdminOverview,
@@ -31,7 +32,11 @@ export const App: React.FC = () => {
 					<Routes>
 						<Route path="/" element={<MenuPage />} />
 						<Route path="/game/:id" element={<GamePage />} />
-						<Route path="/admin" element={<AdminLayout />}>
+						<Route path="/admin" element={
+							<MobileGuard message="Admin panel is not available on mobile devices">
+								<AdminLayout />
+							</MobileGuard>
+						}>
 							<Route index element={<AdminOverview />} />
 							<Route path="characters" element={<AdminCharacters />} />
 							<Route path="map" element={<AdminMapBuilder />} />
