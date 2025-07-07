@@ -21,6 +21,7 @@
 - [x] Fixed room creation null handling bug in `use-game-service`
 - [x] Refactored room creation with `roomTemplateToEvent` utility
 - [x] Admin portal supports multiple floors with dropdown and elevator room type
+- [x] Fullscreen button hides in iOS PWA mode using display-mode detection
 
 ## 🚧 In Progress / Next Up
 - [ ] **Convert Frontend to React + PixiJS**: Migrate from vanilla JS to React components with PixiJS integration

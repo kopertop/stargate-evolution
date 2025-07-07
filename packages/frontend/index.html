@@ -51,22 +51,35 @@
 	<button id="fullscreen-btn">Fullscreen</button>
 	<!-- React app will render here -->
 	<script type="module" src="/src/main.tsx"></script>
-	<script>
-		const btn = document.getElementById('fullscreen-btn');
-		btn.onclick = () => {
-			const el = document.documentElement;
-			if (el.requestFullscreen) el.requestFullscreen();
-			else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
-			else if (el.mozRequestFullScreen) el.mozRequestFullScreen();
-			else if (el.msRequestFullscreen) el.msRequestFullscreen();
-		};
-		document.addEventListener('fullscreenchange', () => {
-			if (document.fullscreenElement) {
-				btn.style.display = 'none';
-			} else {
-				btn.style.display = 'block';
-			}
-		});
-	</script>
+        <script>
+                const btn = document.getElementById('fullscreen-btn');
+
+                const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone;
+
+                btn.onclick = () => {
+                        const el = document.documentElement as any;
+                        if (el.requestFullscreen) el.requestFullscreen();
+                        else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+                        else if (el.mozRequestFullScreen) el.mozRequestFullScreen();
+                        else if (el.msRequestFullscreen) el.msRequestFullscreen();
+                };
+
+                const checkFullscreen = () => {
+                        const full =
+                                document.fullscreenElement ||
+                                (document as any).webkitFullscreenElement ||
+                                (document as any).mozFullScreenElement ||
+                                (document as any).msFullscreenElement ||
+                                isStandalone;
+                        btn.style.display = full ? 'none' : 'block';
+                };
+
+                document.addEventListener('fullscreenchange', checkFullscreen);
+                document.addEventListener('webkitfullscreenchange', checkFullscreen);
+                document.addEventListener('mozfullscreenchange', checkFullscreen);
+                document.addEventListener('MSFullscreenChange', checkFullscreen);
+
+                checkFullscreen();
+        </script>
 </body>
 </html>
