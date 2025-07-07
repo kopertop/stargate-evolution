@@ -13,6 +13,8 @@ import { NPCManager } from './services/npc-manager';
 import { SavedGameService } from './services/saved-game-service';
 import { TemplateService } from './services/template-service';
 import { exposeNPCTestUtils, addTestNPCsToGame } from './utils/npc-test-utils';
+import { TouchControlManager, TouchUtils } from './utils/touch-controls';
+import { isMobileDevice } from './utils/mobile-utils';
 
 const SHIP_SPEED = 4;
 const SPEED_MULTIPLIER = 5; // 5x speed when running (Shift/Right Trigger)
@@ -88,6 +90,11 @@ export class Game {
 
 	private furnitureTextureCache: Record<string, PIXI.Texture> = {};
 
+	// Touch control properties
+	private touchControlManager: TouchControlManager | null = null;
+	private touchMovement: { x: number; y: number } = { x: 0, y: 0 };
+	private isTouchRunning: boolean = false;
+
 	constructor(app: PIXI.Application, options: GameOptions = {}, gameData?: any) {
 		this.app = app;
 		this.options = options;
@@ -130,6 +137,9 @@ export class Game {
 		// Initialize fog layer
 		this.fogLayer = new PIXI.Container();
 		this.world.addChild(this.fogLayer);
+
+		// Setup touch controls for mobile
+		this.setupTouchControls();
 	}
 
 	private createStarfield(): PIXI.Graphics {
@@ -242,6 +252,61 @@ export class Game {
 		});
 	}
 
+	private setupTouchControls() {
+		if (!isMobileDevice()) {
+			console.log('[GAME] Skipping touch controls setup - not a mobile device');
+			return;
+		}
+
+		// Get the canvas element for touch events
+		const canvas = this.app.canvas as HTMLCanvasElement;
+		if (!canvas) {
+			console.error('[GAME] Cannot setup touch controls - canvas not found');
+			return;
+		}
+
+		console.log('[GAME] Setting up touch controls for mobile device');
+
+		this.touchControlManager = new TouchControlManager(canvas, {
+			onDragMove: (deltaX: number, deltaY: number, state) => {
+				// Convert touch delta to movement with sensitivity adjustment
+				const sensitivity = 0.003; // Adjust this to control movement speed
+				const movement = TouchUtils.deltaToMovement(deltaX, deltaY, sensitivity);
+				
+				this.touchMovement.x = movement.x;
+				this.touchMovement.y = movement.y;
+				
+				// Enable running if the drag distance is large (fast movement)
+				const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+				this.isTouchRunning = distance > 100; // Adjust threshold as needed
+			},
+			
+			onDragEnd: () => {
+				// Stop movement when touch ends
+				this.touchMovement.x = 0;
+				this.touchMovement.y = 0;
+				this.isTouchRunning = false;
+			},
+			
+			onTap: (x: number, y: number) => {
+				// Handle tap to activate interactables
+				this.handleTouchTap(x, y);
+			},
+			
+			deadZone: 15, // Minimum movement to start dragging
+			tapThreshold: 25, // Maximum movement for tap detection
+			tapTimeThreshold: 300, // Maximum time for tap detection
+		});
+	}
+
+	private handleTouchTap(screenX: number, screenY: number) {
+		console.log('[GAME] Touch tap detected - activating nearby interactables (like spacebar)');
+		
+		// Just do exactly what spacebar does - check for nearby doors and furniture
+		this.handleDoorActivation();
+		this.handleFurnitureActivation();
+	}
+
 	private setupControllerInput() {
 		if (!this.options.onAxisChange || !this.options.getAxisValue || !this.options.isPressed) {
 			console.log('[GAME] Controller methods not available - skipping controller setup');
@@ -307,6 +372,16 @@ export class Game {
 
 		// Check for shift key (running modifier)
 		isRunning = this.keys['shift'] || false;
+
+		// Touch input (mobile)
+		if (this.touchMovement.x !== 0 || this.touchMovement.y !== 0) {
+			dx += this.touchMovement.x;
+			dy += this.touchMovement.y;
+			isRunning = isRunning || this.isTouchRunning;
+			
+			// Debug touch input
+			console.log('[GAME-INPUT] Touch movement:', this.touchMovement.x.toFixed(3), this.touchMovement.y.toFixed(3), 'running:', this.isTouchRunning);
+		}
 
 		// Controller input (if available)
 		if (this.options.getAxisValue && this.options.isPressed) {
@@ -943,6 +1018,12 @@ export class Game {
 		// Clean up controller subscriptions
 		this.controllerUnsubscribers.forEach(unsubscribe => unsubscribe());
 		this.controllerUnsubscribers = [];
+
+		// Clean up touch controls
+		if (this.touchControlManager) {
+			this.touchControlManager.destroy();
+			this.touchControlManager = null;
+		}
 
 		// Clean up fog resources
 		this.destroyFogResources();

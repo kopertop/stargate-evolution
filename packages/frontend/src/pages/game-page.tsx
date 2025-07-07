@@ -8,6 +8,8 @@ import { useNavigate, useParams } from 'react-router';
 import { renderGoogleSignInButton } from '../auth/google-auth';
 import { InventoryModal } from '../components/inventory-modal';
 import { ResourceBar } from '../components/resource-bar';
+import { TouchFeedback } from '../components/touch-feedback';
+import { TouchControlsHelp } from '../components/touch-controls-help';
 import { GAMEPAD_BUTTONS } from '../constants/gamepad';
 import { useAuth } from '../contexts/auth-context';
 import { useGameState } from '../contexts/game-state-context';
@@ -511,6 +513,12 @@ const GameRenderer: React.FC<GameRendererProps> = ({ gameId, savedGameData }) =>
 					}),
 				}}
 			/>
+
+			{/* Touch Feedback Component for mobile */}
+			<TouchFeedback />
+
+			{/* Touch Controls Help for mobile */}
+			<TouchControlsHelp gameStarted={true} />
 
 			{/* Pause Modal */}
 			<Modal show={showPause} centered backdrop="static" keyboard={false}>
