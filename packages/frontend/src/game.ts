@@ -12,9 +12,9 @@ import type { GamepadAxis, GamepadButton } from './services/game-controller';
 import { NPCManager } from './services/npc-manager';
 import { SavedGameService } from './services/saved-game-service';
 import { TemplateService } from './services/template-service';
+import { isMobileDevice } from './utils/mobile-utils';
 import { exposeNPCTestUtils, addTestNPCsToGame } from './utils/npc-test-utils';
 import { TouchControlManager, TouchUtils } from './utils/touch-controls';
-import { isMobileDevice } from './utils/mobile-utils';
 
 const SHIP_SPEED = 4;
 const SPEED_MULTIPLIER = 5; // 5x speed when running (Shift/Right Trigger)
