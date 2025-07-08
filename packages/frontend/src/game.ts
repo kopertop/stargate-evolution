@@ -1461,6 +1461,10 @@ export class Game {
 			this.doorsLayer.setDoors(this.doors);
 			this.doorsLayer.setRooms(this.rooms);
 		}
+		if (this.furnitureLayer) {
+			this.furnitureLayer.setRooms(this.rooms);
+			this.furnitureLayer.setFurniture(this.furniture);
+		}
 
 		console.log('[DEBUG] Loaded room data from API successfully');
 		console.log('[DEBUG] Rooms:', this.rooms.map(r => ({ id: r.id, name: r.name, type: r.type })));
