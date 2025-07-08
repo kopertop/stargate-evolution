@@ -313,14 +313,14 @@ describe('MapLayer', () => {
 
 		it('should track focus state in debug info', () => {
 			mapLayer.focusOnSystem('system-1', [mockGalaxy]);
-			const debugInfo = mapLayer.getDebugInfo();
+			const debugInfo = mapLayer.getDebugInfo() as any;
 			
 			expect(debugInfo.focusSystemId).toBe('system-1');
 		});
 
 		it('should track planet focus in debug info', () => {
 			mapLayer.focusOnPlanet('planet-1', [mockGalaxy]);
-			const debugInfo = mapLayer.getDebugInfo();
+			const debugInfo = mapLayer.getDebugInfo() as any;
 			
 			expect(debugInfo.focusSystemId).toBe('system-1');
 			expect(debugInfo.focusPlanetId).toBe('planet-1');

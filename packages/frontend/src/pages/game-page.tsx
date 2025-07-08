@@ -163,13 +163,31 @@ const GameRenderer: React.FC<GameRendererProps> = ({ gameId, savedGameData }) =>
 
 		return () => {
 			destroyed = true;
+			
+			// Clean up game instance first
 			if (gameRef.current) {
-				gameRef.current.destroy();
-				gameRef.current = null;
+				try {
+					gameRef.current.destroy();
+				} catch (error) {
+					console.warn('[GAME-PAGE] Error destroying game:', error);
+				} finally {
+					gameRef.current = null;
+				}
 			}
+			
+			// Clean up PIXI app
 			if (pixiAppRef.current) {
-				pixiAppRef.current.destroy(true);
-				pixiAppRef.current = null;
+				try {
+					// Remove from DOM before destroying
+					if (pixiAppRef.current.canvas?.parentNode) {
+						pixiAppRef.current.canvas.parentNode.removeChild(pixiAppRef.current.canvas);
+					}
+					pixiAppRef.current.destroy(true, { children: true, texture: true });
+				} catch (error) {
+					console.warn('[GAME-PAGE] Error destroying PIXI app:', error);
+				} finally {
+					pixiAppRef.current = null;
+				}
 			}
 		};
 

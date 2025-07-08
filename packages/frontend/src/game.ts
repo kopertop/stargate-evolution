@@ -85,6 +85,13 @@ export class Game {
 	private touchMovement: { x: number; y: number } = { x: 0, y: 0 };
 	private isTouchRunning: boolean = false;
 
+	// Window event handlers for cleanup
+	private resizeHandler?: () => void;
+	private keydownHandler?: (e: KeyboardEvent) => void;
+	private keyupHandler?: (e: KeyboardEvent) => void;
+	private helpKeyHandler?: (e: KeyboardEvent) => void;
+	private zoomKeyHandler?: (e: KeyboardEvent) => void;
+
 	constructor(app: PIXI.Application, options: GameOptions = {}, gameData?: any) {
 		this.app = app;
 		this.options = options;
@@ -117,7 +124,10 @@ export class Game {
 		this.setupInput();
 		this.setupControllerInput();
 		this.resizeToWindow();
-		window.addEventListener('resize', () => this.resizeToWindow());
+		
+		// Store resize handler for cleanup
+		this.resizeHandler = () => this.resizeToWindow();
+		window.addEventListener('resize', this.resizeHandler);
 		if (this.app.ticker) {
 			this.app.ticker.add(() => this.update());
 		}
@@ -204,16 +214,20 @@ export class Game {
 	}
 
 	private setupInput() {
-		window.addEventListener('keydown', (e) => {
+		this.keydownHandler = (e: KeyboardEvent) => {
 			this.keys[e.key.toLowerCase()] = true;
 			if (e.key.toLowerCase() === 'e' || e.key === 'Enter' || e.key === ' ') {
 				this.handleDoorActivation();
 				this.furnitureLayer?.handleFurnitureActivation(this.player.x, this.player.y);
 			}
-		});
-		window.addEventListener('keyup', (e) => {
+		};
+		
+		this.keyupHandler = (e: KeyboardEvent) => {
 			this.keys[e.key.toLowerCase()] = false;
-		});
+		};
+		
+		window.addEventListener('keydown', this.keydownHandler);
+		window.addEventListener('keyup', this.keyupHandler);
 	}
 
 	private setupTouchControls() {
@@ -934,28 +948,108 @@ export class Game {
 	}
 
 	public destroy() {
+		if (this.isDestroyed) {
+			console.warn('[GAME] Attempted to destroy already destroyed game instance');
+			return;
+		}
+		
 		this.isDestroyed = true;
+		console.log('[GAME] Starting game destruction...');
 
-		// Clean up controller subscriptions
-		this.controllerUnsubscribers.forEach(unsubscribe => unsubscribe());
-		this.controllerUnsubscribers = [];
+		try {
+			// Clean up window event listeners
+			if (this.resizeHandler) {
+				window.removeEventListener('resize', this.resizeHandler);
+			}
+			if (this.keydownHandler) {
+				window.removeEventListener('keydown', this.keydownHandler);
+			}
+			if (this.keyupHandler) {
+				window.removeEventListener('keyup', this.keyupHandler);
+			}
+			if (this.helpKeyHandler) {
+				window.removeEventListener('keydown', this.helpKeyHandler);
+			}
+			if (this.zoomKeyHandler) {
+				window.removeEventListener('keydown', this.zoomKeyHandler);
+			}
 
-		// Clean up touch controls
-		if (this.touchControlManager) {
-			this.touchControlManager.destroy();
-			this.touchControlManager = null;
+			// Clean up controller subscriptions
+			this.controllerUnsubscribers.forEach(unsubscribe => {
+				try {
+					unsubscribe();
+				} catch (error) {
+					console.warn('[GAME] Error unsubscribing controller:', error);
+				}
+			});
+			this.controllerUnsubscribers = [];
+
+			// Clean up touch controls
+			if (this.touchControlManager) {
+				try {
+					this.touchControlManager.destroy();
+					this.touchControlManager = null;
+				} catch (error) {
+					console.warn('[GAME] Error destroying touch controls:', error);
+				}
+			}
+
+			// Clean up layer components
+			try {
+				this.backgroundLayer?.destroy();
+			} catch (error) {
+				console.warn('[GAME] Error destroying background layer:', error);
+			}
+
+			try {
+				this.roomsLayer?.destroy();
+			} catch (error) {
+				console.warn('[GAME] Error destroying rooms layer:', error);
+			}
+
+			try {
+				this.doorsLayer?.destroy();
+			} catch (error) {
+				console.warn('[GAME] Error destroying doors layer:', error);
+			}
+
+			try {
+				this.furnitureLayer?.destroy();
+			} catch (error) {
+				console.warn('[GAME] Error destroying furniture layer:', error);
+			}
+
+			try {
+				this.npcLayer?.destroy();
+			} catch (error) {
+				console.warn('[GAME] Error destroying NPC layer:', error);
+			}
+
+			try {
+				this.fogLayer?.destroy();
+			} catch (error) {
+				console.warn('[GAME] Error destroying fog layer:', error);
+			}
+
+			try {
+				this.mapLayer?.destroy();
+			} catch (error) {
+				console.warn('[GAME] Error destroying map layer:', error);
+			}
+
+			// Stop ticker but don't destroy the app (managed by React component)
+			try {
+				if (this.app.ticker) {
+					this.app.ticker.stop();
+				}
+			} catch (error) {
+				console.warn('[GAME] Error stopping ticker:', error);
+			}
+
+			console.log('[GAME] Game destruction completed successfully');
+		} catch (error) {
+			console.error('[GAME] Critical error during game destruction:', error);
 		}
-
-		// Clean up fog resources (now handled by FogLayer)
-		this.fogLayer?.destroy();
-
-		// Clean up map layer
-		this.mapLayer?.destroy();
-
-		if (this.app.ticker) {
-			this.app.ticker.stop();
-		}
-		this.app.destroy();
 	}
 
 	// Game state restoration methods
@@ -1193,22 +1287,24 @@ export class Game {
 	}
 
 	private setupLegendPopover() {
-		window.addEventListener('keydown', (e) => {
+		this.helpKeyHandler = (e: KeyboardEvent) => {
 			if (e.key === '?' || e.key === '/') {
 				HelpPopover.toggle();
 			}
-		});
+		};
+		window.addEventListener('keydown', this.helpKeyHandler);
 	}
 
 	private setupMapZoomControls() {
-		window.addEventListener('keydown', (e) => {
+		this.zoomKeyHandler = (e: KeyboardEvent) => {
 			if (document.activeElement && (document.activeElement as HTMLElement).tagName === 'INPUT') return;
 			if ((e.key === '+' || e.key === '=') && !document.getElementById('map-popover')) {
 				this.zoomIn();
 			} else if (e.key === '-' && !document.getElementById('map-popover')) {
 				this.zoomOut();
 			}
-		});
+		};
+		window.addEventListener('keydown', this.zoomKeyHandler);
 	}
 
 	private renderGalaxyForDestiny() {
