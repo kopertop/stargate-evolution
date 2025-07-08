@@ -84,8 +84,15 @@
 		// Enhanced PWA and fullscreen detection
 		const isPWA = window.matchMedia('(display-mode: standalone)').matches ||
 			window.navigator.standalone === true ||
-			window.matchMedia('(display-mode: fullscreen)').matches ||
 			window.matchMedia('(display-mode: minimal-ui)').matches;
+
+		// Has fullscreen support
+		const hasFullscreenSupport = !!(
+			document.documentElement.requestFullscreen ||
+			document.documentElement.webkitRequestFullscreen ||
+			document.documentElement.mozRequestFullScreen ||
+			document.documentElement.msRequestFullscreen
+		);
 
 		btn.onclick = () => {
 			const el = document.documentElement;
@@ -102,9 +109,8 @@
 				document.mozFullScreenElement ||
 				document.msFullscreenElement
 			);
-
 			// Hide button if in actual fullscreen OR if in PWA mode
-			const shouldHideButton = isDocumentFullscreen || isPWA;
+			const shouldHideButton = isDocumentFullscreen || isPWA || !hasFullscreenSupport;
 			btn.style.display = shouldHideButton ? 'none' : 'block';
 		};
 
