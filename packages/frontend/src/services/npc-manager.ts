@@ -157,7 +157,6 @@ export class NPCManager {
 	private updateWanderBehavior(npc: NPC, currentRoom: RoomTemplate): void {
 		// Start fidget loop if not already running
 		if (!this.fidgetLoops.has(npc.id)) {
-			console.log(`[NPC] Starting fidget loop for wandering ${npc.name}`);
 			this.startFidgetLoop(npc, currentRoom);
 		}
 		// Fidget loop handles all movement and pausing
@@ -197,7 +196,6 @@ export class NPCManager {
 			// Still in spawn delay - stay at stargate position
 			npc.movement.target_x = null;
 			npc.movement.target_y = null;
-			console.log(`[NPC] ${npc.name} waiting in spawn delay (${timeSinceSpawn}ms < ${npc.behavior.exit_gate_delay}ms)`);
 			return;
 		}
 
@@ -236,7 +234,6 @@ export class NPCManager {
 					npc.behavior.has_exited_gate = true;
 					npc.movement.target_x = null;
 					npc.movement.target_y = null;
-					console.log(`[NPC] ${npc.name} has exited stargate, starting fidget loop`);
 
 					// Start the fidget loop
 					this.startFidgetLoop(npc, gateRoom);
@@ -348,9 +345,6 @@ export class NPCManager {
 			npc.movement.y = newY;
 			npc.movement.last_updated = Date.now();
 			return true;
-		} else {
-			// Debug: Log why movement was blocked
-			console.log(`[NPC] ${npc.name} movement blocked from (${npc.movement.x}, ${npc.movement.y}) to (${newX}, ${newY})`);
 		}
 
 		return false;
@@ -380,12 +374,10 @@ export class NPCManager {
 						// Allow larger radius for movement during gate spawning phase
 						const allowedRadius = npc.behavior.has_exited_gate ? npc.size + 5 : npc.size + 15;
 						if (distanceFromStargate <= allowedRadius) {
-							console.log(`[NPC] ${npc.name} allowed to move within stargate area (distance: ${distanceFromStargate.toFixed(1)}, allowed: ${allowedRadius})`);
 							return true;
 						}
 					}
 				}
-				console.log(`[NPC] ${npc.name} blocked by furniture: ${collidingFurniture.id}`);
 				return false;
 			}
 		}
@@ -422,7 +414,6 @@ export class NPCManager {
 					const otherDistance = Math.sqrt((x - otherNpc.movement.x) ** 2 + (y - otherNpc.movement.y) ** 2);
 					const minNpcDistance = npc.size + otherNpc.size + 3; // Both NPC radii + small buffer
 					if (otherDistance < minNpcDistance) {
-						console.log(`[NPC] ${npc.name} blocked from stopping near ${otherNpc.name} (distance: ${otherDistance.toFixed(1)})`);
 						return false;
 					}
 				}
@@ -539,10 +530,9 @@ export class NPCManager {
 				// Calculate durations based on game time speed (faster game = shorter real-time delays)
 				const gameTimeSpeed = this.gameInstance?.getTimeSpeed ? this.gameInstance.getTimeSpeed() : 1;
 				const timeMultiplier = gameTimeSpeed > 0 ? 1 / gameTimeSpeed : 0; // Pause if speed is 0
-				
+
 				const baseMoveTime = 5000 + Math.random() * 25000; // 5-30 seconds in game time
 				const moveDuration = baseMoveTime * timeMultiplier; // Adjust for real time
-				console.log(`[NPC] ${npc.name} starting ${(baseMoveTime/1000).toFixed(1)}s game-time move (${(moveDuration/1000).toFixed(1)}s real-time) to (${safePosition.x.toFixed(1)}, ${safePosition.y.toFixed(1)})`);
 
 				// After move duration, stop and pause
 				const moveTimeout = setTimeout(() => {
@@ -552,7 +542,6 @@ export class NPCManager {
 
 					const basePauseTime = 30000 + Math.random() * 90000; // 30-120 seconds in game time
 					const pauseDuration = basePauseTime * timeMultiplier; // Adjust for real time
-					console.log(`[NPC] ${npc.name} pausing for ${(basePauseTime/1000).toFixed(1)}s game-time (${(pauseDuration/1000).toFixed(1)}s real-time)`);
 
 					// After pause, start the next loop iteration
 					const pauseTimeout = setTimeout(() => {
@@ -565,7 +554,6 @@ export class NPCManager {
 				this.fidgetLoops.set(npc.id, moveTimeout);
 			} else {
 				// If no safe position found, just pause and try again
-				console.warn(`[NPC] ${npc.name} could not find safe fidget position, pausing`);
 				const retryTimeout = setTimeout(() => {
 					fidgetLoop();
 				}, 10000); // Retry in 10 seconds

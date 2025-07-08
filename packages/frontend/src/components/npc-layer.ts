@@ -1,128 +1,129 @@
 import type { DoorTemplate, RoomTemplate, NPC } from '@stargate/common';
 import * as PIXI from 'pixi.js';
+
 import { NPCManager } from '../services/npc-manager';
 import { addTestNPCsToGame } from '../utils/npc-test-utils';
 
 export interface NPCLayerOptions {
-    onNPCStateChange?: (npcId: string, newState: string) => void;
-    onNPCInteraction?: (npcId: string, interactionType: string) => void;
-    gameInstance?: any; // For accessing collision detection, stargate position, etc.
+	onNPCStateChange?: (npcId: string, newState: string) => void;
+	onNPCInteraction?: (npcId: string, interactionType: string) => void;
+	gameInstance?: any; // For accessing collision detection, stargate position, etc.
 }
 
 export class NPCLayer extends PIXI.Container {
-    private npcManager: NPCManager | null = null;
-    private doors: DoorTemplate[] = [];
-    private rooms: RoomTemplate[] = [];
-    private options: NPCLayerOptions;
+	private npcManager: NPCManager | null = null;
+	private doors: DoorTemplate[] = [];
+	private rooms: RoomTemplate[] = [];
+	private options: NPCLayerOptions;
 
-    constructor(options: NPCLayerOptions = {}) {
-        super();
-        this.options = options;
-        
-        // Initialize NPCManager with this layer as container
-        this.npcManager = new NPCManager(this, options.gameInstance);
-    }
+	constructor(options: NPCLayerOptions = {}) {
+		super();
+		this.options = options;
 
-    public setDoors(doors: DoorTemplate[]): void {
-        this.doors = [...doors];
-    }
+		// Initialize NPCManager with this layer as container
+		this.npcManager = new NPCManager(this, options.gameInstance);
+	}
 
-    public getDoors(): DoorTemplate[] {
-        return [...this.doors];
-    }
+	public setDoors(doors: DoorTemplate[]): void {
+		this.doors = [...doors];
+	}
 
-    public setRooms(rooms: RoomTemplate[]): void {
-        this.rooms = [...rooms];
-    }
+	public getDoors(): DoorTemplate[] {
+		return [...this.doors];
+	}
 
-    public getRooms(): RoomTemplate[] {
-        return [...this.rooms];
-    }
+	public setRooms(rooms: RoomTemplate[]): void {
+		this.rooms = [...rooms];
+	}
 
-    public addNPC(npc: NPC): void {
-        if (this.npcManager) {
-            this.npcManager.addNPC(npc);
-        }
-    }
+	public getRooms(): RoomTemplate[] {
+		return [...this.rooms];
+	}
 
-    public removeNPC(npcId: string): void {
-        if (this.npcManager) {
-            this.npcManager.removeNPC(npcId);
-        }
-    }
+	public addNPC(npc: NPC): void {
+		if (this.npcManager) {
+			this.npcManager.addNPC(npc);
+		}
+	}
 
-    public getNPCs(): NPC[] {
-        if (this.npcManager) {
-            return this.npcManager.getNPCs();
-        }
-        return [];
-    }
+	public removeNPC(npcId: string): void {
+		if (this.npcManager) {
+			this.npcManager.removeNPC(npcId);
+		}
+	}
 
-    public getNPC(id: string): NPC | undefined {
-        if (this.npcManager) {
-            return this.npcManager.getNPC(id);
-        }
-        return undefined;
-    }
+	public getNPCs(): NPC[] {
+		if (this.npcManager) {
+			return this.npcManager.getNPCs();
+		}
+		return [];
+	}
 
-    public update(activateDoorCallback: (doorId: string, isNPC: boolean) => boolean): void {
-        if (this.npcManager) {
-            this.npcManager.updateNPCs(this.doors, this.rooms, activateDoorCallback);
-        }
-    }
+	public getNPC(id: string): NPC | undefined {
+		if (this.npcManager) {
+			return this.npcManager.getNPC(id);
+		}
+		return undefined;
+	}
 
-    public initializeTestNPCs(): void {
-        console.log('[NPC] Initializing test NPCs...');
-        
-        if (this.rooms.length === 0) {
-            console.warn('[NPC] No rooms available for test NPCs');
-            return;
-        }
+	public update(activateDoorCallback: (doorId: string, isNPC: boolean) => boolean): void {
+		if (this.npcManager) {
+			this.npcManager.updateNPCs(this.doors, this.rooms, activateDoorCallback);
+		}
+	}
 
-        // Convert rooms to the format expected by test utils
-        const roomData = this.rooms.map(room => ({
-            id: room.id,
-            centerX: room.startX + (room.endX - room.startX) / 2,
-            centerY: room.startY + (room.endY - room.startY) / 2
-        }));
+	public initializeTestNPCs(): void {
+		// console.log('[NPC] Initializing test NPCs...');
 
-        // Add test NPCs using the utility function
-        // Note: addTestNPCsToGame expects a game instance with addNPC method
-        const mockGameInstance = {
-            addNPC: (npc: NPC) => this.addNPC(npc)
-        };
-        
-        try {
-            addTestNPCsToGame(mockGameInstance, roomData);
-            console.log('[NPC] Test NPCs initialization requested');
-        } catch (error) {
-            console.error('[NPC] Failed to initialize test NPCs:', error);
-        }
-    }
+		if (this.rooms.length === 0) {
+			console.warn('[NPC] No rooms available for test NPCs');
+			return;
+		}
 
-    public destroy(): void {
-        if (this.npcManager) {
-            // Clean up NPCManager if it has cleanup methods
-            this.npcManager = null;
-        }
-        super.destroy();
-    }
+		// Convert rooms to the format expected by test utils
+		const roomData = this.rooms.map(room => ({
+			id: room.id,
+			centerX: room.startX + (room.endX - room.startX) / 2,
+			centerY: room.startY + (room.endY - room.startY) / 2,
+		}));
 
-    // Development utilities for console access
-    public exposeTestUtilities(): void {
-        if (typeof window !== 'undefined') {
-            (window as any).npcLayer = {
-                addNPC: (npc: NPC) => this.addNPC(npc),
-                removeNPC: (npcId: string) => this.removeNPC(npcId),
-                getNPCs: () => this.getNPCs(),
-                getNPC: (id: string) => this.getNPC(id),
-                initializeTestNPCs: () => this.initializeTestNPCs(),
-                clearAllNPCs: () => {
-                    const npcs = this.getNPCs();
-                    npcs.forEach(npc => this.removeNPC(npc.id));
-                }
-            };
-            console.log('[NPC] Test utilities exposed to window.npcLayer');
-        }
-    }
+		// Add test NPCs using the utility function
+		// Note: addTestNPCsToGame expects a game instance with addNPC method
+		const mockGameInstance = {
+			addNPC: (npc: NPC) => this.addNPC(npc),
+		};
+
+		try {
+			addTestNPCsToGame(mockGameInstance, roomData);
+			// console.log('[NPC] Test NPCs initialization requested');
+		} catch (error) {
+			console.error('[NPC] Failed to initialize test NPCs:', error);
+		}
+	}
+
+	public destroy(): void {
+		if (this.npcManager) {
+			// Clean up NPCManager if it has cleanup methods
+			this.npcManager = null;
+		}
+		super.destroy();
+	}
+
+	// Development utilities for console access
+	public exposeTestUtilities(): void {
+		if (typeof window !== 'undefined') {
+			(window as any).npcLayer = {
+				addNPC: (npc: NPC) => this.addNPC(npc),
+				removeNPC: (npcId: string) => this.removeNPC(npcId),
+				getNPCs: () => this.getNPCs(),
+				getNPC: (id: string) => this.getNPC(id),
+				initializeTestNPCs: () => this.initializeTestNPCs(),
+				clearAllNPCs: () => {
+					const npcs = this.getNPCs();
+					npcs.forEach(npc => this.removeNPC(npc.id));
+				},
+			};
+			console.log('[NPC] Test utilities exposed to window.npcLayer');
+		}
+	}
 }

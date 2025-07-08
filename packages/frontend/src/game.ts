@@ -8,6 +8,7 @@ import * as PIXI from 'pixi.js';
 
 import { BackgroundLayer } from './components/background-layer';
 import { DoorsLayer } from './components/doors-layer';
+import { FogLayer } from './components/fog-layer';
 import { FurnitureLayer } from './components/furniture-layer';
 import { NPCLayer } from './components/npc-layer';
 import { RoomsLayer } from './components/rooms-layer';
@@ -75,13 +76,8 @@ export class Game {
 	private pendingRestoration: any = null;
 	private isDestroyed = false;
 
-	// Fog of War manager
-	private fogOfWarManager: FogOfWarManager | null = null;
-	private fogLayer: PIXI.Container | null = null;
-	// Fog tile object pool for performance
-	private fogTilePool: PIXI.Graphics[] = [];
-	private activeFogTiles: PIXI.Graphics[] = [];
-	private lastViewportBounds: { left: number; right: number; top: number; bottom: number } | null = null;
+	// Fog of War system
+	private fogLayer: FogLayer | null = null;
 
 
 	// Touch control properties
@@ -99,7 +95,7 @@ export class Game {
 		this.backgroundLayer = new BackgroundLayer({
 			onBackgroundTypeChange: (newType: 'stars' | 'ftl') => {
 				console.log('[GAME] Background type changed to:', newType);
-			}
+			},
 		});
 		
 		// Add background layer at the bottom
@@ -136,10 +132,15 @@ export class Game {
 		});
 
 		// Initialize Fog of War manager
-		this.fogOfWarManager = new FogOfWarManager();
-
 		// Initialize fog layer
-		this.fogLayer = new PIXI.Container();
+		this.fogLayer = new FogLayer({
+			onFogDiscovery: (newTilesDiscovered: number) => {
+				console.log('[GAME] New fog tiles discovered:', newTilesDiscovered);
+			},
+			onFogClear: () => {
+				console.log('[GAME] Fog of war cleared');
+			},
+		});
 		this.world.addChild(this.fogLayer);
 
 		// Setup touch controls for mobile
@@ -1291,7 +1292,7 @@ export class Game {
 				onNPCStateChange: (npcId: string, newState: string) => {
 					console.log('[GAME] NPC state changed:', npcId, 'to', newState);
 				},
-				gameInstance: this
+				gameInstance: this,
 			});
 
 			console.log('[DEBUG] Created rendering layers');
