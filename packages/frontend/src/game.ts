@@ -7,6 +7,8 @@ import type {
 import * as PIXI from 'pixi.js';
 
 import { DoorsLayer } from './components/doors-layer';
+import { FurnitureLayer } from './components/furniture-layer';
+import { RoomsLayer } from './components/rooms-layer';
 import { HelpPopover } from './help-popover';
 import { FogOfWarManager } from './services/fog-of-war-manager';
 import type { GamepadAxis, GamepadButton } from './services/game-controller';
@@ -66,9 +68,9 @@ export class Game {
 	private controllerUnsubscribers: (() => void)[] = [];
 
 	// Room rendering system
-	private roomsLayer: PIXI.Container | null = null;
+	private roomsLayer: RoomsLayer | null = null;
 	private doorsLayer: DoorsLayer | null = null;
-	private furnitureLayer: PIXI.Container | null = null;
+	private furnitureLayer: FurnitureLayer | null = null;
 	private npcLayer: PIXI.Container | null = null;
 	private rooms: RoomTemplate[] = [];
 	private doors: DoorTemplate[] = [];
@@ -89,7 +91,6 @@ export class Game {
 	private activeFogTiles: PIXI.Graphics[] = [];
 	private lastViewportBounds: { left: number; right: number; top: number; bottom: number } | null = null;
 
-	private furnitureTextureCache: Record<string, PIXI.Texture> = {};
 
 	// Touch control properties
 	private touchControlManager: TouchControlManager | null = null;
@@ -635,35 +636,7 @@ export class Game {
 	}
 
 	private findCollidingFurniture(x: number, y: number, playerRadius: number): RoomFurniture | null {
-		for (const furniture of this.furniture) {
-			if (!furniture.blocks_movement) continue;
-
-			// Find the room this furniture belongs to
-			const room = this.rooms.find(r => r.id === furniture.room_id);
-			if (!room) continue;
-
-			// Calculate furniture world position
-			const roomCenterX = room.startX + (room.endX - room.startX) / 2;
-			const roomCenterY = room.startY + (room.endY - room.startY) / 2;
-			const furnitureWorldX = roomCenterX + furniture.x;
-			const furnitureWorldY = roomCenterY + furniture.y;
-
-			// Check collision with furniture bounding box
-			const furnitureLeft = furnitureWorldX - furniture.width / 2;
-			const furnitureRight = furnitureWorldX + furniture.width / 2;
-			const furnitureTop = furnitureWorldY - furniture.height / 2;
-			const furnitureBottom = furnitureWorldY + furniture.height / 2;
-
-			// Check if player circle intersects with furniture rectangle
-			const closestX = Math.max(furnitureLeft, Math.min(x, furnitureRight));
-			const closestY = Math.max(furnitureTop, Math.min(y, furnitureBottom));
-			const distance = Math.sqrt((x - closestX) ** 2 + (y - closestY) ** 2);
-
-			if (distance <= playerRadius) {
-				return furniture;
-			}
-		}
-		return null;
+		return this.furnitureLayer?.findCollidingFurniture(x, y, playerRadius) || null;
 	}
 
 	private findCollidingDoor(x: number, y: number, playerRadius: number): any | null {
@@ -1389,14 +1362,23 @@ export class Game {
 			console.log('[DEBUG] Initializing room system...');
 
 			// Create rendering layers
-			this.roomsLayer = new PIXI.Container();
+			this.roomsLayer = new RoomsLayer({
+				onRoomStateChange: (roomId: string, newState: string) => {
+					// Handle room state changes if needed
+					console.log('[GAME] Room state changed:', roomId, 'to', newState);
+				},
+			});
 			this.doorsLayer = new DoorsLayer({
 				onDoorStateChange: (doorId: string, newState: string) => {
 					// Handle door state changes if needed
 					console.log('[GAME] Door state changed:', doorId, 'to', newState);
 				},
 			});
-			this.furnitureLayer = new PIXI.Container();
+			this.furnitureLayer = new FurnitureLayer({
+				onFurnitureStateChange: (furnitureId: string, newState: string) => {
+					console.log('[GAME] Furniture state changed:', furnitureId, 'to', newState);
+				},
+			});
 			this.npcLayer = new PIXI.Container();
 
 			console.log('[DEBUG] Created rendering layers');
@@ -1471,6 +1453,15 @@ export class Game {
 		this.doors = realDoors;
 		this.furniture = realFurniture;
 
+		// Initialize layers with data
+		if (this.roomsLayer) {
+			this.roomsLayer.setRooms(this.rooms);
+		}
+		if (this.doorsLayer) {
+			this.doorsLayer.setDoors(this.doors);
+			this.doorsLayer.setRooms(this.rooms);
+		}
+
 		console.log('[DEBUG] Loaded room data from API successfully');
 		console.log('[DEBUG] Rooms:', this.rooms.map(r => ({ id: r.id, name: r.name, type: r.type })));
 
@@ -1487,144 +1478,29 @@ export class Game {
 		console.log('[DEBUG] Rendering rooms...');
 
 		// Clear existing rooms
-		this.roomsLayer.removeChildren();
 		this.furnitureLayer?.removeChildren();
 
-		// Render each room
-		this.rooms.forEach(room => {
-			this.renderRoom(room);
-		});
+		// Update rooms in RoomsLayer
+		if (this.roomsLayer) {
+			this.roomsLayer.setRooms(this.rooms);
+		}
 
 		// Update doors in DoorsLayer
 		if (this.doorsLayer) {
 			this.doorsLayer.setDoors(this.doors);
 		}
 
-		// Render furniture
-		this.furniture.forEach(furniture => {
-			this.renderFurnitureItem(furniture);
-		});
+		// Update furniture in FurnitureLayer
+		if (this.furnitureLayer) {
+			this.furnitureLayer.setRooms(this.rooms);
+			this.furnitureLayer.setFurniture(this.furniture);
+		}
 
 		console.log('[DEBUG] Room rendering complete');
 	}
 
-	private renderRoom(room: RoomTemplate) {
-		if (!this.roomsLayer) return;
-
-		// Calculate room dimensions from coordinates
-		const width = room.endX - room.startX;
-		const height = room.endY - room.startY;
-		const centerX = room.startX + width / 2;
-		const centerY = room.startY + height / 2;
-
-		// Create room graphics
-		const roomGraphics = new PIXI.Graphics();
-
-		// Room floor (bright color for visibility)
-		roomGraphics.rect(-width/2, -height/2, width, height).fill(0x333355); // Dark blue-gray floor
-
-		// Room walls (bright border)
-		roomGraphics.rect(-width/2, -height/2, width, height).stroke({ color: 0x88AAFF, width: 8 }); // Light blue border - very visible
-
-		// Position room
-		roomGraphics.x = centerX;
-		roomGraphics.y = centerY;
-
-		// Add room label (larger and brighter)
-		const label = new PIXI.Text({
-			text: room.name,
-			style: {
-				fontFamily: 'Arial',
-				fontSize: 18,
-				fill: 0xFFFF00, // Yellow text - very visible
-				align: 'center',
-			},
-		});
-		label.anchor.set(0.5);
-		label.x = centerX;
-		label.y = centerY - height/2 - 30;
-
-		this.roomsLayer.addChild(roomGraphics);
-		this.roomsLayer.addChild(label);
-
-		console.log(`[DEBUG] Rendered room: ${room.name} at (${centerX}, ${centerY}) size (${width}x${height})`);
-	}
 
 
-	private async renderFurnitureItem(furniture: RoomFurniture) {
-		if (!this.furnitureLayer) return;
-
-		// Find the room this furniture belongs to
-		const room = this.rooms.find(r => r.id === furniture.room_id);
-		if (!room) {
-			console.warn(`[DEBUG] Furniture ${furniture.name} has invalid room_id: ${furniture.room_id}`);
-			return;
-		}
-
-		// Calculate room center
-		const roomCenterX = room.startX + (room.endX - room.startX) / 2;
-		const roomCenterY = room.startY + (room.endY - room.startY) / 2;
-
-		// --- IMAGE LOGIC ---
-		let imageUrl: string | undefined;
-		if (furniture.image && typeof furniture.image === 'object') {
-			// Try to pick the best image key based on state
-			if (furniture.active && furniture.image.active) imageUrl = furniture.image.active;
-			else if (furniture.image.default) imageUrl = furniture.image.default;
-			else {
-				// Try other common keys
-				const fallbackKeys = ['broken', 'locked', 'danger'];
-				for (const key of fallbackKeys) {
-					if (furniture.image[key]) {
-						imageUrl = furniture.image[key];
-						break;
-					}
-				}
-			}
-		} else if (typeof furniture.image === 'string') {
-			imageUrl = furniture.image;
-		}
-
-		if (imageUrl) {
-			let texture = this.furnitureTextureCache[imageUrl];
-			if (!texture) {
-				try {
-					texture = await PIXI.Assets.load(imageUrl);
-					this.furnitureTextureCache[imageUrl] = texture;
-				} catch (err) {
-					console.warn(`[DEBUG] Failed to load furniture image: ${imageUrl}`, err);
-				}
-			}
-			if (texture) {
-				const sprite = new PIXI.Sprite(texture);
-				// Set anchor to center
-				sprite.anchor.set(0.5);
-				// Stretch to furniture width/height
-				sprite.width = furniture.width;
-				sprite.height = furniture.height;
-				// Position relative to room center
-				sprite.x = roomCenterX + furniture.x;
-				sprite.y = roomCenterY + furniture.y;
-				sprite.rotation = (furniture.rotation * Math.PI) / 180;
-				this.furnitureLayer.addChild(sprite);
-				console.log(`[DEBUG] Rendered furniture image: ${furniture.name} at room-relative (${furniture.x}, ${furniture.y})`);
-				return;
-			}
-		}
-
-		// Fallback: Create furniture graphics (bright color for visibility)
-		const furnitureGraphics = new PIXI.Graphics();
-		furnitureGraphics.rect(-furniture.width/2, -furniture.height/2, furniture.width, furniture.height).fill(0x00FF88); // Bright green color
-		furnitureGraphics.rect(-furniture.width/2, -furniture.height/2, furniture.width, furniture.height).stroke({ color: 0xFFFFFF, width: 2 }); // White border
-
-		// Position furniture relative to room center
-		furnitureGraphics.x = roomCenterX + furniture.x;
-		furnitureGraphics.y = roomCenterY + furniture.y;
-		furnitureGraphics.rotation = (furniture.rotation * Math.PI) / 180;
-
-		this.furnitureLayer.addChild(furnitureGraphics);
-		console.log(`[DEBUG] Rendered furniture: ${furniture.name} at room-relative (${furniture.x}, ${furniture.y})`);
-	}
 
 	private positionPlayerInStartingRoom() {
 		// Position player at world origin (0, 0)
@@ -1817,31 +1693,7 @@ export class Game {
 	}
 
 	private handleFurnitureActivation(): void {
-		const interactionRadius = 25;
-		let closestFurniture: RoomFurniture | null = null;
-		let closestDistance = Infinity;
-		for (const furniture of this.furniture) {
-			if (!furniture.interactive) continue;
-			// Find the room this furniture belongs to
-			const room = this.rooms.find(r => r.id === furniture.room_id);
-			if (!room) continue;
-			const roomCenterX = room.startX + (room.endX - room.startX) / 2;
-			const roomCenterY = room.startY + (room.endY - room.startY) / 2;
-			const furnitureWorldX = roomCenterX + furniture.x;
-			const furnitureWorldY = roomCenterY + furniture.y;
-			const distance = Math.sqrt((this.player.x - furnitureWorldX) ** 2 + (this.player.y - furnitureWorldY) ** 2);
-			if (distance <= interactionRadius && distance < closestDistance) {
-				closestDistance = distance;
-				closestFurniture = furniture;
-			}
-		}
-		if (closestFurniture && closestFurniture.image && typeof closestFurniture.image === 'object' && 'active' in closestFurniture.image) {
-			closestFurniture.active = !closestFurniture.active;
-			this.renderRooms();
-			console.log(`[INTERACTION] Toggled furniture '${closestFurniture.name}' to active=${closestFurniture.active}`);
-		} else {
-			console.log('[INTERACTION] No interactive furniture nearby to activate');
-		}
+		return this.furnitureLayer?.handleFurnitureActivation(this.player.x, this.player.y);
 	}
 
 	/**
@@ -1851,56 +1703,23 @@ export class Game {
 	 * @returns Safe position coordinates or null if none found
 	 */
 	private findSafePositionInRoom(originalX: number, originalY: number): { x: number; y: number } | null {
-		const currentRoom = this.findRoomContainingPoint(originalX, originalY);
-		if (!currentRoom) return null;
-
 		const playerRadius = PLAYER_RADIUS;
 		const wallThreshold = 15; // Larger threshold for safety
-		const stepSize = 10; // Grid step size for testing positions
+		
+		// Get candidate safe positions from RoomsLayer
+		const candidatePositions = this.roomsLayer?.findSafePositionInRoom(originalX, originalY, playerRadius, wallThreshold) || [];
+		if (candidatePositions.length === 0) return null;
 
-		// Calculate safe bounds within the room
-		const safeStartX = currentRoom.startX + wallThreshold;
-		const safeEndX = currentRoom.endX - wallThreshold;
-		const safeStartY = currentRoom.startY + wallThreshold;
-		const safeEndY = currentRoom.endY - wallThreshold;
+		// Test each candidate position with collision detection
+		for (const candidatePosition of candidatePositions) {
+			const validatedPosition = this.checkCollision(originalX, originalY, candidatePosition.x, candidatePosition.y);
 
-		// Try positions in a spiral pattern starting from room center
-		const roomCenterX = currentRoom.startX + (currentRoom.endX - currentRoom.startX) / 2;
-		const roomCenterY = currentRoom.startY + (currentRoom.endY - currentRoom.startY) / 2;
-
-		// Test positions in expanding rings around the center
-		for (let radius = 0; radius < Math.max(currentRoom.endX - currentRoom.startX, currentRoom.endY - currentRoom.startY) / 2; radius += stepSize) {
-			const testPositions = [];
-
-			if (radius === 0) {
-				// Test center position first
-				testPositions.push({ x: roomCenterX, y: roomCenterY });
-			} else {
-				// Test positions in a circle around the center
-				const numSteps = Math.max(8, Math.floor(radius / stepSize * 2));
-				for (let i = 0; i < numSteps; i++) {
-					const angle = (i / numSteps) * 2 * Math.PI;
-					const testX = roomCenterX + Math.cos(angle) * radius;
-					const testY = roomCenterY + Math.sin(angle) * radius;
-
-					// Keep within room bounds
-					if (testX >= safeStartX && testX <= safeEndX && testY >= safeStartY && testY <= safeEndY) {
-						testPositions.push({ x: testX, y: testY });
-					}
-				}
-			}
-
-			// Test each position
-			for (const testPos of testPositions) {
-				const validatedPosition = this.checkCollision(originalX, originalY, testPos.x, testPos.y);
-
-				// If the validated position matches the test position, it's safe
-				if (Math.abs(validatedPosition.x - testPos.x) < 0.1 &&
-					Math.abs(validatedPosition.y - testPos.y) < 0.1) {
-
-					console.log(`[DOOR] Found safe position at radius ${radius}:`, testPos.x.toFixed(1), testPos.y.toFixed(1));
-					return { x: testPos.x, y: testPos.y };
-				}
+			// If the validated position matches the candidate, it's safe
+			if (Math.abs(validatedPosition.x - candidatePosition.x) < 0.1 &&
+				Math.abs(validatedPosition.y - candidatePosition.y) < 0.1) {
+				
+				console.log('[DOOR] Found safe position:', candidatePosition.x.toFixed(1), candidatePosition.y.toFixed(1));
+				return { x: candidatePosition.x, y: candidatePosition.y };
 			}
 		}
 
