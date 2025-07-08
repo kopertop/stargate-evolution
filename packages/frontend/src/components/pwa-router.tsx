@@ -49,11 +49,11 @@ const PWANavigationHandler: React.FC = () => {
 			if (viewport) {
 				viewport.content = 'width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no';
 			}
-      
+
 			// Ensure the app stays fullscreen
 			const html = document.documentElement;
 			const body = document.body;
-      
+
 			html.style.height = '100vh';
 			html.style.overflow = 'hidden';
 			body.style.height = '100vh';

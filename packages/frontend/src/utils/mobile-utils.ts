@@ -18,39 +18,44 @@ export interface DeviceInfo {
  */
 export function getDeviceInfo(): DeviceInfo {
 	const userAgent = navigator.userAgent.toLowerCase();
-  
+
 	// Mobile detection
 	const isMobile = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent) ||
     (!!navigator.maxTouchPoints && navigator.maxTouchPoints > 2 && /macintosh/i.test(userAgent));
-  
+
 	// Tablet detection (iPad, Android tablets)
-	const isTablet = /ipad/i.test(userAgent) || 
+	const isTablet = /ipad/i.test(userAgent) ||
     (!!navigator.maxTouchPoints && navigator.maxTouchPoints > 2 && /macintosh/i.test(userAgent)) ||
     (/android/i.test(userAgent) && !/mobile/i.test(userAgent));
-  
+
 	const isDesktop = !isMobile && !isTablet;
-  
+
 	// Platform detection
 	const isIOS = /iphone|ipad|ipod/i.test(userAgent);
 	const isAndroid = /android/i.test(userAgent);
-  
+
 	// PWA/Standalone detection with enhanced iOS support
-	const isStandalone = window.matchMedia('(display-mode: standalone)').matches || 
+	const isStandalone = window.matchMedia('(display-mode: standalone)').matches ||
     (window.navigator as any).standalone === true;
-  
+
 	// Enhanced iOS PWA detection
 	const isIOSPWA = isIOS && (
 		(window.navigator as any).standalone === true ||
     window.matchMedia('(display-mode: standalone)').matches ||
     (window.outerHeight === window.innerHeight && window.outerWidth === window.innerWidth)
 	);
-  
+
 	// General PWA detection
-	const isPWA = isStandalone || 
-    isIOSPWA ||
-    window.matchMedia('(display-mode: fullscreen)').matches ||
-    window.matchMedia('(display-mode: minimal-ui)').matches;
-  
+	const isPWA = isPWAMode();
+
+	if (isPWA) {
+		console.log('[getDeviceInfo] isPWA:', isPWA);
+		console.log('[getDeviceInfo] isStandalone:', isStandalone);
+		console.log('[getDeviceInfo] isIOSPWA:', isIOSPWA);
+		console.log('[getDeviceInfo] window.matchMedia("(display-mode: fullscreen)").matches:', window.matchMedia('(display-mode: fullscreen)').matches);
+		console.log('[getDeviceInfo] window.matchMedia("(display-mode: minimal-ui)").matches:', window.matchMedia('(display-mode: minimal-ui)').matches);
+	}
+
 	// Fullscreen detection (document fullscreen API only)
 	const isDocumentFullscreen = !!(
 		document.fullscreenElement ||
@@ -58,10 +63,10 @@ export function getDeviceInfo(): DeviceInfo {
     (document as any).mozFullScreenElement ||
     (document as any).msFullscreenElement
 	);
-  
+
 	// Combined fullscreen state (document fullscreen OR PWA mode)
 	const isFullscreen = isDocumentFullscreen || isPWA;
-  
+
 	return {
 		isMobile: isMobile && !isTablet, // Phones only
 		isTablet,
@@ -80,7 +85,7 @@ export function getDeviceInfo(): DeviceInfo {
  */
 export function shouldHideFullscreenButton(): boolean {
 	const device = getDeviceInfo();
-  
+
 	// Check document fullscreen state
 	const isDocumentFullscreen = !!(
 		document.fullscreenElement ||
@@ -88,9 +93,19 @@ export function shouldHideFullscreenButton(): boolean {
     (document as any).mozFullScreenElement ||
     (document as any).msFullscreenElement
 	);
-  
+
 	// Hide if actually fullscreen OR if in PWA mode
 	return isDocumentFullscreen || device.isPWA || device.isStandalone;
+}
+
+export function isPWAMode(): boolean {
+	// iOS
+	if ((window.navigator as any).standalone) return true;
+	// Android/Chrome
+	if (window.matchMedia('(display-mode: standalone)').matches) return true;
+	// Fallback: check for minimal-ui or window.opener
+	if (window.matchMedia('(display-mode: minimal-ui)').matches) return true;
+	return false;
 }
 
 /**
@@ -102,14 +117,6 @@ export function isMobileDevice(): boolean {
 }
 
 /**
- * Check if we're in PWA/standalone mode
- */
-export function isPWAMode(): boolean {
-	const device = getDeviceInfo();
-	return device.isPWA || device.isStandalone;
-}
-
-/**
  * Listen for fullscreen changes and update callback
  */
 export function onFullscreenChange(callback: (isFullscreen: boolean) => void): () => void {
@@ -117,13 +124,13 @@ export function onFullscreenChange(callback: (isFullscreen: boolean) => void): (
 		const device = getDeviceInfo();
 		callback(device.isFullscreen);
 	};
-  
+
 	// Listen to all fullscreen events
 	document.addEventListener('fullscreenchange', checkFullscreen);
 	document.addEventListener('webkitfullscreenchange', checkFullscreen);
 	document.addEventListener('mozfullscreenchange', checkFullscreen);
 	document.addEventListener('MSFullscreenChange', checkFullscreen);
-  
+
 	// Return cleanup function
 	return () => {
 		document.removeEventListener('fullscreenchange', checkFullscreen);
