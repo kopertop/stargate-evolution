@@ -6,6 +6,7 @@ import type {
 } from '@stargate/common';
 import * as PIXI from 'pixi.js';
 
+import { BackgroundLayer } from './components/background-layer';
 import { DoorsLayer } from './components/doors-layer';
 import { FurnitureLayer } from './components/furniture-layer';
 import { NPCLayer } from './components/npc-layer';
@@ -19,10 +20,7 @@ import { isMobileDevice } from './utils/mobile-utils';
 import { TouchControlManager, TouchUtils } from './utils/touch-controls';
 
 const SHIP_SPEED = 4;
-const SPEED_MULTIPLIER = 5; // 5x speed when running (Shift/Right Trigger)
-const STAR_COUNT = 200;
-const STAR_COLOR = 0xffffff;
-const STAR_RADIUS = 1.5;
+const SPEED_MULTIPLIER = 5; // 5x speed when running (Shift/Right Trigger);
 
 // Player configuration constants
 const PLAYER_RADIUS = 5; // Player radius (was 10, now halved)
@@ -57,11 +55,7 @@ export class Game {
 	private options: GameOptions;
 
 	// Dynamic background system
-	private backgroundLayer: PIXI.Container | null = null;
-	private ftlStreaksLayer: PIXI.Container | null = null;
-	private currentBackgroundType: 'stars' | 'ftl' = 'stars';
-	private ftlStreaks: PIXI.Graphics[] = [];
-	private animationFrame: number = 0;
+	private backgroundLayer: BackgroundLayer | null = null;
 
 	// Controller subscription cleanup functions
 	private controllerUnsubscribers: (() => void)[] = [];
@@ -99,10 +93,20 @@ export class Game {
 		this.app = app;
 		this.options = options;
 		this.world = new PIXI.Container();
-		this.starfield = this.createStarfield();
 		this.gameData = gameData;
-		// Only add starfield if we don't have room data - we'll render rooms instead
-		this.world.addChild(this.starfield);
+		
+		// Create background layer system
+		this.backgroundLayer = new BackgroundLayer({
+			onBackgroundTypeChange: (newType: 'stars' | 'ftl') => {
+				console.log('[GAME] Background type changed to:', newType);
+			}
+		});
+		
+		// Add background layer at the bottom
+		this.world.addChildAt(this.backgroundLayer, 0);
+		
+		// Create deprecated starfield for backward compatibility
+		this.starfield = this.createStarfield();
 		// Create player as circular character sprite
 		const playerGraphics = new PIXI.Graphics();
 		playerGraphics.circle(0, 0, PLAYER_RADIUS).fill(0xFF6600); // Bright orange circle for player
@@ -143,100 +147,20 @@ export class Game {
 	}
 
 	private createStarfield(): PIXI.Graphics {
-		const g = new PIXI.Graphics();
-		for (let i = 0; i < STAR_COUNT; i++) {
-			const x = Math.random() * 4000 - 2000;
-			const y = Math.random() * 4000 - 2000;
-			g.circle(x, y, STAR_RADIUS).fill(STAR_COLOR);
-		}
-		return g;
-	}
-
-	private createFTLStreaks(): PIXI.Container {
-		const container = new PIXI.Container();
-		this.ftlStreaks = [];
-
-		// Create 100 FTL streak lines
-		for (let i = 0; i < 100; i++) {
-			const streak = new PIXI.Graphics();
-			const x = Math.random() * this.app.screen.width;
-			const y = Math.random() * this.app.screen.height;
-			const length = 200 + Math.random() * 400; // Variable length streaks
-
-			// Create blue gradient streak
-			streak.moveTo(x, y)
-				.lineTo(x + length, y)
-				.stroke({
-					color: 0x0066ff,
-					width: 2 + Math.random() * 3,
-					alpha: 0.6 + Math.random() * 0.4,
-				});
-
-			// Add slight glow effect
-			streak.moveTo(x, y)
-				.lineTo(x + length, y)
-				.stroke({
-					color: 0x66aaff,
-					width: 1,
-					alpha: 0.8,
-				});
-
-			container.addChild(streak);
-			this.ftlStreaks.push(streak);
-		}
-
-		return container;
-	}
-
-	private animateFTLStreaks() {
-		if (this.currentBackgroundType !== 'ftl' || !this.ftlStreaksLayer) return;
-
-		this.animationFrame++;
-		const speed = 8; // Speed of streak movement
-
-		this.ftlStreaks.forEach((streak, index) => {
-			// Move streaks horizontally
-			streak.x -= speed + (index % 3); // Varying speeds for depth effect
-
-			// Reset streak position when it goes off screen
-			if (streak.x < -500) {
-				streak.x = this.app.screen.width + Math.random() * 200;
-				streak.y = Math.random() * this.app.screen.height;
-			}
-		});
+		// Kept for backward compatibility - actual starfield is handled by BackgroundLayer
+		return new PIXI.Graphics();
 	}
 
 	public setBackgroundType(type: 'stars' | 'ftl') {
-		if (this.currentBackgroundType === type) return;
-
-		this.currentBackgroundType = type;
-
-		if (type === 'ftl') {
-			// Hide starfield and show FTL streaks
-			this.starfield.visible = false;
-
-			if (!this.ftlStreaksLayer) {
-				this.ftlStreaksLayer = this.createFTLStreaks();
-				this.world.addChildAt(this.ftlStreaksLayer, 0); // Add at bottom layer
-			}
-			this.ftlStreaksLayer.visible = true;
-
-			console.log('[GAME] Switched to FTL streak background');
-		} else {
-			// Show starfield and hide FTL streaks
-			this.starfield.visible = true;
-
-			if (this.ftlStreaksLayer) {
-				this.ftlStreaksLayer.visible = false;
-			}
-
-			console.log('[GAME] Switched to starfield background');
+		if (this.backgroundLayer) {
+			this.backgroundLayer.setBackgroundType(type);
 		}
 	}
 
 	public updateFTLStatus(ftlStatus: string) {
-		const backgroundType = ftlStatus === 'ftl' ? 'ftl' : 'stars';
-		this.setBackgroundType(backgroundType);
+		if (this.backgroundLayer) {
+			this.backgroundLayer.updateFTLStatus(ftlStatus);
+		}
 	}
 
 	private setupInput() {
@@ -479,8 +403,10 @@ export class Game {
 		// Check for door interactions
 		this.checkDoorInteraction();
 
-		// Animate FTL streaks if in FTL mode
-		this.animateFTLStreaks();
+		// Update background layer (handles FTL animation)
+		if (this.backgroundLayer) {
+			this.backgroundLayer.update();
+		}
 
 		// Center camera on player (accounting for world scale)
 		const centerX = this.app.screen.width / 2;
@@ -1105,7 +1031,7 @@ export class Game {
 			fogOfWar: this.fogOfWarManager?.getFogData() || {},
 			// Add other game state as needed
 			mapZoom: this.mapZoom,
-			currentBackgroundType: this.currentBackgroundType,
+			currentBackgroundType: this.backgroundLayer?.getCurrentBackgroundType() || 'stars',
 		};
 	}
 
@@ -1459,6 +1385,9 @@ export class Game {
 
 		// Hide starfield since we have rooms
 		this.starfield.visible = false;
+		if (this.backgroundLayer) {
+			this.backgroundLayer.setStarfieldVisible(false);
+		}
 		// Change background color for room view
 		this.app.renderer.background.color = 0x111111;
 	}
