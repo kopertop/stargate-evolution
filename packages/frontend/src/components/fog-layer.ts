@@ -3,28 +3,28 @@ import * as PIXI from 'pixi.js';
 import { FogOfWarManager } from '../services/fog-of-war-manager';
 
 export interface FogLayerOptions {
-    onFogDiscovery?: (newTilesDiscovered: number) => void;
-    onFogClear?: () => void;
+	onFogDiscovery?: (newTilesDiscovered: number) => void;
+	onFogClear?: () => void;
 }
 
 export interface ViewportBounds {
-    left: number;
-    right: number;
-    top: number;
-    bottom: number;
+	left: number;
+	right: number;
+	top: number;
+	bottom: number;
 }
 
 export class FogLayer extends PIXI.Container {
 	private fogOfWarManager: FogOfWarManager | null = null;
 	private fogLayer: PIXI.Container | null = null;
-    
+
 	// Object pooling for performance
 	private fogTilePool: PIXI.Graphics[] = [];
 	private activeFogTiles: PIXI.Graphics[] = [];
-    
+
 	// Viewport optimization
 	private lastViewportBounds: ViewportBounds | null = null;
-    
+
 	private options: FogLayerOptions;
 
 	constructor(options: FogLayerOptions = {}) {
@@ -62,7 +62,7 @@ export class FogLayer extends PIXI.Container {
 		this.fogOfWarManager?.clearFog();
 		this.returnFogTilesToPool();
 		this.lastViewportBounds = null;
-        
+
 		if (this.options.onFogClear) {
 			this.options.onFogClear();
 		}
@@ -72,11 +72,11 @@ export class FogLayer extends PIXI.Container {
 		if (!this.fogOfWarManager) return false;
 
 		const hasNewDiscoveries = this.fogOfWarManager.updatePlayerPosition(position);
-        
+
 		if (hasNewDiscoveries) {
 			// Force re-render when new tiles are discovered
 			this.lastViewportBounds = null;
-            
+
 			if (this.options.onFogDiscovery) {
 				this.options.onFogDiscovery(1); // Could be enhanced to count actual tiles
 			}
@@ -92,10 +92,10 @@ export class FogLayer extends PIXI.Container {
 
 		// Check if viewport has changed significantly to avoid unnecessary work
 		if (this.lastViewportBounds &&
-            Math.abs(viewportBounds.left - this.lastViewportBounds.left) < config.tileSize &&
-            Math.abs(viewportBounds.right - this.lastViewportBounds.right) < config.tileSize &&
-            Math.abs(viewportBounds.top - this.lastViewportBounds.top) < config.tileSize &&
-            Math.abs(viewportBounds.bottom - this.lastViewportBounds.bottom) < config.tileSize) {
+			Math.abs(viewportBounds.left - this.lastViewportBounds.left) < config.tileSize &&
+			Math.abs(viewportBounds.right - this.lastViewportBounds.right) < config.tileSize &&
+			Math.abs(viewportBounds.top - this.lastViewportBounds.top) < config.tileSize &&
+			Math.abs(viewportBounds.bottom - this.lastViewportBounds.bottom) < config.tileSize) {
 			return; // Viewport hasn't changed enough to warrant re-rendering
 		}
 
@@ -184,11 +184,11 @@ export class FogLayer extends PIXI.Container {
 
 	public destroy(): void {
 		this.destroyFogResources();
-        
+
 		if (this.fogOfWarManager) {
 			this.fogOfWarManager = null;
 		}
-        
+
 		if (this.fogLayer) {
 			this.fogLayer.destroy();
 			this.fogLayer = null;
@@ -235,5 +235,9 @@ export class FogLayer extends PIXI.Container {
 			memoryEfficiency: this.fogTilePool.length / (this.fogTilePool.length + this.activeFogTiles.length) || 0,
 			hasViewportCache: !!this.lastViewportBounds,
 		};
+	}
+
+	public setObstacleChecker(checker: (tileX: number, tileY: number) => boolean) {
+		this.fogOfWarManager?.setObstacleChecker(checker);
 	}
 }

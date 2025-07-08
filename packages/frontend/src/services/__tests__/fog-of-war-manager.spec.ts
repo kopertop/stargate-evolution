@@ -20,7 +20,7 @@ describe('FogOfWarManager', () => {
 			const config = defaultManager.getConfig();
 
 			expect(config.tileSize).toBe(64);
-			expect(config.visibilityRange).toBe(5);
+			expect(config.visibilityRange).toBe(3.5);
 			expect(config.useLineOfSight).toBe(true);
 		});
 

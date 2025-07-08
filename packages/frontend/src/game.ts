@@ -10,10 +10,10 @@ import { BackgroundLayer } from './components/background-layer';
 import { DoorsLayer } from './components/doors-layer';
 import { FogLayer } from './components/fog-layer';
 import { FurnitureLayer } from './components/furniture-layer';
+import { MapLayer } from './components/map-layer';
 import { NPCLayer } from './components/npc-layer';
 import { RoomsLayer } from './components/rooms-layer';
 import { HelpPopover } from './help-popover';
-import { FogOfWarManager } from './services/fog-of-war-manager';
 import type { GamepadAxis, GamepadButton } from './services/game-controller';
 import { SavedGameService } from './services/saved-game-service';
 import { TemplateService } from './services/template-service';
@@ -49,7 +49,7 @@ export class Game {
 	private gameData: any;
 	private wasRunning: boolean = false;
 	private mapZoom: number = DEFAULT_ZOOM;
-	private mapLayer: PIXI.Container | null = null;
+	private mapLayer: MapLayer | null = null;
 	private focusSystem: any = null;
 	private focusPlanet: any = null;
 	private menuOpen: boolean = false;
@@ -90,17 +90,17 @@ export class Game {
 		this.options = options;
 		this.world = new PIXI.Container();
 		this.gameData = gameData;
-		
+
 		// Create background layer system
 		this.backgroundLayer = new BackgroundLayer({
 			onBackgroundTypeChange: (newType: 'stars' | 'ftl') => {
 				console.log('[GAME] Background type changed to:', newType);
 			},
 		});
-		
+
 		// Add background layer at the bottom
 		this.world.addChildAt(this.backgroundLayer, 0);
-		
+
 		// Create deprecated starfield for backward compatibility
 		this.starfield = this.createStarfield();
 		// Create player as circular character sprite
@@ -142,6 +142,45 @@ export class Game {
 			},
 		});
 		this.world.addChild(this.fogLayer);
+		// Inject obstacle checker for fog line-of-sight
+		this.fogLayer.setObstacleChecker((tileX, tileY) => {
+			// Never block the player's own tile
+			const playerPos = this.getPlayerPosition();
+			const playerTileX = Math.floor(playerPos.x / 64);
+			const playerTileY = Math.floor(playerPos.y / 64);
+			if (tileX === playerTileX && tileY === playerTileY) return false;
+			// Check if tile is inside any room
+			const tileWorldX = tileX * 64 + 32; // tile center
+			const tileWorldY = tileY * 64 + 32;
+			const inRoom = this.rooms.some(room =>
+				tileWorldX >= room.startX && tileWorldX < room.endX &&
+				tileWorldY >= room.startY && tileWorldY < room.endY
+			);
+			if (!inRoom) return true; // Wall
+			// Check if tile matches a closed door
+			return this.doors.some(door => {
+				if (door.state !== 'opened') {
+					const doorTileX = Math.floor(door.x / 64);
+					const doorTileY = Math.floor(door.y / 64);
+					return doorTileX === tileX && doorTileY === tileY;
+				}
+				return false;
+			});
+		});
+
+		// Initialize map layer
+		this.mapLayer = new MapLayer({
+			onSystemFocus: (systemId: string) => {
+				console.log('[GAME] System focused via map:', systemId);
+			},
+			onPlanetFocus: (planetId: string) => {
+				console.log('[GAME] Planet focused via map:', planetId);
+			},
+			onZoomChange: (newZoom: number) => {
+				console.log('[GAME] Map zoom changed to:', newZoom);
+				this.mapZoom = newZoom;
+			},
+		});
 
 		// Setup touch controls for mobile
 		this.setupTouchControls();
@@ -169,7 +208,7 @@ export class Game {
 			this.keys[e.key.toLowerCase()] = true;
 			if (e.key.toLowerCase() === 'e' || e.key === 'Enter' || e.key === ' ') {
 				this.handleDoorActivation();
-				this.handleFurnitureActivation();
+				this.furnitureLayer?.handleFurnitureActivation(this.player.x, this.player.y);
 			}
 		});
 		window.addEventListener('keyup', (e) => {
@@ -197,27 +236,27 @@ export class Game {
 				// Convert touch delta to movement with sensitivity adjustment
 				const sensitivity = 0.003; // Adjust this to control movement speed
 				const movement = TouchUtils.deltaToMovement(deltaX, deltaY, sensitivity);
-				
+
 				this.touchMovement.x = movement.x;
 				this.touchMovement.y = movement.y;
-				
+
 				// Enable running if the drag distance is large (fast movement)
 				const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
 				this.isTouchRunning = distance > 100; // Adjust threshold as needed
 			},
-			
+
 			onDragEnd: () => {
 				// Stop movement when touch ends
 				this.touchMovement.x = 0;
 				this.touchMovement.y = 0;
 				this.isTouchRunning = false;
 			},
-			
+
 			onTap: (x: number, y: number) => {
 				// Handle tap to activate interactables
 				this.handleTouchTap(x, y);
 			},
-			
+
 			deadZone: 15, // Minimum movement to start dragging
 			tapThreshold: 25, // Maximum movement for tap detection
 			tapTimeThreshold: 300, // Maximum time for tap detection
@@ -226,10 +265,10 @@ export class Game {
 
 	private handleTouchTap(screenX: number, screenY: number) {
 		console.log('[GAME] Touch tap detected - activating nearby interactables (like spacebar)');
-		
+
 		// Just do exactly what spacebar does - check for nearby doors and furniture
 		this.handleDoorActivation();
-		this.handleFurnitureActivation();
+		this.furnitureLayer?.handleFurnitureActivation(screenX, screenY);
 	}
 
 	private setupControllerInput() {
@@ -259,7 +298,7 @@ export class Game {
 			if (!this.menuOpen) {
 				console.log('[GAME-INPUT] A button released - checking for door/furniture activation');
 				this.handleDoorActivation();
-				this.handleFurnitureActivation();
+				this.furnitureLayer?.handleFurnitureActivation(this.player.x, this.player.y);
 			}
 		});
 
@@ -303,7 +342,7 @@ export class Game {
 			dx += this.touchMovement.x;
 			dy += this.touchMovement.y;
 			isRunning = isRunning || this.isTouchRunning;
-			
+
 			// Debug touch input
 			console.log('[GAME-INPUT] Touch movement:', this.touchMovement.x.toFixed(3), this.touchMovement.y.toFixed(3), 'running:', this.isTouchRunning);
 		}
@@ -421,18 +460,17 @@ export class Game {
 			this.npcLayer.update((doorId, isNPC) => this.activateDoor(doorId, isNPC));
 		}
 
-		// Update Fog of War manager
-		if (this.fogOfWarManager) {
-			const currentRoom = this.findRoomContainingPoint(this.player.x, this.player.y);
-			const hasNewDiscoveries = this.fogOfWarManager.updatePlayerPosition({
-				x: this.player.x,
-				y: this.player.y,
+		// Update fog discovery based on player position before rendering fog
+		if (this.fogLayer) {
+			const playerPos = this.getPlayerPosition();
+			const currentRoom = this.findRoomContainingPoint(playerPos.x, playerPos.y);
+			this.fogLayer.updatePlayerPosition({
+				x: playerPos.x,
+				y: playerPos.y,
 				roomId: currentRoom?.id || 'unknown',
 			});
-			// Only re-render fog layer when player discovers new tiles
-			if (hasNewDiscoveries) {
-				this.renderFogOfWar();
-			}
+			const viewportBounds = this.getViewportBounds();
+			this.fogLayer.renderFogOfWar(viewportBounds);
 		}
 	}
 
@@ -908,8 +946,11 @@ export class Game {
 			this.touchControlManager = null;
 		}
 
-		// Clean up fog resources
-		this.destroyFogResources();
+		// Clean up fog resources (now handled by FogLayer)
+		this.fogLayer?.destroy();
+
+		// Clean up map layer
+		this.mapLayer?.destroy();
 
 		if (this.app.ticker) {
 			this.app.ticker.stop();
@@ -1029,7 +1070,7 @@ export class Game {
 				roomId: currentRoomId,
 			},
 			doorStates,
-			fogOfWar: this.fogOfWarManager?.getFogData() || {},
+			fogOfWar: this.fogLayer?.getFogData() || {},
 			// Add other game state as needed
 			mapZoom: this.mapZoom,
 			currentBackgroundType: this.backgroundLayer?.getCurrentBackgroundType() || 'stars',
@@ -1115,15 +1156,18 @@ export class Game {
 			this.restoreDoorStatesGracefully(gameData.doorStates);
 		}
 
-		// Restore fog of war data
-		if (gameData.fogOfWar && this.fogOfWarManager) {
+		// Restore fog of war data (now via FogLayer)
+		if (gameData.fogOfWar && this.fogLayer) {
 			const playerPos = this.getPlayerPosition();
 			const currentRoom = this.findRoomContainingPoint(playerPos.x, playerPos.y);
-			this.fogOfWarManager.initialize(gameData.fogOfWar, {
+			this.fogLayer.initializeFogData(gameData.fogOfWar, {
 				x: playerPos.x,
 				y: playerPos.y,
 				roomId: currentRoom?.id || 'unknown',
 			});
+			// Force fog render after restoration
+			const viewportBounds = this.getViewportBounds();
+			this.fogLayer.renderFogOfWar(viewportBounds);
 			console.log('[GAME] Fog of war data restored');
 		}
 
@@ -1143,7 +1187,7 @@ export class Game {
 	private restoreDoorStatesGracefully(savedDoorStates: any[]): void {
 		console.log('[GAME] Restoring door states gracefully:', savedDoorStates.length, 'saved doors');
 		this.doorsLayer?.restoreDoorStates(savedDoorStates);
-		
+
 		// Update internal doors array to stay in sync
 		this.doors = this.doorsLayer?.getDoors() || [];
 	}
@@ -1168,89 +1212,35 @@ export class Game {
 	}
 
 	private renderGalaxyForDestiny() {
-		const destiny = (this.gameData.ships || []).find((s: any) => s.name === 'Destiny');
-		if (!destiny) return;
-		const systemId = destiny.location?.systemId;
-		// Find the galaxy containing this system
-		let foundGalaxy = null;
-		let foundSystem = null;
-		for (const galaxy of this.gameData.galaxies) {
-			const sys = (galaxy.starSystems || []).find((s: any) => s.id === systemId);
-			if (sys) {
-				foundGalaxy = galaxy;
-				foundSystem = sys;
-				break;
+		if (this.mapLayer) {
+			this.mapLayer.renderGalaxyForDestiny(this.gameData);
+			// Add map layer to world if not already added
+			if (!this.world.children.includes(this.mapLayer)) {
+				this.world.addChild(this.mapLayer);
 			}
 		}
-		if (!foundGalaxy) return;
-		this.renderGalaxyMap(foundGalaxy, foundSystem, destiny);
 	}
 
 	private renderGalaxyMap(galaxy: any, focusSystem?: any, shipData?: any) {
 		if (this.mapLayer) {
-			this.world.removeChild(this.mapLayer);
+			this.mapLayer.renderGalaxyMap(galaxy, focusSystem, shipData);
+			// Add map layer to world if not already added
+			if (!this.world.children.includes(this.mapLayer)) {
+				this.world.addChild(this.mapLayer);
+			}
+			// Apply current zoom level to map layer
+			this.mapLayer.setMapZoom(this.mapZoom);
 		}
-		const mapLayer = new PIXI.Container();
-		this.mapLayer = mapLayer;
-		const systems = galaxy.starSystems || [];
-		// Star type to color mapping
-		const STAR_COLORS: Record<string, number> = {
-			'yellow dwarf': 0xffe066,
-			'red giant': 0xff6666,
-			'white dwarf': 0xe0e0ff,
-			'neutron star': 0xccccff,
-			'black hole': 0x222233,
-			'multi': 0x66ffcc, // For multi-star systems
-			'unknown': 0x888888,
-		};
-		// Find bounds for centering
-		let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-		systems.forEach((sys: any) => {
-			if (sys.position.x < minX) minX = sys.position.x;
-			if (sys.position.y < minY) minY = sys.position.y;
-			if (sys.position.x > maxX) maxX = sys.position.x;
-			if (sys.position.y > maxY) maxY = sys.position.y;
-		});
-		const offsetX = (minX + maxX) / 2;
-		const offsetY = (minY + maxY) / 2;
-		const scale = 2; // base scale
-		systems.forEach((sys: any) => {
-			const x = (sys.position.x - offsetX) * scale;
-			const y = (sys.position.y - offsetY) * scale;
-			let color = STAR_COLORS['unknown'];
-			if (sys.stars && sys.stars.length > 0) {
-				if (sys.stars.length === 1) {
-					color = STAR_COLORS[sys.stars[0].type] || STAR_COLORS['unknown'];
-				} else {
-					color = STAR_COLORS['multi'];
-				}
-			}
-			const g = new PIXI.Graphics();
-			g.circle(x, y, 18).fill(color);
-			mapLayer.addChild(g);
-			const label = new PIXI.Text({
-				text: sys.name,
-				style: { fill: '#fff', fontSize: 14, fontWeight: 'bold', align: 'center' },
-			});
-			label.x = x - label.width / 2;
-			label.y = y + 22;
-			mapLayer.addChild(label);
-			// If this is the focus system and ship is present, place the ship here
-			if (focusSystem && sys.id === focusSystem.id && shipData) {
-				this.player.x = x;
-				this.player.y = y - 30; // Slightly above the system
-				this.world.addChild(this.player);
-			}
-		});
-		mapLayer.scale.set(this.mapZoom);
-		this.world.addChild(mapLayer);
 	}
 
 	public setMapZoom(zoom: number) {
 		this.mapZoom = Math.max(0.2, Math.min(zoom, 8));
+		
+		// Update MapLayer zoom if it exists
 		if (this.mapLayer) {
-			this.mapLayer.scale.set(this.mapZoom);
+			this.mapLayer.setMapZoom(this.mapZoom);
 		}
+		
 		// Also zoom the world container for room system
 		if (this.world) {
 			this.world.scale.set(this.mapZoom);
@@ -1460,162 +1450,31 @@ export class Game {
 	}
 
 	public focusOnSystem(systemId: string) {
-		const galaxy = (this.gameData.galaxies || []).find((g: any) => (g.starSystems || []).some((s: any) => s.id === systemId));
-		if (!galaxy) return;
-		const system = (galaxy.starSystems || []).find((s: any) => s.id === systemId);
-		if (!system) return;
-		this.focusSystem = system;
-		this.focusPlanet = null;
-		this.renderGalaxyMap(galaxy, system, this.gameData.ships?.find((s: any) => s.name === 'Destiny'));
+		if (this.mapLayer) {
+			const success = this.mapLayer.focusOnSystem(systemId, this.gameData.galaxies || []);
+			if (success) {
+				this.focusSystem = this.mapLayer.getFocusSystem();
+				this.focusPlanet = null;
+				// Add map layer to world if not already added
+				if (!this.world.children.includes(this.mapLayer)) {
+					this.world.addChild(this.mapLayer);
+				}
+			}
+		}
 	}
 
 	public focusOnPlanet(planetId: string) {
-		for (const galaxy of this.gameData.galaxies || []) {
-			for (const system of galaxy.starSystems || []) {
-				const planet = (system.planets || []).find((p: any) => p.id === planetId);
-				if (planet) {
-					this.focusSystem = system;
-					this.focusPlanet = planet;
-					this.renderGalaxyMap(galaxy, system, this.gameData.ships?.find((s: any) => s.name === 'Destiny'));
-					return;
+		if (this.mapLayer) {
+			const success = this.mapLayer.focusOnPlanet(planetId, this.gameData.galaxies || []);
+			if (success) {
+				this.focusSystem = this.mapLayer.getFocusSystem();
+				this.focusPlanet = this.mapLayer.getFocusPlanet();
+				// Add map layer to world if not already added
+				if (!this.world.children.includes(this.mapLayer)) {
+					this.world.addChild(this.mapLayer);
 				}
 			}
 		}
-	}
-
-	// Fog of War methods
-	public getFogOfWarManager(): FogOfWarManager | null {
-		return this.fogOfWarManager;
-	}
-
-	public isTileDiscovered(worldX: number, worldY: number): boolean {
-		return this.fogOfWarManager?.isTileDiscovered(worldX, worldY) || false;
-	}
-
-	public forceDiscoverArea(centerX: number, centerY: number, radius: number): void {
-		this.fogOfWarManager?.forceDiscoverArea(centerX, centerY, radius);
-	}
-
-	public clearFogOfWar(): void {
-		this.fogOfWarManager?.clearFog();
-	}
-
-	private renderFogOfWar(): void {
-		if (!this.fogLayer || !this.fogOfWarManager) return;
-
-		// Get the current viewport bounds to determine what tiles to render
-		const viewportBounds = this.getViewportBounds();
-		const config = this.fogOfWarManager.getConfig();
-
-		// Check if viewport has changed significantly to avoid unnecessary work
-		if (this.lastViewportBounds &&
-			Math.abs(viewportBounds.left - this.lastViewportBounds.left) < config.tileSize &&
-			Math.abs(viewportBounds.right - this.lastViewportBounds.right) < config.tileSize &&
-			Math.abs(viewportBounds.top - this.lastViewportBounds.top) < config.tileSize &&
-			Math.abs(viewportBounds.bottom - this.lastViewportBounds.bottom) < config.tileSize) {
-			return; // Viewport hasn't changed enough to warrant re-rendering
-		}
-
-		this.lastViewportBounds = { ...viewportBounds };
-
-		// Return all active fog tiles to the pool
-		this.returnFogTilesToPool();
-
-		// Calculate tile bounds to render
-		const startTileX = Math.floor(viewportBounds.left / config.tileSize);
-		const endTileX = Math.ceil(viewportBounds.right / config.tileSize);
-		const startTileY = Math.floor(viewportBounds.top / config.tileSize);
-		const endTileY = Math.ceil(viewportBounds.bottom / config.tileSize);
-
-		// Render fog tiles
-		for (let tileX = startTileX; tileX <= endTileX; tileX++) {
-			for (let tileY = startTileY; tileY <= endTileY; tileY++) {
-				const worldX = tileX * config.tileSize;
-				const worldY = tileY * config.tileSize;
-
-				// Check if this tile is discovered
-				const isDiscovered = this.fogOfWarManager.isTileDiscovered(worldX, worldY);
-
-				if (!isDiscovered) {
-					// Get or create fog tile from pool
-					const fogTile = this.getFogTileFromPool();
-					fogTile.x = worldX;
-					fogTile.y = worldY;
-					fogTile.visible = true;
-
-					this.fogLayer.addChild(fogTile);
-					this.activeFogTiles.push(fogTile);
-				}
-			}
-		}
-	}
-
-	/**
-	 * Get a fog tile from the pool or create a new one
-	 */
-	private getFogTileFromPool(): PIXI.Graphics {
-		if (this.fogTilePool.length > 0) {
-			return this.fogTilePool.pop()!;
-		}
-
-		// Create new fog tile
-		const fogTile = new PIXI.Graphics();
-		const config = this.fogOfWarManager?.getConfig();
-		if (config) {
-			fogTile.rect(0, 0, config.tileSize, config.tileSize)
-				.fill({ color: 0x000000, alpha: 0.7 }); // Semi-transparent black
-		}
-		return fogTile;
-	}
-
-	/**
-	 * Return all active fog tiles to the pool
-	 */
-	private returnFogTilesToPool(): void {
-		// Remove from display and return to pool
-		for (const fogTile of this.activeFogTiles) {
-			if (fogTile.parent) {
-				fogTile.parent.removeChild(fogTile);
-			}
-			fogTile.visible = false;
-			this.fogTilePool.push(fogTile);
-		}
-		this.activeFogTiles = [];
-	}
-
-	/**
-	 * Clean up fog resources
-	 */
-	private destroyFogResources(): void {
-		this.returnFogTilesToPool();
-
-		// Destroy all pooled fog tiles
-		for (const fogTile of this.fogTilePool) {
-			fogTile.destroy();
-		}
-		this.fogTilePool = [];
-
-		// Clear viewport tracking
-		this.lastViewportBounds = null;
-	}
-
-	private getViewportBounds(): { left: number; right: number; top: number; bottom: number } {
-		// Calculate world coordinates of the viewport
-		const screenWidth = this.app.screen.width;
-		const screenHeight = this.app.screen.height;
-		const worldScale = this.world.scale.x;
-
-		// Convert screen coordinates to world coordinates
-		const left = (-this.world.x) / worldScale;
-		const right = (screenWidth - this.world.x) / worldScale;
-		const top = (-this.world.y) / worldScale;
-		const bottom = (screenHeight - this.world.y) / worldScale;
-
-		return { left, right, top, bottom };
-	}
-
-	private handleFurnitureActivation(): void {
-		return this.furnitureLayer?.handleFurnitureActivation(this.player.x, this.player.y);
 	}
 
 	/**
@@ -1627,7 +1486,7 @@ export class Game {
 	private findSafePositionInRoom(originalX: number, originalY: number): { x: number; y: number } | null {
 		const playerRadius = PLAYER_RADIUS;
 		const wallThreshold = 15; // Larger threshold for safety
-		
+
 		// Get candidate safe positions from RoomsLayer
 		const candidatePositions = this.roomsLayer?.findSafePositionInRoom(originalX, originalY, playerRadius, wallThreshold) || [];
 		if (candidatePositions.length === 0) return null;
@@ -1639,7 +1498,7 @@ export class Game {
 			// If the validated position matches the candidate, it's safe
 			if (Math.abs(validatedPosition.x - candidatePosition.x) < 0.1 &&
 				Math.abs(validatedPosition.y - candidatePosition.y) < 0.1) {
-				
+
 				console.log('[DOOR] Found safe position:', candidatePosition.x.toFixed(1), candidatePosition.y.toFixed(1));
 				return { x: candidatePosition.x, y: candidatePosition.y };
 			}
@@ -1647,5 +1506,19 @@ export class Game {
 
 		console.log('[DOOR] No safe position found in room');
 		return null;
+	}
+
+	private getViewportBounds(): { left: number; right: number; top: number; bottom: number } {
+		const screenWidth = this.app.screen.width;
+		const screenHeight = this.app.screen.height;
+		const worldScale = this.world.scale.x;
+
+		// Convert screen coordinates to world coordinates
+		const left = (-this.world.x) / worldScale;
+		const right = (screenWidth - this.world.x) / worldScale;
+		const top = (-this.world.y) / worldScale;
+		const bottom = (screenHeight - this.world.y) / worldScale;
+
+		return { left, right, top, bottom };
 	}
 }

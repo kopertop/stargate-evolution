@@ -23,9 +23,11 @@ export class FogOfWarManager {
 	// Pre-calculated visibility pattern for circular discovery
 	private visibilityPattern: Array<{ dx: number; dy: number; distance: number }> = [];
 
+	private obstacleChecker: ((tileX: number, tileY: number) => boolean) | null = null;
+
 	constructor(config: FogOfWarConfig = {
 		tileSize: 64,
-		visibilityRange: 5,
+		visibilityRange: 3.5,
 		useLineOfSight: true,
 	}) {
 		this.config = config;
@@ -188,10 +190,13 @@ export class FogOfWarManager {
 			this.playerPosition.y,
 		);
 
+		// Always discover the player's own tile
+		this.discoverTile(playerTileX, playerTileY);
+
 		// Use pre-calculated visibility pattern for efficiency
 		for (const { dx, dy } of this.visibilityPattern) {
-			const targetTileX = playerTileX + dx;
-			const targetTileY = playerTileY + dy;
+			const targetTileX = Math.floor(playerTileX + dx);
+			const targetTileY = Math.floor(playerTileY + dy);
 
 			if (!this.config.useLineOfSight || this.hasLineOfSight(playerTileX, playerTileY, targetTileX, targetTileY)) {
 				this.discoverTile(targetTileX, targetTileY);
@@ -256,12 +261,9 @@ export class FogOfWarManager {
 	 * This is a placeholder that can be enhanced to check against actual room/wall data
 	 */
 	private isObstacle(tileX: number, tileY: number): boolean {
-		// For now, no obstacles are considered
-		// This can be enhanced to check against:
-		// - Room boundaries
-		// - Wall positions
-		// - Closed doors
-		// - Furniture that blocks sight
+		if (this.obstacleChecker) {
+			return this.obstacleChecker(tileX, tileY);
+		}
 		return false;
 	}
 
@@ -335,5 +337,9 @@ export class FogOfWarManager {
 		if (oldRange !== this.config.visibilityRange) {
 			this.precalculateVisibilityPattern();
 		}
+	}
+
+	public setObstacleChecker(checker: (tileX: number, tileY: number) => boolean) {
+		this.obstacleChecker = checker;
 	}
 }
