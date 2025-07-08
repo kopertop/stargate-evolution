@@ -6,6 +6,7 @@ import type {
 } from '@stargate/common';
 import * as PIXI from 'pixi.js';
 
+import { DoorsLayer } from './components/doors-layer';
 import { HelpPopover } from './help-popover';
 import { FogOfWarManager } from './services/fog-of-war-manager';
 import type { GamepadAxis, GamepadButton } from './services/game-controller';
@@ -66,7 +67,7 @@ export class Game {
 
 	// Room rendering system
 	private roomsLayer: PIXI.Container | null = null;
-	private doorsLayer: PIXI.Container | null = null;
+	private doorsLayer: DoorsLayer | null = null;
 	private furnitureLayer: PIXI.Container | null = null;
 	private npcLayer: PIXI.Container | null = null;
 	private rooms: RoomTemplate[] = [];
@@ -1259,27 +1260,10 @@ export class Game {
 	// Graceful door state restoration that skips missing doors
 	private restoreDoorStatesGracefully(savedDoorStates: any[]): void {
 		console.log('[GAME] Restoring door states gracefully:', savedDoorStates.length, 'saved doors');
-
-		let restoredCount = 0;
-		let skippedCount = 0;
-
-		savedDoorStates.forEach(savedDoor => {
-			const doorIndex = this.doors.findIndex(d => d.id === savedDoor.id);
-			if (doorIndex !== -1) {
-				// Update the door state
-				this.doors[doorIndex] = { ...this.doors[doorIndex], ...savedDoor };
-				restoredCount++;
-				console.log('[GAME] Restored door state:', savedDoor.id, 'state:', savedDoor.state);
-			} else {
-				skippedCount++;
-				console.log('[GAME] Skipped missing door:', savedDoor.id);
-			}
-		});
-
-		console.log(`[GAME] Door restoration complete: ${restoredCount} restored, ${skippedCount} skipped`);
-
-		// Re-render rooms to reflect door state changes
-		this.renderRooms();
+		this.doorsLayer?.restoreDoorStates(savedDoorStates);
+		
+		// Update internal doors array to stay in sync
+		this.doors = this.doorsLayer?.getDoors() || [];
 	}
 
 	private setupLegendPopover() {
@@ -1406,7 +1390,12 @@ export class Game {
 
 			// Create rendering layers
 			this.roomsLayer = new PIXI.Container();
-			this.doorsLayer = new PIXI.Container();
+			this.doorsLayer = new DoorsLayer({
+				onDoorStateChange: (doorId: string, newState: string) => {
+					// Handle door state changes if needed
+					console.log('[GAME] Door state changed:', doorId, 'to', newState);
+				},
+			});
 			this.furnitureLayer = new PIXI.Container();
 			this.npcLayer = new PIXI.Container();
 
@@ -1499,7 +1488,6 @@ export class Game {
 
 		// Clear existing rooms
 		this.roomsLayer.removeChildren();
-		this.doorsLayer?.removeChildren();
 		this.furnitureLayer?.removeChildren();
 
 		// Render each room
@@ -1507,10 +1495,10 @@ export class Game {
 			this.renderRoom(room);
 		});
 
-		// Render doors
-		this.doors.forEach(door => {
-			this.renderDoor(door);
-		});
+		// Update doors in DoorsLayer
+		if (this.doorsLayer) {
+			this.doorsLayer.setDoors(this.doors);
+		}
 
 		// Render furniture
 		this.furniture.forEach(furniture => {
@@ -1562,41 +1550,6 @@ export class Game {
 		console.log(`[DEBUG] Rendered room: ${room.name} at (${centerX}, ${centerY}) size (${width}x${height})`);
 	}
 
-	private renderDoor(door: DoorTemplate) {
-		if (!this.doorsLayer) return;
-
-		// Create door graphics with color based on state
-		const doorGraphics = new PIXI.Graphics();
-
-		// Choose color based on door state
-		let doorColor: number;
-		switch (door.state) {
-		case 'opened':
-			doorColor = 0x00FF00; // Green for open doors
-			break;
-		case 'locked':
-			doorColor = 0x800000; // Dark red for locked doors
-			break;
-		case 'closed':
-		default:
-			doorColor = 0xFF0000; // Red for closed doors
-			break;
-		}
-
-		doorGraphics.rect(-door.width/2, -door.height/2, door.width, door.height).fill(doorColor);
-
-		// Add a white border for visibility
-		doorGraphics.rect(-door.width/2, -door.height/2, door.width, door.height).stroke({ color: 0xFFFFFF, width: 2 });
-
-		// Position door
-		doorGraphics.x = door.x;
-		doorGraphics.y = door.y;
-		doorGraphics.rotation = (door.rotation * Math.PI) / 180; // Convert degrees to radians
-
-		this.doorsLayer.addChild(doorGraphics);
-
-		console.log(`[DEBUG] Rendered door at (${door.x}, ${door.y}) size (${door.width}x${door.height}) rotation: ${door.rotation}° state: ${door.state}`);
-	}
 
 	private async renderFurnitureItem(furniture: RoomFurniture) {
 		if (!this.furnitureLayer) return;
