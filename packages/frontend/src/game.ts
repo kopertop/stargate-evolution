@@ -8,15 +8,14 @@ import * as PIXI from 'pixi.js';
 
 import { DoorsLayer } from './components/doors-layer';
 import { FurnitureLayer } from './components/furniture-layer';
+import { NPCLayer } from './components/npc-layer';
 import { RoomsLayer } from './components/rooms-layer';
 import { HelpPopover } from './help-popover';
 import { FogOfWarManager } from './services/fog-of-war-manager';
 import type { GamepadAxis, GamepadButton } from './services/game-controller';
-import { NPCManager } from './services/npc-manager';
 import { SavedGameService } from './services/saved-game-service';
 import { TemplateService } from './services/template-service';
 import { isMobileDevice } from './utils/mobile-utils';
-import { exposeNPCTestUtils, addTestNPCsToGame } from './utils/npc-test-utils';
 import { TouchControlManager, TouchUtils } from './utils/touch-controls';
 
 const SHIP_SPEED = 4;
@@ -71,13 +70,12 @@ export class Game {
 	private roomsLayer: RoomsLayer | null = null;
 	private doorsLayer: DoorsLayer | null = null;
 	private furnitureLayer: FurnitureLayer | null = null;
-	private npcLayer: PIXI.Container | null = null;
+	private npcLayer: NPCLayer | null = null;
 	private rooms: RoomTemplate[] = [];
 	private doors: DoorTemplate[] = [];
 	private furniture: RoomFurniture[] = [];
 
 	// NPC system
-	private npcManager: NPCManager | null = null;
 
 	// Pending restoration data (stored until room system is ready)
 	private pendingRestoration: any = null;
@@ -492,8 +490,8 @@ export class Game {
 		this.world.y = centerY - (this.player.y * this.world.scale.y);
 
 		// Update NPCs
-		if (this.npcManager) {
-			this.npcManager.updateNPCs(this.doors, this.rooms, (doorId, isNPC) => this.activateDoor(doorId, isNPC));
+		if (this.npcLayer) {
+			this.npcLayer.update((doorId, isNPC) => this.activateDoor(doorId, isNPC));
 		}
 
 		// Update Fog of War manager
@@ -918,25 +916,25 @@ export class Game {
 
 	// NPC management methods
 	public addNPC(npc: NPC): void {
-		if (this.npcManager) {
-			this.npcManager.addNPC(npc);
+		if (this.npcLayer) {
+			this.npcLayer.addNPC(npc);
 			console.log('[GAME] Added NPC:', npc.id);
 		}
 	}
 
 	public removeNPC(npcId: string): void {
-		if (this.npcManager) {
-			this.npcManager.removeNPC(npcId);
+		if (this.npcLayer) {
+			this.npcLayer.removeNPC(npcId);
 			console.log('[GAME] Removed NPC:', npcId);
 		}
 	}
 
 	public getNPCs(): NPC[] {
-		return this.npcManager ? this.npcManager.getNPCs() : [];
+		return this.npcLayer ? this.npcLayer.getNPCs() : [];
 	}
 
 	public getNPC(id: string): NPC | undefined {
-		return this.npcManager ? this.npcManager.getNPC(id) : undefined;
+		return this.npcLayer ? this.npcLayer.getNPC(id) : undefined;
 	}
 
 	// Door restriction management
@@ -965,24 +963,8 @@ export class Game {
 
 	// Initialize test NPCs for development
 	private initializeTestNPCs(): void {
-		if (this.rooms.length === 0) {
-			console.log('[NPC-TEST] No rooms available - skipping test NPC initialization');
-			return;
-		}
-
-		// Prepare room data for test utility
-		const roomData = this.rooms.map(room => ({
-			id: room.id,
-			centerX: room.startX + (room.endX - room.startX) / 2,
-			centerY: room.startY + (room.endY - room.startY) / 2,
-		}));
-
-		// Add test NPCs
-		try {
-			addTestNPCsToGame(this, roomData);
-			console.log('[NPC-TEST] Test NPCs initialized successfully');
-		} catch (error) {
-			console.error('[NPC-TEST] Failed to initialize test NPCs:', error);
+		if (this.npcLayer) {
+			this.npcLayer.initializeTestNPCs();
 		}
 	}
 
@@ -1379,7 +1361,12 @@ export class Game {
 					console.log('[GAME] Furniture state changed:', furnitureId, 'to', newState);
 				},
 			});
-			this.npcLayer = new PIXI.Container();
+			this.npcLayer = new NPCLayer({
+				onNPCStateChange: (npcId: string, newState: string) => {
+					console.log('[GAME] NPC state changed:', npcId, 'to', newState);
+				},
+				gameInstance: this
+			});
 
 			console.log('[DEBUG] Created rendering layers');
 
@@ -1390,9 +1377,6 @@ export class Game {
 			this.world.addChild(this.npcLayer);
 			this.world.addChild(this.player); // Add player on top of everything
 
-			// Initialize NPC manager
-			this.npcManager = new NPCManager(this.npcLayer, this);
-			console.log('[DEBUG] Initialized NPC manager');
 
 			console.log('[DEBUG] Added layers to world');
 
@@ -1417,8 +1401,8 @@ export class Game {
 			this.initializeTestNPCs();
 
 			// Expose NPC test utilities to console for development
-			if (import.meta.env.DEV) {
-				exposeNPCTestUtils();
+			if (import.meta.env.DEV && this.npcLayer) {
+				this.npcLayer.exposeTestUtilities();
 			}
 
 			// Check for pending restoration data now that room system is ready
@@ -1464,6 +1448,10 @@ export class Game {
 		if (this.furnitureLayer) {
 			this.furnitureLayer.setRooms(this.rooms);
 			this.furnitureLayer.setFurniture(this.furniture);
+		}
+		if (this.npcLayer) {
+			this.npcLayer.setRooms(this.rooms);
+			this.npcLayer.setDoors(this.doors);
 		}
 
 		console.log('[DEBUG] Loaded room data from API successfully');
