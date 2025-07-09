@@ -148,7 +148,7 @@ export class MapLayer extends PIXI.Container {
 		shipData: ShipData, 
 		offsetX: number, 
 		offsetY: number, 
-		scale: number
+		scale: number,
 	): void {
 		const x = (focusSystem.position.x - offsetX) * scale;
 		const y = (focusSystem.position.y - offsetY) * scale;
@@ -201,7 +201,7 @@ export class MapLayer extends PIXI.Container {
 
 	public focusOnSystem(systemId: string, galaxies: Galaxy[]): boolean {
 		const galaxy = galaxies.find((g: Galaxy) => 
-			g.starSystems.some((s: StarSystem) => s.id === systemId)
+			g.starSystems.some((s: StarSystem) => s.id === systemId),
 		);
 		
 		if (!galaxy) {

@@ -142,7 +142,7 @@ export class Game {
 		});
 
 		// Initialize Fog of War manager
-		// Initialize fog layer
+		// Initialize fog layer with smaller tiles for better room boundaries
 		this.fogLayer = new FogLayer({
 			onFogDiscovery: (newTilesDiscovered: number) => {
 				console.log('[GAME] New fog tiles discovered:', newTilesDiscovered);
@@ -153,29 +153,45 @@ export class Game {
 		});
 		this.world.addChild(this.fogLayer);
 		// Inject obstacle checker for fog line-of-sight
+		// Allow visibility of current room + adjacent walls, but block other rooms
 		this.fogLayer.setObstacleChecker((tileX, tileY) => {
-			// Never block the player's own tile
 			const playerPos = this.getPlayerPosition();
-			const playerTileX = Math.floor(playerPos.x / 64);
-			const playerTileY = Math.floor(playerPos.y / 64);
-			if (tileX === playerTileX && tileY === playerTileY) return false;
-			// Check if tile is inside any room
-			const tileWorldX = tileX * 64 + 32; // tile center
-			const tileWorldY = tileY * 64 + 32;
-			const inRoom = this.rooms.some(room =>
+			const tileSize = 16; // Must match the fog tile size
+			
+			// Convert tile coordinates to world coordinates (tile center)
+			const tileWorldX = tileX * tileSize + tileSize / 2;
+			const tileWorldY = tileY * tileSize + tileSize / 2;
+			
+			// Find which room the target tile is in
+			const targetRoom = this.rooms.find(room =>
 				tileWorldX >= room.startX && tileWorldX < room.endX &&
-				tileWorldY >= room.startY && tileWorldY < room.endY
+				tileWorldY >= room.startY && tileWorldY < room.endY,
 			);
-			if (!inRoom) return true; // Wall
-			// Check if tile matches a closed door
-			return this.doors.some(door => {
-				if (door.state !== 'opened') {
-					const doorTileX = Math.floor(door.x / 64);
-					const doorTileY = Math.floor(door.y / 64);
-					return doorTileX === tileX && doorTileY === tileY;
-				}
-				return false;
-			});
+			
+			// Find which room the player is in
+			const playerRoom = this.rooms.find(room =>
+				playerPos.x >= room.startX && playerPos.x < room.endX &&
+				playerPos.y >= room.startY && playerPos.y < room.endY,
+			);
+			
+			// Allow visibility of tiles in the player's current room
+			if (targetRoom && playerRoom && targetRoom.id === playerRoom.id) {
+				return false; // Same room = visible
+			}
+			
+			// Allow visibility of wall tiles adjacent to the player's room
+			if (!targetRoom && playerRoom) {
+				// This is a wall tile - check if it's adjacent to the player's room
+				const wallBuffer = 32; // Allow seeing walls within 32px of room boundary
+				const isAdjacentToPlayerRoom = (
+					tileWorldX >= playerRoom.startX - wallBuffer && tileWorldX <= playerRoom.endX + wallBuffer &&
+					tileWorldY >= playerRoom.startY - wallBuffer && tileWorldY <= playerRoom.endY + wallBuffer
+				);
+				return !isAdjacentToPlayerRoom; // Show adjacent walls, block distant walls
+			}
+			
+			// Block all other tiles (different rooms, undefined states)
+			return true;
 		});
 
 		// Initialize map layer
@@ -1516,6 +1532,17 @@ export class Game {
 		this.player.y = 0;
 
 		console.log('[DEBUG] Player positioned at origin (0, 0)');
+
+		// Trigger initial fog discovery at starting position
+		if (this.fogLayer) {
+			const currentRoom = this.findRoomContainingPoint(this.player.x, this.player.y);
+			this.fogLayer.updatePlayerPosition({
+				x: this.player.x,
+				y: this.player.y,
+				roomId: currentRoom?.id || 'unknown',
+			});
+			console.log('[DEBUG] Initial fog discovery triggered at starting position');
+		}
 	}
 
 	private centerCameraOnRooms() {

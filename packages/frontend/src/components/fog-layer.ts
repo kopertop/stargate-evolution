@@ -34,14 +34,18 @@ export class FogLayer extends PIXI.Container {
 	}
 
 	private initialize(): void {
-		// Initialize Fog of War manager
-		this.fogOfWarManager = new FogOfWarManager();
+		// Initialize Fog of War manager with smaller tiles for precise room boundaries
+		this.fogOfWarManager = new FogOfWarManager({
+			tileSize: 16, // Even smaller tiles for maximum room boundary precision
+			visibilityRange: 7.0, // 2x visibility range for better exploration
+			useLineOfSight: true,
+		});
 
 		// Initialize fog layer container
 		this.fogLayer = new PIXI.Container();
 		this.addChild(this.fogLayer);
 
-		console.log('[FOG] Fog layer initialized');
+		console.log('[FOG] Fog layer initialized with 16px tiles');
 	}
 
 	public getFogOfWarManager(): FogOfWarManager | null {
@@ -148,7 +152,7 @@ export class FogLayer extends PIXI.Container {
 		const config = this.fogOfWarManager?.getConfig();
 		if (config) {
 			fogTile.rect(0, 0, config.tileSize, config.tileSize)
-				.fill({ color: 0x000000, alpha: 0.7 }); // Semi-transparent black
+				.fill({ color: 0x000000, alpha: 0.9 }); // Darker fog (90% opacity)
 		}
 		return fogTile;
 	}

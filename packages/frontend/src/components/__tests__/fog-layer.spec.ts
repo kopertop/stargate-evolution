@@ -67,7 +67,7 @@ describe('FogLayer', () => {
 			const hasNewDiscoveries = fogLayer.updatePlayerPosition({
 				x: 32, 
 				y: 32, 
-				roomId: 'test-room'
+				roomId: 'test-room',
 			});
 
 			expect(hasNewDiscoveries).toBe(true);
@@ -85,7 +85,7 @@ describe('FogLayer', () => {
 			const hasNewDiscoveries = fogLayer.updatePlayerPosition({ 
 				x: 40, 
 				y: 40, 
-				roomId: 'test-room' 
+				roomId: 'test-room', 
 			});
 
 			expect(hasNewDiscoveries).toBe(false);
@@ -256,7 +256,7 @@ describe('FogLayer', () => {
 			expect(testLayer.isTileDiscovered(0, 0)).toBe(false);
 			expect(testLayer.updatePlayerPosition({ x: 0, y: 0, roomId: 'test' })).toBe(false);
 			expect(() => testLayer.renderFogOfWar({
-				left: 0, right: 100, top: 0, bottom: 100
+				left: 0, right: 100, top: 0, bottom: 100,
 			})).not.toThrow();
 		});
 
@@ -265,7 +265,7 @@ describe('FogLayer', () => {
 			(testLayer as any).fogLayer = null;
 
 			expect(() => testLayer.renderFogOfWar({
-				left: 0, right: 100, top: 0, bottom: 100
+				left: 0, right: 100, top: 0, bottom: 100,
 			})).not.toThrow();
 		});
 	});
