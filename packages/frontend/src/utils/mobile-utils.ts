@@ -13,6 +13,99 @@ export interface DeviceInfo {
   isFullscreen: boolean;
 }
 
+export interface PWADetectionResult {
+  isPWA: boolean;
+  isStandalone: boolean;
+  isIOSPWA: boolean;
+  displayMode: 'browser' | 'standalone' | 'minimal-ui' | 'fullscreen';
+  shouldHideFullscreenButton: boolean;
+  detectionMethods: {
+    navigatorStandalone: boolean;
+    displayModeStandalone: boolean;
+    displayModeMinimalUI: boolean;
+    displayModeFullscreen: boolean;
+    iosWindowDimensions: boolean;
+    iosViewportCheck: boolean;
+  };
+}
+
+export interface EnhancedDeviceInfo extends DeviceInfo {
+  displayMode: 'browser' | 'standalone' | 'minimal-ui' | 'fullscreen';
+  isIOSPWA: boolean;
+  shouldHideFullscreenButton: boolean;
+  googleSignInSupported: boolean;
+}
+
+/**
+ * Enhanced PWA detection with comprehensive iPad support
+ */
+export function getEnhancedPWAInfo(): PWADetectionResult {
+	const userAgent = navigator.userAgent.toLowerCase();
+	const isIOS = /iphone|ipad|ipod/i.test(userAgent);
+
+	// Detection methods
+	const navigatorStandalone = (window.navigator as any).standalone === true;
+	const displayModeStandalone = window.matchMedia('(display-mode: standalone)').matches;
+	const displayModeMinimalUI = window.matchMedia('(display-mode: minimal-ui)').matches;
+	const displayModeFullscreen = window.matchMedia('(display-mode: fullscreen)').matches;
+
+	// iOS-specific PWA detection methods
+	const iosWindowDimensions = isIOS && (
+		window.outerHeight === window.innerHeight &&
+		window.outerWidth === window.innerWidth
+	);
+
+	// Additional iOS PWA detection using viewport meta tag behavior
+	const iosViewportCheck = isIOS && (
+		window.screen.height === window.innerHeight ||
+		Math.abs(window.screen.height - window.innerHeight) <= 40 // Account for status bar
+	);
+
+	// Determine display mode
+	let displayMode: 'browser' | 'standalone' | 'minimal-ui' | 'fullscreen' = 'browser';
+	if (displayModeFullscreen) {
+		displayMode = 'fullscreen';
+	} else if (displayModeStandalone || navigatorStandalone) {
+		displayMode = 'standalone';
+	} else if (displayModeMinimalUI) {
+		displayMode = 'minimal-ui';
+	}
+
+	// iOS PWA detection (comprehensive)
+	const isIOSPWA = isIOS && (
+		navigatorStandalone ||
+		displayModeStandalone ||
+		iosWindowDimensions ||
+		(iosViewportCheck && !(window as any).safari) // Safari object not available in PWA mode
+	);
+
+	// General PWA detection
+	const isPWA = navigatorStandalone ||
+		displayModeStandalone ||
+		displayModeMinimalUI ||
+		displayModeFullscreen ||
+		isIOSPWA;
+
+	// Determine if fullscreen button should be hidden
+	const shouldHideFullscreenButton = isPWA || isDocumentFullscreen();
+
+	return {
+		isPWA,
+		isStandalone: navigatorStandalone || displayModeStandalone,
+		isIOSPWA,
+		displayMode,
+		shouldHideFullscreenButton,
+		detectionMethods: {
+			navigatorStandalone,
+			displayModeStandalone,
+			displayModeMinimalUI,
+			displayModeFullscreen,
+			iosWindowDimensions,
+			iosViewportCheck,
+		},
+	};
+}
+
 /**
  * Comprehensive device and context detection
  */
@@ -34,45 +127,21 @@ export function getDeviceInfo(): DeviceInfo {
 	const isIOS = /iphone|ipad|ipod/i.test(userAgent);
 	const isAndroid = /android/i.test(userAgent);
 
-	// PWA/Standalone detection with enhanced iOS support
-	const isStandalone = window.matchMedia('(display-mode: standalone)').matches ||
-    (window.navigator as any).standalone === true;
-
-	// Enhanced iOS PWA detection
-	const isIOSPWA = isIOS && (
-		(window.navigator as any).standalone === true ||
-    window.matchMedia('(display-mode: standalone)').matches ||
-    (window.outerHeight === window.innerHeight && window.outerWidth === window.innerWidth)
-	);
-
-	// General PWA detection
-	const isPWA = isPWAMode();
-
-	if (isPWA) {
-		console.log('[getDeviceInfo] isPWA:', isPWA);
-		console.log('[getDeviceInfo] isStandalone:', isStandalone);
-		console.log('[getDeviceInfo] isIOSPWA:', isIOSPWA);
-		console.log('[getDeviceInfo] window.matchMedia("(display-mode: fullscreen)").matches:', window.matchMedia('(display-mode: fullscreen)').matches);
-		console.log('[getDeviceInfo] window.matchMedia("(display-mode: minimal-ui)").matches:', window.matchMedia('(display-mode: minimal-ui)').matches);
-	}
+	// Use enhanced PWA detection
+	const pwaInfo = getEnhancedPWAInfo();
 
 	// Fullscreen detection (document fullscreen API only)
-	const isDocumentFullscreen = !!(
-		document.fullscreenElement ||
-    (document as any).webkitFullscreenElement ||
-    (document as any).mozFullScreenElement ||
-    (document as any).msFullscreenElement
-	);
+	const documentFullscreen = isDocumentFullscreen();
 
 	// Combined fullscreen state (document fullscreen OR PWA mode)
-	const isFullscreen = isDocumentFullscreen || isPWA;
+	const isFullscreen = documentFullscreen || pwaInfo.isPWA;
 
 	return {
 		isMobile: isMobile && !isTablet, // Phones only
 		isTablet,
 		isDesktop,
-		isPWA,
-		isStandalone,
+		isPWA: pwaInfo.isPWA,
+		isStandalone: pwaInfo.isStandalone,
 		isIOS,
 		isAndroid,
 		isFullscreen: Boolean(isFullscreen),
@@ -80,32 +149,57 @@ export function getDeviceInfo(): DeviceInfo {
 }
 
 /**
+ * Enhanced device info with additional PWA-specific properties
+ */
+export function getEnhancedDeviceInfo(): EnhancedDeviceInfo {
+	const deviceInfo = getDeviceInfo();
+	const pwaInfo = getEnhancedPWAInfo();
+
+	// Check if Google Sign-In is supported (not blocked by PWA constraints)
+	const googleSignInSupported = !pwaInfo.isPWA || (
+		pwaInfo.isPWA && (
+			!pwaInfo.isIOSPWA || // Android PWA or non-iOS
+			(pwaInfo.isIOSPWA && typeof window.open === 'function') // iOS PWA with popup support
+		)
+	);
+
+	return {
+		...deviceInfo,
+		displayMode: pwaInfo.displayMode,
+		isIOSPWA: pwaInfo.isIOSPWA,
+		shouldHideFullscreenButton: pwaInfo.shouldHideFullscreenButton,
+		googleSignInSupported,
+	};
+}
+
+/**
+ * Helper function to check document fullscreen state
+ */
+function isDocumentFullscreen(): boolean {
+	return !!(
+		document.fullscreenElement ||
+		(document as any).webkitFullscreenElement ||
+		(document as any).mozFullScreenElement ||
+		(document as any).msFullscreenElement
+	);
+}
+
+/**
  * Check if device should hide fullscreen button
  * Hides if in actual fullscreen mode OR if in PWA mode
  */
 export function shouldHideFullscreenButton(): boolean {
-	const device = getDeviceInfo();
-
-	// Check document fullscreen state
-	const isDocumentFullscreen = !!(
-		document.fullscreenElement ||
-    (document as any).webkitFullscreenElement ||
-    (document as any).mozFullScreenElement ||
-    (document as any).msFullscreenElement
-	);
-
-	// Hide if actually fullscreen OR if in PWA mode
-	return isDocumentFullscreen || device.isPWA || device.isStandalone;
+	const pwaInfo = getEnhancedPWAInfo();
+	return pwaInfo.shouldHideFullscreenButton;
 }
 
+/**
+ * Legacy PWA detection function - maintained for backward compatibility
+ * @deprecated Use getEnhancedPWAInfo() instead for more comprehensive detection
+ */
 export function isPWAMode(): boolean {
-	// iOS
-	if ((window.navigator as any).standalone) return true;
-	// Android/Chrome
-	if (window.matchMedia('(display-mode: standalone)').matches) return true;
-	// Fallback: check for minimal-ui or window.opener
-	if (window.matchMedia('(display-mode: minimal-ui)').matches) return true;
-	return false;
+	const pwaInfo = getEnhancedPWAInfo();
+	return pwaInfo.isPWA;
 }
 
 /**
@@ -152,29 +246,114 @@ export function requestFullscreen(): void {
 }
 
 /**
- * Debug function to log PWA detection information
+ * Enhanced debug function to log comprehensive PWA detection information
  */
 export function debugPWADetection(): void {
 	const device = getDeviceInfo();
-	console.log('[PWA DEBUG] Device detection:', {
-		userAgent: navigator.userAgent,
-		isMobile: device.isMobile,
-		isTablet: device.isTablet,
-		isIOS: device.isIOS,
-		isAndroid: device.isAndroid,
-		isPWA: device.isPWA,
-		isStandalone: device.isStandalone,
-		isFullscreen: device.isFullscreen,
-		navigatorStandalone: (window.navigator as any).standalone,
-		displayModeStandalone: window.matchMedia('(display-mode: standalone)').matches,
-		displayModeFullscreen: window.matchMedia('(display-mode: fullscreen)').matches,
-		displayModeMinimalUI: window.matchMedia('(display-mode: minimal-ui)').matches,
-		windowDimensions: {
-			outerWidth: window.outerWidth,
-			outerHeight: window.outerHeight,
-			innerWidth: window.innerWidth,
-			innerHeight: window.innerHeight,
-			dimensionsMatch: window.outerHeight === window.innerHeight && window.outerWidth === window.innerWidth,
-		},
+	const enhancedDevice = getEnhancedDeviceInfo();
+	const pwaInfo = getEnhancedPWAInfo();
+
+	console.group('[PWA DEBUG] Comprehensive Detection Results');
+
+	console.log('User Agent:', navigator.userAgent);
+
+	console.group('Device Info');
+	console.log('isMobile:', device.isMobile);
+	console.log('isTablet:', device.isTablet);
+	console.log('isDesktop:', device.isDesktop);
+	console.log('isIOS:', device.isIOS);
+	console.log('isAndroid:', device.isAndroid);
+	console.groupEnd();
+
+	console.group('PWA Detection');
+	console.log('isPWA:', pwaInfo.isPWA);
+	console.log('isStandalone:', pwaInfo.isStandalone);
+	console.log('isIOSPWA:', pwaInfo.isIOSPWA);
+	console.log('displayMode:', pwaInfo.displayMode);
+	console.log('shouldHideFullscreenButton:', pwaInfo.shouldHideFullscreenButton);
+	console.groupEnd();
+
+	console.group('Detection Methods');
+	console.log('navigatorStandalone:', pwaInfo.detectionMethods.navigatorStandalone);
+	console.log('displayModeStandalone:', pwaInfo.detectionMethods.displayModeStandalone);
+	console.log('displayModeMinimalUI:', pwaInfo.detectionMethods.displayModeMinimalUI);
+	console.log('displayModeFullscreen:', pwaInfo.detectionMethods.displayModeFullscreen);
+	console.log('iosWindowDimensions:', pwaInfo.detectionMethods.iosWindowDimensions);
+	console.log('iosViewportCheck:', pwaInfo.detectionMethods.iosViewportCheck);
+	console.groupEnd();
+
+	console.group('Window Dimensions');
+	console.log('outerWidth:', window.outerWidth);
+	console.log('outerHeight:', window.outerHeight);
+	console.log('innerWidth:', window.innerWidth);
+	console.log('innerHeight:', window.innerHeight);
+	console.log('screen.width:', window.screen.width);
+	console.log('screen.height:', window.screen.height);
+	console.log('dimensionsMatch:', window.outerHeight === window.innerHeight && window.outerWidth === window.innerWidth);
+	console.groupEnd();
+
+	console.group('Enhanced Features');
+	console.log('googleSignInSupported:', enhancedDevice.googleSignInSupported);
+	console.log('isDocumentFullscreen:', isDocumentFullscreen());
+	console.log('safari object available:', typeof (window as any).safari !== 'undefined');
+	console.log('window.open available:', typeof window.open === 'function');
+	console.groupEnd();
+
+	console.groupEnd();
+}
+
+/**
+ * Lightweight PWA state logging for troubleshooting
+ */
+export function logPWAState(context: string = 'Unknown'): void {
+	const pwaInfo = getEnhancedPWAInfo();
+	console.log(`[PWA State - ${context}]`, {
+		isPWA: pwaInfo.isPWA,
+		displayMode: pwaInfo.displayMode,
+		isIOSPWA: pwaInfo.isIOSPWA,
+		shouldHideFullscreenButton: pwaInfo.shouldHideFullscreenButton,
 	});
+}
+
+/**
+ * Monitor PWA state changes and log when they occur
+ */
+export function monitorPWAStateChanges(): () => void {
+	let lastState = getEnhancedPWAInfo();
+
+	const checkStateChange = () => {
+		const currentState = getEnhancedPWAInfo();
+
+		// Check if any important state has changed
+		if (
+			currentState.isPWA !== lastState.isPWA ||
+			currentState.displayMode !== lastState.displayMode ||
+			currentState.isIOSPWA !== lastState.isIOSPWA ||
+			currentState.shouldHideFullscreenButton !== lastState.shouldHideFullscreenButton
+		) {
+			console.log('[PWA State Change]', {
+				from: lastState,
+				to: currentState,
+				timestamp: new Date().toISOString(),
+			});
+			lastState = currentState;
+		}
+	};
+
+	// Check for changes periodically
+	const interval = setInterval(checkStateChange, 1000);
+
+	// Also listen for relevant events
+	const events = ['resize', 'orientationchange', 'visibilitychange'];
+	events.forEach(event => {
+		window.addEventListener(event, checkStateChange);
+	});
+
+	// Return cleanup function
+	return () => {
+		clearInterval(interval);
+		events.forEach(event => {
+			window.removeEventListener(event, checkStateChange);
+		});
+	};
 }
