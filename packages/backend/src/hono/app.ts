@@ -6,6 +6,7 @@ import type { Env } from '../types';
 import admin from './routes/admin';
 import auth from './routes/auth';
 import games from './routes/games';
+import mcp from './routes/mcp';
 import status from './routes/status';
 import templates from './routes/templates';
 import upload from './routes/upload';
@@ -27,5 +28,8 @@ app.route('/api/admin', admin);
 app.route('/api/status', status);
 app.route('/api/templates', templates);
 app.route('/api/upload', upload);
+
+// MCP
+app.route('/api/mcp', mcp);
 
 export default app;

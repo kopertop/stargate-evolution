@@ -1,6 +1,7 @@
 name = 'stargate-evolution-backend'
 main = 'src/server.ts'
 compatibility_date = '2025-05-08'
+compatibility_flags = ["nodejs_compat"]
 
 [vars]
 # CloudFlare account ID for R2 public URLs
