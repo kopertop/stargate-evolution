@@ -4,9 +4,10 @@ import { toFetchResponse, toReqRes } from 'fetch-to-node';
 import { Context, Hono } from 'hono';
 import { z } from 'zod';
 
-import type { Env } from '../../types';
+import type { Env, User } from '../../types';
+import { verifyAdminAccess } from '../middleware/auth';
 
-function getServer(env: Env): McpServer {
+function getServer(env: Env, user: User): McpServer {
 	const server = new McpServer(
 		{
 			name: 'Stargate Evolution MCP',
@@ -172,6 +173,8 @@ function getServer(env: Env): McpServer {
 								  `Database: ${dbStatus}\n` +
 								  `Server: Running\n` +
 								  `MCP Version: 1.0.0\n` +
+								  `Authenticated User: ${user.name} (${user.email})\n` +
+								  `Admin Access: ${user.is_admin ? 'Yes' : 'No'}\n` +
 								  `Timestamp: ${new Date().toISOString()}`,
 						},
 					],
@@ -189,13 +192,84 @@ function getServer(env: Env): McpServer {
 		},
 	);
 
+	// Admin-only tool to delete a game session
+	server.tool(
+		'delete-game-session',
+		'Delete a game session from the database (Admin only)',
+		{
+			sessionId: z.string().describe('ID of the game session to delete'),
+			confirm: z.boolean().default(false).describe('Confirm deletion (must be true)'),
+		},
+		async ({ sessionId, confirm }) => {
+			try {
+				if (!confirm) {
+					return {
+						content: [
+							{
+								type: 'text',
+								text: `❌ **Deletion not confirmed**\n\nTo delete session ${sessionId}, you must set confirm=true`,
+							},
+						],
+					};
+				}
+
+				// First check if session exists
+				const existingSession = await env.DB.prepare('SELECT id, name, user_id FROM saved_games WHERE id = ?')
+					.bind(sessionId)
+					.first();
+
+				if (!existingSession) {
+					return {
+						content: [
+							{
+								type: 'text',
+								text: `❌ **Session not found**\n\nGame session with ID ${sessionId} does not exist.`,
+							},
+						],
+					};
+				}
+
+				// Delete the session
+				const deleteResult = await env.DB.prepare('DELETE FROM saved_games WHERE id = ?')
+					.bind(sessionId)
+					.run();
+
+				if (!deleteResult.success) {
+					throw new Error(`Database deletion failed: ${deleteResult.error}`);
+				}
+
+				return {
+					content: [
+						{
+							type: 'text',
+							text: `✅ **Session deleted successfully**\n\n` +
+								  `Session: ${existingSession.name} (${sessionId})\n` +
+								  `Owner: ${existingSession.user_id}\n` +
+								  `Deleted by: ${user.email}\n` +
+								  `Timestamp: ${new Date().toISOString()}`,
+						},
+					],
+				};
+			} catch (error) {
+				return {
+					content: [
+						{
+							type: 'text',
+							text: `❌ **Error deleting session**: ${error instanceof Error ? error.message : 'Unknown error'}`,
+						},
+					],
+				};
+			}
+		},
+	);
+
 	// Added for extra debuggability
 	server.server.onerror = console.error.bind(console);
 
 	return server;
 };
 
-export async function mcpHandler(c: Context<{ Bindings: Env }>): Promise<Response> {
+export async function mcpHandler(c: Context<{ Bindings: Env; Variables: { user: User } }>): Promise<Response> {
 	const { req, res } = toReqRes(c.req.raw);
 
 	// Make sure there's a body
@@ -226,7 +300,9 @@ export async function mcpHandler(c: Context<{ Bindings: Env }>): Promise<Respons
 		});
 	}
 
-	const server = getServer(c.env);
+	// Get authenticated user from middleware
+	const user = c.get('user');
+	const server = getServer(c.env, user);
 
 	try {
 		const transport = new StreamableHTTPServerTransport({
@@ -263,8 +339,10 @@ export async function mcpHandler(c: Context<{ Bindings: Env }>): Promise<Respons
 	}
 }
 
-const mcp = new Hono<{ Bindings: Env }>();
+const mcp = new Hono<{ Bindings: Env; Variables: { user: User } }>();
 
+// Require admin authentication for all MCP endpoints
+mcp.use('*', verifyAdminAccess);
 mcp.all('*', mcpHandler);
 
 export default mcp;

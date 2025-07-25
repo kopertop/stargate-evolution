@@ -1,7 +1,7 @@
 import type { Session, SavedGameListItem } from '@stargate/common';
 import React, { useState, useEffect, useRef } from 'react';
-import { Button, Card, Container, Row, Col, Modal, Form, Table, Spinner } from 'react-bootstrap';
-import { FaTools, FaSignInAlt, FaSignOutAlt, FaGamepad, FaTrash } from 'react-icons/fa';
+import { Button, Card, Container, Row, Col, Modal, Form, Table, Spinner, Alert, InputGroup } from 'react-bootstrap';
+import { FaTools, FaSignInAlt, FaSignOutAlt, FaGamepad, FaTrash, FaCopy, FaEye, FaEyeSlash } from 'react-icons/fa';
 import { useNavigate } from 'react-router';
 import { toast } from 'react-toastify';
 
@@ -18,8 +18,8 @@ import './google-login.css';
 
 export const MenuPage: React.FC = () => {
 	const navigate = useNavigate();
-	const { user, isLoading: loading, isTokenExpired, signIn, signOut, reAuthenticate } = useAuth();
-	
+	const { user, session, isLoading: loading, isTokenExpired, signIn, signOut, reAuthenticate } = useAuth();
+
 	// Debug PWA detection on component mount
 	useEffect(() => {
 		debugPWADetection();
@@ -34,6 +34,8 @@ export const MenuPage: React.FC = () => {
 	const [checkingSavedGames, setCheckingSavedGames] = useState(false);
 	const [mostRecentGame, setMostRecentGame] = useState<SavedGameListItem | null>(null);
 	const [showReAuthModal, setShowReAuthModal] = useState(false);
+	const [showJwtToken, setShowJwtToken] = useState(false);
+	const [showJwtModal, setShowJwtModal] = useState(false);
 	const controller = useGameController();
 	const gameState = useGameState();
 
@@ -168,6 +170,27 @@ export const MenuPage: React.FC = () => {
 
 	const handleSignOut = () => {
 		signOut();
+	};
+
+	const handleCopyJwtToken = async () => {
+		if (!session?.token) {
+			toast.error('No JWT token available');
+			return;
+		}
+
+		try {
+			await navigator.clipboard.writeText(session.token);
+			toast.success('JWT token copied to clipboard');
+		} catch (error) {
+			// Fallback for browsers that don't support clipboard API
+			const textArea = document.createElement('textarea');
+			textArea.value = session.token;
+			document.body.appendChild(textArea);
+			textArea.select();
+			document.execCommand('copy');
+			document.body.removeChild(textArea);
+			toast.success('JWT token copied to clipboard');
+		}
 	};
 
 	const handleReAuthenticate = async (idToken: string) => {
@@ -326,7 +349,16 @@ export const MenuPage: React.FC = () => {
 				const container = document.getElementById('google-signin-button');
 				if (container) {
 					container.innerHTML = ''; // Clear any existing content
-					renderGoogleSignInButton('google-signin-button', handleGoogleSignIn);
+					renderGoogleSignInButton({
+						containerId: 'google-signin-button',
+						onSuccess: handleGoogleSignIn,
+						onError: (error) => {
+							console.error('[MENU] Google Sign-In error:', error);
+							toast.error(`Sign-in failed: ${error}`);
+						},
+						maxRetries: 3,
+						retryDelay: 2000,
+					});
 				}
 			}, 100); // Small delay to ensure DOM is ready
 
@@ -341,7 +373,16 @@ export const MenuPage: React.FC = () => {
 				const container = document.getElementById('menu-reauth-google-signin-button');
 				if (container) {
 					container.innerHTML = ''; // Clear any existing content
-					renderGoogleSignInButton('menu-reauth-google-signin-button', handleReAuthenticate);
+					renderGoogleSignInButton({
+						containerId: 'menu-reauth-google-signin-button',
+						onSuccess: handleReAuthenticate,
+						onError: (error) => {
+							console.error('[MENU] Re-auth Google Sign-In error:', error);
+							toast.error(`Re-authentication failed: ${error}`);
+						},
+						maxRetries: 2,
+						retryDelay: 1500,
+					});
 				}
 			}, 100); // Small delay to ensure DOM is ready
 
@@ -388,8 +429,17 @@ export const MenuPage: React.FC = () => {
 											<h5 className="mb-0">{user.name}</h5>
 											<small className="text-muted">{user.email}</small>
 											{user.is_admin && (
-												<div>
+												<div className="d-flex align-items-center flex-wrap">
 													<span className="badge bg-success ms-2">Admin</span>
+													<Button
+														variant="link"
+														size="sm"
+														className="p-0 ms-2 text-info"
+														onClick={() => setShowJwtModal(true)}
+														title="View JWT Token for MCP"
+													>
+														<FaEye size={12} /> JWT
+													</Button>
 												</div>
 											)}
 											{isTokenExpired && (
@@ -668,6 +718,67 @@ export const MenuPage: React.FC = () => {
 						</p>
 						<div id="menu-reauth-google-signin-button" className="d-flex justify-content-center" />
 					</div>
+				</Modal.Body>
+			</Modal>
+
+			{/* JWT Token Modal */}
+			<Modal show={showJwtModal} onHide={() => setShowJwtModal(false)} size="lg" centered>
+				<Modal.Header closeButton>
+					<Modal.Title>Admin JWT Token</Modal.Title>
+				</Modal.Header>
+				<Modal.Body>
+					<Alert variant="info">
+						<h6><FaTools className="me-2" />Admin MCP Access</h6>
+						<p className="mb-2">
+							This JWT token can be used to authenticate with the MCP (Model Context Protocol) server 
+							for administrative operations. The token is valid for 15 minutes.
+						</p>
+						<small>
+							<strong>MCP Endpoint:</strong> <code>{window.location.origin}/api/mcp</code>
+						</small>
+					</Alert>
+
+					<Form.Label>JWT Token:</Form.Label>
+					<InputGroup className="mb-3">
+						<Form.Control
+							as="textarea"
+							rows={4}
+							value={session?.token || ''}
+							readOnly
+							className="font-monospace"
+							style={{ fontSize: '0.85em', wordBreak: 'break-all' }}
+							type={showJwtToken ? 'text' : 'password'}
+						/>
+						<Button
+							variant="outline-secondary"
+							onClick={() => setShowJwtToken(!showJwtToken)}
+							title={showJwtToken ? 'Hide token' : 'Show token'}
+						>
+							{showJwtToken ? <FaEyeSlash /> : <FaEye />}
+						</Button>
+						<Button
+							variant="outline-primary"
+							onClick={handleCopyJwtToken}
+							title="Copy to clipboard"
+						>
+							<FaCopy />
+						</Button>
+					</InputGroup>
+
+					<Alert variant="warning" className="mb-0">
+						<small>
+							<strong>Security Warning:</strong> Keep this token secure and never share it publicly. 
+							It provides full administrative access to the game backend.
+						</small>
+					</Alert>
+
+					{session?.expiresAt && (
+						<div className="mt-2">
+							<small className="text-muted">
+								<strong>Expires:</strong> {new Date(session.expiresAt).toLocaleString()}
+							</small>
+						</div>
+					)}
 				</Modal.Body>
 			</Modal>
 		</div>
