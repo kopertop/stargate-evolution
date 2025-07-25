@@ -8,6 +8,7 @@ import { toast } from 'react-toastify';
 
 import { renderGoogleSignInButton } from '../auth/google-auth';
 import { VersionInfo } from '../components/version-info';
+import { API_BASE_URL } from '../config';
 import { useAuth } from '../contexts/auth-context';
 import { useGameState } from '../contexts/game-state-context';
 import { useGameController } from '../services/game-controller';
@@ -35,6 +36,7 @@ export const MenuPage: React.FC = () => {
 	const [mostRecentGame, setMostRecentGame] = useState<SavedGameListItem | null>(null);
 	const [showReAuthModal, setShowReAuthModal] = useState(false);
 	const [showJwtToken, setShowJwtToken] = useState(false);
+	const [showMCPCommand, setShowMCPCommand] = useState(false);
 	const [showJwtModal, setShowJwtModal] = useState(false);
 	const controller = useGameController();
 	const gameState = useGameState();
@@ -190,6 +192,29 @@ export const MenuPage: React.FC = () => {
 			document.execCommand('copy');
 			document.body.removeChild(textArea);
 			toast.success('JWT token copied to clipboard');
+		}
+	};
+
+	const handleCopyMCPCommand = async () => {
+		if (!session?.token) {
+			toast.error('No JWT token available');
+			return;
+		}
+
+		const mcpCommand = `claude mcp add --transport http stargate-evolution ${API_BASE_URL}/api/mcp --header "Authorization: Bearer ${session.token}"`;
+
+		try {
+			await navigator.clipboard.writeText(mcpCommand);
+			toast.success('MCP command copied to clipboard');
+		} catch (error) {
+			// Fallback for browsers that don't support clipboard API
+			const textArea = document.createElement('textarea');
+			textArea.value = mcpCommand;
+			document.body.appendChild(textArea);
+			textArea.select();
+			document.execCommand('copy');
+			document.body.removeChild(textArea);
+			toast.success('MCP command copied to clipboard');
 		}
 	};
 
@@ -741,8 +766,7 @@ export const MenuPage: React.FC = () => {
 					<Form.Label>JWT Token:</Form.Label>
 					<InputGroup className="mb-3">
 						<Form.Control
-							as="textarea"
-							rows={4}
+							as="input"
 							value={session?.token || ''}
 							readOnly
 							className="font-monospace"
@@ -765,12 +789,40 @@ export const MenuPage: React.FC = () => {
 						</Button>
 					</InputGroup>
 
-					<Alert variant="warning" className="mb-0">
+					<Alert variant="warning" className="mb-3">
 						<small>
 							<strong>Security Warning:</strong> Keep this token secure and never share it publicly. 
 							It provides full administrative access to the game backend.
 						</small>
 					</Alert>
+
+					<Form.Label>Claude MCP Command:</Form.Label>
+					<InputGroup className="mb-3">
+						<Form.Control
+							as="input"
+							value={showMCPCommand 
+								? `claude mcp add --transport http stargate-evolution ${API_BASE_URL}/api/mcp --header "Authorization: Bearer ${session?.token || ''}"`
+								: `claude mcp add --transport http stargate-evolution ${API_BASE_URL}/api/mcp --header "Authorization: Bearer [HIDDEN]"`
+							}
+							readOnly
+							className="font-monospace"
+							style={{ fontSize: '0.85em', wordBreak: 'break-all' }}
+						/>
+						<Button
+							variant="outline-secondary"
+							onClick={() => setShowMCPCommand(!showMCPCommand)}
+							title={showMCPCommand ? 'Hide token' : 'Show token'}
+						>
+							{showMCPCommand ? <FaEyeSlash /> : <FaEye />}
+						</Button>
+						<Button
+							variant="outline-primary"
+							onClick={handleCopyMCPCommand}
+							title="Copy MCP command to clipboard"
+						>
+							<FaCopy />
+						</Button>
+					</InputGroup>
 
 					{session?.expiresAt && (
 						<div className="mt-2">

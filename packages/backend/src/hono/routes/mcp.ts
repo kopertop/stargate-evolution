@@ -51,7 +51,7 @@ function getServer(env: Env, user: User): McpServer {
 		{
 			limit: z.number().min(1).max(50).default(10).describe('Maximum number of sessions to return'),
 		},
-		async ({ limit }) => {
+		async ({ limit = 10 }) => {
 			try {
 				const stmt = env.DB.prepare(`
 					SELECT id, user_id, name, description, created_at, updated_at
@@ -106,7 +106,7 @@ function getServer(env: Env, user: User): McpServer {
 			type: z.enum(['character', 'person', 'room', 'technology', 'galaxy', 'star_system']).describe('Type of template to query'),
 			limit: z.number().min(1).max(20).default(5).describe('Maximum number of templates to return'),
 		},
-		async ({ type, limit }) => {
+		async ({ type, limit = 5 }) => {
 			try {
 				const tableMap: Record<string, string> = {
 					character: 'character_templates',
@@ -169,13 +169,7 @@ function getServer(env: Env, user: User): McpServer {
 					content: [
 						{
 							type: 'text',
-							text: `**Stargate Evolution System Status**\n\n` +
-								  `Database: ${dbStatus}\n` +
-								  `Server: Running\n` +
-								  `MCP Version: 1.0.0\n` +
-								  `Authenticated User: ${user.name} (${user.email})\n` +
-								  `Admin Access: ${user.is_admin ? 'Yes' : 'No'}\n` +
-								  `Timestamp: ${new Date().toISOString()}`,
+							text: `**Stargate Evolution System Status**\n\nDatabase: ${dbStatus}\nServer: Running\nMCP Version: 1.0.0\nAuthenticated User: ${user.name} (${user.email})\nAdmin Access: ${user.is_admin ? 'Yes' : 'No'}\nTimestamp: ${new Date().toISOString()}`,
 						},
 					],
 				};
@@ -200,7 +194,7 @@ function getServer(env: Env, user: User): McpServer {
 			sessionId: z.string().describe('ID of the game session to delete'),
 			confirm: z.boolean().default(false).describe('Confirm deletion (must be true)'),
 		},
-		async ({ sessionId, confirm }) => {
+		async ({ sessionId, confirm = false }) => {
 			try {
 				if (!confirm) {
 					return {
@@ -242,7 +236,7 @@ function getServer(env: Env, user: User): McpServer {
 					content: [
 						{
 							type: 'text',
-							text: `✅ **Session deleted successfully**\n\n` +
+							text: '✅ **Session deleted successfully**\n\n' +
 								  `Session: ${existingSession.name} (${sessionId})\n` +
 								  `Owner: ${existingSession.user_id}\n` +
 								  `Deleted by: ${user.email}\n` +
