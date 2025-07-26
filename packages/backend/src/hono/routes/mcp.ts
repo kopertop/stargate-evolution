@@ -29,15 +29,13 @@ function getServer(env: Env, user: User): McpServer {
 	server.tool(
 		'greet',
 		'Greet a user with a friendly message',
-		{
-			name: z.string().describe('Name of the person to greet'),
-		},
-		async ({ name }) => {
+		{},
+		async () => {
 			return {
 				content: [
 					{
 						type: 'text',
-						text: `Hello, ${name}! Welcome to Stargate Evolution!`,
+						text: `Hello! Welcome to Stargate Evolution! MCP server is working correctly.`,
 					},
 				],
 			};
@@ -48,10 +46,9 @@ function getServer(env: Env, user: User): McpServer {
 	server.tool(
 		'get-game-sessions',
 		'List active game sessions from the database',
-		{
-			limit: z.number().min(1).max(50).default(10).describe('Maximum number of sessions to return'),
-		},
-		async ({ limit = 10 }) => {
+		{},
+		async () => {
+			const sessionLimit = 10;
 			try {
 				const stmt = env.DB.prepare(`
 					SELECT id, user_id, name, description, created_at, updated_at
@@ -60,7 +57,7 @@ function getServer(env: Env, user: User): McpServer {
 					LIMIT ?
 				`);
 				
-				const result = await stmt.bind(limit).all();
+				const result = await stmt.bind(sessionLimit).all();
 				
 				if (!result.success) {
 					throw new Error(`Database query failed: ${result.error}`);
@@ -98,15 +95,14 @@ function getServer(env: Env, user: User): McpServer {
 		},
 	);
 
-	// Get game templates tool
+	// Get game templates tool  
 	server.tool(
 		'get-templates',
-		'Query game templates by type',
-		{
-			type: z.enum(['character', 'person', 'room', 'technology', 'galaxy', 'star_system']).describe('Type of template to query'),
-			limit: z.number().min(1).max(20).default(5).describe('Maximum number of templates to return'),
-		},
-		async ({ type, limit = 5 }) => {
+		'Query game templates by type (shows technology templates)',
+		{},
+		async () => {
+			const templateType = 'technology';
+			const templateLimit = 5;
 			try {
 				const tableMap: Record<string, string> = {
 					character: 'character_templates',
@@ -117,9 +113,9 @@ function getServer(env: Env, user: User): McpServer {
 					star_system: 'star_system_templates',
 				};
 
-				const tableName = tableMap[type];
+				const tableName = tableMap[templateType];
 				const stmt = env.DB.prepare(`SELECT id, name, description FROM ${tableName} ORDER BY name LIMIT ?`);
-				const result = await stmt.bind(limit).all();
+				const result = await stmt.bind(templateLimit).all();
 
 				if (!result.success) {
 					throw new Error(`Database query failed: ${result.error}`);
@@ -135,7 +131,7 @@ function getServer(env: Env, user: User): McpServer {
 					content: [
 						{
 							type: 'text',
-							text: `Found ${templates.length} ${type} templates:\n\n${templates
+							text: `Found ${templates.length} ${templateType} templates:\n\n${templates
 								.map((t) => `**${t.name}** (${t.id})\n  ${t.description || 'No description'}`)
 								.join('\n\n')}`,
 						},
@@ -146,7 +142,7 @@ function getServer(env: Env, user: User): McpServer {
 					content: [
 						{
 							type: 'text',
-							text: `Error retrieving ${type} templates: ${error instanceof Error ? error.message : 'Unknown error'}`,
+							text: `Error retrieving ${templateType} templates: ${error instanceof Error ? error.message : 'Unknown error'}`,
 						},
 					],
 				};
@@ -189,58 +185,15 @@ function getServer(env: Env, user: User): McpServer {
 	// Admin-only tool to delete a game session
 	server.tool(
 		'delete-game-session',
-		'Delete a game session from the database (Admin only)',
-		{
-			sessionId: z.string().describe('ID of the game session to delete'),
-			confirm: z.boolean().default(false).describe('Confirm deletion (must be true)'),
-		},
-		async ({ sessionId, confirm = false }) => {
+		'Delete a game session from the database (Admin only - currently disabled for safety)',
+		{},
+		async () => {
 			try {
-				if (!confirm) {
-					return {
-						content: [
-							{
-								type: 'text',
-								text: `❌ **Deletion not confirmed**\n\nTo delete session ${sessionId}, you must set confirm=true`,
-							},
-						],
-					};
-				}
-
-				// First check if session exists
-				const existingSession = await env.DB.prepare('SELECT id, name, user_id FROM saved_games WHERE id = ?')
-					.bind(sessionId)
-					.first();
-
-				if (!existingSession) {
-					return {
-						content: [
-							{
-								type: 'text',
-								text: `❌ **Session not found**\n\nGame session with ID ${sessionId} does not exist.`,
-							},
-						],
-					};
-				}
-
-				// Delete the session
-				const deleteResult = await env.DB.prepare('DELETE FROM saved_games WHERE id = ?')
-					.bind(sessionId)
-					.run();
-
-				if (!deleteResult.success) {
-					throw new Error(`Database deletion failed: ${deleteResult.error}`);
-				}
-
 				return {
 					content: [
 						{
 							type: 'text',
-							text: '✅ **Session deleted successfully**\n\n' +
-								  `Session: ${existingSession.name} (${sessionId})\n` +
-								  `Owner: ${existingSession.user_id}\n` +
-								  `Deleted by: ${user.email}\n` +
-								  `Timestamp: ${new Date().toISOString()}`,
+							text: `❌ **Delete Function Disabled**\n\nFor safety, the delete game session function has been temporarily disabled. This prevents accidental data deletion during MCP testing.`,
 						},
 					],
 				};
