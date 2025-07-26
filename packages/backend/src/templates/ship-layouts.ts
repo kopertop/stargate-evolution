@@ -7,12 +7,18 @@ import { getRoomTechnologyByRoomId } from './technology-templates';
 
 export async function getAllLayoutIds(db: D1Database): Promise<string[]> {
 	const result = await db.prepare('SELECT DISTINCT layout_id FROM room_templates ORDER BY layout_id').all();
-	return result.results.map((row: any) => row.layout_id);
+	if (!result.success) {
+		throw new Error(`Database query failed: ${result.error}`);
+	}
+	return (result.results || []).map((row: any) => row.layout_id);
 }
 
 export async function getRoomsByLayoutId(db: D1Database, layout_id: string): Promise<z.infer<typeof RoomTemplateSchema>[]> {
 	const result = await db.prepare('SELECT * FROM room_templates WHERE layout_id = ? ORDER BY id').bind(layout_id).all();
-	return z.array(RoomTemplateSchema).parse(result.results);
+	if (!result.success) {
+		throw new Error(`Database query failed: ${result.error}`);
+	}
+	return z.array(RoomTemplateSchema).parse(result.results || []);
 }
 
 export async function getShipLayoutById(db: D1Database, layout_id: string): Promise<z.infer<typeof ShipLayoutSchema> | null> {

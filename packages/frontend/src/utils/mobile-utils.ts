@@ -81,8 +81,8 @@ export function getEnhancedPWAInfo(): PWADetectionResult {
 		// Removed displayModeFullscreen - browser fullscreen triggers this incorrectly
 	);
 
-	// Simple PWA detection - only use navigator.standalone
-	const isPWA = navigatorStandalone;
+	// Simple PWA detection - use navigator.standalone or display-mode: standalone
+	const isPWA = navigatorStandalone || displayModeStandalone;
 
 	// Determine if fullscreen button should be hidden
 	const shouldHideFullscreenButton = isPWA || isDocumentFullscreen() || !isFullscreenSupported();
