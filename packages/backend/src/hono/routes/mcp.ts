@@ -210,6 +210,274 @@ function getServer(env: Env, user: User): McpServer {
 		},
 	);
 
+	// Content Creation Tools
+
+	// Create technology template (simplified - create "Neural Interface" example)
+	server.tool(
+		'create-technology-template',
+		'Create a new technology template (creates example: Neural Interface)',
+		{},
+		async () => {
+			const name = 'Neural Interface';
+			const description = 'Advanced neural interface technology allowing direct mental control of ship systems';
+			const category = 'interface';
+			const cost = 500;
+			const unlock_requirements = 'Ancient Database';
+			const image = null;
+			try {
+				const techId = name.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+				const now = Math.floor(Date.now() / 1000);
+
+				const stmt = env.DB.prepare(`
+					INSERT INTO technology_templates (id, name, description, category, unlock_requirements, cost, image, created_at, updated_at)
+					VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+				`);
+
+				const result = await stmt.bind(
+					techId,
+					name,
+					description,
+					category || null,
+					unlock_requirements || null,
+					cost || 0,
+					image || null,
+					now,
+					now
+				).run();
+
+				if (!result.success) {
+					throw new Error(`Database insert failed: ${result.error}`);
+				}
+
+				return {
+					content: [
+						{
+							type: 'text',
+							text: `✅ **Technology Template Created**\n\n**${name}** (${techId})\n${description}\n\n${category ? `Category: ${category}\n` : ''}${cost ? `Cost: ${cost}\n` : ''}${unlock_requirements ? `Requirements: ${unlock_requirements}\n` : ''}Created successfully!`,
+						},
+					],
+				};
+			} catch (error) {
+				return {
+					content: [
+						{
+							type: 'text',
+							text: `❌ **Error creating technology template**: ${error instanceof Error ? error.message : 'Unknown error'}`,
+						},
+					],
+				};
+			}
+		},
+	);
+
+	// Create furniture template (simplified - create "Command Chair" example)
+	server.tool(
+		'create-furniture-template',
+		'Create a new furniture template (creates example: Command Chair)',
+		{},
+		async () => {
+			const name = 'Command Chair';
+			const furniture_type = 'chair';
+			const description = 'Captain\'s command chair for ship bridge';
+			const category = 'seating';
+			const width = 64;
+			const height = 64;
+			const interactive = true;
+			const blocks_movement = true;
+			const compatible_rooms = 'bridge,command_center';
+			try {
+				const furnitureId = name.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+				const now = Math.floor(Date.now() / 1000);
+
+				const stmt = env.DB.prepare(`
+					INSERT INTO furniture_templates (
+						id, name, furniture_type, description, category, 
+						default_width, default_height, default_interactive, default_blocks_movement,
+						compatible_room_types, created_at, updated_at
+					) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+				`);
+
+				const result = await stmt.bind(
+					furnitureId,
+					name,
+					furniture_type,
+					description || null,
+					category || null,
+					width || 32,
+					height || 32,
+					interactive ? 1 : 0,
+					blocks_movement !== false ? 1 : 0,
+					compatible_rooms || null,
+					now,
+					now
+				).run();
+
+				if (!result.success) {
+					throw new Error(`Database insert failed: ${result.error}`);
+				}
+
+				return {
+					content: [
+						{
+							type: 'text',
+							text: `✅ **Furniture Template Created**\n\n**${name}** (${furnitureId})\nType: ${furniture_type}\n${description || 'No description'}\n\n${category ? `Category: ${category}\n` : ''}Size: ${width || 32}x${height || 32}\nInteractive: ${interactive ? 'Yes' : 'No'}\nBlocks Movement: ${blocks_movement !== false ? 'Yes' : 'No'}\n${compatible_rooms ? `Compatible Rooms: ${compatible_rooms}\n` : ''}Created successfully!`,
+						},
+					],
+				};
+			} catch (error) {
+				return {
+					content: [
+						{
+							type: 'text',
+							text: `❌ **Error creating furniture template**: ${error instanceof Error ? error.message : 'Unknown error'}`,
+						},
+					],
+				};
+			}
+		},
+	);
+
+	// Create room template (simplified - create "Test Bridge" example)
+	server.tool(
+		'create-room-template',
+		'Create a new room template (creates example: Test Bridge)',
+		{},
+		async () => {
+			const name = 'Test Bridge';
+			const type = 'bridge';
+			const description = 'Main command bridge for the ship';
+			const layout_id = 'destiny_ship';
+			const start_x = 50;
+			const end_x = 150;
+			const start_y = 50;
+			const end_y = 100;
+			const floor = 1;
+			const exploration_time = 3;
+			const image = null;
+			try {
+				const roomId = `${layout_id}_${name.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '')}`;
+				const now = Math.floor(Date.now() / 1000);
+
+				const stmt = env.DB.prepare(`
+					INSERT INTO room_templates (
+						id, layout_id, type, name, description, startX, endX, startY, endY, floor,
+						base_exploration_time, image, created_at, updated_at
+					) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+				`);
+
+				const result = await stmt.bind(
+					roomId,
+					layout_id,
+					type,
+					name,
+					description || null,
+					start_x,
+					end_x,
+					start_y,
+					end_y,
+					floor,
+					exploration_time || 2,
+					image || null,
+					now,
+					now
+				).run();
+
+				if (!result.success) {
+					throw new Error(`Database insert failed: ${result.error}`);
+				}
+
+				return {
+					content: [
+						{
+							type: 'text',
+							text: `✅ **Room Template Created**\n\n**${name}** (${roomId})\nType: ${type}\n${description || 'No description'}\n\nLayout: ${layout_id}\nCoordinates: (${start_x},${start_y}) to (${end_x},${end_y})\nFloor: ${floor}\nExploration Time: ${exploration_time || 2} minutes\nCreated successfully!`,
+						},
+					],
+				};
+			} catch (error) {
+				return {
+					content: [
+						{
+							type: 'text',
+							text: `❌ **Error creating room template**: ${error instanceof Error ? error.message : 'Unknown error'}`,
+						},
+					],
+				};
+			}
+		},
+	);
+
+	// List all furniture templates
+	server.tool(
+		'list-furniture-templates',
+		'List all furniture templates',
+		{},
+		async () => {
+			const template_type = 'furniture';
+			const search = null;
+			const limit = 20;
+			try {
+				const searchLimit = limit || 20;
+				const tableMap: Record<string, string> = {
+					technology: 'technology_templates',
+					furniture: 'furniture_templates',
+					room: 'room_templates',
+					character: 'character_templates',
+					person: 'person_templates',
+					galaxy: 'galaxy_templates',
+					star_system: 'star_system_templates',
+				};
+
+				const tableName = tableMap[template_type];
+				let query = `SELECT id, name, description FROM ${tableName}`;
+				let params: any[] = [];
+
+				if (search) {
+					query += ` WHERE name LIKE ? OR description LIKE ?`;
+					const searchTerm = `%${search}%`;
+					params.push(searchTerm, searchTerm);
+				}
+
+				query += ` ORDER BY name LIMIT ?`;
+				params.push(searchLimit);
+
+				const stmt = env.DB.prepare(query);
+				const result = await stmt.bind(...params).all();
+
+				if (!result.success) {
+					throw new Error(`Database query failed: ${result.error}`);
+				}
+
+				const templates = result.results.map((template: any) => ({
+					id: template.id,
+					name: template.name,
+					description: template.description,
+				}));
+
+				const searchText = search ? ` matching "${search}"` : '';
+				return {
+					content: [
+						{
+							type: 'text',
+							text: `Found ${templates.length} ${template_type} templates${searchText}:\n\n${templates
+								.map((t) => `**${t.name}** (${t.id})\n  ${t.description || 'No description'}`)
+								.join('\n\n')}`,
+						},
+					],
+				};
+			} catch (error) {
+				return {
+					content: [
+						{
+							type: 'text',
+							text: `❌ **Error listing ${template_type} templates**: ${error instanceof Error ? error.message : 'Unknown error'}`,
+						},
+					],
+				};
+			}
+		},
+	);
+
 	// Added for extra debuggability
 	server.server.onerror = console.error.bind(console);
 

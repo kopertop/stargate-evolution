@@ -71,23 +71,21 @@ export function getEnhancedPWAInfo(): PWADetectionResult {
 		displayMode = 'minimal-ui';
 	}
 
-	// iOS PWA detection (comprehensive)
+	// iOS PWA detection (strict - only use reliable indicators)
+	// NOTE: We exclude displayModeFullscreen because it can be triggered by browser fullscreen
+	// which is NOT the same as PWA mode
 	const isIOSPWA = isIOS && (
 		navigatorStandalone ||
 		displayModeStandalone ||
-		iosWindowDimensions ||
-		(iosViewportCheck && !(window as any).safari) // Safari object not available in PWA mode
+		displayModeMinimalUI
+		// Removed displayModeFullscreen - browser fullscreen triggers this incorrectly
 	);
 
-	// General PWA detection
-	const isPWA = navigatorStandalone ||
-		displayModeStandalone ||
-		displayModeMinimalUI ||
-		displayModeFullscreen ||
-		isIOSPWA;
+	// Simple PWA detection - only use navigator.standalone
+	const isPWA = navigatorStandalone;
 
 	// Determine if fullscreen button should be hidden
-	const shouldHideFullscreenButton = isPWA || isDocumentFullscreen();
+	const shouldHideFullscreenButton = isPWA || isDocumentFullscreen() || !isFullscreenSupported();
 
 	return {
 		isPWA,
@@ -155,13 +153,26 @@ export function getEnhancedDeviceInfo(): EnhancedDeviceInfo {
 	const deviceInfo = getDeviceInfo();
 	const pwaInfo = getEnhancedPWAInfo();
 
-	// Check if Google Sign-In is supported (not blocked by PWA constraints)
-	const googleSignInSupported = !pwaInfo.isPWA || (
-		pwaInfo.isPWA && (
-			!pwaInfo.isIOSPWA || // Android PWA or non-iOS
-			(pwaInfo.isIOSPWA && typeof window.open === 'function') // iOS PWA with popup support
-		)
-	);
+	// Check if Google Sign-In is supported (considering PWA constraints)
+	const googleSignInSupported = (() => {
+		// Always supported in non-PWA mode (desktop browsers, mobile browsers)
+		if (!pwaInfo.isPWA) return true;
+
+		// Since we only detect PWA on iOS, this will only be iOS PWA
+		if (pwaInfo.isIOSPWA) {
+			// Check if popups are available
+			const hasPopupSupport = typeof window.open === 'function';
+
+			// Check if we can use redirect (always available)
+			const hasRedirectSupport = typeof window.location !== 'undefined';
+
+			// iOS PWA supports Google Sign-In if we have either popup or redirect
+			return hasPopupSupport || hasRedirectSupport;
+		}
+
+		// Fallback (should not reach here since PWA is only iOS now)
+		return true;
+	})();
 
 	return {
 		...deviceInfo,
@@ -186,7 +197,7 @@ function isDocumentFullscreen(): boolean {
 
 /**
  * Check if device should hide fullscreen button
- * Hides if in actual fullscreen mode OR if in PWA mode
+ * Hides if in actual fullscreen mode OR if in PWA mode OR if fullscreen is not supported
  */
 export function shouldHideFullscreenButton(): boolean {
 	const pwaInfo = getEnhancedPWAInfo();
@@ -235,9 +246,75 @@ export function onFullscreenChange(callback: (isFullscreen: boolean) => void): (
 }
 
 /**
+ * Check if fullscreen is actually supported (not just if methods exist)
+ */
+export function isFullscreenSupported(): boolean {
+	// Check if fullscreen methods exist
+	const el = document.documentElement as any;
+	const hasFullscreenMethods = !!(
+		el.requestFullscreen ||
+		el.webkitRequestFullscreen ||
+		el.mozRequestFullScreen ||
+		el.msRequestFullscreen
+	);
+
+	// If no methods exist, definitely no support
+	if (!hasFullscreenMethods) return false;
+
+	// Specific Chrome iOS detection - Chrome on iOS has limited fullscreen support
+	// This must be checked BEFORE fullscreenEnabled checks because Chrome iOS may report
+	// fullscreenEnabled as true but still not support proper fullscreen
+	const userAgent = navigator.userAgent.toLowerCase();
+	const isIOS = /iphone|ipad|ipod/i.test(userAgent);
+	const isChrome = /crios/i.test(userAgent); // Chrome on iOS uses "CriOS" in user agent
+
+	// Chrome on iOS typically doesn't support true fullscreen API
+	if (isIOS && isChrome) {
+		return false;
+	}
+
+	// Check document.fullscreenEnabled if available, but be permissive
+	// Some browsers may report fullscreenEnabled as false even when it works
+	if (typeof document.fullscreenEnabled !== 'undefined') {
+		// If explicitly disabled, respect that
+		if (document.fullscreenEnabled === false) {
+			// But only on mobile devices - desktop browsers sometimes report false incorrectly
+			const userAgent = navigator.userAgent.toLowerCase();
+			const isMobileDevice = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent);
+			if (isMobileDevice) {
+				return false;
+			}
+		}
+		// If enabled or we're on desktop, continue with other checks
+	}
+
+	// Check webkit equivalent, but be permissive
+	if (typeof (document as any).webkitFullscreenEnabled !== 'undefined') {
+		// If explicitly disabled, respect that
+		if ((document as any).webkitFullscreenEnabled === false) {
+			// But only on mobile devices - desktop browsers sometimes report false incorrectly
+			const userAgent = navigator.userAgent.toLowerCase();
+			const isMobileDevice = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent);
+			if (isMobileDevice) {
+				return false;
+			}
+		}
+		// If enabled or we're on desktop, continue
+	}
+
+	// For other browsers, assume support if methods exist (be permissive)
+	return hasFullscreenMethods;
+}
+
+/**
  * Request fullscreen if supported
  */
 export function requestFullscreen(): void {
+	if (!isFullscreenSupported()) {
+		console.warn('[FULLSCREEN] Fullscreen not supported on this browser/device');
+		return;
+	}
+
 	const el = document.documentElement as any;
 	if (el.requestFullscreen) el.requestFullscreen();
 	else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
@@ -295,8 +372,29 @@ export function debugPWADetection(): void {
 	console.group('Enhanced Features');
 	console.log('googleSignInSupported:', enhancedDevice.googleSignInSupported);
 	console.log('isDocumentFullscreen:', isDocumentFullscreen());
+	console.log('isFullscreenSupported:', isFullscreenSupported());
 	console.log('safari object available:', typeof (window as any).safari !== 'undefined');
 	console.log('window.open available:', typeof window.open === 'function');
+	console.groupEnd();
+
+	console.group('Fullscreen Support Details');
+	console.log('document.fullscreenEnabled:', (document as any).fullscreenEnabled);
+	console.log('document.webkitFullscreenEnabled:', (document as any).webkitFullscreenEnabled);
+	console.log('requestFullscreen available:', !!(document.documentElement as any).requestFullscreen);
+	console.log('webkitRequestFullscreen available:', !!(document.documentElement as any).webkitRequestFullscreen);
+	console.log('Chrome on iOS detected:', /iphone|ipad|ipod/i.test(navigator.userAgent.toLowerCase()) && /crios/i.test(navigator.userAgent.toLowerCase()));
+	console.log('isDocumentFullscreen:', isDocumentFullscreen());
+	console.log('isFullscreenSupported:', isFullscreenSupported());
+	console.log('fullscreenElement:', document.fullscreenElement);
+	console.log('webkitFullscreenElement:', (document as any).webkitFullscreenElement);
+	console.log('window dimensions:', {
+		innerHeight: window.innerHeight,
+		outerHeight: window.outerHeight,
+		screenHeight: window.screen.height,
+		innerWidth: window.innerWidth,
+		outerWidth: window.outerWidth,
+		screenWidth: window.screen.width
+	});
 	console.groupEnd();
 
 	console.groupEnd();

@@ -63,10 +63,12 @@
 				transform: scale(0);
 				opacity: 1;
 			}
+
 			50% {
 				transform: scale(1);
 				opacity: 0.7;
 			}
+
 			100% {
 				transform: scale(2);
 				opacity: 0;
@@ -113,13 +115,13 @@
 			script.async = true;
 			script.defer = true;
 
-			script.onload = function() {
+			script.onload = function () {
 				console.log(`[GOOGLE-AUTH] Google Identity Services script loaded successfully on retry ${window.googleScriptRetryCount}`);
 				window.googleScriptLoaded = true;
 				window.googleScriptLoadError = false;
 			};
 
-			script.onerror = function() {
+			script.onerror = function () {
 				console.error(`[GOOGLE-AUTH] Google Identity Services script failed to load on retry ${window.googleScriptRetryCount}`);
 				window.googleScriptLoadError = true;
 
@@ -133,7 +135,7 @@
 		}
 
 		// Check if script failed to load after a timeout
-		setTimeout(function() {
+		setTimeout(function () {
 			if (!window.googleScriptLoaded && !window.googleScriptLoadError) {
 				console.warn('[GOOGLE-AUTH] Google Identity Services script taking too long to load, initiating retry');
 				window.googleScriptLoadError = true;
@@ -148,76 +150,9 @@
 		const btn = document.getElementById('fullscreen-btn');
 
 		/**
-		 * Enhanced PWA detection with comprehensive iPad support
-		 * This matches the logic implemented in mobile-utils.ts
+		 * Check if app is in fullscreen mode (via Fullscreen API)
 		 */
-		function getEnhancedPWAInfo() {
-			const userAgent = navigator.userAgent.toLowerCase();
-			const isIOS = /iphone|ipad|ipod/i.test(userAgent);
-
-			// Detection methods
-			const navigatorStandalone = window.navigator.standalone === true;
-			const displayModeStandalone = window.matchMedia('(display-mode: standalone)').matches;
-			const displayModeMinimalUI = window.matchMedia('(display-mode: minimal-ui)').matches;
-			const displayModeFullscreen = window.matchMedia('(display-mode: fullscreen)').matches;
-
-			// iOS-specific PWA detection methods
-			const iosWindowDimensions = isIOS && (
-				window.outerHeight === window.innerHeight &&
-				window.outerWidth === window.innerWidth
-			);
-
-			// Additional iOS PWA detection using viewport meta tag behavior
-			const iosViewportCheck = isIOS && (
-				window.screen.height === window.innerHeight ||
-				Math.abs(window.screen.height - window.innerHeight) <= 40 // Account for status bar
-			);
-
-			// iOS PWA detection (comprehensive)
-			const isIOSPWA = isIOS && (
-				navigatorStandalone ||
-				displayModeStandalone ||
-				iosWindowDimensions ||
-				(iosViewportCheck && !window.safari) // Safari object not available in PWA mode
-			);
-
-			// General PWA detection
-			const isPWA = navigatorStandalone ||
-				displayModeStandalone ||
-				displayModeMinimalUI ||
-				displayModeFullscreen ||
-				isIOSPWA;
-
-			// Determine display mode
-			let displayMode = 'browser';
-			if (displayModeFullscreen) {
-				displayMode = 'fullscreen';
-			} else if (displayModeStandalone || navigatorStandalone) {
-				displayMode = 'standalone';
-			} else if (displayModeMinimalUI) {
-				displayMode = 'minimal-ui';
-			}
-
-			return {
-				isPWA: isPWA,
-				isStandalone: navigatorStandalone || displayModeStandalone,
-				isIOSPWA: isIOSPWA,
-				displayMode: displayMode,
-				detectionMethods: {
-					navigatorStandalone: navigatorStandalone,
-					displayModeStandalone: displayModeStandalone,
-					displayModeMinimalUI: displayModeMinimalUI,
-					displayModeFullscreen: displayModeFullscreen,
-					iosWindowDimensions: iosWindowDimensions,
-					iosViewportCheck: iosViewportCheck
-				}
-			};
-		}
-
-		/**
-		 * Check if document is in fullscreen mode
-		 */
-		function isDocumentFullscreen() {
+		function isAppFullscreen() {
 			return !!(
 				document.fullscreenElement ||
 				document.webkitFullscreenElement ||
@@ -226,37 +161,16 @@
 			);
 		}
 
-		// Get PWA info using enhanced detection
-		const pwaInfo = getEnhancedPWAInfo();
-
-		// Has fullscreen support
-		const hasFullscreenSupport = !!(
-			document.documentElement.requestFullscreen ||
-			document.documentElement.webkitRequestFullscreen ||
-			document.documentElement.mozRequestFullScreen ||
-			document.documentElement.msRequestFullscreen
-		);
-
-		// Debug logging for PWA detection (only in development)
-		if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-			console.group('[PWA DEBUG - HTML] Enhanced Detection Results');
-			console.log('User Agent:', navigator.userAgent);
-			console.log('isPWA:', pwaInfo.isPWA);
-			console.log('isIOSPWA:', pwaInfo.isIOSPWA);
-			console.log('displayMode:', pwaInfo.displayMode);
-			console.log('Detection Methods:', pwaInfo.detectionMethods);
-			console.log('Window Dimensions:', {
-				outerWidth: window.outerWidth,
-				outerHeight: window.outerHeight,
-				innerWidth: window.innerWidth,
-				innerHeight: window.innerHeight,
-				screenWidth: window.screen.width,
-				screenHeight: window.screen.height
-			});
-			console.log('hasFullscreenSupport:', hasFullscreenSupport);
-			console.groupEnd();
+		/**
+		 * Check if running as PWA (standalone mode)
+		 */
+		function isPWA() {
+			return window.navigator.standalone === true;
 		}
 
+		/**
+		 * Request fullscreen for the app
+		 */
 		btn.onclick = () => {
 			const el = document.documentElement;
 			if (el.requestFullscreen) el.requestFullscreen();
@@ -265,62 +179,23 @@
 			else if (el.msRequestFullscreen) el.msRequestFullscreen();
 		};
 
-		const checkFullscreen = () => {
-			const documentFullscreen = isDocumentFullscreen();
+		/**
+		 * Update fullscreen button visibility
+		 */
+		function updateButtonVisibility() {
+			// Hide button if app is already fullscreen OR if running as PWA
+			const shouldHide = isAppFullscreen() || isPWA();
+			btn.style.display = shouldHide ? 'none' : 'block';
+		}
 
-			// Get fresh PWA info in case it changed
-			const currentPWAInfo = getEnhancedPWAInfo();
-
-			// Hide button if in actual fullscreen OR if in PWA mode OR no fullscreen support
-			const shouldHideButton = documentFullscreen || currentPWAInfo.isPWA || !hasFullscreenSupport;
-
-			btn.style.display = shouldHideButton ? 'none' : 'block';
-
-			// Debug logging for fullscreen state changes (only in development)
-			if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-				console.log('[PWA DEBUG - HTML] Fullscreen state change:', {
-					documentFullscreen: documentFullscreen,
-					isPWA: currentPWAInfo.isPWA,
-					displayMode: currentPWAInfo.displayMode,
-					shouldHideButton: shouldHideButton,
-					hasFullscreenSupport: hasFullscreenSupport
-				});
-			}
-		};
-
-		// Monitor for PWA state changes
-		let lastPWAState = pwaInfo.isPWA;
-		const monitorPWAChanges = () => {
-			const currentPWAInfo = getEnhancedPWAInfo();
-			if (currentPWAInfo.isPWA !== lastPWAState) {
-				lastPWAState = currentPWAInfo.isPWA;
-				checkFullscreen(); // Re-check fullscreen button visibility
-
-				if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-					console.log('[PWA DEBUG - HTML] PWA state changed:', {
-						newState: currentPWAInfo.isPWA,
-						displayMode: currentPWAInfo.displayMode
-					});
-				}
-			}
-		};
-
-		// Event listeners for fullscreen changes
-		document.addEventListener('fullscreenchange', checkFullscreen);
-		document.addEventListener('webkitfullscreenchange', checkFullscreen);
-		document.addEventListener('mozfullscreenchange', checkFullscreen);
-		document.addEventListener('MSFullscreenChange', checkFullscreen);
-
-		// Event listeners for PWA state changes
-		window.addEventListener('resize', monitorPWAChanges);
-		window.addEventListener('orientationchange', monitorPWAChanges);
-		window.addEventListener('visibilitychange', monitorPWAChanges);
-
-		// Periodic check for PWA state changes (useful for iOS)
-		setInterval(monitorPWAChanges, 1000);
+		// Listen for fullscreen changes
+		document.addEventListener('fullscreenchange', updateButtonVisibility);
+		document.addEventListener('webkitfullscreenchange', updateButtonVisibility);
+		document.addEventListener('mozfullscreenchange', updateButtonVisibility);
+		document.addEventListener('MSFullscreenChange', updateButtonVisibility);
 
 		// Initial check
-		checkFullscreen();
+		updateButtonVisibility();
 	</script>
 </body>
 
