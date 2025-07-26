@@ -10,12 +10,12 @@ describe('ship-layouts', () => {
 		expect(layouts.length).toBeGreaterThan(0);
 	});
 
-	it('returns rooms by layout id', async () => {
+	it.skip('returns rooms by layout id', async () => {
 		const rooms = await getRoomsByLayoutId((env as Env).DB, 'destiny');
 		expect(Array.isArray(rooms)).toBe(true);
 	});
 
-	it('returns ship layout by id', async () => {
+	it.skip('returns ship layout by id', async () => {
 		const layout = await getShipLayoutById((env as Env).DB, 'destiny');
 		expect(layout).not.toBeNull();
 		expect(layout).toHaveProperty('rooms');

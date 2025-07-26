@@ -1,4 +1,105 @@
-#google-signin-button div {
+/* Google Sign-In Button Styling */
+#google-signin-button,
+#menu-reauth-google-signin-button {
+	display: flex !important;
+	justify-content: center !important;
+	align-items: center !important;
+	min-height: 50px;
+}
+
+#google-signin-button div,
+#menu-reauth-google-signin-button div {
 	justify-content: center !important;
 	display: flex !important;
+}
+
+/* iPad-specific fixes for Google Sign-In button */
+@media (max-width: 1024px) and (orientation: portrait),
+       (max-width: 1366px) and (orientation: landscape) {
+	#google-signin-button,
+	#menu-reauth-google-signin-button {
+		width: 100% !important;
+		max-width: 400px;
+		margin: 0 auto;
+	}
+
+	#google-signin-button div[role="button"],
+	#menu-reauth-google-signin-button div[role="button"] {
+		width: 100% !important;
+		max-width: 400px !important;
+		min-height: 48px !important;
+		display: flex !important;
+		align-items: center !important;
+		justify-content: center !important;
+	}
+
+	/* Ensure iframe content is visible */
+	#google-signin-button iframe,
+	#menu-reauth-google-signin-button iframe {
+		width: 100% !important;
+		min-width: 200px !important;
+		min-height: 48px !important;
+		border: none !important;
+		background: transparent !important;
+	}
+}
+
+/* Fallback button styling */
+.google-signin-fallback {
+	text-align: center;
+	padding: 1rem;
+}
+
+.google-signin-fallback .btn {
+	min-height: 48px;
+	font-size: 1.1rem;
+}
+
+.google-signin-error {
+	text-align: center;
+	padding: 1rem;
+}
+
+/* Loading state styling */
+.google-signin-loading {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	min-height: 50px;
+	color: #6c757d;
+}
+
+/* Ensure visibility in dark theme */
+[data-bs-theme="dark"] #google-signin-button,
+[data-bs-theme="dark"] #menu-reauth-google-signin-button {
+	background: transparent;
+}
+
+[data-bs-theme="dark"] .google-signin-fallback .alert-warning {
+	background-color: #664d03;
+	border-color: #66512c;
+	color: #ffecb5;
+}
+
+[data-bs-theme="dark"] .google-signin-error .alert-danger {
+	background-color: #842029;
+	border-color: #a41e22;
+	color: #f8d7da;
+}
+
+/* Force visibility for any hidden elements */
+#google-signin-button *,
+#menu-reauth-google-signin-button * {
+	visibility: visible !important;
+	opacity: 1 !important;
+}
+
+/* PWA-specific adjustments */
+@media (display-mode: standalone) {
+	#google-signin-button,
+	#menu-reauth-google-signin-button {
+		padding: 0.5rem;
+		border-radius: 8px;
+		background: rgba(255, 255, 255, 0.05);
+	}
 }

@@ -2,7 +2,9 @@ import type { Session } from '@stargate/common';
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { toast } from 'react-toastify';
 
-import { getSession, setSession, clearSession, validateOrRefreshSession } from '../auth/session';
+import { initializePWAAuthHandling, ensurePWASessionPersistence } from '../auth/google-auth';
+import { getSession, setSession, clearSession, validateOrRefreshSession, initializePWASessionPersistence } from '../auth/session';
+import { getEnhancedDeviceInfo } from '../utils/mobile-utils';
 
 type User = {
 	id: string;
@@ -10,6 +12,7 @@ type User = {
 	name: string;
 	picture?: string;
 	is_admin: boolean;
+	api_key?: string | null;
 };
 
 interface AuthContextType {
@@ -33,6 +36,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 	const [isTokenExpired, setIsTokenExpired] = useState(false);
 
 	const isAuthenticated = !!user && !!session && !isTokenExpired;
+	const deviceInfo = getEnhancedDeviceInfo();
 
 	// Check authentication status
 	const checkAuthStatus = useCallback(async () => {
@@ -70,12 +74,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 		try {
 			setIsLoading(true);
 			const API_URL = import.meta.env.VITE_PUBLIC_API_URL || '';
+
+			// Use longer timeout for PWA mode
+			const controller = new AbortController();
+			const timeoutId = setTimeout(() => controller.abort(), deviceInfo.isPWA ? 20000 : 10000);
+
 			const res = await fetch(`${API_URL}/api/auth/google`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ idToken }),
+				signal: controller.signal,
 			});
 
+			clearTimeout(timeoutId);
 			const data = await res.json();
 			if (!res.ok) throw new Error(data.error || 'Auth failed');
 
@@ -84,28 +95,48 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 			setUser(data.user);
 			setIsTokenExpired(false);
 
-			console.log('[AUTH] User signed in:', data.user.email);
-			toast.success(`Welcome, ${data.user.name}!`);
+			console.log('[AUTH] User signed in:', data.user.email, deviceInfo.isPWA ? '(PWA mode)' : '');
+
+			const welcomeMessage = deviceInfo.isPWA
+				? `Welcome to PWA mode, ${data.user.name}!`
+				: `Welcome, ${data.user.name}!`;
+			toast.success(welcomeMessage);
 		} catch (error: any) {
 			console.error('[AUTH] Sign in failed:', error);
-			toast.error(error.message || 'Authentication failed');
+
+			// More specific error messages for PWA mode
+			let errorMessage = error.message || 'Authentication failed';
+			if (deviceInfo.isPWA && error.name === 'AbortError') {
+				errorMessage = 'Sign-in timed out in PWA mode. Please try again.';
+			} else if (deviceInfo.isPWA && error.name === 'NetworkError') {
+				errorMessage = 'Network error in PWA mode. Please check your connection and try again.';
+			}
+
+			toast.error(errorMessage);
 			throw error;
 		} finally {
 			setIsLoading(false);
 		}
-	}, []);
+	}, [deviceInfo.isPWA]);
 
 	// Re-authenticate (for when token expires during game)
 	const reAuthenticate = useCallback(async (idToken: string) => {
 		try {
 			setIsLoading(true);
 			const API_URL = import.meta.env.VITE_PUBLIC_API_URL || '';
+
+			// Use longer timeout for PWA mode
+			const controller = new AbortController();
+			const timeoutId = setTimeout(() => controller.abort(), deviceInfo.isPWA ? 20000 : 10000);
+
 			const res = await fetch(`${API_URL}/api/auth/google`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ idToken }),
+				signal: controller.signal,
 			});
 
+			clearTimeout(timeoutId);
 			const data = await res.json();
 			if (!res.ok) throw new Error(data.error || 'Auth failed');
 
@@ -114,16 +145,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 			setUser(data.user);
 			setIsTokenExpired(false);
 
-			console.log('[AUTH] User re-authenticated:', data.user.email);
-			toast.success('Re-authenticated successfully! You can now save your game.');
+			console.log('[AUTH] User re-authenticated:', data.user.email, deviceInfo.isPWA ? '(PWA mode)' : '');
+
+			const successMessage = deviceInfo.isPWA
+				? 'Re-authenticated successfully in PWA mode! You can now save your game.'
+				: 'Re-authenticated successfully! You can now save your game.';
+			toast.success(successMessage);
 		} catch (error: any) {
 			console.error('[AUTH] Re-authentication failed:', error);
-			toast.error(error.message || 'Re-authentication failed');
+
+			// More specific error messages for PWA mode
+			let errorMessage = error.message || 'Re-authentication failed';
+			if (deviceInfo.isPWA && error.name === 'AbortError') {
+				errorMessage = 'Re-authentication timed out in PWA mode. Please try again.';
+			} else if (deviceInfo.isPWA && error.name === 'NetworkError') {
+				errorMessage = 'Network error during re-authentication in PWA mode. Please check your connection.';
+			}
+
+			toast.error(errorMessage);
 			throw error;
 		} finally {
 			setIsLoading(false);
 		}
-	}, []);
+	}, [deviceInfo.isPWA]);
 
 	// Sign out
 	const signOut = useCallback(() => {
@@ -134,6 +178,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 		console.log('[AUTH] User signed out');
 		toast.info('Signed out successfully');
 	}, []);
+
+	// Initialize PWA-specific authentication handling
+	useEffect(() => {
+		if (deviceInfo.isPWA) {
+			console.log('[AUTH] Initializing PWA authentication handling');
+			initializePWAAuthHandling();
+			ensurePWASessionPersistence();
+			initializePWASessionPersistence();
+		}
+	}, [deviceInfo.isPWA]);
 
 	// Check auth status on mount
 	useEffect(() => {
@@ -160,12 +214,47 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
 			// Don't automatically sign out - just mark token as expired
 			// This allows the user to re-authenticate without losing game state
-			toast.warning('Your session has expired. Please sign in again to save your progress.');
+			const message = deviceInfo.isPWA
+				? 'Your session has expired. Please sign in again to continue in PWA mode.'
+				: 'Your session has expired. Please sign in again to save your progress.';
+			toast.warning(message);
+		};
+
+		const handleSessionLost = () => {
+			console.log('[AUTH] Session lost event received');
+			setUser(null);
+			setSessionState(null);
+			setIsTokenExpired(true);
+
+			if (deviceInfo.isPWA) {
+				toast.error('Session lost in PWA mode. Please sign in again.');
+			}
+		};
+
+		const handleSessionChanged = () => {
+			console.log('[AUTH] Session changed in another tab');
+			checkAuthStatus();
+		};
+
+		const handleSessionExpiring = () => {
+			console.log('[AUTH] Session expiring soon');
+			if (deviceInfo.isPWA) {
+				toast.warning('Your session will expire soon. Please save your progress.');
+			}
 		};
 
 		window.addEventListener('auth-error' as any, handleAuthError);
-		return () => window.removeEventListener('auth-error' as any, handleAuthError);
-	}, []);
+		window.addEventListener('session-lost' as any, handleSessionLost);
+		window.addEventListener('session-changed' as any, handleSessionChanged);
+		window.addEventListener('session-expiring' as any, handleSessionExpiring);
+
+		return () => {
+			window.removeEventListener('auth-error' as any, handleAuthError);
+			window.removeEventListener('session-lost' as any, handleSessionLost);
+			window.removeEventListener('session-changed' as any, handleSessionChanged);
+			window.removeEventListener('session-expiring' as any, handleSessionExpiring);
+		};
+	}, [deviceInfo.isPWA, checkAuthStatus]);
 
 	return (
 		<AuthContext.Provider value={{

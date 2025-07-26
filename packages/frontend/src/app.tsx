@@ -4,10 +4,10 @@ import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import 'bootstrap/dist/css/bootstrap.min.css';
 
-import { AuthProvider } from './contexts/auth-context';
-import { GameStateProvider } from './contexts/game-state-context';
 import { MobileGuard } from './components/mobile-guard';
 import { PWARouter } from './components/pwa-router';
+import { AuthProvider } from './contexts/auth-context';
+import { GameStateProvider } from './contexts/game-state-context';
 import {
 	AdminLayout,
 	AdminOverview,

@@ -7,6 +7,7 @@ export interface User {
 	name: string;
 	picture?: string;
 	is_admin?: boolean;
+	api_key?: string;
 }
 
 export interface Session {
@@ -44,6 +45,7 @@ export function validateUser(data: any): { success: boolean; data?: User; error?
 			name: data.name,
 			picture: data.picture || undefined,
 			is_admin: Boolean(data.is_admin) || data.email === 'kopertop@gmail.com' || false,
+			api_key: data.api_key || undefined,
 		},
 	};
 }

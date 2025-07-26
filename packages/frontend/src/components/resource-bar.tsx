@@ -1,6 +1,5 @@
 import React from 'react';
 import { Container, Row, Col, OverlayTrigger, Tooltip } from 'react-bootstrap';
-import { isMobileDevice } from '../utils/mobile-utils';
 import {
 	FaBolt,
 	FaShieldAlt,
@@ -16,6 +15,8 @@ import {
 	FaLeaf,
 	FaPause,
 } from 'react-icons/fa';
+
+import { isMobileDevice } from '../utils/mobile-utils';
 
 interface ResourceBarProps {
   power: number;
@@ -114,7 +115,7 @@ const ResourceItem: React.FC<ResourceItemProps> = ({
 
 	return (
 		<OverlayTrigger
-			placement={isMobile ? "top" : "bottom"}
+			placement={isMobile ? 'top' : 'bottom'}
 			delay={{ show: 250, hide: 150 }}
 			overlay={tooltip}
 		>
@@ -123,20 +124,20 @@ const ResourceItem: React.FC<ResourceItemProps> = ({
 				style={{ 
 					fontSize: isMobile ? '0.75rem' : '0.9rem', 
 					cursor: 'help',
-					marginRight: isMobile ? '8px' : '12px'
+					marginRight: isMobile ? '8px' : '12px',
 				}}
 			>
 				<span style={{ 
 					color: getColorStyle(), 
 					marginRight: isMobile ? '2px' : '4px',
-					fontSize: isMobile ? '0.8rem' : '1rem'
+					fontSize: isMobile ? '0.8rem' : '1rem',
 				}}>
 					{icon}
 				</span>
 				<span style={{ 
 					color: getColorStyle(), 
 					fontWeight: '500',
-					fontSize: isMobile ? '0.75rem' : '0.9rem'
+					fontSize: isMobile ? '0.75rem' : '0.9rem',
 				}}>
 					{getDisplayValue()}
 				</span>
@@ -211,7 +212,7 @@ export const ResourceBar: React.FC<ResourceBarProps> = ({
 							{/* Pause Menu Button */}
 							{onShowPause && (
 								<OverlayTrigger
-									placement={isMobile ? "top" : "bottom"}
+									placement={isMobile ? 'top' : 'bottom'}
 									delay={{ show: 250, hide: 150 }}
 									overlay={
 										<Tooltip id="pause-menu-tooltip">
@@ -418,7 +419,7 @@ export const ResourceBar: React.FC<ResourceBarProps> = ({
 
 							{/* Time Speed Display - Simplified on mobile */}
 							<OverlayTrigger
-								placement={isMobile ? "top" : "bottom"}
+								placement={isMobile ? 'top' : 'bottom'}
 								delay={{ show: 250, hide: 150 }}
 								overlay={
 									<Tooltip id="time-speed-tooltip">
