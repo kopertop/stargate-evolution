@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router';
 import { toast } from 'react-toastify';
 
 
-import { renderGoogleSignInButton } from '../auth/google-auth';
+import { renderGoogleSignInButton, initializePWAAuthHandling } from '../auth/google-auth';
 import { VersionInfo } from '../components/version-info';
 import { API_BASE_URL } from '../config';
 import { useAuth } from '../contexts/auth-context';
@@ -21,9 +21,10 @@ export const MenuPage: React.FC = () => {
 	const navigate = useNavigate();
 	const { user, session, isLoading: loading, isTokenExpired, signIn, signOut, reAuthenticate } = useAuth();
 
-	// Debug PWA detection on component mount
+	// Debug PWA detection and initialize PWA auth handling on component mount
 	useEffect(() => {
 		debugPWADetection();
+		initializePWAAuthHandling();
 	}, []);
 	const [focusedMenuItem, setFocusedMenuItem] = useState(0);
 	const [showNewGameModal, setShowNewGameModal] = useState(false);
@@ -38,6 +39,8 @@ export const MenuPage: React.FC = () => {
 	const [showJwtToken, setShowJwtToken] = useState(false);
 	const [showMCPCommand, setShowMCPCommand] = useState(false);
 	const [showJwtModal, setShowJwtModal] = useState(false);
+	const [showApiKey, setShowApiKey] = useState(false);
+	const [isGeneratingApiKey, setIsGeneratingApiKey] = useState(false);
 	const controller = useGameController();
 	const gameState = useGameState();
 
@@ -215,6 +218,144 @@ export const MenuPage: React.FC = () => {
 			document.execCommand('copy');
 			document.body.removeChild(textArea);
 			toast.success('MCP command copied to clipboard');
+		}
+	};
+
+	const handleCopyApiKey = async () => {
+		if (!user?.api_key) {
+			toast.error('No API key available');
+			return;
+		}
+
+		try {
+			await navigator.clipboard.writeText(user.api_key);
+			toast.success('API key copied to clipboard');
+		} catch (error) {
+			// Fallback for browsers that don't support clipboard API
+			const textArea = document.createElement('textarea');
+			textArea.value = user.api_key;
+			document.body.appendChild(textArea);
+			textArea.select();
+			document.execCommand('copy');
+			document.body.removeChild(textArea);
+			toast.success('API key copied to clipboard');
+		}
+	};
+
+	const handleCopyMCPCommandWithApiKey = async () => {
+		if (!user?.api_key) {
+			toast.error('No API key available');
+			return;
+		}
+
+		const mcpCommand = `claude mcp add --transport http stargate-evolution ${API_BASE_URL}/api/mcp --header "Authorization: Bearer ${user.api_key}"`;
+
+		try {
+			await navigator.clipboard.writeText(mcpCommand);
+			toast.success('MCP command with API key copied to clipboard');
+		} catch (error) {
+			// Fallback for browsers that don't support clipboard API
+			const textArea = document.createElement('textarea');
+			textArea.value = mcpCommand;
+			document.body.appendChild(textArea);
+			textArea.select();
+			document.execCommand('copy');
+			document.body.removeChild(textArea);
+			toast.success('MCP command with API key copied to clipboard');
+		}
+	};
+
+	const handleGenerateApiKey = async () => {
+		if (!session?.token) {
+			toast.error('Please sign in to generate an API key');
+			return;
+		}
+
+		setIsGeneratingApiKey(true);
+		try {
+			const response = await fetch(`${API_BASE_URL}/api/auth/generate-api-key`, {
+				method: 'POST',
+				headers: {
+					'Authorization': `Bearer ${session.token}`,
+					'Content-Type': 'application/json',
+				},
+			});
+
+			const data = await response.json();
+
+			if (!response.ok) {
+				throw new Error(data.error || 'Failed to generate API key');
+			}
+
+			// Update local user state with new API key without re-authentication
+			if (user) {
+				// Manually update the user context by triggering a token validation
+				// This avoids the Google JWT re-authentication issue
+				try {
+					const validateResponse = await fetch(`${API_BASE_URL}/api/auth/validate`, {
+						method: 'POST',
+						headers: {
+							'Content-Type': 'application/json',
+						},
+						body: JSON.stringify({ token: session.token }),
+					});
+					
+					if (validateResponse.ok) {
+						const validateData = await validateResponse.json();
+						if (validateData.valid && validateData.user) {
+							// The user state will be updated through the auth context
+							console.log('User state refreshed with new API key');
+						}
+					}
+				} catch (validateError) {
+					console.log('Token validation failed, but API key was generated:', validateError);
+				}
+			}
+
+			toast.success('API key generated successfully');
+			
+			// Force a page refresh to update the user state
+			window.location.reload();
+		} catch (error) {
+			console.error('Failed to generate API key:', error);
+			toast.error(error instanceof Error ? error.message : 'Failed to generate API key');
+		} finally {
+			setIsGeneratingApiKey(false);
+		}
+	};
+
+	const handleDeleteApiKey = async () => {
+		if (!session?.token) {
+			toast.error('Please sign in to delete your API key');
+			return;
+		}
+
+		if (!confirm('Are you sure you want to delete your API key? This will revoke access for any MCP integrations using this key.')) {
+			return;
+		}
+
+		try {
+			const response = await fetch(`${API_BASE_URL}/api/auth/api-key`, {
+				method: 'DELETE',
+				headers: {
+					'Authorization': `Bearer ${session.token}`,
+					'Content-Type': 'application/json',
+				},
+			});
+
+			const data = await response.json();
+
+			if (!response.ok) {
+				throw new Error(data.error || 'Failed to delete API key');
+			}
+
+			toast.success('API key deleted successfully');
+			
+			// Force a page refresh to update the user state
+			window.location.reload();
+		} catch (error) {
+			console.error('Failed to delete API key:', error);
+			toast.error(error instanceof Error ? error.message : 'Failed to delete API key');
 		}
 	};
 
@@ -461,9 +602,9 @@ export const MenuPage: React.FC = () => {
 														size="sm"
 														className="p-0 ms-2 text-info"
 														onClick={() => setShowJwtModal(true)}
-														title="View JWT Token for MCP"
+														title="View MCP Authentication Options"
 													>
-														<FaEye size={12} /> JWT
+														<FaEye size={12} /> MCP Auth
 													</Button>
 												</div>
 											)}
@@ -746,22 +887,116 @@ export const MenuPage: React.FC = () => {
 				</Modal.Body>
 			</Modal>
 
-			{/* JWT Token Modal */}
+			{/* MCP Authentication Modal */}
 			<Modal show={showJwtModal} onHide={() => setShowJwtModal(false)} size="lg" centered>
 				<Modal.Header closeButton>
-					<Modal.Title>Admin JWT Token</Modal.Title>
+					<Modal.Title>MCP Authentication</Modal.Title>
 				</Modal.Header>
 				<Modal.Body>
 					<Alert variant="info">
 						<h6><FaTools className="me-2" />Admin MCP Access</h6>
 						<p className="mb-2">
-							This JWT token can be used to authenticate with the MCP (Model Context Protocol) server 
-							for administrative operations. The token is valid for 15 minutes.
+							You can authenticate with the MCP server using either a JWT token (expires in 15 minutes)
+							or a persistent API key. The API key is recommended for long-running integrations.
 						</p>
 						<small>
 							<strong>MCP Endpoint:</strong> <code>{window.location.origin}/api/mcp</code>
 						</small>
 					</Alert>
+
+					{/* API Key Section */}
+					<h6 className="mt-4">API Key (Recommended)</h6>
+					<p className="text-muted small mb-2">
+						API keys never expire and are ideal for MCP integrations.
+					</p>
+
+					{user?.api_key ? (
+						<>
+							<Form.Label>Your API Key:</Form.Label>
+							<InputGroup className="mb-3">
+								<Form.Control
+									as="input"
+									value={user.api_key}
+									readOnly
+									className="font-monospace"
+									style={{ fontSize: '0.85em', wordBreak: 'break-all' }}
+									type={showApiKey ? 'text' : 'password'}
+								/>
+								<Button
+									variant="outline-secondary"
+									onClick={() => setShowApiKey(!showApiKey)}
+									title={showApiKey ? 'Hide API key' : 'Show API key'}
+								>
+									{showApiKey ? <FaEyeSlash /> : <FaEye />}
+								</Button>
+								<Button
+									variant="outline-primary"
+									onClick={handleCopyApiKey}
+									title="Copy to clipboard"
+								>
+									<FaCopy />
+								</Button>
+							</InputGroup>
+
+							<Form.Label>Claude MCP Command (with API Key):</Form.Label>
+							<InputGroup className="mb-3">
+								<Form.Control
+									as="input"
+									value={showApiKey
+										? `claude mcp add --transport http stargate-evolution ${API_BASE_URL}/api/mcp --header "Authorization: Bearer ${user.api_key}"`
+										: `claude mcp add --transport http stargate-evolution ${API_BASE_URL}/api/mcp --header "Authorization: Bearer [API_KEY_HIDDEN]"`
+									}
+									readOnly
+									className="font-monospace"
+									style={{ fontSize: '0.85em', wordBreak: 'break-all' }}
+								/>
+								<Button
+									variant="outline-primary"
+									onClick={handleCopyMCPCommandWithApiKey}
+									title="Copy MCP command with API key to clipboard"
+								>
+									<FaCopy />
+								</Button>
+							</InputGroup>
+
+							<div className="d-grid gap-2 mb-4">
+								<Button
+									variant="warning"
+									onClick={handleGenerateApiKey}
+									disabled={isGeneratingApiKey}
+								>
+									{isGeneratingApiKey ? 'Generating...' : 'Regenerate API Key'}
+								</Button>
+								<Button
+									variant="outline-danger"
+									onClick={handleDeleteApiKey}
+								>
+									Delete API Key
+								</Button>
+							</div>
+						</>
+					) : (
+						<>
+							<Alert variant="secondary" className="mb-3">
+								<small>No API key generated yet.</small>
+							</Alert>
+							<div className="d-grid mb-4">
+								<Button
+									variant="success"
+									onClick={handleGenerateApiKey}
+									disabled={isGeneratingApiKey}
+								>
+									{isGeneratingApiKey ? 'Generating...' : 'Generate API Key'}
+								</Button>
+							</div>
+						</>
+					)}
+
+					{/* JWT Token Section */}
+					<h6 className="mt-4">JWT Token (Temporary)</h6>
+					<p className="text-muted small mb-2">
+						JWT tokens expire in 15 minutes and are useful for temporary access.
+					</p>
 
 					<Form.Label>JWT Token:</Form.Label>
 					<InputGroup className="mb-3">
@@ -789,20 +1024,13 @@ export const MenuPage: React.FC = () => {
 						</Button>
 					</InputGroup>
 
-					<Alert variant="warning" className="mb-3">
-						<small>
-							<strong>Security Warning:</strong> Keep this token secure and never share it publicly. 
-							It provides full administrative access to the game backend.
-						</small>
-					</Alert>
-
-					<Form.Label>Claude MCP Command:</Form.Label>
+					<Form.Label>Claude MCP Command (with JWT):</Form.Label>
 					<InputGroup className="mb-3">
 						<Form.Control
 							as="input"
-							value={showMCPCommand 
+							value={showMCPCommand
 								? `claude mcp add --transport http stargate-evolution ${API_BASE_URL}/api/mcp --header "Authorization: Bearer ${session?.token || ''}"`
-								: `claude mcp add --transport http stargate-evolution ${API_BASE_URL}/api/mcp --header "Authorization: Bearer [HIDDEN]"`
+								: `claude mcp add --transport http stargate-evolution ${API_BASE_URL}/api/mcp --header "Authorization: Bearer [JWT_HIDDEN]"`
 							}
 							readOnly
 							className="font-monospace"
@@ -827,10 +1055,17 @@ export const MenuPage: React.FC = () => {
 					{session?.expiresAt && (
 						<div className="mt-2">
 							<small className="text-muted">
-								<strong>Expires:</strong> {new Date(session.expiresAt).toLocaleString()}
+								<strong>JWT Expires:</strong> {new Date(session.expiresAt).toLocaleString()}
 							</small>
 						</div>
 					)}
+
+					<Alert variant="warning" className="mt-3">
+						<small>
+							<strong>Security Warning:</strong> Keep these credentials secure and never share them publicly.
+							They provide full administrative access to the game backend.
+						</small>
+					</Alert>
 				</Modal.Body>
 			</Modal>
 		</div>

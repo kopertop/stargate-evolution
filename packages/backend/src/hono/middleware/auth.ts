@@ -6,6 +6,24 @@ import type { Env, User } from '../../types';
 
 const JWT_ISSUER = 'stargate-evolution';
 
+// Helper function to authenticate using API key
+async function authenticateWithApiKey(apiKey: string, env: Env): Promise<User | null> {
+	try {
+		const stmt = env.DB.prepare('SELECT * FROM users WHERE api_key = ?');
+		const result = await stmt.bind(apiKey).first();
+		
+		if (!result) {
+			return null;
+		}
+		
+		const userResult = validateUser(result);
+		return userResult.success ? userResult.data : null;
+	} catch (error) {
+		console.error('API key authentication error:', error);
+		return null;
+	}
+}
+
 export const verifyJwt: MiddlewareHandler<{ Bindings: Env, Variables: { user: User } }> = async (c, next) => {
 	const authHeader = c.req.header('Authorization');
 
@@ -31,7 +49,7 @@ export const verifyJwt: MiddlewareHandler<{ Bindings: Env, Variables: { user: Us
 	}
 };
 
-// Helper function to verify admin access
+// Helper function to verify admin access (supports both JWT and API keys)
 export const verifyAdminAccess: MiddlewareHandler<{ Bindings: Env, Variables: { user: User } }> = async (c, next) => {
 	const authHeader = c.req.header('Authorization');
 
@@ -40,23 +58,34 @@ export const verifyAdminAccess: MiddlewareHandler<{ Bindings: Env, Variables: { 
 	}
 
 	const token = authHeader.substring(7);
+	let user: User | null = null;
 
-	try {
-		const secret = new TextEncoder().encode(c.env.JWT_SECRET);
-		const { payload } = await jwtVerify(token, secret, { issuer: JWT_ISSUER });
-		const userResult = validateUser(payload.user);
-		if (!userResult.success || !userResult.data) {
-			return c.json({ error: 'Invalid user' }, 401);
+	// Try API key authentication first
+	user = await authenticateWithApiKey(token, c.env);
+	
+	// If API key auth failed, try JWT authentication
+	if (!user) {
+		try {
+			const secret = new TextEncoder().encode(c.env.JWT_SECRET);
+			const { payload } = await jwtVerify(token, secret, { issuer: JWT_ISSUER });
+			const userResult = validateUser(payload.user);
+			if (userResult.success && userResult.data) {
+				user = userResult.data;
+			}
+		} catch (error) {
+			// JWT verification failed
+			console.log('JWT verification failed:', error);
 		}
-
-		const user = userResult.data;
-		if (!user.is_admin) {
-			return c.json({ error: 'Admin access required' }, 403);
-		}
-
-		c.set('user', user);
-		await next();
-	} catch {
-		return c.json({ error: 'Invalid token' }, 401);
 	}
+
+	if (!user) {
+		return c.json({ error: 'Invalid token or API key' }, 401);
+	}
+
+	if (!user.is_admin) {
+		return c.json({ error: 'Admin access required' }, 403);
+	}
+
+	c.set('user', user);
+	await next();
 };
