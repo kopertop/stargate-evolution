@@ -2021,4 +2021,11 @@ export class Game {
 
 		return { left, right, top, bottom };
 	}
+
+	/**
+	 * Get all fog of war data for all floors
+	 */
+	public getAllFogData(): any {
+		return this.fogLayer?.getAllFogData() || {};
+	}
 }

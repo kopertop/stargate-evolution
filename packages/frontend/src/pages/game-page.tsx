@@ -12,9 +12,10 @@ import { TouchControlsHelp } from '../components/touch-controls-help';
 import { TouchFeedback } from '../components/touch-feedback';
 import { GAMEPAD_BUTTONS } from '../constants/gamepad';
 import { useAuth } from '../contexts/auth-context';
-import { useGameState } from '../contexts/game-state-context';
 import { Game } from '../game';
+import { useGameEngineSync } from '../hooks/use-game-engine-sync';
 import { useGameController } from '../services/game-controller';
+import { useGameStore } from '../stores/game-store';
 import { onFullscreenChange, getDeviceInfo, isMobileDevice } from '../utils/mobile-utils';
 
 type Direction = 'up' | 'down' | 'left' | 'right';
@@ -74,7 +75,10 @@ const GameRenderer: React.FC<GameRendererProps> = ({ gameId, savedGameData }) =>
 	const auth = useAuth();
 
 	// Game state for resource management
-	const gameState = useGameState();
+	const gameState = useGameStore();
+
+	// Sync game engine with store
+	const { syncToStore, syncToEngine } = useGameEngineSync(gameRef);
 
 	// Fullscreen detection
 	useEffect(() => {
@@ -898,7 +902,7 @@ export const GamePage: React.FC = () => {
 	const { id: gameIdFromUrl } = useParams<{ id: string }>();
 	const navigate = useNavigate();
 	const auth = useAuth();
-	const gameState = useGameState();
+	const gameState = useGameStore();
 	const [savedGameData, setSavedGameData] = useState<any>(null);
 	const [isLoadingGameData, setIsLoadingGameData] = useState(false);
 	const [loadError, setLoadError] = useState<string | null>(null);
