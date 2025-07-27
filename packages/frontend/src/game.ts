@@ -1171,6 +1171,17 @@ export class Game {
 				console.warn('[GAME] Room not found for roomId:', roomId);
 			}
 		}
+
+		// Trigger fog discovery at the new position
+		if (this.fogLayer) {
+			const currentRoom = this.findRoomContainingPoint(this.player.x, this.player.y);
+			this.fogLayer.updatePlayerPosition({
+				x: this.player.x,
+				y: this.player.y,
+				roomId: currentRoom?.id || 'unknown',
+			});
+			console.log('[GAME] Fog discovery triggered at new player position');
+		}
 	}
 
 	public restoreDoorStates(doorStates: any[]) {
@@ -1221,6 +1232,18 @@ export class Game {
 
 			// Re-render rooms to show only the current floor
 			this.renderRooms();
+
+			// Trigger fog discovery at current player position after floor change
+			if (this.fogLayer) {
+				const playerPos = this.getPlayerPosition();
+				const currentRoom = this.findRoomContainingPoint(playerPos.x, playerPos.y);
+				this.fogLayer.updatePlayerPosition({
+					x: playerPos.x,
+					y: playerPos.y,
+					roomId: currentRoom?.id || 'unknown',
+				});
+				console.log('[GAME] Fog discovery triggered after floor change');
+			}
 
 			// Notify listeners of floor change
 			if (this.options.onFloorChange) {
@@ -1414,6 +1437,16 @@ export class Game {
 				});
 				console.log('[GAME] Migrated old fog data to new floor-aware format');
 			}
+
+			// Trigger initial fog discovery at current player position after restoration
+			const playerPos = this.getPlayerPosition();
+			const currentRoom = this.findRoomContainingPoint(playerPos.x, playerPos.y);
+			this.fogLayer.updatePlayerPosition({
+				x: playerPos.x,
+				y: playerPos.y,
+				roomId: currentRoom?.id || 'unknown',
+			});
+			console.log('[GAME] Initial fog discovery triggered after restoration');
 
 			// Force fog render after restoration
 			const viewportBounds = this.getViewportBounds();

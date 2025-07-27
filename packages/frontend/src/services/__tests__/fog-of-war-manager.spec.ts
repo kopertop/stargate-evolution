@@ -431,4 +431,38 @@ describe('FogOfWarManager', () => {
 			expect(manager.getFogData()).toEqual({});
 		});
 	});
+
+	describe('player position management', () => {
+		it('should trigger fog discovery when player position is set', () => {
+			const manager = new FogOfWarManager();
+			const playerPosition = { x: 100, y: 100, roomId: 'test-room' };
+
+			// Set player position - this should trigger fog discovery
+			manager.updatePlayerPosition(playerPosition);
+
+			// Check that tiles around the player position are discovered
+			// The discovery radius should be 3 tiles (48 pixels / 16 pixels per tile)
+			expect(manager.isTileDiscovered(100, 100)).toBe(true); // Player position
+			expect(manager.isTileDiscovered(80, 80)).toBe(true);   // Within discovery radius
+			expect(manager.isTileDiscovered(160, 160)).toBe(true); // Within discovery radius
+			expect(manager.isTileDiscovered(200, 200)).toBe(false); // Outside discovery radius
+		});
+
+		it('should not rediscover already discovered tiles', () => {
+			const manager = new FogOfWarManager();
+			const playerPosition = { x: 100, y: 100, roomId: 'test-room' };
+
+			// First discovery
+			manager.updatePlayerPosition(playerPosition);
+			const firstDiscoveryCount = Object.keys(manager.getFogData()).length;
+
+			// Move player to a position that will discover some new tiles but not too many
+			manager.updatePlayerPosition({ x: 150, y: 150, roomId: 'test-room' });
+			const secondDiscoveryCount = Object.keys(manager.getFogData()).length;
+
+			// Should discover some new tiles but not too many since some overlap
+			expect(secondDiscoveryCount).toBeGreaterThan(firstDiscoveryCount);
+			expect(secondDiscoveryCount - firstDiscoveryCount).toBeLessThan(20); // Only a few new tiles
+		});
+	});
 });
