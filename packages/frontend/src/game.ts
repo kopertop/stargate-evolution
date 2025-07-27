@@ -9,7 +9,7 @@ import * as PIXI from 'pixi.js';
 import { BackgroundLayer } from './components/background-layer';
 import { DoorsLayer } from './components/doors-layer';
 import { FogLayer } from './components/fog-layer';
-import { FurnitureLayer } from './components/furniture-layer';
+import { FurnitureLayer, type ElevatorConfig } from './components/furniture-layer';
 import { MapLayer } from './components/map-layer';
 import { NPCLayer } from './components/npc-layer';
 import { RoomsLayer } from './components/rooms-layer';
@@ -17,6 +17,7 @@ import { HelpPopover } from './help-popover';
 import type { GamepadAxis, GamepadButton } from './services/game-controller';
 import { SavedGameService } from './services/saved-game-service';
 import { TemplateService } from './services/template-service';
+import { debugLogger } from './utils/debug-logger';
 import { isMobileDevice } from './utils/mobile-utils';
 import { TouchControlManager, TouchUtils } from './utils/touch-controls';
 
@@ -38,6 +39,11 @@ export interface GameOptions {
 	onAxisChange?: (axis: GamepadAxis, callback: (value: number) => void) => () => void;
 	getAxisValue?: (axis: GamepadAxis) => number;
 	isPressed?: (button: GamepadButton) => boolean;
+	// Floor management
+	currentFloor?: number;
+	onFloorChange?: (floor: number) => void;
+	// Elevator system
+	onElevatorActivation?: (elevatorConfig: ElevatorConfig, currentFloor: number) => void;
 }
 
 export class Game {
@@ -70,6 +76,9 @@ export class Game {
 	private doors: DoorTemplate[] = [];
 	private furniture: RoomFurniture[] = [];
 
+	// Floor management
+	private currentFloor: number = 0;
+
 	// NPC system
 
 	// Pending restoration data (stored until room system is ready)
@@ -98,6 +107,9 @@ export class Game {
 		this.world = new PIXI.Container();
 		this.gameData = gameData;
 
+		// Initialize floor management
+		this.currentFloor = options.currentFloor ?? 0;
+
 		// Create background layer system
 		this.backgroundLayer = new BackgroundLayer({
 			onBackgroundTypeChange: (newType: 'stars' | 'ftl') => {
@@ -124,7 +136,7 @@ export class Game {
 		this.setupInput();
 		this.setupControllerInput();
 		this.resizeToWindow();
-		
+
 		// Store resize handler for cleanup
 		this.resizeHandler = () => this.resizeToWindow();
 		window.addEventListener('resize', this.resizeHandler);
@@ -157,28 +169,28 @@ export class Game {
 		this.fogLayer.setObstacleChecker((tileX, tileY) => {
 			const playerPos = this.getPlayerPosition();
 			const tileSize = 16; // Must match the fog tile size
-			
+
 			// Convert tile coordinates to world coordinates (tile center)
 			const tileWorldX = tileX * tileSize + tileSize / 2;
 			const tileWorldY = tileY * tileSize + tileSize / 2;
-			
+
 			// Find which room the target tile is in
 			const targetRoom = this.rooms.find(room =>
 				tileWorldX >= room.startX && tileWorldX < room.endX &&
 				tileWorldY >= room.startY && tileWorldY < room.endY,
 			);
-			
+
 			// Find which room the player is in
 			const playerRoom = this.rooms.find(room =>
 				playerPos.x >= room.startX && playerPos.x < room.endX &&
 				playerPos.y >= room.startY && playerPos.y < room.endY,
 			);
-			
+
 			// Allow visibility of tiles in the player's current room
 			if (targetRoom && playerRoom && targetRoom.id === playerRoom.id) {
 				return false; // Same room = visible
 			}
-			
+
 			// Allow visibility of wall tiles adjacent to the player's room
 			if (!targetRoom && playerRoom) {
 				// This is a wall tile - check if it's adjacent to the player's room
@@ -189,7 +201,7 @@ export class Game {
 				);
 				return !isAdjacentToPlayerRoom; // Show adjacent walls, block distant walls
 			}
-			
+
 			// Block all other tiles (different rooms, undefined states)
 			return true;
 		});
@@ -234,14 +246,14 @@ export class Game {
 			this.keys[e.key.toLowerCase()] = true;
 			if (e.key.toLowerCase() === 'e' || e.key === 'Enter' || e.key === ' ') {
 				this.handleDoorActivation();
-				this.furnitureLayer?.handleFurnitureActivation(this.player.x, this.player.y);
+				this.furnitureLayer?.handleFurnitureActivation(this.player.x, this.player.y, this.currentFloor);
 			}
 		};
-		
+
 		this.keyupHandler = (e: KeyboardEvent) => {
 			this.keys[e.key.toLowerCase()] = false;
 		};
-		
+
 		window.addEventListener('keydown', this.keydownHandler);
 		window.addEventListener('keyup', this.keyupHandler);
 	}
@@ -298,7 +310,7 @@ export class Game {
 
 		// Just do exactly what spacebar does - check for nearby doors and furniture
 		this.handleDoorActivation();
-		this.furnitureLayer?.handleFurnitureActivation(screenX, screenY);
+		this.furnitureLayer?.handleFurnitureActivation(screenX, screenY, this.currentFloor);
 	}
 
 	private setupControllerInput() {
@@ -328,7 +340,7 @@ export class Game {
 			if (!this.menuOpen) {
 				console.log('[GAME-INPUT] A button released - checking for door/furniture activation');
 				this.handleDoorActivation();
-				this.furnitureLayer?.handleFurnitureActivation(this.player.x, this.player.y);
+				this.furnitureLayer?.handleFurnitureActivation(this.player.x, this.player.y, this.currentFloor);
 			}
 		});
 
@@ -567,24 +579,35 @@ export class Game {
 	}
 
 	private findRoomContainingPoint(x: number, y: number): RoomTemplate | null {
+		// Only consider rooms on the current floor
 		return this.rooms.find(room =>
+			room.floor === this.currentFloor &&
 			x >= room.startX && x <= room.endX &&
 			y >= room.startY && y <= room.endY,
 		) || null;
 	}
 
 	private findRoomContainingPointWithThreshold(x: number, y: number, threshold: number): RoomTemplate | null {
+		// Only consider rooms on the current floor
 		return this.rooms.find(room =>
+			room.floor === this.currentFloor &&
 			x >= room.startX + threshold && x <= room.endX - threshold &&
 			y >= room.startY + threshold && y <= room.endY - threshold,
 		) || null;
 	}
 
 	private findDoorBetweenRooms(roomId1: string, roomId2: string): any | null {
-		return this.doors.find(door =>
-			(door.from_room_id === roomId1 && door.to_room_id === roomId2) ||
-			(door.from_room_id === roomId2 && door.to_room_id === roomId1),
-		) || null;
+		// Only consider doors between rooms on the current floor
+		return this.doors.find(door => {
+			const fromRoom = this.rooms.find(r => r.id === door.from_room_id);
+			const toRoom = this.rooms.find(r => r.id === door.to_room_id);
+			const isCurrentFloor = fromRoom?.floor === this.currentFloor && toRoom?.floor === this.currentFloor;
+
+			return isCurrentFloor && (
+				(door.from_room_id === roomId1 && door.to_room_id === roomId2) ||
+				(door.from_room_id === roomId2 && door.to_room_id === roomId1)
+			);
+		}) || null;
 	}
 
 	private isPassingThroughDoor(currentX: number, currentY: number, newX: number, newY: number, door: any): boolean {
@@ -621,8 +644,17 @@ export class Game {
 	}
 
 	private findNearbyOpenDoor(x: number, y: number, radius: number): any | null {
+		// Only consider doors on the current floor
 		return this.doors.find(door => {
 			if (door.state !== 'opened') return false;
+
+			// Check if door is on current floor
+			const fromRoom = this.rooms.find(r => r.id === door.from_room_id);
+			const toRoom = this.rooms.find(r => r.id === door.to_room_id);
+			if (fromRoom?.floor !== this.currentFloor || toRoom?.floor !== this.currentFloor) {
+				return false;
+			}
+
 			const distance = Math.sqrt((x - door.x) ** 2 + (y - door.y) ** 2);
 			return distance <= radius;
 		}) || null;
@@ -633,7 +665,14 @@ export class Game {
 	}
 
 	private findCollidingDoor(x: number, y: number, playerRadius: number): any | null {
-		for (const door of this.doors) {
+		// Only consider doors on the current floor
+		const currentFloorDoors = this.doors.filter(door => {
+			const fromRoom = this.rooms.find(r => r.id === door.from_room_id);
+			const toRoom = this.rooms.find(r => r.id === door.to_room_id);
+			return fromRoom?.floor === this.currentFloor && toRoom?.floor === this.currentFloor;
+		});
+
+		for (const door of currentFloorDoors) {
 			// Transform player position to door's local coordinate system to handle rotation
 			const dx = x - door.x;
 			const dy = y - door.y;
@@ -828,11 +867,18 @@ export class Game {
 	private handleDoorActivation(): void {
 		const interactionRadius = 25; // Slightly reduced for smaller player (was 30, now 25)
 
-		// Find the closest door within interaction range
+		// Find the closest door within interaction range on current floor
 		let closestDoor: any = null;
 		let closestDistance = Infinity;
 
-		for (const door of this.doors) {
+		// Only consider doors on the current floor
+		const currentFloorDoors = this.doors.filter(door => {
+			const fromRoom = this.rooms.find(r => r.id === door.from_room_id);
+			const toRoom = this.rooms.find(r => r.id === door.to_room_id);
+			return fromRoom?.floor === this.currentFloor && toRoom?.floor === this.currentFloor;
+		});
+
+		for (const door of currentFloorDoors) {
 			const distance = Math.sqrt((this.player.x - door.x) ** 2 + (this.player.y - door.y) ** 2);
 			if (distance <= interactionRadius && distance < closestDistance) {
 				closestDistance = distance;
@@ -843,7 +889,7 @@ export class Game {
 		if (closestDoor) {
 			this.activateDoor(closestDoor.id);
 		} else {
-			console.log('[INTERACTION] No doors nearby to activate');
+			console.log('[INTERACTION] No doors nearby to activate on floor', this.currentFloor);
 		}
 	}
 
@@ -851,6 +897,14 @@ export class Game {
 		const door = this.doors.find(d => d.id === doorId);
 		if (!door) {
 			console.log('[DOOR] Door not found:', doorId);
+			return false;
+		}
+
+		// Verify door is on current floor
+		const fromRoom = this.rooms.find(r => r.id === door.from_room_id);
+		const toRoom = this.rooms.find(r => r.id === door.to_room_id);
+		if (fromRoom?.floor !== this.currentFloor || toRoom?.floor !== this.currentFloor) {
+			console.log('[DOOR] Door not on current floor:', doorId, 'floor:', fromRoom?.floor, toRoom?.floor, 'current:', this.currentFloor);
 			return false;
 		}
 
@@ -968,7 +1022,7 @@ export class Game {
 			console.warn('[GAME] Attempted to destroy already destroyed game instance');
 			return;
 		}
-		
+
 		this.isDestroyed = true;
 		console.log('[GAME] Starting game destruction...');
 
@@ -1079,6 +1133,12 @@ export class Game {
 			const room = this.rooms.find(r => r.id === roomId);
 			if (room) {
 				console.log('[GAME] Player is in room:', room.name || room.id);
+				
+				// Auto-switch to the correct floor if player is in a room on a different floor
+				if (room.floor !== this.currentFloor) {
+					console.log(`[GAME] Player is on floor ${room.floor}, but current floor is ${this.currentFloor}. Switching floors...`);
+					this.setCurrentFloor(room.floor);
+				}
 			} else {
 				console.warn('[GAME] Room not found for roomId:', roomId);
 			}
@@ -1112,6 +1172,39 @@ export class Game {
 		// This method should be implemented to return the current game time speed
 		// For now, return 1 as default. This should be connected to the actual time speed system.
 		return 1;
+	}
+
+	// Floor management methods
+	public getCurrentFloor(): number {
+		return this.currentFloor;
+	}
+
+	public setCurrentFloor(floor: number): void {
+		if (this.currentFloor !== floor) {
+			debugLogger.floor(`Changing floor from ${this.currentFloor} to ${floor}`);
+			console.log('[GAME] Changing floor from', this.currentFloor, 'to', floor);
+			this.currentFloor = floor;
+
+			// Re-render rooms to show only the current floor
+			this.renderRooms();
+
+			// Notify listeners of floor change
+			if (this.options.onFloorChange) {
+				this.options.onFloorChange(floor);
+			}
+		}
+	}
+
+	public getAvailableFloors(): number[] {
+		// Get unique floor numbers from all rooms, sorted
+		const floors = Array.from(new Set(this.rooms.map(room => room.floor))).sort((a, b) => a - b);
+		console.log('[GAME] Available floors:', floors);
+		return floors;
+	}
+
+	public findElevatorPosition(targetFloor: number): { x: number; y: number } | null {
+		// Delegate to furniture layer
+		return this.furnitureLayer?.findElevatorPosition(targetFloor) || null;
 	}
 
 	public getStargatePosition(): { x: number; y: number } | null {
@@ -1172,6 +1265,7 @@ export class Game {
 		const playerPosition = this.getPlayerPosition();
 		const doorStates = this.getDoorStates();
 		const currentRoomId = this.getCurrentRoomId();
+		const npcs = this.getNPCs();
 
 		return {
 			playerPosition: {
@@ -1181,9 +1275,11 @@ export class Game {
 			},
 			doorStates,
 			fogOfWar: this.fogLayer?.getFogData() || {},
+			npcs, // Include NPC data in save state
 			// Add other game state as needed
 			mapZoom: this.mapZoom,
 			currentBackgroundType: this.backgroundLayer?.getCurrentBackgroundType() || 'stars',
+			currentFloor: this.currentFloor,
 		};
 	}
 
@@ -1290,6 +1386,32 @@ export class Game {
 			this.setBackgroundType(gameData.currentBackgroundType);
 		}
 
+		// Restore current floor
+		if (gameData.currentFloor !== undefined) {
+			this.setCurrentFloor(gameData.currentFloor);
+		}
+
+		// Restore NPCs
+		if (gameData.npcs && Array.isArray(gameData.npcs) && this.npcLayer) {
+			console.log('[GAME] Restoring NPCs:', gameData.npcs.length, 'NPCs');
+			
+			// Clear existing NPCs first
+			const existingNPCs = this.getNPCs();
+			existingNPCs.forEach(npc => this.removeNPC(npc.id));
+			
+			// Add saved NPCs
+			gameData.npcs.forEach((npc: any) => {
+				// Ensure NPCs have the floor property (migration for old saves)
+				if (npc.floor === undefined) {
+					npc.floor = 0; // Default to floor 0 for old NPCs
+					console.log('[GAME] Migrated NPC', npc.name, 'to floor 0 (missing floor property)');
+				}
+				this.addNPC(npc);
+			});
+			
+			console.log('[GAME] NPCs restored successfully');
+		}
+
 		console.log('[GAME] Game state restoration completed');
 	}
 
@@ -1347,12 +1469,12 @@ export class Game {
 
 	public setMapZoom(zoom: number) {
 		this.mapZoom = Math.max(0.2, Math.min(zoom, 8));
-		
+
 		// Update MapLayer zoom if it exists
 		if (this.mapLayer) {
 			this.mapLayer.setMapZoom(this.mapZoom);
 		}
-		
+
 		// Also zoom the world container for room system
 		if (this.world) {
 			this.world.scale.set(this.mapZoom);
@@ -1388,6 +1510,12 @@ export class Game {
 			this.furnitureLayer = new FurnitureLayer({
 				onFurnitureStateChange: (furnitureId: string, newState: string) => {
 					console.log('[GAME] Furniture state changed:', furnitureId, 'to', newState);
+				},
+				onElevatorActivation: (elevatorConfig: ElevatorConfig, currentFloor: number) => {
+					console.log('[GAME] Elevator activation requested:', elevatorConfig);
+					if (this.options.onElevatorActivation) {
+						this.options.onElevatorActivation(elevatorConfig, currentFloor);
+					}
 				},
 			});
 			this.npcLayer = new NPCLayer({
@@ -1433,6 +1561,54 @@ export class Game {
 			if (import.meta.env.DEV && this.npcLayer) {
 				this.npcLayer.exposeTestUtilities();
 			}
+			
+			// Expose elevator debug tools
+			if (import.meta.env.DEV) {
+				debugLogger.exposeTestTools();
+				(window as any).elevatorDebug = {
+					...((window as any).elevatorDebug || {}),
+					logRooms: () => {
+						debugLogger.floor('All rooms:', this.rooms.map(r => ({
+							id: r.id,
+							name: r.name,
+							floor: r.floor,
+							type: r.type,
+						})));
+					},
+					logDoors: () => {
+						debugLogger.door('All doors:', this.doors.map(d => ({
+							id: d.id,
+							from: d.from_room_id,
+							to: d.to_room_id,
+							state: d.state,
+							position: { x: d.x, y: d.y },
+						})));
+					},
+					logFurniture: () => {
+						debugLogger.furniture('All furniture:', this.furniture.map(f => ({
+							id: f.id,
+							type: f.furniture_type,
+							room: f.room_id,
+							position: { x: f.x, y: f.y },
+						})));
+					},
+					logNPCs: () => {
+						debugLogger.npc('All NPCs:', this.getNPCs().map(n => ({
+							id: n.id,
+							name: n.name,
+							position: { x: n.movement.x, y: n.movement.y },
+							room: n.current_room_id,
+							floor: n.floor || 0,
+						})));
+					},
+					getCurrentFloor: () => this.currentFloor,
+					testElevatorSpawn: (floor: number) => {
+						const position = this.findElevatorPosition(floor);
+						debugLogger.elevator(`Test spawn on floor ${floor}:`, position);
+						return position;
+					},
+				};
+			}
 
 			// Check for pending restoration data now that room system is ready
 			if (this.pendingRestoration && !this.isDestroyed) {
@@ -1452,7 +1628,12 @@ export class Game {
 
 		const templateService = new TemplateService();
 		const realRooms = await templateService.getRooms();
+		
+		console.log('[DEBUG] About to load doors...');
 		const realDoors = await templateService.getDoors();
+		console.log('[DEBUG] Door loading completed, got:', realDoors.length, 'doors');
+		console.log('[DEBUG] First few doors:', realDoors.slice(0, 3).map(d => ({ id: d.id, from: d.from_room_id, to: d.to_room_id })));
+		
 		const realFurniture = await templateService.getFurniture();
 
 		console.log(`[DEBUG] Loaded ${realRooms.length} rooms, ${realDoors.length} doors, ${realFurniture.length} furniture from API`);
@@ -1476,7 +1657,7 @@ export class Game {
 		}
 		if (this.furnitureLayer) {
 			this.furnitureLayer.setRooms(this.rooms);
-			this.furnitureLayer.setFurniture(this.furniture);
+			// Note: Don't set all furniture here - it will be set per-floor in setCurrentFloor()
 		}
 		if (this.npcLayer) {
 			this.npcLayer.setRooms(this.rooms);
@@ -1499,28 +1680,146 @@ export class Game {
 	private renderRooms() {
 		if (!this.roomsLayer) return;
 
-		console.log('[DEBUG] Rendering rooms...');
+		debugLogger.floor(`Rendering rooms for floor ${this.currentFloor}...`);
+		console.log('[DEBUG] Rendering rooms for floor', this.currentFloor, '...');
+		
+		// Debug: Log all doors in the system for Floor 1 analysis
+		if (this.currentFloor === 1) {
+			debugLogger.door(`Total doors in system: ${this.doors.length}`);
+			debugLogger.door('All doors:', this.doors.map(d => ({
+				id: d.id,
+				from: d.from_room_id,
+				to: d.to_room_id,
+				state: d.state,
+				position: { x: d.x, y: d.y },
+			})));
+		}
+
+		// Filter rooms, doors, furniture, and NPCs by current floor
+		const floorRooms = this.rooms.filter(room => room.floor === this.currentFloor);
+		const floorDoors = this.doors.filter(door => {
+			const fromRoom = this.rooms.find(r => r.id === door.from_room_id);
+			const toRoom = this.rooms.find(r => r.id === door.to_room_id);
+			
+			// Include doors where at least one room is on the current floor
+			// This includes both same-floor doors and inter-floor doors (like elevators/stairs)
+			const fromOnCurrentFloor = fromRoom?.floor === this.currentFloor;
+			const toOnCurrentFloor = toRoom?.floor === this.currentFloor;
+			
+			// Enhanced debugging for door filtering
+			if (this.currentFloor === 1) {
+				debugLogger.door(`Evaluating door ${door.id}:`, {
+					fromRoom: fromRoom ? { id: fromRoom.id, name: fromRoom.name, floor: fromRoom.floor } : 'NOT FOUND',
+					toRoom: toRoom ? { id: toRoom.id, name: toRoom.name, floor: toRoom.floor } : 'NOT FOUND',
+					fromOnCurrentFloor,
+					toOnCurrentFloor,
+					included: fromOnCurrentFloor || toOnCurrentFloor,
+				});
+			}
+			
+			return fromOnCurrentFloor || toOnCurrentFloor;
+		});
+		const floorFurniture = this.furniture.filter(f => {
+			const room = this.rooms.find(r => r.id === f.room_id);
+			const isOnCurrentFloor = room?.floor === this.currentFloor;
+			
+			// Debug furniture filtering for Floor 1
+			if (this.currentFloor === 1) {
+				console.log(`[DEBUG] Furniture ${f.id} (${f.furniture_type}) in room ${f.room_id}:`, {
+					roomFound: !!room,
+					roomFloor: room?.floor,
+					currentFloor: this.currentFloor,
+					included: isOnCurrentFloor
+				});
+			}
+			
+			return isOnCurrentFloor;
+		});
+
+		// Debug logging
+		debugLogger.floor(`Floor ${this.currentFloor} has:`, {
+			rooms: floorRooms.length,
+			doors: floorDoors.length, 
+			furniture: floorFurniture.length,
+		});
+		
+		debugLogger.door(`Doors on floor ${this.currentFloor}:`, 
+			floorDoors.map(d => ({ 
+				id: d.id, 
+				from: d.from_room_id, 
+				to: d.to_room_id, 
+				state: d.state,
+				position: { x: d.x, y: d.y },
+			})),
+		);
+		
+		debugLogger.furniture(`Furniture on floor ${this.currentFloor}:`,
+			floorFurniture.map(f => ({
+				id: f.id,
+				type: f.furniture_type,
+				room: f.room_id,
+				position: { x: f.x, y: f.y },
+			})),
+		);
+
+		console.log('[DEBUG] Floor', this.currentFloor, 'has', floorRooms.length, 'rooms,', floorDoors.length, 'doors,', floorFurniture.length, 'furniture');
+		console.log('[DEBUG] Floor doors:', floorDoors.map(d => ({ id: d.id, from: d.from_room_id, to: d.to_room_id, state: d.state })));
 
 		// Clear existing rooms
 		this.furnitureLayer?.removeChildren();
 
-		// Update rooms in RoomsLayer
+		// Update rooms in RoomsLayer with filtered data
 		if (this.roomsLayer) {
-			this.roomsLayer.setRooms(this.rooms);
+			this.roomsLayer.setRooms(floorRooms);
 		}
 
-		// Update doors in DoorsLayer
+		// Update doors in DoorsLayer with filtered data
 		if (this.doorsLayer) {
-			this.doorsLayer.setDoors(this.doors);
+			this.doorsLayer.setRooms(floorRooms);
+			this.doorsLayer.setDoors(floorDoors);
 		}
 
-		// Update furniture in FurnitureLayer
+		// Update furniture in FurnitureLayer with filtered data
 		if (this.furnitureLayer) {
+			// FurnitureLayer needs ALL rooms to determine available floors for elevators
 			this.furnitureLayer.setRooms(this.rooms);
-			this.furnitureLayer.setFurniture(this.furniture);
+			
+			// Debug furniture filtering
+			console.log(`[DEBUG] Setting ${floorFurniture.length} furniture items for floor ${this.currentFloor}:`);
+			console.log('[DEBUG] Floor furniture:', floorFurniture.map(f => ({ 
+				id: f.id, 
+				type: f.furniture_type, 
+				room: f.room_id,
+				position: `(${f.x}, ${f.y})` 
+			})));
+			
+			this.furnitureLayer.setFurniture(floorFurniture);
 		}
 
-		console.log('[DEBUG] Room rendering complete');
+		// Update NPCs in NPCLayer with filtered data (NPCs should stay on their original floors)
+		if (this.npcLayer) {
+			const allNPCs = this.npcLayer.getNPCs();
+			debugLogger.npc(`Updating NPC layer for floor ${this.currentFloor}. Total NPCs: ${allNPCs.length}`);
+			debugLogger.npc('All NPCs:', allNPCs.map(n => ({
+				id: n.id,
+				name: n.name,
+				position: { x: n.movement.x, y: n.movement.y },
+				room: n.current_room_id,
+				floor: n.floor || 0, // Now using the floor property
+			})));
+			
+			// Filter NPCs to only show those on the current floor
+			const floorNPCs = allNPCs.filter(npc => (npc.floor || 0) === this.currentFloor);
+			debugLogger.npc(`NPCs on floor ${this.currentFloor}: ${floorNPCs.length}`, 
+				floorNPCs.map(n => ({ id: n.id, name: n.name, floor: n.floor || 0 })),
+			);
+			
+			this.npcLayer.setRooms(floorRooms);
+			this.npcLayer.setDoors(floorDoors);
+			this.npcLayer.setVisibleFloor(this.currentFloor);
+		}
+
+		console.log('[DEBUG] Room rendering complete for floor', this.currentFloor);
 	}
 
 
@@ -1546,13 +1845,15 @@ export class Game {
 	}
 
 	private centerCameraOnRooms() {
-		if (this.rooms.length === 0) return;
+		// Get rooms on current floor
+		const currentFloorRooms = this.rooms.filter(room => room.floor === this.currentFloor);
+		if (currentFloorRooms.length === 0) return;
 
-		// Calculate center point of all rooms
+		// Calculate center point of rooms on current floor
 		let minX = Infinity, maxX = -Infinity;
 		let minY = Infinity, maxY = -Infinity;
 
-		this.rooms.forEach(room => {
+		currentFloorRooms.forEach(room => {
 			minX = Math.min(minX, room.startX);
 			maxX = Math.max(maxX, room.endX);
 			minY = Math.min(minY, room.startY);
@@ -1569,7 +1870,7 @@ export class Game {
 		this.world.x = screenCenterX - (centerX * this.world.scale.x);
 		this.world.y = screenCenterY - (centerY * this.world.scale.y);
 
-		console.log(`[DEBUG] Camera centered on rooms at (${centerX}, ${centerY})`);
+		console.log(`[DEBUG] Camera centered on floor ${this.currentFloor} rooms at (${centerX}, ${centerY})`);
 	}
 
 	public focusOnSystem(systemId: string) {

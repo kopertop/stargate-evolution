@@ -35,7 +35,7 @@ function getServer(env: Env, user: User): McpServer {
 				content: [
 					{
 						type: 'text',
-						text: `Hello! Welcome to Stargate Evolution! MCP server is working correctly.`,
+						text: 'Hello! Welcome to Stargate Evolution! MCP server is working correctly.',
 					},
 				],
 			};
@@ -193,7 +193,7 @@ function getServer(env: Env, user: User): McpServer {
 					content: [
 						{
 							type: 'text',
-							text: `❌ **Delete Function Disabled**\n\nFor safety, the delete game session function has been temporarily disabled. This prevents accidental data deletion during MCP testing.`,
+							text: '❌ **Delete Function Disabled**\n\nFor safety, the delete game session function has been temporarily disabled. This prevents accidental data deletion during MCP testing.',
 						},
 					],
 				};
@@ -242,7 +242,7 @@ function getServer(env: Env, user: User): McpServer {
 					cost || 0,
 					image || null,
 					now,
-					now
+					now,
 				).run();
 
 				if (!result.success) {
@@ -282,8 +282,8 @@ function getServer(env: Env, user: User): McpServer {
 			const category = 'seating';
 			const width = 64;
 			const height = 64;
-			const interactive = true;
-			const blocks_movement = true;
+			const interactive: boolean = true;
+			const blocks_movement: boolean = true;
 			const compatible_rooms = 'bridge,command_center';
 			try {
 				const furnitureId = name.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
@@ -305,11 +305,11 @@ function getServer(env: Env, user: User): McpServer {
 					category || null,
 					width || 32,
 					height || 32,
-					interactive ? 1 : 0,
-					blocks_movement !== false ? 1 : 0,
+					1, // interactive
+					1, // blocks_movement
 					compatible_rooms || null,
 					now,
-					now
+					now,
 				).run();
 
 				if (!result.success) {
@@ -320,7 +320,7 @@ function getServer(env: Env, user: User): McpServer {
 					content: [
 						{
 							type: 'text',
-							text: `✅ **Furniture Template Created**\n\n**${name}** (${furnitureId})\nType: ${furniture_type}\n${description || 'No description'}\n\n${category ? `Category: ${category}\n` : ''}Size: ${width || 32}x${height || 32}\nInteractive: ${interactive ? 'Yes' : 'No'}\nBlocks Movement: ${blocks_movement !== false ? 'Yes' : 'No'}\n${compatible_rooms ? `Compatible Rooms: ${compatible_rooms}\n` : ''}Created successfully!`,
+							text: `✅ **Furniture Template Created**\n\n**${name}** (${furnitureId})\nType: ${furniture_type}\n${description || 'No description'}\n\n${category ? `Category: ${category}\n` : ''}Size: ${width || 32}x${height || 32}\nInteractive: Yes\nBlocks Movement: Yes\n${compatible_rooms ? `Compatible Rooms: ${compatible_rooms}\n` : ''}Created successfully!`,
 						},
 					],
 				};
@@ -346,7 +346,7 @@ function getServer(env: Env, user: User): McpServer {
 			const name = 'Test Bridge';
 			const type = 'bridge';
 			const description = 'Main command bridge for the ship';
-			const layout_id = 'destiny_ship';
+			const layout_id = 'destiny';
 			const start_x = 50;
 			const end_x = 150;
 			const start_y = 50;
@@ -379,7 +379,7 @@ function getServer(env: Env, user: User): McpServer {
 					exploration_time || 2,
 					image || null,
 					now,
-					now
+					now,
 				).run();
 
 				if (!result.success) {
@@ -430,15 +430,15 @@ function getServer(env: Env, user: User): McpServer {
 
 				const tableName = tableMap[template_type];
 				let query = `SELECT id, name, description FROM ${tableName}`;
-				let params: any[] = [];
+				const params: any[] = [];
 
 				if (search) {
-					query += ` WHERE name LIKE ? OR description LIKE ?`;
+					query += ' WHERE name LIKE ? OR description LIKE ?';
 					const searchTerm = `%${search}%`;
 					params.push(searchTerm, searchTerm);
 				}
 
-				query += ` ORDER BY name LIMIT ?`;
+				query += ' ORDER BY name LIMIT ?';
 				params.push(searchLimit);
 
 				const stmt = env.DB.prepare(query);
@@ -471,6 +471,420 @@ function getServer(env: Env, user: User): McpServer {
 						{
 							type: 'text',
 							text: `❌ **Error listing ${template_type} templates**: ${error instanceof Error ? error.message : 'Unknown error'}`,
+						},
+					],
+				};
+			}
+		},
+	);
+
+	// Database Querying Tools
+
+	// Raw SQL query tool (admin only, with safety restrictions)
+	server.tool(
+		'execute-sql-query',
+		'Execute a raw SQL query on the database (admin only, read-only queries)',
+		{
+			type: 'object',
+			properties: {
+				query: {
+					type: 'string',
+					description: 'The SQL query to execute (SELECT statements only for safety)',
+				},
+				limit: {
+					type: 'number',
+					description: 'Maximum number of rows to return (default: 50, max: 1000)',
+					default: 50,
+				},
+			},
+			required: ['query'],
+		},
+		async (args) => {
+			const query = args.query as string;
+			const limit = Math.min((args.limit as number) || 50, 1000);
+
+			// Safety check: only allow SELECT statements
+			const trimmedQuery = query.trim().toLowerCase();
+			if (!trimmedQuery.startsWith('select')) {
+				return {
+					content: [
+						{
+							type: 'text',
+							text: '❌ **Safety Error**: Only SELECT queries are allowed. Use other tools for data modification.',
+						},
+					],
+				};
+			}
+
+			// Additional safety: block dangerous keywords
+			const dangerousKeywords = ['drop', 'delete', 'insert', 'update', 'alter', 'create', 'truncate'];
+			if (dangerousKeywords.some(keyword => trimmedQuery.includes(keyword))) {
+				return {
+					content: [
+						{
+							type: 'text',
+							text: '❌ **Safety Error**: Query contains potentially dangerous keywords. Only read operations are allowed.',
+						},
+					],
+				};
+			}
+
+			try {
+				// Add LIMIT clause if not present
+				let finalQuery = query;
+				if (!trimmedQuery.includes('limit')) {
+					finalQuery += ` LIMIT ${limit}`;
+				}
+
+				const stmt = env.DB.prepare(finalQuery);
+				const result = await stmt.all();
+
+				if (!result.success) {
+					throw new Error(`Query failed: ${result.error}`);
+				}
+
+				const rows = result.results || [];
+				const rowCount = rows.length;
+
+				// Format results as a table
+				if (rowCount === 0) {
+					return {
+						content: [
+							{
+								type: 'text',
+								text: '📊 **Query Result**: No rows returned',
+							},
+						],
+					};
+				}
+
+				// Get column names from first row
+				const columns = Object.keys(rows[0]);
+				const maxWidth = 50; // Max column width for display
+
+				// Create header
+				const header = columns.map(col => col.padEnd(Math.min(col.length + 2, maxWidth))).join('|');
+				const separator = columns.map(col => '-'.repeat(Math.min(col.length + 2, maxWidth))).join('|');
+
+				// Create rows
+				const dataRows = rows.slice(0, limit).map(row => 
+					columns.map(col => {
+						const value = String(row[col] || '');
+						return value.length > maxWidth - 2 
+							? value.substring(0, maxWidth - 5) + '...' 
+							: value.padEnd(Math.min(col.length + 2, maxWidth));
+					}).join('|')
+				);
+
+				const table = [header, separator, ...dataRows].join('\n');
+
+				return {
+					content: [
+						{
+							type: 'text',
+							text: `📊 **Query Result** (${rowCount} rows):\n\n\`\`\`\n${table}\n\`\`\`\n\n**Query**: \`${query}\``,
+						},
+					],
+				};
+			} catch (error) {
+				return {
+					content: [
+						{
+							type: 'text',
+							text: `❌ **Query Error**: ${error instanceof Error ? error.message : 'Unknown error'}`,
+						},
+					],
+				};
+			}
+		},
+	);
+
+	// List all rooms tool
+	server.tool(
+		'list-all-rooms',
+		'List all rooms in the database with their floor assignments',
+		{
+			type: 'object',
+			properties: {
+				layout_id: {
+					type: 'string',
+					description: 'Filter by layout ID (optional)',
+					default: 'destiny',
+				},
+				floor: {
+					type: 'number',
+					description: 'Filter by floor number (optional)',
+				},
+			},
+		},
+		async (args) => {
+			try {
+				const layoutId = (args.layout_id as string) || 'destiny';
+				const floor = args.floor as number;
+
+				let query = `
+					SELECT id, name, type, floor, startX, endX, startY, endY, layout_id, description
+					FROM room_templates 
+					WHERE layout_id = ?
+				`;
+				const params: any[] = [layoutId];
+
+				if (floor !== undefined) {
+					query += ' AND floor = ?';
+					params.push(floor);
+				}
+
+				query += ' ORDER BY floor, name';
+
+				const stmt = env.DB.prepare(query);
+				const result = await stmt.bind(...params).all();
+
+				if (!result.success) {
+					throw new Error(`Database query failed: ${result.error}`);
+				}
+
+				const rooms = result.results || [];
+				const roomsByFloor = rooms.reduce((acc: any, room: any) => {
+					const floorNum = room.floor || 0;
+					if (!acc[floorNum]) acc[floorNum] = [];
+					acc[floorNum].push(room);
+					return acc;
+				}, {});
+
+				const floorSummary = Object.keys(roomsByFloor)
+					.sort((a, b) => Number(a) - Number(b))
+					.map(floorNum => {
+						const floorRooms = roomsByFloor[floorNum];
+						const roomList = floorRooms
+							.map((r: any) => `  - **${r.name}** (${r.id}) [${r.type}] (${r.startX},${r.startY})→(${r.endX},${r.endY})`)
+							.join('\n');
+						return `**Floor ${floorNum}** (${floorRooms.length} rooms):\n${roomList}`;
+					})
+					.join('\n\n');
+
+				const filterText = floor !== undefined ? ` on floor ${floor}` : '';
+				return {
+					content: [
+						{
+							type: 'text',
+							text: `🏢 **Rooms in ${layoutId}${filterText}** (${rooms.length} total):\n\n${floorSummary}`,
+						},
+					],
+				};
+			} catch (error) {
+				return {
+					content: [
+						{
+							type: 'text',
+							text: `❌ **Error listing rooms**: ${error instanceof Error ? error.message : 'Unknown error'}`,
+						},
+					],
+				};
+			}
+		},
+	);
+
+	// List all doors tool
+	server.tool(
+		'list-all-doors',
+		'List all doors in the database with their room connections and floor information',
+		{
+			type: 'object',
+			properties: {
+				layout_id: {
+					type: 'string',
+					description: 'Filter by layout ID (optional)',
+					default: 'destiny',
+				},
+				floor: {
+					type: 'number',
+					description: 'Show doors connecting to a specific floor (optional)',
+				},
+			},
+		},
+		async (args) => {
+			try {
+				const layoutId = (args.layout_id as string) || 'destiny';
+				const floor = args.floor as number;
+
+				let query = `
+					SELECT 
+						d.id,
+						d.from_room_id,
+						d.to_room_id,
+						d.x,
+						d.y,
+						d.state,
+						r1.name as from_room_name,
+						r1.floor as from_floor,
+						r2.name as to_room_name,
+						r2.floor as to_floor
+					FROM door_templates d
+					LEFT JOIN room_templates r1 ON d.from_room_id = r1.id
+					LEFT JOIN room_templates r2 ON d.to_room_id = r2.id
+					WHERE (r1.layout_id = ? OR r2.layout_id = ?)
+				`;
+				const params: any[] = [layoutId, layoutId];
+
+				if (floor !== undefined) {
+					query += ' AND (r1.floor = ? OR r2.floor = ?)';
+					params.push(floor, floor);
+				}
+
+				query += ' ORDER BY d.id';
+
+				const stmt = env.DB.prepare(query);
+				const result = await stmt.bind(...params).all();
+
+				if (!result.success) {
+					throw new Error(`Database query failed: ${result.error}`);
+				}
+
+				const doors = result.results || [];
+				
+				if (doors.length === 0) {
+					const filterText = floor !== undefined ? ` connecting to floor ${floor}` : '';
+					return {
+						content: [
+							{
+								type: 'text',
+								text: `🚪 **No doors found** in ${layoutId}${filterText}`,
+							},
+						],
+					};
+				}
+
+				// Group doors by floor connections
+				const sameFloorDoors = doors.filter((d: any) => d.from_floor === d.to_floor);
+				const interFloorDoors = doors.filter((d: any) => d.from_floor !== d.to_floor);
+
+				let output = `🚪 **Doors in ${layoutId}** (${doors.length} total):\n\n`;
+
+				if (sameFloorDoors.length > 0) {
+					const byFloor = sameFloorDoors.reduce((acc: any, door: any) => {
+						const floorNum = door.from_floor || 0;
+						if (!acc[floorNum]) acc[floorNum] = [];
+						acc[floorNum].push(door);
+						return acc;
+					}, {});
+
+					output += '**Same-Floor Doors:**\n';
+					Object.keys(byFloor)
+						.sort((a, b) => Number(a) - Number(b))
+						.forEach(floorNum => {
+							const floorDoors = byFloor[floorNum];
+							output += `  Floor ${floorNum} (${floorDoors.length} doors):\n`;
+							floorDoors.forEach((d: any) => {
+								output += `    - **${d.id}**: ${d.from_room_name || d.from_room_id} ↔ ${d.to_room_name || d.to_room_id} (${d.x},${d.y}) [${d.state}]\n`;
+							});
+						});
+					output += '\n';
+				}
+
+				if (interFloorDoors.length > 0) {
+					output += `**Inter-Floor Doors (${interFloorDoors.length}):**\n`;
+					interFloorDoors.forEach((d: any) => {
+						output += `  - **${d.id}**: Floor ${d.from_floor} ${d.from_room_name || d.from_room_id} ↔ Floor ${d.to_floor} ${d.to_room_name || d.to_room_id} (${d.x},${d.y}) [${d.state}]\n`;
+					});
+				}
+
+				const filterText = floor !== undefined ? ` (filtered for floor ${floor})` : '';
+				output += `\n📊 **Summary**: ${sameFloorDoors.length} same-floor, ${interFloorDoors.length} inter-floor${filterText}`;
+
+				return {
+					content: [
+						{
+							type: 'text',
+							text: output,
+						},
+					],
+				};
+			} catch (error) {
+				return {
+					content: [
+						{
+							type: 'text',
+							text: `❌ **Error listing doors**: ${error instanceof Error ? error.message : 'Unknown error'}`,
+						},
+					],
+				};
+			}
+		},
+	);
+
+	// Database schema inspection tool
+	server.tool(
+		'inspect-database-schema',
+		'Show database table schemas and relationships',
+		{
+			type: 'object',
+			properties: {
+				table_name: {
+					type: 'string',
+					description: 'Specific table to inspect (optional, shows all if not specified)',
+				},
+			},
+		},
+		async (args) => {
+			try {
+				const tableName = args.table_name as string;
+
+				if (tableName) {
+					// Show specific table schema
+					const schemaQuery = `PRAGMA table_info(${tableName})`;
+					const stmt = env.DB.prepare(schemaQuery);
+					const result = await stmt.all();
+
+					if (!result.success || !result.results?.length) {
+						return {
+							content: [
+								{
+									type: 'text',
+									text: `❌ **Table not found**: ${tableName}`,
+								},
+							],
+						};
+					}
+
+					const columns = result.results.map((col: any) => 
+						`  - **${col.name}** (${col.type}) ${col.notnull ? 'NOT NULL' : ''} ${col.pk ? 'PRIMARY KEY' : ''} ${col.dflt_value ? `DEFAULT ${col.dflt_value}` : ''}`
+					).join('\n');
+
+					return {
+						content: [
+							{
+								type: 'text',
+								text: `📋 **Schema for ${tableName}**:\n\n${columns}`,
+							},
+						],
+					};
+				} else {
+					// Show all tables
+					const tablesQuery = `SELECT name FROM sqlite_master WHERE type='table' ORDER BY name`;
+					const stmt = env.DB.prepare(tablesQuery);
+					const result = await stmt.all();
+
+					if (!result.success) {
+						throw new Error(`Failed to query tables: ${result.error}`);
+					}
+
+					const tables = result.results?.map((t: any) => `  - ${t.name}`).join('\n') || 'No tables found';
+
+					return {
+						content: [
+							{
+								type: 'text',
+								text: `📋 **Database Tables**:\n\n${tables}\n\nUse \`inspect-database-schema\` with a specific table name to see its schema.`,
+							},
+						],
+					};
+				}
+			} catch (error) {
+				return {
+					content: [
+						{
+							type: 'text',
+							text: `❌ **Error inspecting schema**: ${error instanceof Error ? error.message : 'Unknown error'}`,
 						},
 					],
 				};
