@@ -28,24 +28,15 @@ app.route('/api/status', status);
 app.route('/api/templates', templates);
 app.route('/api/upload', upload);
 
-// MCP - conditionally load to avoid ajv compatibility issues in tests
+// MCP route: attempt to load real route dynamically, fallback to mock if unavailable (e.g., in tests)
 try {
-	// Only import MCP in non-test environments
-	if (typeof process === 'undefined' || process.env.NODE_ENV !== 'test') {
-		// eslint-disable-next-line @typescript-eslint/no-require-imports
-		const mcp = require('./routes/mcp').default;
-		app.route('/api/mcp', mcp);
-	} else {
-		// Mock MCP route for tests
-		const mockMcp = new Hono();
-		mockMcp.all('*', (c) => c.json({ message: 'MCP disabled in tests' }, 501));
-		app.route('/api/mcp', mockMcp);
-	}
-} catch (error) {
-	console.warn('MCP route could not be loaded:', error);
-	// Fallback mock route
+	// Dynamically require MCP route to avoid bundling its dependencies in tests
+	 
+	const mcp = new Function('return require')()('./routes/mcp').default;
+	app.route('/api/mcp', mcp);
+} catch {
 	const mockMcp = new Hono();
-	mockMcp.all('*', (c) => c.json({ message: 'MCP unavailable' }, 501));
+	mockMcp.all('*', (c) => c.json({ message: 'MCP disabled in tests' }, 501));
 	app.route('/api/mcp', mockMcp);
 }
 

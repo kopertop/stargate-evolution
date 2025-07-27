@@ -6,6 +6,15 @@ import { persist, subscribeWithSelector } from 'zustand/middleware';
 import { DestinyService } from '../services/destiny-service';
 import { SavedGameService } from '../services/saved-game-service';
 
+// Debounce utility for auto-save
+function debounce<T extends (...args: any[]) => any>(func: T, wait: number): T {
+	let timeout: NodeJS.Timeout;
+	return ((...args: any[]) => {
+		clearTimeout(timeout);
+		timeout = setTimeout(() => func(...args), wait);
+	}) as T;
+}
+
 // Type for game data that comes from the backend
 interface BackendGameData {
 	destinyStatus: DestinyStatus;
@@ -151,6 +160,13 @@ interface GameState extends GameEngineState, GameMetadata, UIState {
 	// Sync actions
 	syncToBackend: () => Promise<void>;
 	syncFromBackend: () => Promise<void>;
+
+	// Auto-save actions
+	enableAutoSave: () => void;
+	disableAutoSave: () => void;
+	triggerAutoSave: () => void;
+	getAutoSaveData: (gameId: string) => any | null;
+	hasAutoSave: (gameId: string) => boolean;
 }
 
 // Initial state
@@ -606,11 +622,80 @@ export const useGameStore = create<GameState>()(
 					// Don't throw error for sync failures - just log them
 				}
 			},
+
+			// Auto-save actions
+			enableAutoSave: () => {
+				// Auto-save is enabled by default through subscriptions below
+				console.log('[STORE] Auto-save enabled');
+			},
+
+			disableAutoSave: () => {
+				// This would require more complex state tracking to implement properly
+				console.log('[STORE] Auto-save disable not implemented');
+			},
+
+			triggerAutoSave: () => {
+				const state = get();
+				if (state.gameId && state.isInitialized) {
+					console.log('[STORE] Triggering manual auto-save');
+					// The auto-save happens automatically through Zustand persist
+					// but we can also save to our custom format
+					const gameStateKey = `stargate-auto-save-${state.gameId}`;
+					const autoSaveData = {
+						timestamp: Date.now(),
+						gameId: state.gameId,
+						gameName: state.gameName,
+						playerPosition: state.playerPosition,
+						currentFloor: state.currentFloor,
+						fogOfWar: state.fogOfWar,
+						doorStates: state.doorStates,
+						npcs: state.npcs,
+						mapZoom: state.mapZoom,
+						currentBackgroundType: state.currentBackgroundType,
+						destinyStatus: state.destinyStatus,
+						characters: state.characters,
+						technologies: state.technologies,
+						exploredRooms: state.exploredRooms,
+					};
+
+					try {
+						localStorage.setItem(gameStateKey, JSON.stringify(autoSaveData));
+						console.log('[STORE] Auto-save completed:', gameStateKey);
+					} catch (error) {
+						console.error('[STORE] Auto-save failed:', error);
+					}
+				}
+			},
+
+			getAutoSaveData: (gameId: string) => {
+				try {
+					const gameStateKey = `stargate-auto-save-${gameId}`;
+					const autoSaveData = localStorage.getItem(gameStateKey);
+					if (autoSaveData) {
+						const parsed = JSON.parse(autoSaveData);
+						console.log('[STORE] Found auto-save data for game:', gameId, 'timestamp:', new Date(parsed.timestamp).toLocaleString());
+						return parsed;
+					}
+				} catch (error) {
+					console.error('[STORE] Failed to retrieve auto-save data:', error);
+				}
+				return null;
+			},
+
+			hasAutoSave: (gameId: string) => {
+				try {
+					const gameStateKey = `stargate-auto-save-${gameId}`;
+					return localStorage.getItem(gameStateKey) !== null;
+				} catch (error) {
+					console.error('[STORE] Failed to check auto-save data:', error);
+					return false;
+				}
+			},
 		})),
 		{
 			name: 'stargate-game-state',
 			partialize: (state) => ({
-				// Only persist certain parts of the state
+				// Persist game metadata
 				gameId: state.gameId,
 				gameName: state.gameName,
 				isInitialized: state.isInitialized,
@@ -626,7 +711,15 @@ export const useGameStore = create<GameState>()(
 				ftlStatus: state.ftlStatus,
 				ftlJumpHours: state.ftlJumpHours,
 				timeSpeed: state.timeSpeed,
-				// Don't persist engine state as it should be synced from backend
+
+				// Now also persist game engine state for auto-save/resume
+				playerPosition: state.playerPosition,
+				currentFloor: state.currentFloor,
+				fogOfWar: state.fogOfWar,
+				doorStates: state.doorStates,
+				npcs: state.npcs,
+				mapZoom: state.mapZoom,
+				currentBackgroundType: state.currentBackgroundType,
 			}),
 		},
 	),
@@ -635,12 +728,59 @@ export const useGameStore = create<GameState>()(
 // Set up automatic backend sync every minute
 let syncInterval: NodeJS.Timeout | null = null;
 
+// Create debounced auto-save function (save max once every 5 seconds)
+const debouncedAutoSave = debounce(() => {
+	useGameStore.getState().triggerAutoSave();
+}, 5000);
+
 useGameStore.subscribe(
 	(state) => state.currentFloor,
 	(currentFloor) => {
 		// Sync to backend whenever floor changes
 		console.log('[STORE] Floor changed, syncing to backend');
 		useGameStore.getState().syncToBackend();
+		// Also trigger auto-save
+		debouncedAutoSave();
+	},
+);
+
+// Auto-save on player position changes
+useGameStore.subscribe(
+	(state) => state.playerPosition,
+	(playerPosition) => {
+		if (useGameStore.getState().isInitialized) {
+			debouncedAutoSave();
+		}
+	},
+);
+
+// Auto-save on fog-of-war changes
+useGameStore.subscribe(
+	(state) => state.fogOfWar,
+	(fogOfWar) => {
+		if (useGameStore.getState().isInitialized) {
+			debouncedAutoSave();
+		}
+	},
+);
+
+// Auto-save on door state changes
+useGameStore.subscribe(
+	(state) => state.doorStates,
+	(doorStates) => {
+		if (useGameStore.getState().isInitialized) {
+			debouncedAutoSave();
+		}
+	},
+);
+
+// Auto-save on NPC changes
+useGameStore.subscribe(
+	(state) => state.npcs,
+	(npcs) => {
+		if (useGameStore.getState().isInitialized) {
+			debouncedAutoSave();
+		}
 	},
 );
 

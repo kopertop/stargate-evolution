@@ -1,6 +1,7 @@
 import type { RoomFurniture, RoomTemplate } from '@stargate/common';
 import * as PIXI from 'pixi.js';
 
+import { ElevatorManager } from '../services/elevator-manager';
 import { debugLogger } from '../utils/debug-logger';
 
 export interface FurnitureLayerOptions {
@@ -20,6 +21,7 @@ export class FurnitureLayer extends PIXI.Container {
 	private furnitureTextureCache: Record<string, PIXI.Texture> = {};
 	private options: FurnitureLayerOptions;
 	private renderGeneration: number = 0;
+	private elevatorManager: ElevatorManager = new ElevatorManager();
 
 	constructor(options: FurnitureLayerOptions = {}) {
 		super();
@@ -29,7 +31,17 @@ export class FurnitureLayer extends PIXI.Container {
 	public setFurniture(furniture: RoomFurniture[]): void {
 		this.furniture = furniture;
 		this.renderGeneration++; // Invalidate any pending async operations
+		this.elevatorManager.updateData(this.rooms, this.furniture);
 		this.render();
+	}
+
+	/**
+	 * Update the elevator manager with all furniture for proper elevator positioning
+	 * This ensures elevator positioning works even when only current floor furniture is rendered
+	 */
+	public updateElevatorManagerWithAllFurniture(allFurniture: RoomFurniture[]): void {
+		console.log('[FURNITURE] Updating elevator manager with all furniture:', allFurniture.length, 'items');
+		this.elevatorManager.updateData(this.rooms, allFurniture);
 	}
 
 	public getFurniture(): RoomFurniture[] {
@@ -38,13 +50,14 @@ export class FurnitureLayer extends PIXI.Container {
 
 	public setRooms(rooms: RoomTemplate[]): void {
 		this.rooms = rooms;
+		this.elevatorManager.updateData(this.rooms, this.furniture);
 		this.render();
 	}
 
 	public handleFurnitureActivation(playerX: number, playerY: number, currentFloor?: number): void {
 		console.log('[FURNITURE] Handling furniture activation at:', { playerX, playerY, currentFloor });
 		console.log('[FURNITURE] Available furniture count:', this.furniture.length);
-        
+
 		let closestFurniture: RoomFurniture | null = null;
 		let closestDistance = Infinity;
 		const interactionRadius = 25;
@@ -82,7 +95,7 @@ export class FurnitureLayer extends PIXI.Container {
 
 		if (closestFurniture) {
 			console.log('[FURNITURE] Activating furniture:', closestFurniture.id, 'type:', closestFurniture.furniture_type);
-            
+
 			// Handle elevator console activation (support both naming conventions)
 			if (closestFurniture.furniture_type === 'elevator_console' || closestFurniture.furniture_type === 'elevator-console') {
 				console.log('[FURNITURE] This is an elevator console! Handling elevation activation...');
@@ -95,7 +108,7 @@ export class FurnitureLayer extends PIXI.Container {
 				closestFurniture.active = !closestFurniture.active;
 				console.log('[FURNITURE] Furniture active state:', closestFurniture.active);
 				this.render();
-                
+
 				if (this.options.onFurnitureStateChange) {
 					this.options.onFurnitureStateChange(
 						closestFurniture.id,
@@ -155,7 +168,7 @@ export class FurnitureLayer extends PIXI.Container {
 		console.log('[ELEVATOR] Before validation - configured floors:', elevatorConfig.accessibleFloors);
 		const accessibleFloors = this.validateElevatorAccessibility(elevatorConfig.accessibleFloors);
 		console.log('[ELEVATOR] After validation - accessible floors:', accessibleFloors);
-		
+
 		if (accessibleFloors.length === 0) {
 			console.warn('[ELEVATOR] No accessible floors found for elevator console:', elevatorConsole.id);
 			return;
@@ -177,7 +190,7 @@ export class FurnitureLayer extends PIXI.Container {
 		try {
 			// Debug: Log all rooms and their floor values
 			console.log('[ELEVATOR] All rooms in FurnitureLayer:', this.rooms.map(room => ({ id: room.id, name: room.name, floor: room.floor })));
-			
+
 			// Get all available floors from rooms as default accessible floors
 			const allFloors = Array.from(new Set(this.rooms.map(room => room.floor))).sort((a, b) => a - b);
 			console.log('[ELEVATOR] Default accessible floors (all floors):', allFloors);
@@ -186,10 +199,10 @@ export class FurnitureLayer extends PIXI.Container {
 			if (elevatorFurniture.description) {
 				try {
 					const config = JSON.parse(elevatorFurniture.description);
-					
+
 					if (config.accessibleFloors && Array.isArray(config.accessibleFloors)) {
 						// Validate floor numbers are integers and exist in the game
-						const validFloors = config.accessibleFloors.filter((floor: any) => 
+						const validFloors = config.accessibleFloors.filter((floor: any) =>
 							Number.isInteger(floor) && floor >= 0 && allFloors.includes(floor),
 						);
 
@@ -221,7 +234,7 @@ export class FurnitureLayer extends PIXI.Container {
 	private validateElevatorAccessibility(configuredFloors: number[]): number[] {
 		// Get all available floors from rooms
 		const availableFloors = Array.from(new Set(this.rooms.map(room => room.floor))).sort((a, b) => a - b);
-		
+
 		console.log('[ELEVATOR] Available floors in game:', availableFloors);
 		console.log('[ELEVATOR] Configured elevator floors:', configuredFloors);
 
@@ -243,88 +256,18 @@ export class FurnitureLayer extends PIXI.Container {
 	}
 
 	public findElevatorPosition(targetFloor: number): { x: number; y: number } | null {
-		debugLogger.elevator(`Finding elevator position for floor ${targetFloor}`);
-		
-		// Debug: log all furniture that could be elevators
-		const elevatorCandidates = this.furniture.filter(f => 
-			f.furniture_type === 'elevator_console' || f.furniture_type === 'elevator-console',
-		);
-		debugLogger.elevator(`Found ${elevatorCandidates.length} elevator candidates:`, 
-			elevatorCandidates.map(f => {
-				const room = this.rooms.find(r => r.id === f.room_id);
-				return {
-					id: f.id,
-					type: f.furniture_type,
-					room: room?.name || f.room_id,
-					floor: room?.floor,
-				};
-			}),
-		);
-		
-		// First, try to find an elevator console on the target floor (preferred landing spot)
-		const elevatorOnTargetFloor = this.furniture.find(furniture => {
-			if (furniture.furniture_type !== 'elevator_console' && furniture.furniture_type !== 'elevator-console') return false;
+		debugLogger.elevator(`Finding elevator position for floor ${targetFloor} using ElevatorManager`);
 
-			const room = this.rooms.find(r => r.id === furniture.room_id);
-			return room && room.floor === targetFloor;
-		});
-		
-		debugLogger.elevator(`Elevator on floor ${targetFloor}:`, elevatorOnTargetFloor ? {
-			id: elevatorOnTargetFloor.id,
-			type: elevatorOnTargetFloor.furniture_type,
-			room: this.rooms.find(r => r.id === elevatorOnTargetFloor.room_id)?.name,
-		} : 'None found');
+		// Use the new elevator manager for more robust positioning
+		const elevatorPosition = this.elevatorManager.findBestElevatorPosition(targetFloor);
 
-		if (elevatorOnTargetFloor) {
-			// Find the room this elevator belongs to
-			const room = this.rooms.find(r => r.id === elevatorOnTargetFloor.room_id);
-			if (room) {
-				// Find a safe spawn position within the elevator room, avoiding furniture
-				const safePosition = this.findSafeSpawnPositionInRoom(room, targetFloor);
-				
-				console.log('[ELEVATOR] Found elevator on floor', targetFloor, 'in room:', room.name);
-				console.log('[ELEVATOR] Placing player in elevator room at safe position:', safePosition);
-				return safePosition;
-			}
+		if (elevatorPosition) {
+			console.log('[ELEVATOR] ElevatorManager found position on floor', targetFloor, 'in room:', elevatorPosition.roomName, 'at:', { x: elevatorPosition.x, y: elevatorPosition.y });
+			return { x: elevatorPosition.x, y: elevatorPosition.y };
 		}
 
-		// If no elevator on target floor, look for rooms with "elevator" in the name as backup
-		const floorRooms = this.rooms.filter(room => room.floor === targetFloor);
-		if (floorRooms.length === 0) {
-			console.warn('[ELEVATOR] No rooms found on floor', targetFloor);
-			return null;
-		}
-
-		// First priority: find any room with "elevator" in the name
-		const elevatorRoom = floorRooms.find(room => 
-			room.name.toLowerCase().includes('elevator') || 
-			room.name.toLowerCase().includes('lift'),
-		);
-
-		if (elevatorRoom) {
-			const safePosition = this.findSafeSpawnPositionInRoom(elevatorRoom, targetFloor);
-			console.log('[ELEVATOR] Found elevator-named room on floor', targetFloor, ':', elevatorRoom.name);
-			console.log('[ELEVATOR] Placing player in elevator room at safe position:', safePosition);
-			return safePosition;
-		}
-
-		// Fallback: Find the largest room as the safest landing spot
-		const landingRoom = floorRooms.reduce((largest, current) => {
-			const currentArea = (current.endX - current.startX) * (current.endY - current.startY);
-			const largestArea = (largest.endX - largest.startX) * (largest.endY - largest.startY);
-			return currentArea > largestArea ? current : largest;
-		});
-
-		// Use a safe position within the room (not exactly center to avoid furniture)
-		const roomWidth = landingRoom.endX - landingRoom.startX;
-		const roomHeight = landingRoom.endY - landingRoom.startY;
-		const safeMargin = 30; // Stay away from walls
-		
-		const worldX = landingRoom.startX + Math.max(safeMargin, roomWidth * 0.3);
-		const worldY = landingRoom.startY + Math.max(safeMargin, roomHeight * 0.3);
-
-		console.log('[ELEVATOR] No elevator on floor', targetFloor, 'using largest room as fallback:', landingRoom.name, 'at position:', { x: worldX, y: worldY });
-		return { x: worldX, y: worldY };
+		console.warn('[ELEVATOR] ElevatorManager could not find position for floor', targetFloor);
+		return null;
 	}
 
 	private findSafeSpawnPositionInRoom(room: RoomTemplate, targetFloor: number): { x: number; y: number } {
@@ -432,7 +375,7 @@ export class FurnitureLayer extends PIXI.Container {
 		} else {
 			// Capture current render generation to detect stale async operations
 			const currentGeneration = this.renderGeneration;
-			
+
 			// Use PIXI.Assets.load like in the original code
 			PIXI.Assets.load(imagePath).then(texture => {
 				// Check if this async operation is still valid (not superseded by newer render)
@@ -458,24 +401,45 @@ export class FurnitureLayer extends PIXI.Container {
 		sprite.x = worldX;
 		sprite.y = worldY;
 		sprite.rotation = (furniture.rotation * Math.PI) / 180;
-        
+
 		this.addChild(sprite);
 		console.log(`[FURNITURE] Rendered furniture sprite: ${furniture.name} at (${worldX}, ${worldY})`);
 	}
 
 	private renderFurnitureFallback(furniture: RoomFurniture, worldX: number, worldY: number): void {
 		const graphics = new PIXI.Graphics();
-		
+
 		// Create furniture graphics (bright color for visibility, like original code)
 		graphics.rect(-furniture.width/2, -furniture.height/2, furniture.width, furniture.height).fill(0x00FF88); // Bright green color
 		graphics.rect(-furniture.width/2, -furniture.height/2, furniture.width, furniture.height).stroke({ color: 0xFFFFFF, width: 2 }); // White border
-		
+
 		// Position furniture
 		graphics.x = worldX;
 		graphics.y = worldY;
 		graphics.rotation = (furniture.rotation * Math.PI) / 180;
-		
+
 		this.addChild(graphics);
 		console.log(`[FURNITURE] Rendered furniture fallback: ${furniture.name} at (${worldX}, ${worldY})`);
+	}
+
+	/**
+	 * Get debug information about the elevator manager
+	 */
+	public getElevatorDebugInfo(): any {
+		return this.elevatorManager.getDebugInfo();
+	}
+
+	/**
+	 * Get floors with elevators
+	 */
+	public getFloorsWithElevators(): number[] {
+		return this.elevatorManager.getFloorsWithElevators();
+	}
+
+	/**
+	 * Check if a floor has elevators
+	 */
+	public hasElevatorOnFloor(floor: number): boolean {
+		return this.elevatorManager.hasElevatorOnFloor(floor);
 	}
 }

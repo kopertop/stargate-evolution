@@ -29,8 +29,8 @@ export default defineWorkersConfig(async () => {
 			// Workaround for ajv compatibility issues in Cloudflare Workers
 			global: 'globalThis',
 		},
-		optimizeDeps: {
-			exclude: ['ajv'],
-		},
+			optimizeDeps: {
+				exclude: ['ajv'],
+			},
 	};
 });

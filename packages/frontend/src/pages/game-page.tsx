@@ -445,38 +445,26 @@ const GameRenderer: React.FC<GameRendererProps> = ({ gameId, savedGameData }) =>
 			return;
 		}
 
-		// Find elevator position on target floor
-		const elevatorPosition = gameRef.current.findElevatorPosition(targetFloor);
-		if (!elevatorPosition) {
-			console.warn('[GAME-PAGE] No elevator found on target floor:', targetFloor);
+		// Use the new handleElevatorTransition method for proper floor transitions
+		const success = gameRef.current.handleElevatorTransition(targetFloor);
+		if (!success) {
+			console.warn('[GAME-PAGE] Failed to handle elevator transition to floor:', targetFloor);
 			return;
 		}
 
-		// IMPORTANT: Set player position BEFORE changing floor to avoid position reset
-		console.log('[GAME-PAGE] Setting player position to elevator location:', elevatorPosition);
-		gameRef.current.setPlayerPosition(elevatorPosition.x, elevatorPosition.y);
+		// The game engine's handleElevatorTransition method will:
+		// 1. Save current position for the old floor
+		// 2. Change to target floor (triggers onFloorChange callback)
+		// 3. Set player position to elevator location
+		// 4. Handle fog restoration internally
 
-		// Change to target floor using Floor Provider
-		console.log('[GAME-PAGE] Using Floor Provider to change to floor:', targetFloor);
-		gameState.setCurrentFloor(targetFloor);
-
-		// Ensure fog of war is properly restored for the target floor
-		const targetFloorFogData = gameState.getFogDataForFloor(targetFloor);
-		if (Object.keys(targetFloorFogData).length > 0) {
-			console.log('[GAME-PAGE] Restoring fog data for floor', targetFloor, 'with', Object.keys(targetFloorFogData).length, 'tiles');
-			gameRef.current.restoreFogDataForFloor(targetFloor, targetFloorFogData);
-		}
-
-		// Trigger fog discovery at the new elevator position
-		gameRef.current.triggerFogDiscovery(elevatorPosition.x, elevatorPosition.y, targetFloor);
-
-		console.log('[GAME-PAGE] Player transported to floor', targetFloor, 'at elevator position:', elevatorPosition);
+		console.log('[GAME-PAGE] Player transported to floor', targetFloor);
 
 		// Close the modal after a brief delay to allow the transition animation to complete
 		setTimeout(() => {
 			setShowElevatorConsole(false);
 		}, 100);
-	}, [gameRef, elevatorConfig, gameState]);
+	}, [gameRef, elevatorConfig]);
 
 	// Keyboard controls
 	useEffect(() => {
@@ -937,7 +925,15 @@ export const GamePage: React.FC = () => {
 			if (gameState.gameId === gameIdFromUrl && gameState.isInitialized) {
 				console.log('[GAME-PAGE] Correct game already loaded:', gameIdFromUrl);
 
-				// Try to get the full game data from localStorage first
+				// Check for auto-save data first (most recent)
+				const autoSaveData = gameState.getAutoSaveData(gameIdFromUrl);
+				if (autoSaveData) {
+					console.log('[GAME-PAGE] Found auto-save data, using for restoration');
+					setSavedGameData(autoSaveData);
+					return;
+				}
+
+				// Fallback to full game data from localStorage
 				const storedGameData = localStorage.getItem(`stargate-game-${gameIdFromUrl}`);
 				if (storedGameData) {
 					try {
@@ -967,11 +963,16 @@ export const GamePage: React.FC = () => {
 				return;
 			}
 
-			// Check authentication - if not authenticated, redirect but be patient with token refresh
+			// Check authentication - allow unauthenticated users for local games
 			if (!auth.isAuthenticated || auth.isTokenExpired) {
-				console.log('[GAME-PAGE] User not authenticated - redirecting to menu');
-				navigate('/');
-				return;
+				// Allow access to local games without authentication
+				if (gameIdFromUrl.startsWith('local-')) {
+					console.log('[GAME-PAGE] Unauthenticated user accessing local game - allowing access');
+				} else {
+					console.log('[GAME-PAGE] User not authenticated and trying to access server game - redirecting to menu');
+					navigate('/');
+					return;
+				}
 			}
 
 			// If we have a different game loaded, or no game loaded, try to load the URL game
@@ -985,13 +986,21 @@ export const GamePage: React.FC = () => {
 					if (gameIdFromUrl.startsWith('local-')) {
 						console.log('[GAME-PAGE] Loading local game from localStorage:', gameIdFromUrl);
 
-						// Try to load from localStorage
-						const storedGameData = localStorage.getItem(`stargate-game-${gameIdFromUrl}`);
-						if (!storedGameData) {
-							throw new Error('Local game data not found. The game may have been deleted.');
-						}
+						// Check for auto-save data first (most recent for local games)
+						const autoSaveData = gameState.getAutoSaveData(gameIdFromUrl);
+						let gameData;
 
-						const gameData = JSON.parse(storedGameData);
+						if (autoSaveData) {
+							console.log('[GAME-PAGE] Found auto-save data for local game, using for restoration');
+							gameData = autoSaveData;
+						} else {
+							// Try to load from localStorage
+							const storedGameData = localStorage.getItem(`stargate-game-${gameIdFromUrl}`);
+							if (!storedGameData) {
+								throw new Error('Local game data not found. The game may have been deleted.');
+							}
+							gameData = JSON.parse(storedGameData);
+						}
 
 						// Set context state directly for local games
 						gameState.setGameId(gameIdFromUrl);
@@ -1019,15 +1028,22 @@ export const GamePage: React.FC = () => {
 						await gameState.loadGame(gameIdFromUrl);
 						console.log('[GAME-PAGE] Successfully loaded game from URL:', gameIdFromUrl);
 
-						// Get the full game data that was just loaded and stored in localStorage
-						const storedGameData = localStorage.getItem(`stargate-game-${gameIdFromUrl}`);
-						if (storedGameData) {
-							try {
-								const fullGameData = JSON.parse(storedGameData);
-								console.log('[GAME-PAGE] Setting full loaded game data for restoration');
-								setSavedGameData(fullGameData);
-							} catch (error) {
-								console.warn('[GAME-PAGE] Failed to parse newly loaded game data:', error);
+						// Check for auto-save data first (most recent)
+						const autoSaveData = gameState.getAutoSaveData(gameIdFromUrl);
+						if (autoSaveData) {
+							console.log('[GAME-PAGE] Found auto-save data for backend game, using for restoration');
+							setSavedGameData(autoSaveData);
+						} else {
+							// Get the full game data that was just loaded and stored in localStorage
+							const storedGameData = localStorage.getItem(`stargate-game-${gameIdFromUrl}`);
+							if (storedGameData) {
+								try {
+									const fullGameData = JSON.parse(storedGameData);
+									console.log('[GAME-PAGE] Setting full loaded game data for restoration');
+									setSavedGameData(fullGameData);
+								} catch (error) {
+									console.warn('[GAME-PAGE] Failed to parse newly loaded game data:', error);
+								}
 							}
 						}
 					}

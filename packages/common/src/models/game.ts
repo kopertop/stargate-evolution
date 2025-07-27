@@ -31,7 +31,7 @@ export const PlayerPositionSchema = z.object({
 	x: z.number(),
 	y: z.number(),
 	roomId: z.string(),
-	floor: z.number(),
+	floor: z.number().optional(),
 });
 export type PlayerPosition = z.infer<typeof PlayerPositionSchema>;
 

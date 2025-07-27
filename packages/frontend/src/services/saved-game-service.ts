@@ -47,7 +47,7 @@ export class SavedGameService {
 	 * Create a new saved game
 	 */
 	static async createSavedGame(data: CreateSavedGame): Promise<SavedGame> {
-		const response = await apiClient.post('/api/games/saves', data, true); // true = authenticated
+		const response = await apiClient.post('/api/games/saves', data, false); // false = no auth required
 		if (response.error) {
 			throw new Error(response.error);
 		}

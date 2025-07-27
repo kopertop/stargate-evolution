@@ -269,6 +269,7 @@ export class FogLayer extends PIXI.Container {
 		this.fogOfWarManager?.setFogDataForFloor(floor, fogData);
 		// Force re-render after data change
 		this.lastViewportBounds = null;
+		console.log('[FOG] Set fog data for floor', floor, 'with', Object.keys(fogData).length, 'tiles');
 	}
 
 	/**
@@ -285,5 +286,28 @@ export class FogLayer extends PIXI.Container {
 		this.fogOfWarManager?.setAllFogData(allFogData);
 		// Force re-render after data change
 		this.lastViewportBounds = null;
+		console.log('[FOG] Set all fog data for', Object.keys(allFogData).length, 'floors');
+	}
+
+	/**
+	 * Get the last known player position for a specific floor
+	 */
+	public getLastPlayerPositionForFloor(floor: number): any {
+		return this.fogOfWarManager?.getLastPlayerPositionForFloor(floor) || null;
+	}
+
+	/**
+	 * Set the last known player position for a specific floor
+	 */
+	public setLastPlayerPositionForFloor(floor: number, position: any): void {
+		this.fogOfWarManager?.setLastPlayerPositionForFloor(floor, position);
+		console.log('[FOG] Set last position for floor', floor, 'at', position);
+	}
+
+	/**
+	 * Clear all position tracking
+	 */
+	public clearAllPositionTracking(): void {
+		this.fogOfWarManager?.clearAllPositionTracking();
 	}
 }

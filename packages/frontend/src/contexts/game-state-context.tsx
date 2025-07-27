@@ -63,7 +63,7 @@ interface GameStateContextType {
 	setTimeSpeed: (speed: number) => void;
 
 	// Game State Actions
-	initializeNewGame: (gameName: string) => Promise<string>;
+	initializeNewGame: (gameName?: string) => Promise<string>;
 	saveGame: (gameName?: string, gameEngineRef?: any) => Promise<void>;
 	loadGame: (gameId: string) => Promise<void>;
 	isLoading: boolean;
@@ -151,28 +151,36 @@ export const GameStateProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 				fog_of_war: {}, // Empty fog of war data for new game
 			};
 
+			// Determine game name (optional)
+			const effectiveName = newGameName?.trim() || `New Game`;
+
 			let savedGameId: string;
 			let backendSaveSuccessful = false;
 
-			// Try to save to backend first
-			try {
-				const savedGame = await SavedGameService.createSavedGame({
-					name: newGameName,
-					description: `New game started on ${new Date().toLocaleDateString()}`,
-					game_data: gameData,
-				});
-				savedGameId = savedGame.id;
-				backendSaveSuccessful = true;
-				console.log('[GAME-STATE] Game saved to backend successfully:', savedGameId);
-			} catch (backendError) {
-				console.warn('[GAME-STATE] Backend save failed, falling back to local storage:', backendError);
-				// Generate a local game ID if backend fails
+			// If authenticated, attempt server save; otherwise start local-only
+			if (auth.isAuthenticated && !auth.isTokenExpired) {
+				try {
+					const savedGame = await SavedGameService.createSavedGame({
+						name: effectiveName,
+						description: `New game started on ${new Date().toLocaleDateString()}`,
+						game_data: gameData,
+					});
+					savedGameId = savedGame.id;
+					backendSaveSuccessful = true;
+					console.log('[GAME-STATE] Game saved to backend successfully:', savedGameId);
+				} catch (backendError) {
+					console.warn('[GAME-STATE] Backend save failed, falling back to local storage:', backendError);
+					savedGameId = `local-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+					toast.warning('Could not save to server. Game will be saved locally only.');
+				}
+			} else {
+				// No auth: local-only game
 				savedGameId = `local-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-				toast.warning('Could not save to server. Game will be saved locally only.');
+				toast.info('Starting new game in local-only mode.');
 			}
 
 			setGameId(savedGameId);
-			setGameName(newGameName);
+			setGameName(effectiveName);
 			setDestinyStatus(initialDestinyStatus);
 			setCharacters([]);
 			setTechnologies([]);
@@ -193,9 +201,9 @@ export const GameStateProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 			console.log('[GAME-STATE] Initialized new game:', savedGameId, 'with name:', newGameName);
 
 			if (backendSaveSuccessful) {
-				toast.success(`New game "${newGameName}" created and saved to server!`);
+				toast.success(`New game "${effectiveName}" created and saved to server!`);
 			} else {
-				toast.success(`New game "${newGameName}" created and saved locally!`);
+				toast.success(`New game "${effectiveName}" created and saved locally!`);
 			}
 
 			return savedGameId;
@@ -398,13 +406,23 @@ export const GameStateProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 	const loadGame = async (newGameId: string) => {
 		setIsLoading(true);
 		try {
-			// Check authentication status
+		let gameData: any;
+		if (newGameId.startsWith('local-')) {
+			// Load from local storage
+			const raw = localStorage.getItem(`stargate-game-${newGameId}`);
+			if (!raw) {
+				toast.error('Local save not found');
+				throw new Error('Local save not found');
+			}
+			gameData = JSON.parse(raw);
+			console.log('[GAME-STATE] Loaded saved game from localStorage:', newGameId);
+		} else {
+			// Server-stored games require auth
 			if (!auth.isAuthenticated || auth.isTokenExpired) {
 				console.warn('[GAME-STATE] User not authenticated or token expired');
 				toast.error('Please sign in to load saved games');
 				throw new Error('Authentication required to load saved games');
 			}
-
 			const savedGame = await SavedGameService.getSavedGame(newGameId);
 			console.log('[GAME-STATE] Loaded saved game from backend:', {
 				gameId: newGameId,
@@ -412,7 +430,9 @@ export const GameStateProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 				gameDataType: typeof savedGame.game_data,
 				gameDataKeys: savedGame.game_data ? Object.keys(savedGame.game_data) : [],
 			});
-			const gameData = savedGame.game_data;
+			gameData = savedGame.game_data;
+			setGameName(savedGame.name);
+		}
 
 			// Set context state (non-game-engine data)
 			setDestinyStatus(gameData.destinyStatus);

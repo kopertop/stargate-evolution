@@ -15,6 +15,10 @@ export class FogOfWarManager {
 	private playerPosition: PlayerPosition | null = null;
 	private currentFloor: number = 0;
 
+	// Floor-specific player position tracking
+	private floorPlayerPositions: Record<number, PlayerPosition | null> = {}; // Floor -> last known player position
+	private floorLastTilePositions: Record<number, { tileX: number; tileY: number }> = {}; // Floor -> last tile position
+
 	// Performance optimization fields
 	private lastPlayerTileX: number = Number.MAX_SAFE_INTEGER;
 	private lastPlayerTileY: number = Number.MAX_SAFE_INTEGER;
@@ -80,6 +84,17 @@ export class FogOfWarManager {
 	public setCurrentFloor(floor: number): void {
 		if (this.currentFloor !== floor) {
 			console.log('[FOG] Changing floor from', this.currentFloor, 'to', floor);
+			
+			// Save current player position and tile position for the old floor
+			if (this.playerPosition) {
+				this.floorPlayerPositions[this.currentFloor] = { ...this.playerPosition };
+				this.floorLastTilePositions[this.currentFloor] = {
+					tileX: this.lastPlayerTileX,
+					tileY: this.lastPlayerTileY,
+				};
+				console.log('[FOG] Saved player position for floor', this.currentFloor, 'at', this.floorPlayerPositions[this.currentFloor]);
+			}
+
 			this.currentFloor = floor;
 
 			// Initialize fog data for new floor if it doesn't exist
@@ -88,12 +103,24 @@ export class FogOfWarManager {
 				console.log('[FOG] Initialized fog data for floor', floor);
 			}
 
+			// Restore player position and tile position for the new floor if available
+			const savedPosition = this.floorPlayerPositions[floor];
+			const savedTilePosition = this.floorLastTilePositions[floor];
+			
+			if (savedPosition && savedTilePosition) {
+				this.playerPosition = { ...savedPosition };
+				this.lastPlayerTileX = savedTilePosition.tileX;
+				this.lastPlayerTileY = savedTilePosition.tileY;
+				console.log('[FOG] Restored player position for floor', floor, 'at', savedPosition, 'tile:', savedTilePosition);
+			} else {
+				// Reset position tracking for new floor if no saved position
+				this.lastPlayerTileX = Number.MAX_SAFE_INTEGER;
+				this.lastPlayerTileY = Number.MAX_SAFE_INTEGER;
+				console.log('[FOG] No saved position for floor', floor, '- position tracking reset');
+			}
+
 			// Update cache for current floor
 			this.updateCacheForCurrentFloor();
-
-			// Reset position tracking for new floor
-			this.lastPlayerTileX = Number.MAX_SAFE_INTEGER;
-			this.lastPlayerTileY = Number.MAX_SAFE_INTEGER;
 			this.hasNewDiscoveriesFlag = false;
 		}
 	}
@@ -433,5 +460,34 @@ export class FogOfWarManager {
 
 	public setObstacleChecker(checker: (tileX: number, tileY: number) => boolean) {
 		this.obstacleChecker = checker;
+	}
+
+	/**
+	 * Get the last known player position for a specific floor
+	 */
+	public getLastPlayerPositionForFloor(floor: number): PlayerPosition | null {
+		return this.floorPlayerPositions[floor] || null;
+	}
+
+	/**
+	 * Set the last known player position for a specific floor (used for restoration)
+	 */
+	public setLastPlayerPositionForFloor(floor: number, position: PlayerPosition): void {
+		this.floorPlayerPositions[floor] = { ...position };
+		const { tileX, tileY } = this.worldToFogTile(position.x, position.y);
+		this.floorLastTilePositions[floor] = { tileX, tileY };
+		console.log('[FOG] Set last position for floor', floor, 'at', position, 'tile:', { tileX, tileY });
+	}
+
+	/**
+	 * Clear all position tracking (useful for testing or reset)
+	 */
+	public clearAllPositionTracking(): void {
+		this.floorPlayerPositions = {};
+		this.floorLastTilePositions = {};
+		this.playerPosition = null;
+		this.lastPlayerTileX = Number.MAX_SAFE_INTEGER;
+		this.lastPlayerTileY = Number.MAX_SAFE_INTEGER;
+		console.log('[FOG] Cleared all position tracking');
 	}
 }

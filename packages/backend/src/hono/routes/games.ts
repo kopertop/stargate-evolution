@@ -13,8 +13,39 @@ import { verifyJwt } from '../middleware/auth';
 
 const games = new Hono<{ Bindings: Env; Variables: { user: User } }>();
 
-// All game routes require authentication
-games.use('*', verifyJwt);
+// Only UPDATE operations require authentication
+// GET and POST operations can work without authentication (with limited functionality)
+
+// Optional authentication middleware - sets user if token is valid, but doesn't require it
+const optionalAuth = async (c: any, next: any) => {
+	const authHeader = c.req.header('Authorization');
+
+	if (authHeader && authHeader.startsWith('Bearer ')) {
+		const token = authHeader.substring(7);
+
+		try {
+			const { jwtVerify } = await import('jose');
+			const secret = new TextEncoder().encode(c.env.JWT_SECRET);
+			const { payload } = await jwtVerify(token, secret, { issuer: 'stargate-evolution' });
+
+			const { validateUser } = await import('../../auth-types');
+			const userResult = validateUser(payload.user);
+
+			if (userResult.success && userResult.data) {
+				c.set('user', userResult.data);
+				console.log('[OPTIONAL-AUTH] User authenticated:', userResult.data.id);
+			} else {
+				console.log('[OPTIONAL-AUTH] Invalid user data in token');
+			}
+		} catch (error) {
+			console.log('[OPTIONAL-AUTH] Token verification failed, proceeding without user:', error);
+		}
+	} else {
+		console.log('[OPTIONAL-AUTH] No authorization header, proceeding without user');
+	}
+
+	await next();
+};
 
 games.get('/status', async (c) => {
 	try {
@@ -41,8 +72,8 @@ games.get('/status', async (c) => {
 
 // ===== SAVED GAMES API =====
 
-// List all saved games for the authenticated user
-games.get('/saves', async (c) => {
+// List all saved games for the authenticated user (requires auth)
+games.get('/saves', verifyJwt, async (c) => {
 	try {
 		const user = c.get('user');
 
@@ -71,8 +102,8 @@ games.get('/saves', async (c) => {
 	}
 });
 
-// Get a specific saved game by ID
-games.get('/saves/:id', async (c) => {
+// Get a specific saved game by ID (requires auth)
+games.get('/saves/:id', verifyJwt, async (c) => {
 	try {
 		const user = c.get('user');
 		const gameId = c.req.param('id');
@@ -108,19 +139,19 @@ games.get('/saves/:id', async (c) => {
 	}
 });
 
-// Create a new saved game
-games.post('/saves', async (c) => {
+// Create a new saved game (works with or without auth)
+games.post('/saves', optionalAuth, async (c) => {
 	try {
-		const user = c.get('user') as User;
+		const user = c.get('user') as User | undefined;
 		const body = await c.req.json();
+
+		console.log('[GAMES] POST /saves - User:', user ? `${user.id} (${user.email})` : 'none');
+		console.log('[GAMES] POST /saves - Auth header:', c.req.header('Authorization') ? 'present' : 'none');
 
 		const parsed = CreateSavedGameSchema.safeParse(body);
 		if (!parsed.success) {
 			return c.json({ error: 'Invalid request body', details: parsed.error }, 400);
 		}
-
-		// Generate a unique ID prefixed with user ID
-		const gameId = `${user.id}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
 		// Validate the GameData object with Zod
 		const gameDataValidation = GameDataSchema.safeParse(parsed.data.game_data);
@@ -131,49 +162,82 @@ games.post('/saves', async (c) => {
 			}, 400);
 		}
 
-		// Stringify the validated GameData for database storage
-		const gameDataString = JSON.stringify(parsed.data.game_data);
+		if (user) {
+			// Authenticated user - save to database
+			console.log('[GAMES] Creating authenticated game for user:', user.id);
 
-		const stmt = c.env.DB.prepare(`
-			INSERT INTO saved_games (id, user_id, name, description, game_data)
-			VALUES (?, ?, ?, ?, ?)
-		`);
+			// Generate a unique ID prefixed with user ID
+			const gameId = `${user.id}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-		await stmt.bind(
-			gameId,
-			user.id,
-			parsed.data.name,
-			parsed.data.description || null,
-			gameDataString,
-		).run();
+			// Stringify the validated GameData for database storage
+			const gameDataString = JSON.stringify(parsed.data.game_data);
 
-		// Return the created saved game
-		const newGame = await c.env.DB.prepare(`
-			SELECT * FROM saved_games WHERE id = ?
-		`).bind(gameId).first();
+			const stmt = c.env.DB.prepare(`
+				INSERT INTO saved_games (id, user_id, name, description, game_data)
+				VALUES (?, ?, ?, ?, ?)
+			`);
 
-		// Parse the game_data from JSON string to object for response
-		const gameDataParsed = JSON.parse(newGame!.game_data as string);
-		const newGameWithParsedData = {
-			...newGame,
-			game_data: gameDataParsed,
-		};
+			await stmt.bind(
+				gameId,
+				user.id,
+				parsed.data.name,
+				parsed.data.description || null,
+				gameDataString,
+			).run();
 
-		const newGameParsed = SavedGameSchema.safeParse(newGameWithParsedData);
-		if (!newGameParsed.success) {
-			console.error('Failed to parse newly created saved game:', newGameParsed.error);
-			return c.json({ error: 'Failed to create saved game' }, 500);
+			// Return the created saved game
+			const newGame = await c.env.DB.prepare(`
+				SELECT * FROM saved_games WHERE id = ?
+			`).bind(gameId).first();
+
+			// Parse the game_data from JSON string to object for response
+			const gameDataParsed = JSON.parse(newGame!.game_data as string);
+			const newGameWithParsedData = {
+				...newGame,
+				game_data: gameDataParsed,
+			};
+
+			const newGameParsed = SavedGameSchema.safeParse(newGameWithParsedData);
+			if (!newGameParsed.success) {
+				console.error('Failed to parse newly created saved game:', newGameParsed.error);
+				return c.json({ error: 'Failed to create saved game' }, 500);
+			}
+
+			return c.json(newGameParsed.data, 201);
+		} else {
+			// Unauthenticated user - return fake game data without saving to database
+			console.log('[GAMES] Creating unauthenticated game (local only)');
+
+			// Generate a local-only game ID
+			const gameId = `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+			// Create a fake saved game response that matches the schema
+			const fakeGame = {
+				id: gameId,
+				user_id: 'local_user',
+				name: parsed.data.name,
+				description: parsed.data.description || null,
+				game_data: parsed.data.game_data,
+				created_at: Math.floor(Date.now() / 1000),
+				updated_at: Math.floor(Date.now() / 1000),
+			};
+
+			const fakeGameParsed = SavedGameSchema.safeParse(fakeGame);
+			if (!fakeGameParsed.success) {
+				console.error('Failed to parse fake saved game:', fakeGameParsed.error);
+				return c.json({ error: 'Failed to create local game' }, 500);
+			}
+
+			return c.json(fakeGameParsed.data, 201);
 		}
-
-		return c.json(newGameParsed.data, 201);
 	} catch (error) {
 		console.error('Failed to create saved game:', error);
 		return c.json({ error: 'Failed to create saved game' }, 500);
 	}
 });
 
-// Update an existing saved game
-games.put('/saves/:id', async (c) => {
+// Update an existing saved game (requires auth)
+games.put('/saves/:id', verifyJwt, async (c) => {
 	try {
 		const user = c.get('user') as User;
 		const gameId = c.req.param('id');
@@ -268,8 +332,8 @@ games.put('/saves/:id', async (c) => {
 	}
 });
 
-// Delete a saved game
-games.delete('/saves/:id', async (c) => {
+// Delete a saved game (requires auth)
+games.delete('/saves/:id', verifyJwt, async (c) => {
 	try {
 		const user = c.get('user');
 		const gameId = c.req.param('id');

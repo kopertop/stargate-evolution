@@ -1221,6 +1221,18 @@ export class Game {
 			debugLogger.floor(`Changing floor from ${this.currentFloor} to ${floor}`);
 			console.log('[GAME] Changing floor from', this.currentFloor, 'to', floor);
 
+			// Save current player position for the old floor
+			const currentPlayerPos = this.getPlayerPosition();
+			const currentRoom = this.findRoomContainingPoint(currentPlayerPos.x, currentPlayerPos.y);
+			if (this.fogLayer) {
+				this.fogLayer.setLastPlayerPositionForFloor(this.currentFloor, {
+					x: currentPlayerPos.x,
+					y: currentPlayerPos.y,
+					roomId: currentRoom?.id || 'unknown',
+					floor: this.currentFloor,
+				});
+			}
+
 			// Update fog layer to the new floor before changing current floor
 			if (this.fogLayer) {
 				this.fogLayer.setCurrentFloor(floor);
@@ -1725,6 +1737,8 @@ export class Game {
 		if (this.furnitureLayer) {
 			this.furnitureLayer.setRooms(this.rooms);
 			// Note: Don't set all furniture here - it will be set per-floor in setCurrentFloor()
+			// But update the elevator manager with all furniture for cross-floor positioning
+			this.furnitureLayer.updateElevatorManagerWithAllFurniture(this.furniture);
 		}
 		if (this.npcLayer) {
 			this.npcLayer.setRooms(this.rooms);
@@ -1860,6 +1874,7 @@ export class Game {
 				position: `(${f.x}, ${f.y})`,
 			})));
 
+			// Set the filtered furniture for rendering
 			this.furnitureLayer.setFurniture(floorFurniture);
 		}
 
@@ -2050,4 +2065,64 @@ export class Game {
 	public findRoomContainingPointPublic(x: number, y: number): RoomTemplate | null {
 		return this.findRoomContainingPoint(x, y);
 	}
+
+	/**
+	 * Get the last known player position for a specific floor
+	 */
+	public getLastPlayerPositionForFloor(floor: number): any {
+		return this.fogLayer?.getLastPlayerPositionForFloor(floor) || null;
+	}
+
+	/**
+	 * Set the last known player position for a specific floor
+	 */
+	public setLastPlayerPositionForFloor(floor: number, position: any): void {
+		this.fogLayer?.setLastPlayerPositionForFloor(floor, position);
+	}
+
+	/**
+	 * Clear all position tracking (useful for reset/testing)
+	 */
+	public clearAllPositionTracking(): void {
+		this.fogLayer?.clearAllPositionTracking();
+	}
+
+	/**
+	 * Handle elevator transition to a target floor with proper fog restoration
+	 */
+	public handleElevatorTransition(targetFloor: number): boolean {
+		console.log('[GAME] Handling elevator transition to floor', targetFloor);
+
+		// Find elevator position on target floor
+		const elevatorPosition = this.findElevatorPosition(targetFloor);
+		if (!elevatorPosition) {
+			console.warn('[GAME] No elevator found on target floor:', targetFloor);
+			return false;
+		}
+
+		// Save current player position for the current floor
+		const currentPlayerPos = this.getPlayerPosition();
+		const currentRoom = this.findRoomContainingPoint(currentPlayerPos.x, currentPlayerPos.y);
+		if (this.fogLayer) {
+			this.fogLayer.setLastPlayerPositionForFloor(this.currentFloor, {
+				x: currentPlayerPos.x,
+				y: currentPlayerPos.y,
+				roomId: currentRoom?.id || 'unknown',
+				floor: this.currentFloor,
+			});
+		}
+
+		// Change to target floor (this will trigger onFloorChange callback)
+		this.setCurrentFloor(targetFloor);
+
+		// Set player position to elevator location
+		this.setPlayerPosition(elevatorPosition.x, elevatorPosition.y);
+
+		// Trigger fog discovery at the new elevator position
+		this.triggerFogDiscovery(elevatorPosition.x, elevatorPosition.y, targetFloor);
+
+		console.log('[GAME] Elevator transition completed to floor', targetFloor, 'at position:', elevatorPosition);
+		return true;
+	}
+
 }

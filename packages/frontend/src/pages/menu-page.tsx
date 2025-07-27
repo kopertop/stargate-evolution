@@ -69,7 +69,7 @@ export const MenuPage: React.FC = () => {
 
 		// Get menu item count based on auth state and device
 		const getMenuItemCount = (currentUser: any) => {
-			if (!currentUser) return 1; // Just sign in button
+			if (!currentUser) return 2; // Start New Game (No Save) + Sign In button
 			let count = 3; // Start Game + Continue + Load Game
 			if (currentUser.is_admin && !isMobileDevice()) count++; // Admin Panel (only on desktop)
 			count++; // Sign Out
@@ -97,8 +97,11 @@ export const MenuPage: React.FC = () => {
 			console.log('[MENU-PAGE-CONTROLLER] A button - activating menu item:', state.focusedMenuItem);
 
 			if (!state.user) {
-				// Not signed in - only Google sign in available
+				// Not signed in - Start New Game (No Save) + Google sign in available
 				if (state.focusedMenuItem === 0) {
+					// Start New Game (No Save)
+					handleNewGame();
+				} else if (state.focusedMenuItem === 1) {
 					// Trigger Google sign in (simulate clicking the button)
 					const googleButton = document.querySelector('#google-signin-button button') as HTMLButtonElement;
 					if (googleButton) {
@@ -299,7 +302,7 @@ export const MenuPage: React.FC = () => {
 						},
 						body: JSON.stringify({ token: session.token }),
 					});
-					
+
 					if (validateResponse.ok) {
 						const validateData = await validateResponse.json();
 						if (validateData.valid && validateData.user) {
@@ -313,7 +316,7 @@ export const MenuPage: React.FC = () => {
 			}
 
 			toast.success('API key generated successfully');
-			
+
 			// Force a page refresh to update the user state
 			window.location.reload();
 		} catch (error) {
@@ -350,7 +353,7 @@ export const MenuPage: React.FC = () => {
 			}
 
 			toast.success('API key deleted successfully');
-			
+
 			// Force a page refresh to update the user state
 			window.location.reload();
 		} catch (error) {
@@ -384,26 +387,39 @@ export const MenuPage: React.FC = () => {
 		navigate('/admin');
 	};
 
-	const handleNewGame = () => {
-		setShowNewGameModal(true);
+	const handleNewGame = async () => {
+		if (!user) {
+			// Guest: start immediately in local-only mode without prompting for name
+			const newGameId = await gameState.initializeNewGame();
+			navigate(`/game/${newGameId}`);
+			return;
+		}
+		// Authenticated users choose a name
 		setNewGameName('');
+		setShowNewGameModal(true);
 	};
 
 	const handleCreateNewGame = async () => {
-		if (!newGameName.trim()) {
+		// Only require name when signed in
+		if (user && !newGameName.trim()) {
 			toast.error('Please enter a game name');
 			return;
 		}
 
 		try {
-			const newGameId = await gameState.initializeNewGame(newGameName.trim());
+			console.log('[MENU] Starting game creation...');
+			// Guests call initializeNewGame() without a name; authenticated users pass trimmed name
+			const newGameId = await gameState.initializeNewGame(user ? newGameName.trim() : undefined);
+			console.log('[MENU] Game created successfully with ID:', newGameId);
+			console.log('[MENU] Game ID starts with "local-":', newGameId.startsWith('local-'));
 			setShowNewGameModal(false);
 			// Refresh saved games list since we just created a new one
-			if (user) {
-				checkForSavedGames();
-			}
+			if (user) checkForSavedGames();
+			console.log('[MENU] Navigating to game:', `/game/${newGameId}`);
 			navigate(`/game/${newGameId}`);
+			console.log('[MENU] Navigation completed');
 		} catch (error) {
+			console.error('[MENU] Game creation failed:', error);
 			// Error already handled in gameState.initializeNewGame
 		}
 	};
@@ -706,13 +722,32 @@ export const MenuPage: React.FC = () => {
 						) : (
 							<Card bg="dark" text="light" border="secondary">
 								<Card.Body>
-									<h5 className="card-title text-center mb-4">Sign In Required</h5>
-									<p className="text-center text-muted mb-4">
-										Signing in will let you save and restore your progress.
+									<h5 className="card-title text-center mb-4">Stargate Evolution</h5>
+									<p className="text-center text-muted mb-3">
+										Sign in to save and restore your progress, or play without saving.
 									</p>
+
+									<div className="d-grid gap-2 mb-3">
+										<Button
+											variant={focusedMenuItem === 0 ? 'success' : 'outline-success'}
+											size="lg"
+											onClick={handleNewGame}
+											style={focusedMenuItem === 0 ? { boxShadow: '0 0 10px rgba(25, 135, 84, 0.8)' } : {}}
+										>
+											Start New Game (No Save)
+										</Button>
+									</div>
+
+									<div className="alert alert-info mb-3">
+										<small>
+											<strong>Note:</strong> Without signing in, your progress won&apos;t be saved.
+											You can play and test the game, but you&apos;ll lose progress when you close the browser.
+										</small>
+									</div>
+
 									<div
 										className="d-grid"
-										style={focusedMenuItem === 0 ? {
+										style={focusedMenuItem === 1 ? {
 											border: '2px solid #007bff',
 											borderRadius: '5px',
 											padding: '8px',
@@ -721,6 +756,10 @@ export const MenuPage: React.FC = () => {
 									>
 										<div id="google-signin-button" className="d-flex justify-content-center" />
 									</div>
+									<div className="text-center mt-2">
+										<small className="text-muted">Sign in to save progress and access saved games</small>
+									</div>
+
 									{controller.isConnected && (
 										<div className="text-center mt-3">
 											<small className="text-muted">Use D-pad to navigate • A to select</small>
@@ -744,6 +783,12 @@ export const MenuPage: React.FC = () => {
 					<Modal.Title>Create New Game</Modal.Title>
 				</Modal.Header>
 				<Modal.Body>
+					{!user && (
+						<Alert variant="warning" className="mb-3">
+							<strong>Playing without sign-in:</strong> Your progress will be saved locally only.
+							If you clear your browser data or switch devices, you&apos;ll lose your progress.
+						</Alert>
+					)}
 					<Form>
 						<Form.Group className="mb-3">
 							<Form.Label>Game Name</Form.Label>
@@ -761,9 +806,12 @@ export const MenuPage: React.FC = () => {
 								autoFocus
 								maxLength={100}
 							/>
-							<Form.Text className="text-muted">
-								This will help you identify your save game later.
-							</Form.Text>
+								<Form.Text className="text-muted">
+									{user
+										? 'Optional; helps you identify your save game later.'
+										: 'Optional; game will be saved locally only.'
+									}
+								</Form.Text>
 						</Form.Group>
 					</Form>
 				</Modal.Body>
@@ -774,9 +822,9 @@ export const MenuPage: React.FC = () => {
 					<Button
 						variant="primary"
 						onClick={handleCreateNewGame}
-						disabled={!newGameName.trim() || gameState.isLoading}
+								disabled={gameState.isLoading}
 					>
-						{gameState.isLoading ? 'Creating...' : 'Create Game'}
+						{gameState.isLoading ? 'Creating...' : (user ? 'Create Game' : 'Create Game (Local Only)')}
 					</Button>
 				</Modal.Footer>
 			</Modal>
