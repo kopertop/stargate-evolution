@@ -51,6 +51,10 @@ interface GameStateContextType {
 	knownSystems: StarSystem[];
 	setKnownSystems: (systems: StarSystem[]) => void;
 
+	// Floor Management
+	currentFloor: number;
+	setCurrentFloor: (floor: number) => void;
+
 	// FTL State Management
 	startFTLJump: (hours: number) => void;
 	exitFTL: () => void;
@@ -90,6 +94,9 @@ export const GameStateProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 	const [currentSystem, setCurrentSystem] = useState<StarSystem | null>(null);
 	const [knownGalaxies, setKnownGalaxies] = useState<Galaxy[]>([]);
 	const [knownSystems, setKnownSystems] = useState<StarSystem[]>([]);
+
+	// Floor Management
+	const [currentFloor, setCurrentFloor] = useState<number>(0);
 
 	// Game initialization function
 	const initializeNewGame = async (newGameName: string) => {
@@ -134,7 +141,7 @@ export const GameStateProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 				characters: [],
 				technologies: [],
 				exploredRooms: [],
-				playerPosition: { x: 0, y: 0, roomId: 'destiny-bridge' }, // Default starting position
+				playerPosition: { x: 0, y: 0, floor: 0, roomId: 'destiny-bridge' }, // Default starting position
 				doorStates: [], // Will be populated from templates
 				explorationProgress: [],
 				currentGalaxy: null,
@@ -176,6 +183,7 @@ export const GameStateProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 			setKnownGalaxies([]);
 			setKnownSystems([]);
 			setIsInitialized(true);
+			setCurrentFloor(0);
 
 			// Always save to local storage as backup (or primary if backend failed)
 			localStorage.setItem('stargate-current-game-id', savedGameId);
@@ -323,6 +331,7 @@ export const GameStateProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 				currentSystem,
 				knownGalaxies,
 				knownSystems,
+				currentFloor,
 			};
 
 			console.log('[GAME-STATE] Preparing to save game data:', {
@@ -418,6 +427,7 @@ export const GameStateProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 			setGameId(newGameId);
 			setGameName(savedGame.name);
 			setIsInitialized(true);
+			setCurrentFloor(gameData.playerPosition?.floor || 0);
 
 			// Game data will be passed to GameRenderer via props
 			// No need to store in global window object anymore
@@ -526,6 +536,8 @@ export const GameStateProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 			isLoading,
 			isInitialized,
 			setIsInitialized,
+			currentFloor,
+			setCurrentFloor,
 		}}>
 			{children}
 		</GameStateContext.Provider>

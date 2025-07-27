@@ -520,6 +520,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 		let furnitureColor = '#9333ea'; // purple for general furniture
 		if (item.furniture_type === 'stargate') furnitureColor = '#059669'; // green for stargate
 		if (item.furniture_type === 'console') furnitureColor = '#dc2626'; // red for console
+		if (item.furniture_type === 'elevator_console') furnitureColor = '#f59e0b'; // amber for elevator console
 		if (item.furniture_type === 'bed') furnitureColor = '#7c3aed'; // purple for bed
 
 		ctx.fillStyle = furnitureColor;
@@ -2318,6 +2319,28 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 
 	const handleSaveFurniture = async () => {
 		try {
+			// Validate elevator console configuration
+			if (editingFurniture.furniture_type === 'elevator_console') {
+				try {
+					const config = JSON.parse(editingFurniture.description || '{}');
+					if (!config.accessibleFloors || !Array.isArray(config.accessibleFloors) || config.accessibleFloors.length === 0) {
+						toast.error('Elevator console must have at least one accessible floor configured');
+						return;
+					}
+					
+					// Validate all floors exist
+					const availableFloors = Array.from(new Set(rooms.map(r => r.floor)));
+					const invalidFloors = config.accessibleFloors.filter((floor: number) => !availableFloors.includes(floor));
+					if (invalidFloors.length > 0) {
+						toast.error(`Invalid floors configured: ${invalidFloors.join(', ')}. Available floors: ${availableFloors.join(', ')}`);
+						return;
+					}
+				} catch (error) {
+					toast.error('Invalid elevator configuration JSON in description field');
+					return;
+				}
+			}
+
 			if (selectedFurniture?.id === editingFurniture.id) {
 				await adminService.updateFurniture(editingFurniture.id!, editingFurniture);
 				toast.success('Furniture updated successfully');
@@ -2965,15 +2988,71 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 							/>
 						</Form.Group>
 
+						{/* Elevator Configuration for elevator_console type */}
+						{editingFurniture.furniture_type === 'elevator_console' && (
+							<Form.Group className="mb-3">
+								<Form.Label>Elevator Configuration</Form.Label>
+								<div className="p-3 border rounded bg-light">
+									<Form.Label className="small fw-bold">Accessible Floors (comma-separated)</Form.Label>
+									<Form.Control
+										type="text"
+										placeholder="0, 1, 2, 3"
+										value={(() => {
+											try {
+												const config = JSON.parse(editingFurniture.description || '{}');
+												return config.accessibleFloors ? config.accessibleFloors.join(', ') : '';
+											} catch {
+												return '';
+											}
+										})()}
+										onChange={(e) => {
+											try {
+												const floors = e.target.value.split(',').map(f => parseInt(f.trim())).filter(f => !isNaN(f));
+												const config = { accessibleFloors: floors };
+												setEditingFurniture({ ...editingFurniture, description: JSON.stringify(config) });
+											} catch (error) {
+												console.warn('Error parsing elevator configuration:', error);
+											}
+										}}
+									/>
+									<Form.Text className="text-muted">
+										Enter floor numbers separated by commas (e.g., "0, 1, 2, 3"). 
+										This will be stored as JSON in the description field.
+									</Form.Text>
+								</div>
+							</Form.Group>
+						)}
+
 						<div className="row">
 							<div className="col-md-6">
 								<Form.Group className="mb-3">
 									<Form.Label>Type</Form.Label>
 									<Form.Select
 										value={editingFurniture.furniture_type || 'console'}
-										onChange={(e) => setEditingFurniture({ ...editingFurniture, furniture_type: e.target.value })}
+										onChange={(e) => {
+											const newType = e.target.value;
+											let updates: Partial<RoomFurniture> = { furniture_type: newType };
+											
+											// Set defaults for elevator console
+											if (newType === 'elevator_console') {
+												const availableFloors = Array.from(new Set(rooms.map(r => r.floor))).sort((a, b) => a - b);
+												const defaultConfig = { accessibleFloors: availableFloors };
+												updates = {
+													...updates,
+													name: 'Elevator Console',
+													description: JSON.stringify(defaultConfig),
+													interactive: true,
+													blocks_movement: false,
+													width: 48,
+													height: 48,
+												};
+											}
+											
+											setEditingFurniture({ ...editingFurniture, ...updates });
+										}}
 									>
 										<option value="console">Console</option>
+										<option value="elevator_console">Elevator Console</option>
 										<option value="stargate">Stargate</option>
 										<option value="stargate_dialer">Stargate Dialer</option>
 										<option value="bed">Bed</option>

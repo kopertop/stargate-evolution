@@ -126,6 +126,15 @@ update; // = task-master update
 // Analysis
 analyze_project_complexity; // = task-master analyze-complexity
 complexity_report; // = task-master complexity-report
+
+// Stargate Evolution Database Tools (NEW - requires backend running)
+execute_sql_query; // Raw SQL queries (SELECT only) 
+list_all_rooms; // List rooms by floor with coordinates
+list_all_doors; // List doors with floor connections  
+inspect_database_schema; // Show table schemas
+greet; // Test MCP connection
+get_game_sessions; // List saved games
+system_status; // Server health check
 ```
 
 ## Claude Code Workflow Integration

@@ -166,7 +166,7 @@ export async function renderGoogleSignInButton(
 
 		// Get device info to determine optimal authentication strategy
 		const deviceInfo = getEnhancedDeviceInfo();
-		console.log(`[GOOGLE-AUTH] Device info:`, {
+		console.log('[GOOGLE-AUTH] Device info:', {
 			isPWA: deviceInfo.isPWA,
 			isIOSPWA: deviceInfo.isIOSPWA,
 			googleSignInSupported: deviceInfo.googleSignInSupported,
@@ -181,7 +181,7 @@ export async function renderGoogleSignInButton(
 
 		// Determine optimal authentication strategy for PWA mode
 		const authStrategy = determinePWAAuthStrategy(deviceInfo);
-		console.log(`[GOOGLE-AUTH] Using authentication strategy:`, authStrategy);
+		console.log('[GOOGLE-AUTH] Using authentication strategy:', authStrategy);
 
 		// Initialize Google Identity Services with PWA-optimized settings
 		const initConfig = createPWAOptimizedConfig(authStrategy, successCallback, containerId, options);
@@ -198,7 +198,7 @@ export async function renderGoogleSignInButton(
 		await verifyButtonRenderingWithPWAFallback(container, containerId, options, authStrategy);
 
 	} catch (error: any) {
-		console.error(`[GOOGLE-AUTH] Failed to render Google Sign-In button:`, error);
+		console.error('[GOOGLE-AUTH] Failed to render Google Sign-In button:', error);
 		handleRenderError(error.message || 'Unknown error occurred', containerId, options);
 	}
 }
@@ -354,7 +354,7 @@ function createPWAOptimizedConfig(
 
 			// Handle PWA-specific errors
 			if (strategy.popupBlocked && error.type === 'popup_blocked_by_browser') {
-				console.log(`[GOOGLE-AUTH] Popup blocked in PWA mode, attempting redirect fallback`);
+				console.log('[GOOGLE-AUTH] Popup blocked in PWA mode, attempting redirect fallback');
 				handlePWAPopupBlocked(containerId, options);
 			} else {
 				const errorMessage = `Google Sign-In failed (${strategy.description}). Please try again.`;
@@ -573,18 +573,18 @@ function initiateRedirectAuth(containerId: string, options: GoogleSignInOptions)
 		storePWAAuthState(containerId, 'pending', null);
 
 		// Use Google's redirect flow
-		const redirectUrl = `https://accounts.google.com/oauth/authorize?` +
+		const redirectUrl = 'https://accounts.google.com/oauth/authorize?' +
 			`client_id=${GOOGLE_CLIENT_ID}&` +
 			`redirect_uri=${encodeURIComponent(window.location.origin + window.location.pathname)}&` +
-			`response_type=code&` +
-			`scope=openid email profile&` +
+			'response_type=code&' +
+			'scope=openid email profile&' +
 			`state=${generatePWAAuthState(containerId)}`;
 
 		// Redirect to Google
 		window.location.href = redirectUrl;
 
 	} catch (error: any) {
-		console.error(`[GOOGLE-AUTH] Failed to initiate redirect auth:`, error);
+		console.error('[GOOGLE-AUTH] Failed to initiate redirect auth:', error);
 		options.onError?.(`Redirect authentication failed: ${error.message}`);
 	}
 }
@@ -599,7 +599,7 @@ function tryAlternativeRender(container: HTMLElement, containerId: string, optio
 		// Clear and try again with different settings
 		container.innerHTML = '';
 
-		(window as unknown).google.accounts.id.renderButton(
+		(window as any).google.accounts.id.renderButton(
 			container,
 			{
 				theme: 'filled_blue',
@@ -622,7 +622,8 @@ function tryAlternativeRender(container: HTMLElement, containerId: string, optio
 		}, 1000);
 
 	} catch (error: unknown) {
-		handleRenderError(`Alternative render failed: ${error.message}`, containerId, options);
+		const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+		handleRenderError(`Alternative render failed: ${errorMessage}`, containerId, options);
 	}
 }
 

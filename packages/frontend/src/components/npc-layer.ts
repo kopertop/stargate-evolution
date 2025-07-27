@@ -66,6 +66,20 @@ export class NPCLayer extends PIXI.Container {
 		return undefined;
 	}
 
+	public setVisibleFloor(floor: number): void {
+		// Filter NPCs to only show those on the specified floor
+		if (this.npcManager) {
+			const allNPCs = this.npcManager.getNPCs();
+			const floorNPCs = allNPCs.filter(npc => (npc.floor || 0) === floor);
+			
+			// Hide all NPC sprites first
+			this.npcManager.hideAllNPCs();
+			
+			// Show only NPCs on the current floor
+			this.npcManager.showNPCsOnFloor(floor);
+		}
+	}
+
 	public update(activateDoorCallback: (doorId: string, isNPC: boolean) => boolean): void {
 		if (this.npcManager) {
 			this.npcManager.updateNPCs(this.doors, this.rooms, activateDoorCallback);

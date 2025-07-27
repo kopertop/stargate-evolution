@@ -18,7 +18,8 @@ export async function getRoomsByLayoutId(db: D1Database, layout_id: string): Pro
 	if (!result.success) {
 		throw new Error(`Database query failed: ${result.error}`);
 	}
-	return z.array(RoomTemplateSchema).parse(result.results || []);
+	const results = result.results || [];
+	return results.map((room: any) => RoomTemplateSchema.parse(room));
 }
 
 export async function getShipLayoutById(db: D1Database, layout_id: string): Promise<z.infer<typeof ShipLayoutSchema> | null> {
@@ -29,16 +30,16 @@ export async function getShipLayoutById(db: D1Database, layout_id: string): Prom
 
 // Enhanced version that includes room technology data
 export async function getShipLayoutWithTechnology(db: D1Database, layout_id: string): Promise<any | null> {
-	const rooms = await getRoomsByLayoutId(db, layout_id);
+	const rooms: z.infer<typeof RoomTemplateSchema>[] = await getRoomsByLayoutId(db, layout_id);
 	if (!rooms.length) return null;
 
 	// Get technology for each room
-	const roomsWithTech = await Promise.all(
-		rooms.map(async (room) => {
-			const technology = await getRoomTechnologyByRoomId(db, room.id);
-			return { ...room, technology };
-		}),
-	);
+	const roomsWithTech = [];
+	for (const room of rooms) {
+		const typedRoom = room as any;
+		const technology = await getRoomTechnologyByRoomId(db, typedRoom.id);
+		roomsWithTech.push(Object.assign({}, typedRoom, { technology }));
+	}
 
 	return { layout_id, rooms: roomsWithTech };
 }

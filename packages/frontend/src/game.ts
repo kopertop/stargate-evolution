@@ -224,6 +224,11 @@ export class Game {
 		this.setupTouchControls();
 	}
 
+	// Floor management getter
+	public getCurrentFloor(): number {
+		return this.currentFloor;
+	}
+
 	private createStarfield(): PIXI.Graphics {
 		// Kept for backward compatibility - actual starfield is handled by BackgroundLayer
 		return new PIXI.Graphics();
@@ -601,7 +606,12 @@ export class Game {
 		return this.doors.find(door => {
 			const fromRoom = this.rooms.find(r => r.id === door.from_room_id);
 			const toRoom = this.rooms.find(r => r.id === door.to_room_id);
-			const isCurrentFloor = fromRoom?.floor === this.currentFloor && toRoom?.floor === this.currentFloor;
+			
+			// Include doors where at least one room is on the current floor
+			// This matches the main floor filtering logic used in setCurrentFloor
+			const fromOnCurrentFloor = fromRoom?.floor === this.currentFloor;
+			const toOnCurrentFloor = toRoom?.floor === this.currentFloor;
+			const isCurrentFloor = fromOnCurrentFloor || toOnCurrentFloor;
 
 			return isCurrentFloor && (
 				(door.from_room_id === roomId1 && door.to_room_id === roomId2) ||
@@ -651,7 +661,13 @@ export class Game {
 			// Check if door is on current floor
 			const fromRoom = this.rooms.find(r => r.id === door.from_room_id);
 			const toRoom = this.rooms.find(r => r.id === door.to_room_id);
-			if (fromRoom?.floor !== this.currentFloor || toRoom?.floor !== this.currentFloor) {
+			
+			// Include doors where at least one room is on the current floor
+			// This matches the main floor filtering logic used in setCurrentFloor
+			const fromOnCurrentFloor = fromRoom?.floor === this.currentFloor;
+			const toOnCurrentFloor = toRoom?.floor === this.currentFloor;
+			
+			if (!fromOnCurrentFloor && !toOnCurrentFloor) {
 				return false;
 			}
 
@@ -669,7 +685,13 @@ export class Game {
 		const currentFloorDoors = this.doors.filter(door => {
 			const fromRoom = this.rooms.find(r => r.id === door.from_room_id);
 			const toRoom = this.rooms.find(r => r.id === door.to_room_id);
-			return fromRoom?.floor === this.currentFloor && toRoom?.floor === this.currentFloor;
+			
+			// Include doors where at least one room is on the current floor
+			// This matches the main floor filtering logic used in setCurrentFloor
+			const fromOnCurrentFloor = fromRoom?.floor === this.currentFloor;
+			const toOnCurrentFloor = toRoom?.floor === this.currentFloor;
+			
+			return fromOnCurrentFloor || toOnCurrentFloor;
 		});
 
 		for (const door of currentFloorDoors) {
@@ -875,7 +897,13 @@ export class Game {
 		const currentFloorDoors = this.doors.filter(door => {
 			const fromRoom = this.rooms.find(r => r.id === door.from_room_id);
 			const toRoom = this.rooms.find(r => r.id === door.to_room_id);
-			return fromRoom?.floor === this.currentFloor && toRoom?.floor === this.currentFloor;
+			
+			// Include doors where at least one room is on the current floor
+			// This matches the main floor filtering logic used in setCurrentFloor
+			const fromOnCurrentFloor = fromRoom?.floor === this.currentFloor;
+			const toOnCurrentFloor = toRoom?.floor === this.currentFloor;
+			
+			return fromOnCurrentFloor || toOnCurrentFloor;
 		});
 
 		for (const door of currentFloorDoors) {

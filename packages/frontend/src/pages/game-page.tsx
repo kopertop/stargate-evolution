@@ -1,11 +1,11 @@
-import { Ticker } from 'pixi.js';
 import * as PIXI from 'pixi.js';
 import { InputDevice } from 'pixijs-input-devices';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Button, Container, Modal, Form, Row, Col, Table } from 'react-bootstrap';
 import { useNavigate, useParams } from 'react-router';
 
 import { renderGoogleSignInButton } from '../auth/google-auth';
+import { ElevatorConsoleModal, type ElevatorConfig } from '../components/elevator-console-modal';
 import { InventoryModal } from '../components/inventory-modal';
 import { ResourceBar } from '../components/resource-bar';
 import { TouchControlsHelp } from '../components/touch-controls-help';
@@ -56,6 +56,8 @@ const GameRenderer: React.FC<GameRendererProps> = ({ gameId, savedGameData }) =>
 	const [showDebug, setShowDebug] = useState(false);
 	const [showInventory, setShowInventory] = useState(false);
 	const [inventoryTab, setInventoryTab] = useState(0);
+	const [showElevatorConsole, setShowElevatorConsole] = useState(false);
+	const [elevatorConfig, setElevatorConfig] = useState<ElevatorConfig | null>(null);
 	const [speed, setSpeed] = useState(4);
 	const [keybindings, setKeybindings] = useState<Keybindings>(DEFAULT_KEYBINDINGS);
 	const [gamepadBindings, setGamepadBindings] = useState<GamepadBindings>(DEFAULT_GAMEPAD_BINDINGS);
@@ -125,6 +127,18 @@ const GameRenderer: React.FC<GameRendererProps> = ({ gameId, savedGameData }) =>
 					onAxisChange: controller.onAxisChange,
 					getAxisValue: controller.getAxisValue,
 					isPressed: controller.isPressed,
+					// Floor management - sync with React context
+					currentFloor: gameState.currentFloor,
+					onFloorChange: (newFloor: number) => {
+						console.log('[GAME-PAGE] Floor change from Game:', newFloor);
+						gameState.setCurrentFloor(newFloor);
+					},
+					// Elevator system
+					onElevatorActivation: (config: ElevatorConfig, currentFloor: number) => {
+						console.log('[GAME-PAGE] Elevator activation requested:', config);
+						setElevatorConfig(config);
+						setShowElevatorConsole(true);
+					},
 				});
 				gameRef.current = game;
 
@@ -163,7 +177,7 @@ const GameRenderer: React.FC<GameRendererProps> = ({ gameId, savedGameData }) =>
 
 		return () => {
 			destroyed = true;
-			
+
 			// Clean up game instance first
 			if (gameRef.current) {
 				try {
@@ -174,7 +188,7 @@ const GameRenderer: React.FC<GameRendererProps> = ({ gameId, savedGameData }) =>
 					gameRef.current = null;
 				}
 			}
-			
+
 			// Clean up PIXI app
 			if (pixiAppRef.current) {
 				try {
@@ -191,7 +205,8 @@ const GameRenderer: React.FC<GameRendererProps> = ({ gameId, savedGameData }) =>
 			}
 		};
 
-	}, [speed, keybindings, gamepadBindings, savedGameData]);
+	}, [speed, keybindings, gamepadBindings, savedGameData, gameState.currentFloor]);
+
 
 	// Use refs to avoid stale closure issues
 	const stateRef = useRef({
@@ -199,6 +214,7 @@ const GameRenderer: React.FC<GameRendererProps> = ({ gameId, savedGameData }) =>
 		showSettings,
 		showDebug,
 		showInventory,
+		showElevatorConsole,
 		focusedMenuItem,
 		inventoryTab,
 	});
@@ -210,10 +226,11 @@ const GameRenderer: React.FC<GameRendererProps> = ({ gameId, savedGameData }) =>
 			showSettings,
 			showDebug,
 			showInventory,
+			showElevatorConsole,
 			focusedMenuItem,
 			inventoryTab,
 		};
-	}, [showPause, showSettings, showDebug, showInventory, focusedMenuItem, inventoryTab]);
+	}, [showPause, showSettings, showDebug, showInventory, showElevatorConsole, focusedMenuItem, inventoryTab]);
 
 	// Game controller event subscriptions
 	useEffect(() => {
@@ -271,6 +288,9 @@ const GameRenderer: React.FC<GameRendererProps> = ({ gameId, savedGameData }) =>
 			} else if (state.showInventory) {
 				console.log('[GAME-PAGE-CONTROLLER] D-pad UP released - inventory tab navigation');
 				setInventoryTab(prev => (prev > 0 ? prev - 1 : 4));
+			} else if (state.showElevatorConsole) {
+				console.log('[GAME-PAGE-CONTROLLER] D-pad UP released - elevator floor navigation');
+				setFocusedMenuItem(prev => (prev > 0 ? prev - 1 : (elevatorConfig?.accessibleFloors.length || 1) - 1));
 			}
 		});
 
@@ -283,6 +303,10 @@ const GameRenderer: React.FC<GameRendererProps> = ({ gameId, savedGameData }) =>
 			} else if (state.showInventory) {
 				console.log('[GAME-PAGE-CONTROLLER] D-pad DOWN released - inventory tab navigation');
 				setInventoryTab(prev => (prev < 4 ? prev + 1 : 0));
+			} else if (state.showElevatorConsole) {
+				console.log('[GAME-PAGE-CONTROLLER] D-pad DOWN released - elevator floor navigation');
+				const maxItems = (elevatorConfig?.accessibleFloors.length || 1) - 1;
+				setFocusedMenuItem(prev => (prev < maxItems ? prev + 1 : 0));
 			}
 		});
 
@@ -314,6 +338,9 @@ const GameRenderer: React.FC<GameRendererProps> = ({ gameId, savedGameData }) =>
 			} else if (state.showInventory) {
 				console.log('[GAME-PAGE-CONTROLLER] B button released - closing inventory');
 				setShowInventory(false);
+			} else if (state.showElevatorConsole) {
+				console.log('[GAME-PAGE-CONTROLLER] B button released - closing elevator console');
+				setShowElevatorConsole(false);
 			}
 		});
 
@@ -359,6 +386,16 @@ const GameRenderer: React.FC<GameRendererProps> = ({ gameId, savedGameData }) =>
 				console.log('[GAME-PAGE-CONTROLLER] A button released - inventory interaction');
 				// For now, just close inventory on A press - could add item selection later
 				setShowInventory(false);
+			} else if (state.showElevatorConsole) {
+				console.log('[GAME-PAGE-CONTROLLER] A button released - elevator floor selection:', state.focusedMenuItem);
+				if (elevatorConfig && elevatorConfig.accessibleFloors.length > state.focusedMenuItem) {
+					const sortedFloors = [...elevatorConfig.accessibleFloors].sort((a, b) => b - a);
+					const selectedFloor = sortedFloors[state.focusedMenuItem];
+					if (selectedFloor !== elevatorConfig.currentFloor) {
+						handleFloorSelect(selectedFloor);
+					}
+				}
+				setShowElevatorConsole(false);
 			}
 		});
 
@@ -381,7 +418,7 @@ const GameRenderer: React.FC<GameRendererProps> = ({ gameId, savedGameData }) =>
 	// Update game menu state when any menu opens/closes
 	useEffect(() => {
 		if (gameRef.current) {
-			const menuOpen = showPause || showSettings || showDebug || showInventory;
+			const menuOpen = showPause || showSettings || showDebug || showInventory || showElevatorConsole;
 			gameRef.current.setMenuOpen(menuOpen);
 			console.log('[GAME-PAGE-CONTROLLER] Game menu state updated:', {
 				menuOpen,
@@ -389,14 +426,72 @@ const GameRenderer: React.FC<GameRendererProps> = ({ gameId, savedGameData }) =>
 				showSettings,
 				showDebug,
 				showInventory,
+				showElevatorConsole,
 				timestamp: new Date().toISOString(),
 			});
 		}
-	}, [showPause, showSettings, showDebug, showInventory]);
+	}, [showPause, showSettings, showDebug, showInventory, showElevatorConsole]);
+
+	// Handle elevator floor selection
+	const handleFloorSelect = useCallback((targetFloor: number) => {
+		console.log('[GAME-PAGE] Floor selected:', targetFloor);
+
+		if (!gameRef.current || !elevatorConfig) {
+			console.warn('[GAME-PAGE] No game instance or elevator config available');
+			return;
+		}
+
+		// Find elevator position on target floor
+		const elevatorPosition = gameRef.current.findElevatorPosition(targetFloor);
+		if (!elevatorPosition) {
+			console.warn('[GAME-PAGE] No elevator found on target floor:', targetFloor);
+			return;
+		}
+
+		// Change to target floor using Floor Provider
+		console.log('[GAME-PAGE] Using Floor Provider to change to floor:', targetFloor);
+		gameState.setCurrentFloor(targetFloor);
+
+		// Position player at elevator location on target floor
+		gameRef.current.setPlayerPosition(elevatorPosition.x, elevatorPosition.y);
+
+		console.log('[GAME-PAGE] Player transported to floor', targetFloor, 'at elevator position:', elevatorPosition);
+
+		// Close the modal after a brief delay to allow the transition animation to complete
+		setTimeout(() => {
+			setShowElevatorConsole(false);
+		}, 100);
+	}, [gameRef, elevatorConfig, gameState]);
 
 	// Keyboard controls
 	useEffect(() => {
 		const handleKeyDown = (e: KeyboardEvent) => {
+			// Handle elevator console navigation
+			if (showElevatorConsole) {
+				if (e.key === 'ArrowUp') {
+					e.preventDefault();
+					setFocusedMenuItem(prev => (prev > 0 ? prev - 1 : (elevatorConfig?.accessibleFloors.length || 1) - 1));
+				} else if (e.key === 'ArrowDown') {
+					e.preventDefault();
+					const maxItems = (elevatorConfig?.accessibleFloors.length || 1) - 1;
+					setFocusedMenuItem(prev => (prev < maxItems ? prev + 1 : 0));
+				} else if (e.key === 'Enter') {
+					e.preventDefault();
+					if (elevatorConfig && elevatorConfig.accessibleFloors.length > focusedMenuItem) {
+						const sortedFloors = [...elevatorConfig.accessibleFloors].sort((a, b) => b - a);
+						const selectedFloor = sortedFloors[focusedMenuItem];
+						if (selectedFloor !== elevatorConfig.currentFloor) {
+							handleFloorSelect(selectedFloor);
+						}
+					}
+					setShowElevatorConsole(false);
+				} else if (e.key === 'Escape') {
+					e.preventDefault();
+					setShowElevatorConsole(false);
+				}
+				return; // Don't process other keys when elevator console is open
+			}
+
 			if (e.key === 'Escape') {
 				setShowPause((prev) => !prev);
 			}
@@ -419,7 +514,7 @@ const GameRenderer: React.FC<GameRendererProps> = ({ gameId, savedGameData }) =>
 		};
 		document.addEventListener('keydown', handleKeyDown);
 		return () => document.removeEventListener('keydown', handleKeyDown);
-	}, [listeningKey]);
+	}, [listeningKey, showElevatorConsole, elevatorConfig, focusedMenuItem, handleFloorSelect]);
 
 	// Monitor FTL status changes and update game background
 	useEffect(() => {
@@ -753,6 +848,15 @@ const GameRenderer: React.FC<GameRendererProps> = ({ gameId, savedGameData }) =>
 				onStartFTLJump={gameState.startFTLJump}
 				onExitFTL={gameState.exitFTL}
 				onSetTimeSpeed={gameState.setTimeSpeed}
+			/>
+
+			{/* Elevator Console Modal */}
+			<ElevatorConsoleModal
+				show={showElevatorConsole}
+				onHide={() => setShowElevatorConsole(false)}
+				elevatorConfig={elevatorConfig}
+				onFloorSelect={handleFloorSelect}
+				focusedMenuItem={focusedMenuItem}
 			/>
 
 			{/* Re-Authentication Modal */}

@@ -494,6 +494,40 @@ export class NPCManager {
 		return this.npcs.get(id);
 	}
 
+	public hideAllNPCs(): void {
+		for (const sprite of this.npcSprites.values()) {
+			sprite.visible = false;
+		}
+	}
+
+	public showNPCsOnFloor(floor: number): void {
+		console.log(`[NPC-MANAGER] Showing NPCs for floor ${floor}`);
+		let visibleCount = 0;
+		let hiddenCount = 0;
+		
+		for (const [npcId, sprite] of this.npcSprites) {
+			const npc = this.npcs.get(npcId);
+			if (npc) {
+				const npcFloor = npc.floor !== undefined ? npc.floor : 0;
+				const shouldShow = npcFloor === floor;
+				
+				console.log(`[NPC-MANAGER] NPC ${npc.name} (${npcId}): floor=${npcFloor}, targetFloor=${floor}, visible=${shouldShow}`);
+				
+				sprite.visible = shouldShow;
+				if (shouldShow) {
+					visibleCount++;
+				} else {
+					hiddenCount++;
+				}
+			} else {
+				sprite.visible = false;
+				hiddenCount++;
+			}
+		}
+		
+		console.log(`[NPC-MANAGER] Floor ${floor} visibility: ${visibleCount} visible, ${hiddenCount} hidden`);
+	}
+
 	private startFidgetLoop(npc: NPC, room: RoomTemplate): void {
 		// Clear any existing loop for this NPC
 		const existingLoop = this.fidgetLoops.get(npc.id);

@@ -17,7 +17,7 @@ async function authenticateWithApiKey(apiKey: string, env: Env): Promise<User | 
 		}
 		
 		const userResult = validateUser(result);
-		return userResult.success ? userResult.data : null;
+		return userResult.success ? userResult.data! : null;
 	} catch (error) {
 		console.error('API key authentication error:', error);
 		return null;

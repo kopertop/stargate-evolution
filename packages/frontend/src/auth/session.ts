@@ -1,4 +1,5 @@
 import type { Session } from '@stargate/common';
+
 import { getEnhancedDeviceInfo } from '../utils/mobile-utils';
 
 const SESSION_KEY = 'stargate-session';

@@ -393,7 +393,7 @@ export function debugPWADetection(): void {
 		screenHeight: window.screen.height,
 		innerWidth: window.innerWidth,
 		outerWidth: window.outerWidth,
-		screenWidth: window.screen.width
+		screenWidth: window.screen.width,
 	});
 	console.groupEnd();
 

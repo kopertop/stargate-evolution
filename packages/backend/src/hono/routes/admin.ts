@@ -171,7 +171,6 @@ admin.post('/rooms', async (c) => {
 			error: 'Invalid Room Template',
 			details: error instanceof Error ? error.message : String(error),
 			issues: error instanceof ZodError ? error.issues : [],
-			errors: error instanceof ZodError ? error.errors : [],
 		}, 400);
 	}
 	// TODO: Add validation

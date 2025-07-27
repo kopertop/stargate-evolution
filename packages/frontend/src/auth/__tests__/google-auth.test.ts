@@ -3,6 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+
 import { isGoogleSignInSupported, getGoogleSignInState, clearGoogleSignInState } from '../google-auth';
 
 // Mock the mobile-utils module

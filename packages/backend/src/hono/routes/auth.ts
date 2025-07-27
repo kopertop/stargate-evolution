@@ -42,9 +42,8 @@ async function verifyGoogleIdToken(idToken: string) {
 		const JWKS_URL = 'https://www.googleapis.com/oauth2/v3/certs';
 		console.log('JWKS_URL', JWKS_URL);
 		
-		// Create JWKS with more permissive algorithm support
+		// Create JWKS with caching
 		const JWKS = jose.createRemoteJWKSet(new URL(JWKS_URL), {
-			algorithms: ['RS256', 'PS256', 'ES256'], // Support common Google algorithms
 			cacheMaxAge: 10 * 60 * 1000, // Cache for 10 minutes
 		});
 		console.log('JWKS', JWKS);
@@ -63,7 +62,7 @@ async function verifyGoogleIdToken(idToken: string) {
 			console.error('Error details:', {
 				message: error.message,
 				name: error.name,
-				stack: error.stack
+				stack: error.stack,
 			});
 		}
 		throw error;
@@ -283,7 +282,7 @@ auth.post('/generate-api-key', verifyJwtMiddleware, async (c) => {
 		return c.json({ 
 			success: true, 
 			api_key: apiKey,
-			message: 'API key generated successfully'  
+			message: 'API key generated successfully',  
 		});
 	} catch (error) {
 		console.error('Failed to generate API key:', error);
@@ -306,7 +305,7 @@ auth.delete('/api-key', verifyJwtMiddleware, async (c) => {
 
 		return c.json({ 
 			success: true,
-			message: 'API key deleted successfully'  
+			message: 'API key deleted successfully',  
 		});
 	} catch (error) {
 		console.error('Failed to delete API key:', error);
