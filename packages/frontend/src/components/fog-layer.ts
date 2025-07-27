@@ -244,4 +244,46 @@ export class FogLayer extends PIXI.Container {
 	public setObstacleChecker(checker: (tileX: number, tileY: number) => boolean) {
 		this.fogOfWarManager?.setObstacleChecker(checker);
 	}
+
+	/**
+	 * Set the current floor for fog of war management
+	 */
+	public setCurrentFloor(floor: number): void {
+		this.fogOfWarManager?.setCurrentFloor(floor);
+		// Force re-render after floor change
+		this.lastViewportBounds = null;
+		console.log('[FOG] Floor changed to', floor);
+	}
+
+	/**
+	 * Get fog data for a specific floor
+	 */
+	public getFogDataForFloor(floor: number): any {
+		return this.fogOfWarManager?.getFogDataForFloor(floor) || {};
+	}
+
+	/**
+	 * Set fog data for a specific floor
+	 */
+	public setFogDataForFloor(floor: number, fogData: any): void {
+		this.fogOfWarManager?.setFogDataForFloor(floor, fogData);
+		// Force re-render after data change
+		this.lastViewportBounds = null;
+	}
+
+	/**
+	 * Get all fog data for all floors
+	 */
+	public getAllFogData(): Record<number, any> {
+		return this.fogOfWarManager?.getAllFogData() || {};
+	}
+
+	/**
+	 * Set all fog data for all floors
+	 */
+	public setAllFogData(allFogData: Record<number, any>): void {
+		this.fogOfWarManager?.setAllFogData(allFogData);
+		// Force re-render after data change
+		this.lastViewportBounds = null;
+	}
 }

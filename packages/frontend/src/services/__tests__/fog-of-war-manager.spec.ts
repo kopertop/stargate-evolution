@@ -288,4 +288,147 @@ describe('FogOfWarManager', () => {
 			expect(fogManager.isTileDiscovered(32, 32)).toBe(true);
 		});
 	});
+
+	describe('floor management', () => {
+		it('should initialize fog data for new floors', () => {
+			const manager = new FogOfWarManager();
+
+			// Start on floor 0
+			expect(manager.getCurrentFloor()).toBe(0);
+
+			// Change to floor 1
+			manager.setCurrentFloor(1);
+			expect(manager.getCurrentFloor()).toBe(1);
+
+			// Floor 1 should have empty fog data
+			const fogData = manager.getFogData();
+			expect(Object.keys(fogData)).toHaveLength(0);
+		});
+
+		it('should preserve fog data when switching floors', () => {
+			const manager = new FogOfWarManager();
+
+			// Discover some tiles on floor 0
+			manager.forceDiscoverTile(100, 100);
+			manager.forceDiscoverTile(200, 200);
+
+			const floor0Data = manager.getFogData();
+			expect(Object.keys(floor0Data)).toHaveLength(2);
+
+			// Switch to floor 1
+			manager.setCurrentFloor(1);
+			expect(manager.getCurrentFloor()).toBe(1);
+
+			// Floor 1 should be empty
+			const floor1Data = manager.getFogData();
+			expect(Object.keys(floor1Data)).toHaveLength(0);
+
+			// Switch back to floor 0
+			manager.setCurrentFloor(0);
+			expect(manager.getCurrentFloor()).toBe(0);
+
+			// Floor 0 data should be preserved
+			const restoredFloor0Data = manager.getFogData();
+			expect(Object.keys(restoredFloor0Data)).toHaveLength(2);
+			expect(restoredFloor0Data).toEqual(floor0Data);
+		});
+
+		it('should handle floor-specific fog data operations', () => {
+			const manager = new FogOfWarManager();
+
+			// Set fog data for floor 0
+			const floor0Data = { '0,0': true, '1,1': true };
+			manager.setFogDataForFloor(0, floor0Data);
+
+			// Set fog data for floor 1
+			const floor1Data = { '2,2': true, '3,3': true };
+			manager.setFogDataForFloor(1, floor1Data);
+
+			// Verify floor 0 data
+			manager.setCurrentFloor(0);
+			expect(manager.getFogData()).toEqual(floor0Data);
+
+			// Verify floor 1 data
+			manager.setCurrentFloor(1);
+			expect(manager.getFogData()).toEqual(floor1Data);
+		});
+
+		it('should get all fog data for all floors', () => {
+			const manager = new FogOfWarManager();
+
+			// Set fog data for multiple floors
+			const floor0Data = { '0,0': true };
+			const floor1Data = { '1,1': true };
+			const floor2Data = { '2,2': true };
+
+			manager.setFogDataForFloor(0, floor0Data);
+			manager.setFogDataForFloor(1, floor1Data);
+			manager.setFogDataForFloor(2, floor2Data);
+
+			const allData = manager.getAllFogData();
+			expect(allData).toEqual({
+				0: floor0Data,
+				1: floor1Data,
+				2: floor2Data,
+			});
+		});
+
+		it('should set all fog data for all floors', () => {
+			const manager = new FogOfWarManager();
+
+			const allData = {
+				0: { '0,0': true },
+				1: { '1,1': true },
+				2: { '2,2': true },
+			};
+
+			manager.setAllFogData(allData);
+
+			// Verify each floor
+			manager.setCurrentFloor(0);
+			expect(manager.getFogData()).toEqual(allData[0]);
+
+			manager.setCurrentFloor(1);
+			expect(manager.getFogData()).toEqual(allData[1]);
+
+			manager.setCurrentFloor(2);
+			expect(manager.getFogData()).toEqual(allData[2]);
+		});
+
+		it('should clear fog for current floor only', () => {
+			const manager = new FogOfWarManager();
+
+			// Set fog data for multiple floors
+			manager.setFogDataForFloor(0, { '0,0': true });
+			manager.setFogDataForFloor(1, { '1,1': true });
+
+			// Clear fog for current floor (0)
+			manager.clearFog();
+
+			// Floor 0 should be cleared
+			expect(manager.getFogData()).toEqual({});
+
+			// Floor 1 should still have data
+			manager.setCurrentFloor(1);
+			expect(manager.getFogData()).toEqual({ '1,1': true });
+		});
+
+		it('should clear fog for all floors', () => {
+			const manager = new FogOfWarManager();
+
+			// Set fog data for multiple floors
+			manager.setFogDataForFloor(0, { '0,0': true });
+			manager.setFogDataForFloor(1, { '1,1': true });
+
+			// Clear all fog
+			manager.clearAllFog();
+
+			// All floors should be cleared
+			manager.setCurrentFloor(0);
+			expect(manager.getFogData()).toEqual({});
+
+			manager.setCurrentFloor(1);
+			expect(manager.getFogData()).toEqual({});
+		});
+	});
 });

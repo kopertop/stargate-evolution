@@ -274,4 +274,92 @@ describe('FogLayer', () => {
 			})).not.toThrow();
 		});
 	});
+
+	describe('floor management', () => {
+		it('should set current floor', () => {
+			const fogLayer = new FogLayer();
+
+			fogLayer.setCurrentFloor(1);
+
+			// Verify the fog manager was updated
+			const fogManager = fogLayer.getFogOfWarManager();
+			expect(fogManager?.getCurrentFloor()).toBe(1);
+		});
+
+		it('should get fog data for specific floor', () => {
+			const fogLayer = new FogLayer();
+
+			// Set fog data for floor 0
+			const floor0Data = { '0,0': true, '1,1': true };
+			fogLayer.setFogDataForFloor(0, floor0Data);
+
+			// Get fog data for floor 0
+			const retrievedData = fogLayer.getFogDataForFloor(0);
+			expect(retrievedData).toEqual(floor0Data);
+		});
+
+		it('should set fog data for specific floor', () => {
+			const fogLayer = new FogLayer();
+
+			// Set fog data for floor 1
+			const floor1Data = { '2,2': true, '3,3': true };
+			fogLayer.setFogDataForFloor(1, floor1Data);
+
+			// Switch to floor 1 and verify data
+			fogLayer.setCurrentFloor(1);
+			const currentData = fogLayer.getFogData();
+			expect(currentData).toEqual(floor1Data);
+		});
+
+		it('should get all fog data for all floors', () => {
+			const fogLayer = new FogLayer();
+
+			// Set fog data for multiple floors
+			const floor0Data = { '0,0': true };
+			const floor1Data = { '1,1': true };
+
+			fogLayer.setFogDataForFloor(0, floor0Data);
+			fogLayer.setFogDataForFloor(1, floor1Data);
+
+			const allData = fogLayer.getAllFogData();
+			expect(allData).toEqual({
+				0: floor0Data,
+				1: floor1Data,
+			});
+		});
+
+		it('should set all fog data for all floors', () => {
+			const fogLayer = new FogLayer();
+
+			const allData = {
+				0: { '0,0': true },
+				1: { '1,1': true },
+			};
+
+			fogLayer.setAllFogData(allData);
+
+			// Verify each floor
+			fogLayer.setCurrentFloor(0);
+			expect(fogLayer.getFogData()).toEqual(allData[0]);
+
+			fogLayer.setCurrentFloor(1);
+			expect(fogLayer.getFogData()).toEqual(allData[1]);
+		});
+
+		it('should preserve fog data when switching floors', () => {
+			const fogLayer = new FogLayer();
+
+			// Set fog data for floor 0
+			const floor0Data = { '0,0': true, '1,1': true };
+			fogLayer.setFogDataForFloor(0, floor0Data);
+
+			// Switch to floor 1
+			fogLayer.setCurrentFloor(1);
+			expect(fogLayer.getFogData()).toEqual({});
+
+			// Switch back to floor 0
+			fogLayer.setCurrentFloor(0);
+			expect(fogLayer.getFogData()).toEqual(floor0Data);
+		});
+	});
 });

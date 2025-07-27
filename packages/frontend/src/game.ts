@@ -606,7 +606,7 @@ export class Game {
 		return this.doors.find(door => {
 			const fromRoom = this.rooms.find(r => r.id === door.from_room_id);
 			const toRoom = this.rooms.find(r => r.id === door.to_room_id);
-			
+
 			// Include doors where at least one room is on the current floor
 			// This matches the main floor filtering logic used in setCurrentFloor
 			const fromOnCurrentFloor = fromRoom?.floor === this.currentFloor;
@@ -661,12 +661,12 @@ export class Game {
 			// Check if door is on current floor
 			const fromRoom = this.rooms.find(r => r.id === door.from_room_id);
 			const toRoom = this.rooms.find(r => r.id === door.to_room_id);
-			
+
 			// Include doors where at least one room is on the current floor
 			// This matches the main floor filtering logic used in setCurrentFloor
 			const fromOnCurrentFloor = fromRoom?.floor === this.currentFloor;
 			const toOnCurrentFloor = toRoom?.floor === this.currentFloor;
-			
+
 			if (!fromOnCurrentFloor && !toOnCurrentFloor) {
 				return false;
 			}
@@ -685,12 +685,12 @@ export class Game {
 		const currentFloorDoors = this.doors.filter(door => {
 			const fromRoom = this.rooms.find(r => r.id === door.from_room_id);
 			const toRoom = this.rooms.find(r => r.id === door.to_room_id);
-			
+
 			// Include doors where at least one room is on the current floor
 			// This matches the main floor filtering logic used in setCurrentFloor
 			const fromOnCurrentFloor = fromRoom?.floor === this.currentFloor;
 			const toOnCurrentFloor = toRoom?.floor === this.currentFloor;
-			
+
 			return fromOnCurrentFloor || toOnCurrentFloor;
 		});
 
@@ -897,12 +897,12 @@ export class Game {
 		const currentFloorDoors = this.doors.filter(door => {
 			const fromRoom = this.rooms.find(r => r.id === door.from_room_id);
 			const toRoom = this.rooms.find(r => r.id === door.to_room_id);
-			
+
 			// Include doors where at least one room is on the current floor
 			// This matches the main floor filtering logic used in setCurrentFloor
 			const fromOnCurrentFloor = fromRoom?.floor === this.currentFloor;
 			const toOnCurrentFloor = toRoom?.floor === this.currentFloor;
-			
+
 			return fromOnCurrentFloor || toOnCurrentFloor;
 		});
 
@@ -1161,7 +1161,7 @@ export class Game {
 			const room = this.rooms.find(r => r.id === roomId);
 			if (room) {
 				console.log('[GAME] Player is in room:', room.name || room.id);
-				
+
 				// Auto-switch to the correct floor if player is in a room on a different floor
 				if (room.floor !== this.currentFloor) {
 					console.log(`[GAME] Player is on floor ${room.floor}, but current floor is ${this.currentFloor}. Switching floors...`);
@@ -1211,6 +1211,12 @@ export class Game {
 		if (this.currentFloor !== floor) {
 			debugLogger.floor(`Changing floor from ${this.currentFloor} to ${floor}`);
 			console.log('[GAME] Changing floor from', this.currentFloor, 'to', floor);
+
+			// Update fog layer to the new floor before changing current floor
+			if (this.fogLayer) {
+				this.fogLayer.setCurrentFloor(floor);
+			}
+
 			this.currentFloor = floor;
 
 			// Re-render rooms to show only the current floor
@@ -1302,7 +1308,7 @@ export class Game {
 				roomId: currentRoomId,
 			},
 			doorStates,
-			fogOfWar: this.fogLayer?.getFogData() || {},
+			fogOfWar: this.fogLayer?.getAllFogData() || {}, // Save all floor fog data
 			npcs, // Include NPC data in save state
 			// Add other game state as needed
 			mapZoom: this.mapZoom,
@@ -1390,19 +1396,28 @@ export class Game {
 			this.restoreDoorStatesGracefully(gameData.doorStates);
 		}
 
-		// Restore fog of war data (now via FogLayer)
+		// Restore fog of war data (now floor-aware via FogLayer)
 		if (gameData.fogOfWar && this.fogLayer) {
-			const playerPos = this.getPlayerPosition();
-			const currentRoom = this.findRoomContainingPoint(playerPos.x, playerPos.y);
-			this.fogLayer.initializeFogData(gameData.fogOfWar, {
-				x: playerPos.x,
-				y: playerPos.y,
-				roomId: currentRoom?.id || 'unknown',
-			});
+			// Check if this is the new floor-aware format or old single-floor format
+			if (typeof gameData.fogOfWar === 'object' && !Array.isArray(gameData.fogOfWar)) {
+				// New format: floor-aware fog data
+				this.fogLayer.setAllFogData(gameData.fogOfWar);
+				console.log('[GAME] Floor-aware fog of war data restored');
+			} else {
+				// Old format: single floor fog data - migrate to new format
+				const playerPos = this.getPlayerPosition();
+				const currentRoom = this.findRoomContainingPoint(playerPos.x, playerPos.y);
+				this.fogLayer.initializeFogData(gameData.fogOfWar, {
+					x: playerPos.x,
+					y: playerPos.y,
+					roomId: currentRoom?.id || 'unknown',
+				});
+				console.log('[GAME] Migrated old fog data to new floor-aware format');
+			}
+
 			// Force fog render after restoration
 			const viewportBounds = this.getViewportBounds();
 			this.fogLayer.renderFogOfWar(viewportBounds);
-			console.log('[GAME] Fog of war data restored');
 		}
 
 		// Restore other game engine state
@@ -1422,11 +1437,11 @@ export class Game {
 		// Restore NPCs
 		if (gameData.npcs && Array.isArray(gameData.npcs) && this.npcLayer) {
 			console.log('[GAME] Restoring NPCs:', gameData.npcs.length, 'NPCs');
-			
+
 			// Clear existing NPCs first
 			const existingNPCs = this.getNPCs();
 			existingNPCs.forEach(npc => this.removeNPC(npc.id));
-			
+
 			// Add saved NPCs
 			gameData.npcs.forEach((npc: any) => {
 				// Ensure NPCs have the floor property (migration for old saves)
@@ -1436,7 +1451,7 @@ export class Game {
 				}
 				this.addNPC(npc);
 			});
-			
+
 			console.log('[GAME] NPCs restored successfully');
 		}
 
@@ -1589,7 +1604,7 @@ export class Game {
 			if (import.meta.env.DEV && this.npcLayer) {
 				this.npcLayer.exposeTestUtilities();
 			}
-			
+
 			// Expose elevator debug tools
 			if (import.meta.env.DEV) {
 				debugLogger.exposeTestTools();
@@ -1656,12 +1671,12 @@ export class Game {
 
 		const templateService = new TemplateService();
 		const realRooms = await templateService.getRooms();
-		
+
 		console.log('[DEBUG] About to load doors...');
 		const realDoors = await templateService.getDoors();
 		console.log('[DEBUG] Door loading completed, got:', realDoors.length, 'doors');
 		console.log('[DEBUG] First few doors:', realDoors.slice(0, 3).map(d => ({ id: d.id, from: d.from_room_id, to: d.to_room_id })));
-		
+
 		const realFurniture = await templateService.getFurniture();
 
 		console.log(`[DEBUG] Loaded ${realRooms.length} rooms, ${realDoors.length} doors, ${realFurniture.length} furniture from API`);
@@ -1710,7 +1725,7 @@ export class Game {
 
 		debugLogger.floor(`Rendering rooms for floor ${this.currentFloor}...`);
 		console.log('[DEBUG] Rendering rooms for floor', this.currentFloor, '...');
-		
+
 		// Debug: Log all doors in the system for Floor 1 analysis
 		if (this.currentFloor === 1) {
 			debugLogger.door(`Total doors in system: ${this.doors.length}`);
@@ -1728,12 +1743,12 @@ export class Game {
 		const floorDoors = this.doors.filter(door => {
 			const fromRoom = this.rooms.find(r => r.id === door.from_room_id);
 			const toRoom = this.rooms.find(r => r.id === door.to_room_id);
-			
+
 			// Include doors where at least one room is on the current floor
 			// This includes both same-floor doors and inter-floor doors (like elevators/stairs)
 			const fromOnCurrentFloor = fromRoom?.floor === this.currentFloor;
 			const toOnCurrentFloor = toRoom?.floor === this.currentFloor;
-			
+
 			// Enhanced debugging for door filtering
 			if (this.currentFloor === 1) {
 				debugLogger.door(`Evaluating door ${door.id}:`, {
@@ -1744,13 +1759,13 @@ export class Game {
 					included: fromOnCurrentFloor || toOnCurrentFloor,
 				});
 			}
-			
+
 			return fromOnCurrentFloor || toOnCurrentFloor;
 		});
 		const floorFurniture = this.furniture.filter(f => {
 			const room = this.rooms.find(r => r.id === f.room_id);
 			const isOnCurrentFloor = room?.floor === this.currentFloor;
-			
+
 			// Debug furniture filtering for Floor 1
 			if (this.currentFloor === 1) {
 				console.log(`[DEBUG] Furniture ${f.id} (${f.furniture_type}) in room ${f.room_id}:`, {
@@ -1760,27 +1775,27 @@ export class Game {
 					included: isOnCurrentFloor
 				});
 			}
-			
+
 			return isOnCurrentFloor;
 		});
 
 		// Debug logging
 		debugLogger.floor(`Floor ${this.currentFloor} has:`, {
 			rooms: floorRooms.length,
-			doors: floorDoors.length, 
+			doors: floorDoors.length,
 			furniture: floorFurniture.length,
 		});
-		
-		debugLogger.door(`Doors on floor ${this.currentFloor}:`, 
-			floorDoors.map(d => ({ 
-				id: d.id, 
-				from: d.from_room_id, 
-				to: d.to_room_id, 
+
+		debugLogger.door(`Doors on floor ${this.currentFloor}:`,
+			floorDoors.map(d => ({
+				id: d.id,
+				from: d.from_room_id,
+				to: d.to_room_id,
 				state: d.state,
 				position: { x: d.x, y: d.y },
 			})),
 		);
-		
+
 		debugLogger.furniture(`Furniture on floor ${this.currentFloor}:`,
 			floorFurniture.map(f => ({
 				id: f.id,
@@ -1811,16 +1826,16 @@ export class Game {
 		if (this.furnitureLayer) {
 			// FurnitureLayer needs ALL rooms to determine available floors for elevators
 			this.furnitureLayer.setRooms(this.rooms);
-			
+
 			// Debug furniture filtering
 			console.log(`[DEBUG] Setting ${floorFurniture.length} furniture items for floor ${this.currentFloor}:`);
-			console.log('[DEBUG] Floor furniture:', floorFurniture.map(f => ({ 
-				id: f.id, 
-				type: f.furniture_type, 
+			console.log('[DEBUG] Floor furniture:', floorFurniture.map(f => ({
+				id: f.id,
+				type: f.furniture_type,
 				room: f.room_id,
-				position: `(${f.x}, ${f.y})` 
+				position: `(${f.x}, ${f.y})`
 			})));
-			
+
 			this.furnitureLayer.setFurniture(floorFurniture);
 		}
 
@@ -1835,13 +1850,13 @@ export class Game {
 				room: n.current_room_id,
 				floor: n.floor || 0, // Now using the floor property
 			})));
-			
+
 			// Filter NPCs to only show those on the current floor
 			const floorNPCs = allNPCs.filter(npc => (npc.floor || 0) === this.currentFloor);
-			debugLogger.npc(`NPCs on floor ${this.currentFloor}: ${floorNPCs.length}`, 
+			debugLogger.npc(`NPCs on floor ${this.currentFloor}: ${floorNPCs.length}`,
 				floorNPCs.map(n => ({ id: n.id, name: n.name, floor: n.floor || 0 })),
 			);
-			
+
 			this.npcLayer.setRooms(floorRooms);
 			this.npcLayer.setDoors(floorDoors);
 			this.npcLayer.setVisibleFloor(this.currentFloor);
