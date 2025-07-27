@@ -72,7 +72,7 @@ export class FogLayer extends PIXI.Container {
 		}
 	}
 
-	public updatePlayerPosition(position: { x: number; y: number; roomId: string }): boolean {
+	public updatePlayerPosition(position: { x: number; y: number; roomId: string; floor: number }): boolean {
 		if (!this.fogOfWarManager) return false;
 
 		const hasNewDiscoveries = this.fogOfWarManager.updatePlayerPosition(position);
@@ -169,7 +169,7 @@ export class FogLayer extends PIXI.Container {
 		this.activeFogTiles = [];
 	}
 
-	public initializeFogData(fogData: any, playerPosition: { x: number; y: number; roomId: string }): void {
+	public initializeFogData(fogData: any, playerPosition: { x: number; y: number; roomId: string; floor: number }): void {
 		if (this.fogOfWarManager) {
 			this.fogOfWarManager.initialize(fogData, playerPosition);
 			// Force re-render after initialization

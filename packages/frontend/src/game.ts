@@ -224,10 +224,6 @@ export class Game {
 		this.setupTouchControls();
 	}
 
-	// Floor management getter
-	public getCurrentFloor(): number {
-		return this.currentFloor;
-	}
 
 	private createStarfield(): PIXI.Graphics {
 		// Kept for backward compatibility - actual starfield is handled by BackgroundLayer
@@ -515,6 +511,7 @@ export class Game {
 				x: playerPos.x,
 				y: playerPos.y,
 				roomId: currentRoom?.id || 'unknown',
+				floor: this.currentFloor,
 			});
 			const viewportBounds = this.getViewportBounds();
 			this.fogLayer.renderFogOfWar(viewportBounds);
@@ -1179,6 +1176,7 @@ export class Game {
 				x: this.player.x,
 				y: this.player.y,
 				roomId: currentRoom?.id || 'unknown',
+				floor: this.currentFloor,
 			});
 			console.log('[GAME] Fog discovery triggered at new player position');
 		}
@@ -1233,17 +1231,8 @@ export class Game {
 			// Re-render rooms to show only the current floor
 			this.renderRooms();
 
-			// Trigger fog discovery at current player position after floor change
-			if (this.fogLayer) {
-				const playerPos = this.getPlayerPosition();
-				const currentRoom = this.findRoomContainingPoint(playerPos.x, playerPos.y);
-				this.fogLayer.updatePlayerPosition({
-					x: playerPos.x,
-					y: playerPos.y,
-					roomId: currentRoom?.id || 'unknown',
-				});
-				console.log('[GAME] Fog discovery triggered after floor change');
-			}
+			// Note: Fog discovery is now handled by the caller after positioning
+			// This prevents interference with elevator positioning
 
 			// Notify listeners of floor change
 			if (this.options.onFloorChange) {
@@ -1434,6 +1423,7 @@ export class Game {
 					x: playerPos.x,
 					y: playerPos.y,
 					roomId: currentRoom?.id || 'unknown',
+					floor: this.currentFloor,
 				});
 				console.log('[GAME] Migrated old fog data to new floor-aware format');
 			}
@@ -1445,6 +1435,7 @@ export class Game {
 				x: playerPos.x,
 				y: playerPos.y,
 				roomId: currentRoom?.id || 'unknown',
+				floor: this.currentFloor,
 			});
 			console.log('[GAME] Initial fog discovery triggered after restoration');
 
@@ -1805,7 +1796,7 @@ export class Game {
 					roomFound: !!room,
 					roomFloor: room?.floor,
 					currentFloor: this.currentFloor,
-					included: isOnCurrentFloor
+					included: isOnCurrentFloor,
 				});
 			}
 
@@ -1866,7 +1857,7 @@ export class Game {
 				id: f.id,
 				type: f.furniture_type,
 				room: f.room_id,
-				position: `(${f.x}, ${f.y})`
+				position: `(${f.x}, ${f.y})`,
 			})));
 
 			this.furnitureLayer.setFurniture(floorFurniture);
@@ -1915,6 +1906,7 @@ export class Game {
 				x: this.player.x,
 				y: this.player.y,
 				roomId: currentRoom?.id || 'unknown',
+				floor: this.currentFloor,
 			});
 			console.log('[DEBUG] Initial fog discovery triggered at starting position');
 		}
@@ -2027,5 +2019,35 @@ export class Game {
 	 */
 	public getAllFogData(): any {
 		return this.fogLayer?.getAllFogData() || {};
+	}
+
+	public setAllFogData(allFogData: Record<number, any>): void {
+		if (this.fogLayer) {
+			this.fogLayer.setAllFogData(allFogData);
+		}
+	}
+
+	public restoreFogDataForFloor(floor: number, fogData: Record<string, boolean>): void {
+		if (this.fogLayer) {
+			console.log('[GAME] Restoring fog data for floor', floor, 'with', Object.keys(fogData).length, 'tiles');
+			this.fogLayer.setFogDataForFloor(floor, fogData);
+		}
+	}
+
+	public triggerFogDiscovery(x: number, y: number, floor: number): void {
+		if (this.fogLayer) {
+			const currentRoom = this.findRoomContainingPoint(x, y);
+			this.fogLayer.updatePlayerPosition({
+				x,
+				y,
+				roomId: currentRoom?.id || 'unknown',
+				floor,
+			});
+			console.log('[GAME] Fog discovery triggered at position', { x, y, floor });
+		}
+	}
+
+	public findRoomContainingPointPublic(x: number, y: number): RoomTemplate | null {
+		return this.findRoomContainingPoint(x, y);
 	}
 }

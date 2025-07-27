@@ -73,6 +73,7 @@ describe('FogLayer', () => {
 				x: 32,
 				y: 32,
 				roomId: 'test-room',
+				floor: 0,
 			});
 
 			expect(hasNewDiscoveries).toBe(true);
@@ -81,7 +82,7 @@ describe('FogLayer', () => {
 
 		it('should not trigger discovery when player stays in same tile', () => {
 			// First update - should trigger discovery
-			fogLayer.updatePlayerPosition({ x: 32, y: 32, roomId: 'test-room' });
+			fogLayer.updatePlayerPosition({ x: 32, y: 32, roomId: 'test-room', floor: 0 });
 
 			// Reset mock
 			onFogDiscovery.mockClear();
@@ -91,6 +92,7 @@ describe('FogLayer', () => {
 				x: 40,
 				y: 40,
 				roomId: 'test-room',
+				floor: 0,
 			});
 
 			expect(hasNewDiscoveries).toBe(false);
@@ -106,7 +108,7 @@ describe('FogLayer', () => {
 
 		it('should clear fog of war', () => {
 			// First discover some tiles
-			fogLayer.updatePlayerPosition({ x: 32, y: 32, roomId: 'test-room' });
+			fogLayer.updatePlayerPosition({ x: 32, y: 32, roomId: 'test-room', floor: 0 });
 			expect(fogLayer.isTileDiscovered(32, 32)).toBe(true);
 
 			// Clear fog
@@ -136,7 +138,7 @@ describe('FogLayer', () => {
 				'0,0': true,
 				'1,1': true,
 			};
-			const playerPosition = { x: 32, y: 32, roomId: 'test-room' };
+			const playerPosition = { x: 32, y: 32, roomId: 'test-room', floor: 0 };
 
 			fogLayer.initializeFogData(existingFogData, playerPosition);
 
@@ -155,7 +157,7 @@ describe('FogLayer', () => {
 			};
 
 			// Discover some tiles first
-			fogLayer.updatePlayerPosition({ x: 32, y: 32, roomId: 'test-room' });
+			fogLayer.updatePlayerPosition({ x: 32, y: 32, roomId: 'test-room', floor: 0 });
 
 			// Render fog
 			fogLayer.renderFogOfWar(viewportBounds);
@@ -238,7 +240,7 @@ describe('FogLayer', () => {
 	describe('cleanup', () => {
 		it('should destroy properly', () => {
 			// Add some tiles to pools
-			fogLayer.updatePlayerPosition({ x: 32, y: 32, roomId: 'test-room' });
+			fogLayer.updatePlayerPosition({ x: 32, y: 32, roomId: 'test-room', floor: 0 });
 			const viewportBounds: ViewportBounds = {
 				left: 0,
 				right: 200,
@@ -259,7 +261,7 @@ describe('FogLayer', () => {
 			(testLayer as any).fogOfWarManager = null;
 
 			expect(testLayer.isTileDiscovered(0, 0)).toBe(false);
-			expect(testLayer.updatePlayerPosition({ x: 0, y: 0, roomId: 'test' })).toBe(false);
+			expect(testLayer.updatePlayerPosition({ x: 0, y: 0, roomId: 'test', floor: 0 })).toBe(false);
 			expect(() => testLayer.renderFogOfWar({
 				left: 0, right: 100, top: 0, bottom: 100,
 			})).not.toThrow();

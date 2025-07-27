@@ -38,7 +38,7 @@ describe('FogOfWarManager', () => {
 				'1,1': true,
 				'2,2': false,
 			};
-			const playerPos: PlayerPosition = { x: 32, y: 32, roomId: 'test-room' };
+			const playerPos: PlayerPosition = { x: 32, y: 32, roomId: 'test-room', floor: 0 };
 
 			fogManager.initialize(existingFogData, playerPos);
 
@@ -67,7 +67,7 @@ describe('FogOfWarManager', () => {
 
 	describe('visibility and discovery', () => {
 		it('should discover tiles when player moves', () => {
-			const playerPos: PlayerPosition = { x: 32, y: 32, roomId: 'test-room' }; // Center of tile (0,0)
+			const playerPos: PlayerPosition = { x: 32, y: 32, roomId: 'test-room', floor: 0 }; // Center of tile (0,0)
 
 			const hasNewDiscoveries = fogManager.updatePlayerPosition(playerPos);
 
@@ -83,7 +83,7 @@ describe('FogOfWarManager', () => {
 		});
 
 		it('should not discover tiles outside visibility range', () => {
-			const playerPos: PlayerPosition = { x: 32, y: 32, roomId: 'test-room' }; // Center of tile (0,0)
+			const playerPos: PlayerPosition = { x: 32, y: 32, roomId: 'test-room', floor: 0 }; // Center of tile (0,0)
 
 			fogManager.updatePlayerPosition(playerPos);
 
@@ -93,7 +93,7 @@ describe('FogOfWarManager', () => {
 		});
 
 		it('should discover tiles in circular pattern', () => {
-			const playerPos: PlayerPosition = { x: 160, y: 160, roomId: 'test-room' }; // Center of tile (2,2)
+			const playerPos: PlayerPosition = { x: 160, y: 160, roomId: 'test-room', floor: 0 }; // Center of tile (2,2)
 
 			fogManager.updatePlayerPosition(playerPos);
 
@@ -109,14 +109,14 @@ describe('FogOfWarManager', () => {
 		});
 
 		it('should not discover new tiles if player stays in same tile', () => {
-			const playerPos: PlayerPosition = { x: 32, y: 32, roomId: 'test-room' };
+			const playerPos: PlayerPosition = { x: 32, y: 32, roomId: 'test-room', floor: 0 };
 
 			// First update should discover tiles
 			const firstUpdate = fogManager.updatePlayerPosition(playerPos);
 			expect(firstUpdate).toBe(true);
 
 			// Moving within same tile should not discover new tiles
-			const samePos = { x: 40, y: 40, roomId: 'test-room' }; // Still in tile (0,0)
+			const samePos = { x: 40, y: 40, roomId: 'test-room', floor: 0 }; // Still in tile (0,0)
 			const secondUpdate = fogManager.updatePlayerPosition(samePos);
 			expect(secondUpdate).toBe(false);
 		});
@@ -124,7 +124,7 @@ describe('FogOfWarManager', () => {
 
 	describe('fog data management', () => {
 		it('should return current fog data', () => {
-			const playerPos: PlayerPosition = { x: 32, y: 32, roomId: 'test-room' };
+			const playerPos: PlayerPosition = { x: 32, y: 32, roomId: 'test-room', floor: 0 };
 			fogManager.updatePlayerPosition(playerPos);
 
 			const fogData = fogManager.getFogData();
@@ -134,7 +134,7 @@ describe('FogOfWarManager', () => {
 		});
 
 		it('should get list of discovered tiles', () => {
-			const playerPos: PlayerPosition = { x: 32, y: 32, roomId: 'test-room' };
+			const playerPos: PlayerPosition = { x: 32, y: 32, roomId: 'test-room', floor: 0 };
 			fogManager.updatePlayerPosition(playerPos);
 
 			const discoveredTiles = fogManager.getDiscoveredTiles();
@@ -156,7 +156,7 @@ describe('FogOfWarManager', () => {
 		});
 
 		it('should clear all fog data', () => {
-			const playerPos: PlayerPosition = { x: 32, y: 32, roomId: 'test-room' };
+			const playerPos: PlayerPosition = { x: 32, y: 32, roomId: 'test-room', floor: 0 };
 			fogManager.updatePlayerPosition(playerPos);
 
 			// Verify some tiles are discovered
@@ -204,7 +204,7 @@ describe('FogOfWarManager', () => {
 	describe('line of sight', () => {
 		it('should respect line of sight setting', () => {
 			// Test with line of sight enabled
-			const playerPos: PlayerPosition = { x: 32, y: 32, roomId: 'test-room' };
+			const playerPos: PlayerPosition = { x: 32, y: 32, roomId: 'test-room', floor: 0 };
 			fogManager.updatePlayerPosition(playerPos);
 
 			const tilesWithLOS = fogManager.getDiscoveredTiles().length;
@@ -242,7 +242,7 @@ describe('FogOfWarManager', () => {
 
 		it('should affect discovery after config update', () => {
 			// Initial discovery with range 3
-			const playerPos: PlayerPosition = { x: 32, y: 32, roomId: 'test-room' };
+			const playerPos: PlayerPosition = { x: 32, y: 32, roomId: 'test-room', floor: 0 };
 			fogManager.updatePlayerPosition(playerPos);
 			const initialTiles = fogManager.getDiscoveredTiles().length;
 
@@ -259,7 +259,7 @@ describe('FogOfWarManager', () => {
 
 	describe('edge cases', () => {
 		it('should handle very large coordinates', () => {
-			const largePos: PlayerPosition = { x: 1000000, y: 1000000, roomId: 'test-room' };
+			const largePos: PlayerPosition = { x: 1000000, y: 1000000, roomId: 'test-room', floor: 0 };
 
 			expect(() => {
 				fogManager.updatePlayerPosition(largePos);
@@ -270,7 +270,7 @@ describe('FogOfWarManager', () => {
 
 		it('should handle zero visibility range', () => {
 			fogManager.updateConfig({ visibilityRange: 0 });
-			const playerPos: PlayerPosition = { x: 32, y: 32, roomId: 'test-room' };
+			const playerPos: PlayerPosition = { x: 32, y: 32, roomId: 'test-room', floor: 0 };
 
 			fogManager.updatePlayerPosition(playerPos);
 
@@ -280,7 +280,7 @@ describe('FogOfWarManager', () => {
 		});
 
 		it('should handle fractional coordinates', () => {
-			const playerPos: PlayerPosition = { x: 32.5, y: 32.7, roomId: 'test-room' };
+			const playerPos: PlayerPosition = { x: 32.5, y: 32.7, roomId: 'test-room', floor: 0 };
 
 			fogManager.updatePlayerPosition(playerPos);
 
@@ -435,7 +435,7 @@ describe('FogOfWarManager', () => {
 	describe('player position management', () => {
 		it('should trigger fog discovery when player position is set', () => {
 			const manager = new FogOfWarManager();
-			const playerPosition = { x: 100, y: 100, roomId: 'test-room' };
+			const playerPosition = { x: 100, y: 100, roomId: 'test-room', floor: 0 };
 
 			// Set player position - this should trigger fog discovery
 			manager.updatePlayerPosition(playerPosition);
@@ -450,14 +450,14 @@ describe('FogOfWarManager', () => {
 
 		it('should not rediscover already discovered tiles', () => {
 			const manager = new FogOfWarManager();
-			const playerPosition = { x: 100, y: 100, roomId: 'test-room' };
+			const playerPosition = { x: 100, y: 100, roomId: 'test-room', floor: 0 };
 
 			// First discovery
 			manager.updatePlayerPosition(playerPosition);
 			const firstDiscoveryCount = Object.keys(manager.getFogData()).length;
 
 			// Move player to a position that will discover some new tiles but not too many
-			manager.updatePlayerPosition({ x: 150, y: 150, roomId: 'test-room' });
+			manager.updatePlayerPosition({ x: 150, y: 150, roomId: 'test-room', floor: 0 });
 			const secondDiscoveryCount = Object.keys(manager.getFogData()).length;
 
 			// Should discover some new tiles but not too many since some overlap

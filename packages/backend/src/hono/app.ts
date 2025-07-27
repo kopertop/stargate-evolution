@@ -32,6 +32,7 @@ app.route('/api/upload', upload);
 try {
 	// Only import MCP in non-test environments
 	if (typeof process === 'undefined' || process.env.NODE_ENV !== 'test') {
+		// eslint-disable-next-line @typescript-eslint/no-require-imports
 		const mcp = require('./routes/mcp').default;
 		app.route('/api/mcp', mcp);
 	} else {

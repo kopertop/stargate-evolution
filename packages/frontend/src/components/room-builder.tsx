@@ -3016,7 +3016,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 										}}
 									/>
 									<Form.Text className="text-muted">
-										Enter floor numbers separated by commas (e.g., "0, 1, 2, 3"). 
+										Enter floor numbers separated by commas (e.g., &quot;0, 1, 2, 3&quot;). 
 										This will be stored as JSON in the description field.
 									</Form.Text>
 								</div>
