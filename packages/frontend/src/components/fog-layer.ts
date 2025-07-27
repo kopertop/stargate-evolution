@@ -72,10 +72,10 @@ export class FogLayer extends PIXI.Container {
 		}
 	}
 
-	public updatePlayerPosition(position: { x: number; y: number; roomId: string; floor: number }): boolean {
+	public updatePlayerPosition(position: { x: number; y: number; roomId: string; floor: number }, force: boolean = false): boolean {
 		if (!this.fogOfWarManager) return false;
 
-		const hasNewDiscoveries = this.fogOfWarManager.updatePlayerPosition(position);
+		const hasNewDiscoveries = this.fogOfWarManager.updatePlayerPosition(position, force);
 
 		if (hasNewDiscoveries) {
 			// Force re-render when new tiles are discovered

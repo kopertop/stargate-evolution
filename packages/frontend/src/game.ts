@@ -1177,7 +1177,7 @@ export class Game {
 				y: this.player.y,
 				roomId: currentRoom?.id || 'unknown',
 				floor: this.currentFloor,
-			});
+			}, true); // Force discovery after potential floor change
 			console.log('[GAME] Fog discovery triggered at new player position');
 		}
 	}
@@ -1436,7 +1436,7 @@ export class Game {
 				y: playerPos.y,
 				roomId: currentRoom?.id || 'unknown',
 				floor: this.currentFloor,
-			});
+			}, true); // Force discovery on restoration
 			console.log('[GAME] Initial fog discovery triggered after restoration');
 
 			// Force fog render after restoration
@@ -1907,7 +1907,7 @@ export class Game {
 				y: this.player.y,
 				roomId: currentRoom?.id || 'unknown',
 				floor: this.currentFloor,
-			});
+			}, true); // Force discovery on initial load
 			console.log('[DEBUG] Initial fog discovery triggered at starting position');
 		}
 	}
@@ -2042,7 +2042,7 @@ export class Game {
 				y,
 				roomId: currentRoom?.id || 'unknown',
 				floor,
-			});
+			}, true); // Force discovery when manually triggered
 			console.log('[GAME] Fog discovery triggered at position', { x, y, floor });
 		}
 	}

@@ -161,13 +161,13 @@ export class FogOfWarManager {
 	 * Update the player's position and discover new tiles
 	 * Returns true if new tiles were discovered
 	 */
-	public updatePlayerPosition(position: PlayerPosition): boolean {
+	public updatePlayerPosition(position: PlayerPosition, force: boolean = false): boolean {
 		this.playerPosition = { ...position };
 
 		const { tileX, tileY } = this.worldToFogTile(position.x, position.y);
 
-		// Check if player moved to a different tile
-		if (tileX === this.lastPlayerTileX && tileY === this.lastPlayerTileY) {
+		// Check if player moved to a different tile (unless forced)
+		if (!force && tileX === this.lastPlayerTileX && tileY === this.lastPlayerTileY) {
 			return false; // No tile change, no need to discover
 		}
 
