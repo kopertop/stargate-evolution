@@ -573,7 +573,7 @@ function getServer(env: Env, user: User): McpServer {
 						return value.length > maxWidth - 2 
 							? value.substring(0, maxWidth - 5) + '...' 
 							: value.padEnd(Math.min(col.length + 2, maxWidth));
-					}).join('|')
+					}).join('|'),
 				);
 
 				const table = [header, separator, ...dataRows].join('\n');
@@ -847,7 +847,7 @@ function getServer(env: Env, user: User): McpServer {
 					}
 
 					const columns = result.results.map((col: any) => 
-						`  - **${col.name}** (${col.type}) ${col.notnull ? 'NOT NULL' : ''} ${col.pk ? 'PRIMARY KEY' : ''} ${col.dflt_value ? `DEFAULT ${col.dflt_value}` : ''}`
+						`  - **${col.name}** (${col.type}) ${col.notnull ? 'NOT NULL' : ''} ${col.pk ? 'PRIMARY KEY' : ''} ${col.dflt_value ? `DEFAULT ${col.dflt_value}` : ''}`,
 					).join('\n');
 
 					return {
@@ -860,7 +860,7 @@ function getServer(env: Env, user: User): McpServer {
 					};
 				} else {
 					// Show all tables
-					const tablesQuery = `SELECT name FROM sqlite_master WHERE type='table' ORDER BY name`;
+					const tablesQuery = 'SELECT name FROM sqlite_master WHERE type=\'table\' ORDER BY name';
 					const stmt = env.DB.prepare(tablesQuery);
 					const result = await stmt.all();
 

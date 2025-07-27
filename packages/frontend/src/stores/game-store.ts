@@ -21,6 +21,11 @@ interface BackendGameData {
 	playerPosition?: { x: number; y: number; roomId?: string };
 	doorStates?: Array<{ id: string; state: string; restricted?: boolean; cleared?: boolean }>;
 	npcs?: Array<{ id: string; name: string; x: number; y: number; roomId: string; floor: number }>;
+	/**
+	 * fogOfWar maps from floor number (number) to a map of room IDs (string) to a boolean indicating
+	 * whether that room has been revealed (true) or is still hidden (false/undefined) for that floor.
+	 * Example: { 1: { "roomA": true, "roomB": false }, 2: { "roomC": true } }
+	 */
 	fogOfWar?: Record<number, Record<string, boolean>>;
 	mapZoom?: number;
 	currentBackgroundType?: 'stars' | 'ftl';
@@ -29,7 +34,7 @@ interface BackendGameData {
 // Game engine state that needs to be synced
 interface GameEngineState {
 	// Player position and room
-	playerPosition: { x: number; y: number; roomId?: string };
+	playerPosition: { x: number; y: number; roomId?: string; floor: number };
 
 	// Floor management
 	currentFloor: number;
@@ -95,7 +100,7 @@ interface UIState {
 // Complete game state
 interface GameState extends GameEngineState, GameMetadata, UIState {
 	// Actions for game engine state
-	setPlayerPosition: (position: { x: number; y: number; roomId?: string }) => void;
+	setPlayerPosition: (position: { x: number; y: number; roomId?: string; floor: number }) => void;
 	setCurrentFloor: (floor: number) => void;
 	setFogOfWar: (floor: number, fogData: Record<string, boolean>) => void;
 	setAllFogData: (fogData: Record<number, Record<string, boolean>>) => void;
@@ -151,7 +156,7 @@ interface GameState extends GameEngineState, GameMetadata, UIState {
 // Initial state
 const initialState: GameEngineState & GameMetadata & UIState = {
 	// Game engine state
-	playerPosition: { x: 0, y: 0 },
+	playerPosition: { x: 0, y: 0, floor: 0 },
 	currentFloor: 0,
 	fogOfWar: {},
 	doorStates: [],
@@ -194,9 +199,15 @@ export const useGameStore = create<GameState>()(
 			// Game engine state actions
 			setPlayerPosition: (position) => {
 				set({ playerPosition: position });
+				// If the position's floor is different from current floor, update current floor
+				const currentFloor = get().currentFloor;
+				if (position.floor !== currentFloor) {
+					console.log('[STORE] Player position floor', position.floor, 'differs from current floor', currentFloor, '- updating current floor');
+					set({ currentFloor: position.floor });
+				}
 				// Trigger fog discovery at new position
-				const { currentFloor, fogOfWar } = get();
-				const fogData = fogOfWar[currentFloor] || {};
+				const { fogOfWar } = get();
+				const fogData = fogOfWar[position.floor] || {};
 				// This will be handled by the game engine when it syncs with the store
 			},
 

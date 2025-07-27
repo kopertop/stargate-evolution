@@ -452,12 +452,23 @@ const GameRenderer: React.FC<GameRendererProps> = ({ gameId, savedGameData }) =>
 			return;
 		}
 
+		// IMPORTANT: Set player position BEFORE changing floor to avoid position reset
+		console.log('[GAME-PAGE] Setting player position to elevator location:', elevatorPosition);
+		gameRef.current.setPlayerPosition(elevatorPosition.x, elevatorPosition.y);
+
 		// Change to target floor using Floor Provider
 		console.log('[GAME-PAGE] Using Floor Provider to change to floor:', targetFloor);
 		gameState.setCurrentFloor(targetFloor);
 
-		// Position player at elevator location on target floor
-		gameRef.current.setPlayerPosition(elevatorPosition.x, elevatorPosition.y);
+		// Ensure fog of war is properly restored for the target floor
+		const targetFloorFogData = gameState.getFogDataForFloor(targetFloor);
+		if (Object.keys(targetFloorFogData).length > 0) {
+			console.log('[GAME-PAGE] Restoring fog data for floor', targetFloor, 'with', Object.keys(targetFloorFogData).length, 'tiles');
+			gameRef.current.restoreFogDataForFloor(targetFloor, targetFloorFogData);
+		}
+
+		// Trigger fog discovery at the new elevator position
+		gameRef.current.triggerFogDiscovery(elevatorPosition.x, elevatorPosition.y, targetFloor);
 
 		console.log('[GAME-PAGE] Player transported to floor', targetFloor, 'at elevator position:', elevatorPosition);
 
