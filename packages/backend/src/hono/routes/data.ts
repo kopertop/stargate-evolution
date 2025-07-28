@@ -165,6 +165,17 @@ data.get('/furniture/:id', async (c) => {
 	}
 });
 
+// Technology endpoints (both singular and plural for compatibility)
+data.get('/technology', async (c) => {
+	try {
+		const { results } = await c.env.DB.prepare('SELECT * FROM technology_templates').all();
+		return c.json(results);
+	} catch (error) {
+		console.error('Failed to fetch technology templates:', error);
+		return c.json({ error: 'Failed to fetch technology templates' }, 500);
+	}
+});
+
 data.get('/technologies', async (c) => {
 	try {
 		const { results } = await c.env.DB.prepare('SELECT * FROM technology_templates').all();
@@ -172,6 +183,20 @@ data.get('/technologies', async (c) => {
 	} catch (error) {
 		console.error('Failed to fetch technology templates:', error);
 		return c.json({ error: 'Failed to fetch technology templates' }, 500);
+	}
+});
+
+data.get('/technology/:id', async (c) => {
+	const { id } = c.req.param();
+	try {
+		const result = await c.env.DB.prepare('SELECT * FROM technology_templates WHERE id = ?').bind(id).first();
+		if (!result) {
+			return c.json({ error: 'Technology template not found' }, 404);
+		}
+		return c.json(result);
+	} catch (error) {
+		console.error(`Failed to fetch technology template ${id}:`, error);
+		return c.json({ error: 'Failed to fetch technology template' }, 500);
 	}
 });
 
