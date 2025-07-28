@@ -67,6 +67,7 @@ const GameRenderer: React.FC<GameRendererProps> = ({ gameId, savedGameData }) =>
 	const [gamepadDebugState, setGamepadDebugState] = useState<any[]>([]); // Debug state for gamepad info
 	const [isFullscreen, setIsFullscreen] = useState(false);
 	const [showReAuthModal, setShowReAuthModal] = useState(false);
+	const [showLoginModal, setShowLoginModal] = useState(false);
 
 	// Use the centralized game controller service
 	const controller = useGameController();
@@ -548,6 +549,16 @@ const GameRenderer: React.FC<GameRendererProps> = ({ gameId, savedGameData }) =>
 		}
 	};
 
+	// Handle Google Sign-In for initial login
+	const handleLogin = async (idToken: string) => {
+		try {
+			await auth.signIn(idToken);
+			setShowLoginModal(false);
+		} catch (error) {
+			// Error handling is done in the auth context
+		}
+	};
+
 	// Set up Google Sign-In button for re-authentication modal
 	useEffect(() => {
 		if (showReAuthModal) {
@@ -562,6 +573,21 @@ const GameRenderer: React.FC<GameRendererProps> = ({ gameId, savedGameData }) =>
 			return () => clearTimeout(timer);
 		}
 	}, [showReAuthModal]);
+
+	// Set up Google Sign-In button for login modal
+	useEffect(() => {
+		if (showLoginModal) {
+			const timer = setTimeout(() => {
+				const container = document.getElementById('login-google-signin-button');
+				if (container) {
+					container.innerHTML = ''; // Clear any existing content
+					renderGoogleSignInButton('login-google-signin-button', handleLogin);
+				}
+			}, 100); // Small delay to ensure DOM is ready
+
+			return () => clearTimeout(timer);
+		}
+	}, [showLoginModal]);
 
 	// Show loading state while game initializes
 	if (!gameState.isInitialized || !gameState.destinyStatus) {
@@ -663,8 +689,13 @@ const GameRenderer: React.FC<GameRendererProps> = ({ gameId, savedGameData }) =>
 							variant={focusedMenuItem === 2 ? 'primary' : 'outline-secondary'}
 							size="lg"
 							onClick={() => {
-								gameState.saveGame(undefined, gameRef.current);
-								setShowPause(false);
+								if (!auth.user) {
+									setShowLoginModal(true);
+									setShowPause(false);
+								} else {
+									gameState.saveGame(undefined, gameRef.current);
+									setShowPause(false);
+								}
 							}}
 							disabled={gameState.isLoading}
 							title={gameState.gameName ? `Save "${gameState.gameName}"` : 'Save current game'}
@@ -890,6 +921,38 @@ const GameRenderer: React.FC<GameRendererProps> = ({ gameId, savedGameData }) =>
 						title="Continue playing without server saves"
 					>
 						Continue Offline
+					</Button>
+				</Modal.Footer>
+			</Modal>
+
+			{/* Login Modal */}
+			<Modal show={showLoginModal} centered backdrop="static" keyboard={false}>
+				<Modal.Header>
+					<Modal.Title>Sign In Required</Modal.Title>
+				</Modal.Header>
+				<Modal.Body>
+					<div className="text-center">
+						<p className="mb-3">
+							You need to sign in to save your game progress to the server.
+						</p>
+						<p className="mb-4">
+							Sign in with Google to save your progress and access it from any device.
+						</p>
+						<div id="login-google-signin-button" className="d-flex justify-content-center" />
+						<div className="mt-3">
+							<small className="text-muted">
+								You can continue playing without signing in, but your progress will only be saved locally.
+							</small>
+						</div>
+					</div>
+				</Modal.Body>
+				<Modal.Footer>
+					<Button
+						variant="secondary"
+						onClick={() => setShowLoginModal(false)}
+						title="Continue playing without server saves"
+					>
+						Continue Without Saving
 					</Button>
 				</Modal.Footer>
 			</Modal>

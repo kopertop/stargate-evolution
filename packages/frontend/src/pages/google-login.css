@@ -15,11 +15,11 @@
 
 /* iPad-specific fixes for Google Sign-In button */
 @media (max-width: 1024px) and (orientation: portrait),
-       (max-width: 1366px) and (orientation: landscape) {
+(max-width: 1366px) and (orientation: landscape) {
+
 	#google-signin-button,
 	#menu-reauth-google-signin-button {
 		width: 100% !important;
-		max-width: 400px;
 		margin: 0 auto;
 	}
 
@@ -31,16 +31,6 @@
 		display: flex !important;
 		align-items: center !important;
 		justify-content: center !important;
-	}
-
-	/* Ensure iframe content is visible */
-	#google-signin-button iframe,
-	#menu-reauth-google-signin-button iframe {
-		width: 100% !important;
-		min-width: 200px !important;
-		min-height: 48px !important;
-		border: none !important;
-		background: transparent !important;
 	}
 }
 
@@ -96,6 +86,7 @@
 
 /* PWA-specific adjustments */
 @media (display-mode: standalone) {
+
 	#google-signin-button,
 	#menu-reauth-google-signin-button {
 		padding: 0.5rem;
