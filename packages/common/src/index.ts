@@ -14,6 +14,7 @@ export * from './models/game';
 export * from './models/inventory';
 export * from './models/person-template';
 export * from './models/planet';
+export * from './models/planet-template';
 export * from './models/race-template';
 export * from './models/room-technology';
 export * from './models/room';

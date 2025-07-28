@@ -31,14 +31,14 @@ export const RoomFurnitureSchema = z.object({
 	style: z.string().optional().nullable(), // Style variant ('ancient', 'modern', etc.)
 
 	// Functional properties - SQLite stores booleans as numbers (0/1)
-	interactive: z.union([z.boolean(), z.number()]).transform((val) => val === true || val === 1), // Can player interact with this?
-	blocks_movement: z.union([z.boolean(), z.number()]).transform((val) => val === true || val === 1), // Does this block player movement?
+	interactive: z.union([z.boolean(), z.number()]).transform((val) => val === true || val === 1).default(false), // Can player interact with this?
+	blocks_movement: z.union([z.boolean(), z.number()]).transform((val) => val === true || val === 1).default(false), // Does this block player movement?
 	requirements: z.string().optional().nullable(), // JSON string of requirements to use
 	power_required: z.number().default(0), // Power needed to operate
 
 	// State - SQLite stores booleans as numbers (0/1)
-	active: z.union([z.boolean(), z.number()]).transform((val) => val === true || val === 1), // Is this furniture active/functional?
-	discovered: z.union([z.boolean(), z.number()]).transform((val) => val === true || val === 1), // Has player discovered this?
+	active: z.union([z.boolean(), z.number()]).transform((val) => val === true || val === 1).default(true), // Is this furniture active/functional?
+	discovered: z.union([z.boolean(), z.number()]).transform((val) => val === true || val === 1).default(true), // Has player discovered this?
 
 	created_at: z.number(),
 	updated_at: z.number(),
