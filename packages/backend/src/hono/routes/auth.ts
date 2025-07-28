@@ -201,7 +201,7 @@ auth.post('/refresh', async (c) => {
 			throw new Error('Missing refreshToken');
 		}
 
-		const { payload } = await verifyJwt(refreshToken, c.env.JWT_SECRET || JWT_SECRET);
+		const { payload } = await verifyJwtToken(refreshToken, c.env);
 		const userResult = validateUser(payload.user);
 		if (!userResult.success) {
 			throw new Error('Invalid user');
