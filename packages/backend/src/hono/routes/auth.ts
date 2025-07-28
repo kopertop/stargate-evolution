@@ -3,7 +3,7 @@ import * as jose from 'jose';
 
 import { validateUser, validateSession } from '../../auth-types';
 import type { Env } from '../../types';
-import { verifyJwt as verifyJwtMiddleware } from '../middleware/auth';
+import { verifyJwt as verifyJwtMiddleware, verifyJwtToken, signJwtToken } from '../middleware/auth';
 
 const auth = new Hono<{ Bindings: Env }>();
 
@@ -69,20 +69,6 @@ async function verifyGoogleIdToken(idToken: string) {
 	}
 }
 
-async function signJwt(payload: any, expiresInSec: number, jwtSecret: string): Promise<string> {
-	const secret = new TextEncoder().encode(jwtSecret);
-	return await new jose.SignJWT(payload)
-		.setProtectedHeader({ alg: 'HS256' })
-		.setIssuer(JWT_ISSUER)
-		.setIssuedAt()
-		.setExpirationTime(Math.floor(Date.now() / 1000) + expiresInSec)
-		.sign(secret);
-}
-
-async function verifyJwt(token: string, jwtSecret: string) {
-	const secret = new TextEncoder().encode(jwtSecret);
-	return await jose.jwtVerify(token, secret, { issuer: JWT_ISSUER });
-}
 
 // Helper function to verify admin access
 async function verifyAdminAccess(c: any): Promise<{ success: boolean; user?: any; error?: string }> {
@@ -93,7 +79,7 @@ async function verifyAdminAccess(c: any): Promise<{ success: boolean; user?: any
 		}
 
 		const token = authHeader.substring(7);
-		const { payload } = await verifyJwt(token, c.env.JWT_SECRET);
+		const { payload } = await verifyJwtToken(token, c.env);
 		const userResult = validateUser(payload.user);
 		if (!userResult.success) {
 			return { success: false, error: 'Invalid user' };
@@ -127,14 +113,15 @@ auth.post('/google', async (c) => {
 		const user = userResult.data!;
 		const now = Date.now();
 
-		// Upsert user into users table (preserving original created_at and is_admin)
+		// Upsert user into users table (preserving original created_at, is_admin, and api_key)
 		await c.env.DB.prepare(
-			'INSERT OR REPLACE INTO users (id, email, name, image, is_admin, created_at, updated_at) VALUES (?, ?, ?, ?, COALESCE((SELECT is_admin FROM users WHERE id = ?), FALSE), COALESCE((SELECT created_at FROM users WHERE id = ?), ?), ?)',
+			'INSERT OR REPLACE INTO users (id, email, name, image, is_admin, api_key, created_at, updated_at) VALUES (?, ?, ?, ?, COALESCE((SELECT is_admin FROM users WHERE id = ?), FALSE), (SELECT api_key FROM users WHERE id = ?), COALESCE((SELECT created_at FROM users WHERE id = ?), ?), ?)',
 		).bind(
 			user.id,
 			user.email,
 			user.name,
 			user.picture ?? null,
+			user.id,
 			user.id,
 			user.id,
 			now,
@@ -150,8 +137,8 @@ auth.post('/google', async (c) => {
 			api_key: dbUser?.api_key || undefined,
 		};
 
-		const accessToken = await signJwt({ user: authenticatedUser }, ACCESS_TOKEN_EXP, c.env.JWT_SECRET);
-		const refreshToken = await signJwt({ user: authenticatedUser }, REFRESH_TOKEN_EXP, c.env.JWT_SECRET);
+		const accessToken = await signJwtToken({ user: authenticatedUser }, ACCESS_TOKEN_EXP, c.env);
+		const refreshToken = await signJwtToken({ user: authenticatedUser }, REFRESH_TOKEN_EXP, c.env);
 		const session = {
 			token: accessToken,
 			refreshToken,
@@ -173,7 +160,7 @@ auth.post('/validate', async (c) => {
 			throw new Error('Missing token');
 		}
 
-		const { payload } = await verifyJwt(token, c.env.JWT_SECRET);
+		const { payload } = await verifyJwtToken(token, c.env);
 		const userResult = validateUser(payload.user);
 		if (!userResult.success) {
 			throw new Error('Invalid user');
@@ -214,7 +201,7 @@ auth.post('/refresh', async (c) => {
 			throw new Error('Missing refreshToken');
 		}
 
-		const { payload } = await verifyJwt(refreshToken, c.env.JWT_SECRET);
+		const { payload } = await verifyJwt(refreshToken, c.env.JWT_SECRET || JWT_SECRET);
 		const userResult = validateUser(payload.user);
 		if (!userResult.success) {
 			throw new Error('Invalid user');
@@ -243,8 +230,8 @@ auth.post('/refresh', async (c) => {
 		};
 
 		const now = Date.now();
-		const newAccessToken = await signJwt({ user }, ACCESS_TOKEN_EXP, c.env.JWT_SECRET);
-		const newRefreshToken = await signJwt({ user }, REFRESH_TOKEN_EXP, c.env.JWT_SECRET);
+		const newAccessToken = await signJwtToken({ user }, ACCESS_TOKEN_EXP, c.env);
+		const newRefreshToken = await signJwtToken({ user }, REFRESH_TOKEN_EXP, c.env);
 		const session = {
 			token: newAccessToken,
 			refreshToken: newRefreshToken,

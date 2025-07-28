@@ -9,43 +9,13 @@ import {
 import { Hono } from 'hono';
 
 import type { Env, User } from '../../types';
-import { verifyJwt } from '../middleware/auth';
+import { verifyJwt, optionalAuth } from '../middleware/auth';
 
 const games = new Hono<{ Bindings: Env; Variables: { user: User } }>();
 
 // Only UPDATE operations require authentication
 // GET and POST operations can work without authentication (with limited functionality)
 
-// Optional authentication middleware - sets user if token is valid, but doesn't require it
-const optionalAuth = async (c: any, next: any) => {
-	const authHeader = c.req.header('Authorization');
-
-	if (authHeader && authHeader.startsWith('Bearer ')) {
-		const token = authHeader.substring(7);
-
-		try {
-			const { jwtVerify } = await import('jose');
-			const secret = new TextEncoder().encode(c.env.JWT_SECRET);
-			const { payload } = await jwtVerify(token, secret, { issuer: 'stargate-evolution' });
-
-			const { validateUser } = await import('../../auth-types');
-			const userResult = validateUser(payload.user);
-
-			if (userResult.success && userResult.data) {
-				c.set('user', userResult.data);
-				console.log('[OPTIONAL-AUTH] User authenticated:', userResult.data.id);
-			} else {
-				console.log('[OPTIONAL-AUTH] Invalid user data in token');
-			}
-		} catch (error) {
-			console.log('[OPTIONAL-AUTH] Token verification failed, proceeding without user:', error);
-		}
-	} else {
-		console.log('[OPTIONAL-AUTH] No authorization header, proceeding without user');
-	}
-
-	await next();
-};
 
 games.get('/status', async (c) => {
 	try {

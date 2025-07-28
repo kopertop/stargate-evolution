@@ -11,7 +11,7 @@ R2_PUBLIC_DOMAIN = "pub-d9d149dfbb4b40e088b82fd357d00b50.r2.dev"
 
 # Development configuration
 [env.development]
-vars = { CLOUDFLARE_ACCOUNT_ID = "a971b579b0c55c0d35b34695711055a3" }
+vars = { CLOUDFLARE_ACCOUNT_ID = "a971b579b0c55c0d35b34695711055a3", JWT_SECRET = "dev-secret-key-for-local-development-only" }
 # Use real R2 bucket in development
 [[env.development.r2_buckets]]
 binding = 'R2_BUCKET'

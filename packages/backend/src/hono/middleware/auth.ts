@@ -5,6 +5,28 @@ import { validateUser } from '../../auth-types';
 import type { Env, User } from '../../types';
 
 const JWT_ISSUER = 'stargate-evolution';
+// Use Wrangler secret in production, fallback for development
+const JWT_SECRET = (globalThis as any).JWT_SECRET || 'dev-secret-key';
+
+// Centralized JWT verification utility
+export async function verifyJwtToken(token: string, env: Env) {
+	const jwtSecret = env.JWT_SECRET || JWT_SECRET;
+	const secret = new TextEncoder().encode(jwtSecret);
+	return await jwtVerify(token, secret, { issuer: JWT_ISSUER });
+}
+
+// Centralized JWT signing utility
+export async function signJwtToken(payload: any, expiresInSec: number, env: Env): Promise<string> {
+	const jwtSecret = env.JWT_SECRET || JWT_SECRET;
+	const secret = new TextEncoder().encode(jwtSecret);
+	const { SignJWT } = await import('jose');
+	return await new SignJWT(payload)
+		.setProtectedHeader({ alg: 'HS256' })
+		.setIssuer(JWT_ISSUER)
+		.setIssuedAt()
+		.setExpirationTime(Math.floor(Date.now() / 1000) + expiresInSec)
+		.sign(secret);
+}
 
 // Helper function to authenticate using API key
 async function authenticateWithApiKey(apiKey: string, env: Env): Promise<User | null> {
@@ -34,8 +56,9 @@ export const verifyJwt: MiddlewareHandler<{ Bindings: Env, Variables: { user: Us
 	const token = authHeader.substring(7);
 
 	try {
-		const secret = new TextEncoder().encode(c.env.JWT_SECRET);
-		const { payload } = await jwtVerify(token, secret, { issuer: JWT_ISSUER });
+		const jwtSecret = c.env.JWT_SECRET || JWT_SECRET;
+		console.log('JWT middleware - using secret:', jwtSecret ? 'present' : 'missing');
+		const { payload } = await verifyJwtToken(token, c.env);
 		const userResult = validateUser(payload.user);
 		if (!userResult.success || !userResult.data) {
 			console.log('Invalid user', userResult);
@@ -66,8 +89,9 @@ export const verifyAdminAccess: MiddlewareHandler<{ Bindings: Env, Variables: { 
 	// If API key auth failed, try JWT authentication
 	if (!user) {
 		try {
-			const secret = new TextEncoder().encode(c.env.JWT_SECRET);
-			const { payload } = await jwtVerify(token, secret, { issuer: JWT_ISSUER });
+			const jwtSecret = c.env.JWT_SECRET || JWT_SECRET;
+			console.log('Admin middleware - using secret:', jwtSecret ? 'present' : 'missing');
+			const { payload } = await verifyJwtToken(token, c.env);
 			const userResult = validateUser(payload.user);
 			if (userResult.success && userResult.data) {
 				user = userResult.data;
@@ -87,5 +111,33 @@ export const verifyAdminAccess: MiddlewareHandler<{ Bindings: Env, Variables: { 
 	}
 
 	c.set('user', user);
+	await next();
+};
+
+// Optional authentication middleware - sets user if token is valid, but doesn't require it
+export const optionalAuth: MiddlewareHandler<{ Bindings: Env, Variables: { user?: User } }> = async (c, next) => {
+	const authHeader = c.req.header('Authorization');
+
+	if (authHeader && authHeader.startsWith('Bearer ')) {
+		const token = authHeader.substring(7);
+
+		try {
+			const jwtSecret = c.env.JWT_SECRET || JWT_SECRET;
+			const { payload } = await verifyJwtToken(token, c.env);
+			
+			const userResult = validateUser(payload.user);
+			if (userResult.success && userResult.data) {
+				c.set('user', userResult.data);
+				console.log('[OPTIONAL-AUTH] User authenticated:', userResult.data.id);
+			} else {
+				console.log('[OPTIONAL-AUTH] Invalid user data in token');
+			}
+		} catch (error) {
+			console.log('[OPTIONAL-AUTH] Token verification failed, proceeding without user:', error);
+		}
+	} else {
+		console.log('[OPTIONAL-AUTH] No authorization header, proceeding without user');
+	}
+
 	await next();
 };
