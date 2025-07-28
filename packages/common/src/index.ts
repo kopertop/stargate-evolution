@@ -16,6 +16,7 @@ export * from './models/person-template';
 export * from './models/planet';
 export * from './models/race-template';
 export * from './models/room-technology';
+export * from './models/room';
 export * from './models/room-template';
 export * from './models/room-furniture';
 export * from './models/furniture-template';

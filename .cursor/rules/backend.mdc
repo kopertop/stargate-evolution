@@ -38,7 +38,7 @@ alwaysApply: false
 ### API Endpoint Patterns
 ```typescript
 // Template endpoints (no auth required - public reference data)
-if (url.pathname === '/api/templates/rooms' && request.method === 'GET') {
+if (url.pathname === '/api/data/rooms' && request.method === 'GET') {
   // Return all room templates
 }
 

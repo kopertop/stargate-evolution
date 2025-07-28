@@ -1,4 +1,4 @@
-import type { DoorTemplate, RoomTemplate, NPC } from '@stargate/common';
+import type { Door, RoomTemplate, NPC } from '@stargate/common';
 import * as PIXI from 'pixi.js';
 
 import { NPCManager } from '../services/npc-manager';
@@ -12,7 +12,7 @@ export interface NPCLayerOptions {
 
 export class NPCLayer extends PIXI.Container {
 	private npcManager: NPCManager | null = null;
-	private doors: DoorTemplate[] = [];
+	private doors: Door[] = [];
 	private rooms: RoomTemplate[] = [];
 	private options: NPCLayerOptions;
 
@@ -24,11 +24,11 @@ export class NPCLayer extends PIXI.Container {
 		this.npcManager = new NPCManager(this, options.gameInstance);
 	}
 
-	public setDoors(doors: DoorTemplate[]): void {
+	public setDoors(doors: Door[]): void {
 		this.doors = [...doors];
 	}
 
-	public getDoors(): DoorTemplate[] {
+	public getDoors(): Door[] {
 		return [...this.doors];
 	}
 
@@ -71,10 +71,10 @@ export class NPCLayer extends PIXI.Container {
 		if (this.npcManager) {
 			const allNPCs = this.npcManager.getNPCs();
 			const floorNPCs = allNPCs.filter(npc => (npc.floor || 0) === floor);
-			
+
 			// Hide all NPC sprites first
 			this.npcManager.hideAllNPCs();
-			
+
 			// Show only NPCs on the current floor
 			this.npcManager.showNPCsOnFloor(floor);
 		}

@@ -1,7 +1,7 @@
 import { env } from 'cloudflare:test';
 import { describe, it, expect } from 'vitest';
 
-import { getAllStarSystemTemplates, getStarSystemTemplateById } from '../src/templates/star-system-templates';
+import { getAllStarSystemTemplates, getStarSystemTemplateById } from '../src/data/star-system-templates';
 import type { Env } from '../src/types';
 
 describe('star-system-templates', () => {

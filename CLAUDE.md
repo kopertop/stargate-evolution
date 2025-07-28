@@ -133,7 +133,7 @@ list_all_rooms; // List rooms by floor with coordinates
 list_all_doors; // List doors with floor connections  
 inspect_database_schema; // Show table schemas
 greet; // Test MCP connection
-get_game_sessions; // List saved games
+get_games; // List saved games
 system_status; // Server health check
 ```
 

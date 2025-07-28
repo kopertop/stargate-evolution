@@ -1,14 +1,16 @@
 import { Hono } from 'hono';
 
+import { getAllRoomTemplates } from '../../data/room-templates';
+import { getAllRooms } from '../../data/rooms';
 import type { Env } from '../../types';
 
-const templates = new Hono<{ Bindings: Env }>();
+const data = new Hono<{ Bindings: Env }>();
 
-templates.get('/health', (c) => {
+data.get('/health', (c) => {
 	return c.json({ ok: true, message: 'Templates route is healthy' });
 });
 
-templates.get('/races', async (c) => {
+data.get('/races', async (c) => {
 	try {
 		const { results } = await c.env.DB.prepare('SELECT * FROM race_templates').all();
 		return c.json(results);
@@ -18,7 +20,7 @@ templates.get('/races', async (c) => {
 	}
 });
 
-templates.get('/persons', async (c) => {
+data.get('/persons', async (c) => {
 	try {
 		const { results } = await c.env.DB.prepare('SELECT * FROM person_templates').all();
 		return c.json(results);
@@ -29,7 +31,7 @@ templates.get('/persons', async (c) => {
 });
 
 // Alias for integration tests
-templates.get('/people', async (c) => {
+data.get('/people', async (c) => {
 	try {
 		const { results } = await c.env.DB.prepare('SELECT * FROM person_templates').all();
 		return c.json(results);
@@ -39,7 +41,7 @@ templates.get('/people', async (c) => {
 	}
 });
 
-templates.get('/galaxies', async (c) => {
+data.get('/galaxies', async (c) => {
 	try {
 		const { results } = await c.env.DB.prepare('SELECT * FROM galaxy_templates').all();
 		return c.json(results);
@@ -49,7 +51,7 @@ templates.get('/galaxies', async (c) => {
 	}
 });
 
-templates.get('/galaxies/:id', async (c) => {
+data.get('/galaxies/:id', async (c) => {
 	const { id } = c.req.param();
 	try {
 		const result = await c.env.DB.prepare('SELECT * FROM galaxy_templates WHERE id = ?').bind(id).first();
@@ -63,7 +65,7 @@ templates.get('/galaxies/:id', async (c) => {
 	}
 });
 
-templates.get('/star-systems', async (c) => {
+data.get('/star-systems', async (c) => {
 	try {
 		const { results } = await c.env.DB.prepare('SELECT * FROM star_system_templates').all();
 		return c.json(results);
@@ -73,19 +75,31 @@ templates.get('/star-systems', async (c) => {
 	}
 });
 
-templates.get('/rooms', async (c) => {
+data.get('/rooms', async (c) => {
 	try {
-		const { results } = await c.env.DB.prepare('SELECT * FROM room_templates').all();
-		return c.json(results);
+		const rooms = await getAllRooms(c.env.DB);
+		return c.json(rooms);
 	} catch (error) {
 		console.error('Failed to fetch room templates:', error);
 		return c.json({ error: 'Failed to fetch room templates' }, 500);
 	}
 });
 
-templates.get('/doors', async (c) => {
+data.get('/room-templates', async (c) => {
 	try {
-		const { results } = await c.env.DB.prepare('SELECT * FROM door_templates').all();
+		const rooms = await getAllRoomTemplates(c.env.DB);
+		return c.json(rooms);
+	} catch (error) {
+		console.error('Failed to fetch room templates:', error);
+		return c.json({ error: 'Failed to fetch room templates' }, 500);
+	}
+});
+
+
+
+data.get('/doors', async (c) => {
+	try {
+		const { results } = await c.env.DB.prepare('SELECT * FROM doors').all();
 		return c.json(results);
 	} catch (error) {
 		console.error('Failed to fetch door templates:', error);
@@ -93,10 +107,10 @@ templates.get('/doors', async (c) => {
 	}
 });
 
-templates.get('/doors/room/:id', async (c) => {
+data.get('/doors/room/:id', async (c) => {
 	const { id } = c.req.param();
 	try {
-		const { results } = await c.env.DB.prepare('SELECT * FROM door_templates WHERE from_room_id = ? OR to_room_id = ?')
+		const { results } = await c.env.DB.prepare('SELECT * FROM doors WHERE from_room_id = ? OR to_room_id = ?')
 			.bind(id, id)
 			.all();
 		return c.json(results);
@@ -106,7 +120,7 @@ templates.get('/doors/room/:id', async (c) => {
 	}
 });
 
-templates.get('/characters', async (c) => {
+data.get('/characters', async (c) => {
 	try {
 		const { results } = await c.env.DB.prepare('SELECT * FROM character_templates').all();
 		return c.json(results);
@@ -116,7 +130,7 @@ templates.get('/characters', async (c) => {
 	}
 });
 
-templates.get('/characters/:id', async (c) => {
+data.get('/characters/:id', async (c) => {
 	const { id } = c.req.param();
 	try {
 		const result = await c.env.DB.prepare('SELECT * FROM character_templates WHERE id = ?').bind(id).first();
@@ -130,9 +144,9 @@ templates.get('/characters/:id', async (c) => {
 	}
 });
 
-templates.get('/furniture', async (c) => {
+data.get('/furniture', async (c) => {
 	try {
-		const { getAllRoomFurniture } = await import('../../templates/room-furniture-templates');
+		const { getAllRoomFurniture } = await import('../../data/room-furniture-templates');
 		const furniture = await getAllRoomFurniture(c.env);
 		return c.json(furniture);
 	} catch (err: any) {
@@ -140,10 +154,10 @@ templates.get('/furniture', async (c) => {
 	}
 });
 
-templates.get('/furniture/:id', async (c) => {
+data.get('/furniture/:id', async (c) => {
 	const { id } = c.req.param();
 	try {
-		const { getRoomFurnitureById } = await import('../../templates/room-furniture-templates');
+		const { getRoomFurnitureById } = await import('../../data/room-furniture-templates');
 		const furniture = await getRoomFurnitureById(c.env, id);
 		return c.json(furniture);
 	} catch (err: any) {
@@ -151,7 +165,7 @@ templates.get('/furniture/:id', async (c) => {
 	}
 });
 
-templates.get('/technologies', async (c) => {
+data.get('/technologies', async (c) => {
 	try {
 		const { results } = await c.env.DB.prepare('SELECT * FROM technology_templates').all();
 		return c.json(results);
@@ -161,7 +175,7 @@ templates.get('/technologies', async (c) => {
 	}
 });
 
-templates.get('/technologies/:id', async (c) => {
+data.get('/technologies/:id', async (c) => {
 	const { id } = c.req.param();
 	try {
 		const result = await c.env.DB.prepare('SELECT * FROM technology_templates WHERE id = ?').bind(id).first();
@@ -175,7 +189,7 @@ templates.get('/technologies/:id', async (c) => {
 	}
 });
 
-templates.get('/starting-inventory', async (c) => {
+data.get('/starting-inventory', async (c) => {
 	try {
 		// Return basic starting inventory items for new games
 		const startingInventory = [
@@ -215,9 +229,9 @@ templates.get('/starting-inventory', async (c) => {
 });
 
 // Furniture Templates endpoints
-templates.get('/furniture-templates', async (c) => {
+data.get('/furniture-templates', async (c) => {
 	try {
-		const { getAllFurnitureTemplates } = await import('../../templates/furniture-template-manager');
+		const { getAllFurnitureTemplates } = await import('../../data/furniture-template-manager');
 		const templates = await getAllFurnitureTemplates(c.env);
 		return c.json(templates);
 	} catch (error) {
@@ -226,10 +240,10 @@ templates.get('/furniture-templates', async (c) => {
 	}
 });
 
-templates.get('/furniture-templates/:id', async (c) => {
+data.get('/furniture-templates/:id', async (c) => {
 	const { id } = c.req.param();
 	try {
-		const { getFurnitureTemplateById } = await import('../../templates/furniture-template-manager');
+		const { getFurnitureTemplateById } = await import('../../data/furniture-template-manager');
 		const template = await getFurnitureTemplateById(c.env, id);
 		if (!template) {
 			return c.json({ error: 'Furniture template not found' }, 404);
@@ -241,10 +255,10 @@ templates.get('/furniture-templates/:id', async (c) => {
 	}
 });
 
-templates.get('/furniture-templates/category/:category', async (c) => {
+data.get('/furniture-templates/category/:category', async (c) => {
 	const { category } = c.req.param();
 	try {
-		const { getFurnitureTemplatesByCategory } = await import('../../templates/furniture-template-manager');
+		const { getFurnitureTemplatesByCategory } = await import('../../data/furniture-template-manager');
 		const templates = await getFurnitureTemplatesByCategory(c.env, category);
 		return c.json(templates);
 	} catch (error) {
@@ -253,10 +267,10 @@ templates.get('/furniture-templates/category/:category', async (c) => {
 	}
 });
 
-templates.get('/furniture-templates/type/:type', async (c) => {
+data.get('/furniture-templates/type/:type', async (c) => {
 	const { type } = c.req.param();
 	try {
-		const { getFurnitureTemplatesByType } = await import('../../templates/furniture-template-manager');
+		const { getFurnitureTemplatesByType } = await import('../../data/furniture-template-manager');
 		const templates = await getFurnitureTemplatesByType(c.env, type);
 		return c.json(templates);
 	} catch (error) {
@@ -265,10 +279,10 @@ templates.get('/furniture-templates/type/:type', async (c) => {
 	}
 });
 
-templates.post('/furniture-templates', async (c) => {
+data.post('/furniture-templates', async (c) => {
 	try {
 		const data = await c.req.json();
-		const { createFurnitureTemplate } = await import('../../templates/furniture-template-manager');
+		const { createFurnitureTemplate } = await import('../../data/furniture-template-manager');
 		const template = await createFurnitureTemplate(c.env, data);
 		return c.json(template, 201);
 	} catch (error) {
@@ -277,11 +291,11 @@ templates.post('/furniture-templates', async (c) => {
 	}
 });
 
-templates.put('/furniture-templates/:id', async (c) => {
+data.put('/furniture-templates/:id', async (c) => {
 	const { id } = c.req.param();
 	try {
 		const data = await c.req.json();
-		const { updateFurnitureTemplate } = await import('../../templates/furniture-template-manager');
+		const { updateFurnitureTemplate } = await import('../../data/furniture-template-manager');
 		const template = await updateFurnitureTemplate(c.env, id, data);
 		return c.json(template);
 	} catch (error) {
@@ -290,10 +304,10 @@ templates.put('/furniture-templates/:id', async (c) => {
 	}
 });
 
-templates.delete('/furniture-templates/:id', async (c) => {
+data.delete('/furniture-templates/:id', async (c) => {
 	const { id } = c.req.param();
 	try {
-		const { deleteFurnitureTemplate } = await import('../../templates/furniture-template-manager');
+		const { deleteFurnitureTemplate } = await import('../../data/furniture-template-manager');
 		const success = await deleteFurnitureTemplate(c.env, id);
 		if (!success) {
 			return c.json({ error: 'Furniture template not found' }, 404);
@@ -305,10 +319,10 @@ templates.delete('/furniture-templates/:id', async (c) => {
 	}
 });
 
-templates.get('/furniture-templates/search/:query', async (c) => {
+data.get('/furniture-templates/search/:query', async (c) => {
 	const { query } = c.req.param();
 	try {
-		const { searchFurnitureTemplates } = await import('../../templates/furniture-template-manager');
+		const { searchFurnitureTemplates } = await import('../../data/furniture-template-manager');
 		const templates = await searchFurnitureTemplates(c.env, query);
 		return c.json(templates);
 	} catch (error) {
@@ -317,4 +331,4 @@ templates.get('/furniture-templates/search/:query', async (c) => {
 	}
 });
 
-export default templates;
+export default data;

@@ -27,7 +27,7 @@ export class AdminService {
 
 	// Room management
 	async getAllRoomTemplates(): Promise<RoomTemplate[]> {
-		const response = await apiClient.get('/api/templates/rooms', false); // Public endpoint
+		const response = await apiClient.get('/api/data/rooms', false); // Public endpoint
 		if (response.error) {
 			throw new Error(response.error);
 		}
@@ -61,7 +61,7 @@ export class AdminService {
 
 	// Technology management
 	async getAllTechnologyTemplates(): Promise<TechnologyTemplate[]> {
-		const response = await apiClient.get('/api/templates/technology', false); // Public endpoint
+		const response = await apiClient.get('/api/data/technology', false); // Public endpoint
 		if (response.error) {
 			throw new Error(response.error);
 		}
@@ -216,11 +216,11 @@ export class AdminService {
 	async downloadTemplateData() {
 		try {
 			const data = await this.exportAllTemplateData();
-			
+
 			// Create downloadable file
 			const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
 			const url = URL.createObjectURL(blob);
-			
+
 			// Create download link
 			const link = document.createElement('a');
 			link.href = url;
@@ -229,7 +229,7 @@ export class AdminService {
 			link.click();
 			document.body.removeChild(link);
 			URL.revokeObjectURL(url);
-			
+
 			return data;
 		} catch (error) {
 			console.error('Failed to download template data:', error);

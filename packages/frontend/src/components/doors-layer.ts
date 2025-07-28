@@ -1,4 +1,4 @@
-import type { DoorTemplate, RoomTemplate } from '@stargate/common';
+import type { Door, RoomTemplate } from '@stargate/common';
 import * as PIXI from 'pixi.js';
 
 export interface DoorsLayerOptions {
@@ -6,7 +6,7 @@ export interface DoorsLayerOptions {
 }
 
 export class DoorsLayer extends PIXI.Container {
-	private doors: DoorTemplate[] = [];
+	private doors: Door[] = [];
 	private rooms: RoomTemplate[] = [];
 	private options: DoorsLayerOptions;
 
@@ -15,7 +15,7 @@ export class DoorsLayer extends PIXI.Container {
 		this.options = options;
 	}
 
-	public setDoors(doors: DoorTemplate[]): void {
+	public setDoors(doors: Door[]): void {
 		this.doors = [...doors];
 		this.render();
 	}
@@ -24,22 +24,22 @@ export class DoorsLayer extends PIXI.Container {
 		this.rooms = [...rooms];
 	}
 
-	public getDoors(): DoorTemplate[] {
+	public getDoors(): Door[] {
 		return [...this.doors];
 	}
 
-	public findDoor(doorId: string): DoorTemplate | undefined {
+	public findDoor(doorId: string): Door | undefined {
 		return this.doors.find(d => d.id === doorId);
 	}
 
-	public findDoorBetweenRooms(roomId1: string, roomId2: string): DoorTemplate | null {
+	public findDoorBetweenRooms(roomId1: string, roomId2: string): Door | null {
 		return this.doors.find(door =>
 			(door.from_room_id === roomId1 && door.to_room_id === roomId2) ||
 			(door.from_room_id === roomId2 && door.to_room_id === roomId1),
 		) || null;
 	}
 
-	public findNearbyOpenDoor(x: number, y: number, radius: number): DoorTemplate | null {
+	public findNearbyOpenDoor(x: number, y: number, radius: number): Door | null {
 		return this.doors.find(door => {
 			if (door.state !== 'opened') return false;
 			const distance = Math.sqrt((x - door.x) ** 2 + (y - door.y) ** 2);
@@ -47,7 +47,7 @@ export class DoorsLayer extends PIXI.Container {
 		}) || null;
 	}
 
-	public findCollidingDoor(x: number, y: number, playerRadius: number): DoorTemplate | null {
+	public findCollidingDoor(x: number, y: number, playerRadius: number): Door | null {
 		for (const door of this.doors) {
 			if (this.isDoorColliding(door, x, y, playerRadius)) {
 				return door;
@@ -56,7 +56,7 @@ export class DoorsLayer extends PIXI.Container {
 		return null;
 	}
 
-	public isPointNearDoor(x: number, y: number, door: DoorTemplate, tolerance: number): boolean {
+	public isPointNearDoor(x: number, y: number, door: Door, tolerance: number): boolean {
 		const dx = x - door.x;
 		const dy = y - door.y;
 
@@ -73,7 +73,7 @@ export class DoorsLayer extends PIXI.Container {
 		return Math.abs(localX) <= halfWidth && Math.abs(localY) <= halfHeight;
 	}
 
-	public isPassingThroughDoor(currentX: number, currentY: number, newX: number, newY: number, door: DoorTemplate, playerRadius: number): boolean {
+	public isPassingThroughDoor(currentX: number, currentY: number, newX: number, newY: number, door: Door, playerRadius: number): boolean {
 		const doorTolerance = 15;
 
 		const currentNearDoor = this.isPointNearDoor(currentX, currentY, door, playerRadius + doorTolerance);
@@ -133,7 +133,7 @@ export class DoorsLayer extends PIXI.Container {
 	}
 
 	public handleActivation(playerX: number, playerY: number, interactionRadius: number = 25): string | null {
-		let closestDoor: DoorTemplate | null = null;
+		let closestDoor: Door | null = null;
 		let closestDistance = Infinity;
 
 		for (const door of this.doors) {
@@ -210,7 +210,7 @@ export class DoorsLayer extends PIXI.Container {
 		this.render();
 	}
 
-	private isDoorColliding(door: DoorTemplate, x: number, y: number, playerRadius: number): boolean {
+	private isDoorColliding(door: Door, x: number, y: number, playerRadius: number): boolean {
 		const dx = x - door.x;
 		const dy = y - door.y;
 
@@ -242,7 +242,7 @@ export class DoorsLayer extends PIXI.Container {
 		console.log('[DOORS] Rendered', this.doors.length, 'doors');
 	}
 
-	private renderDoor(door: DoorTemplate): void {
+	private renderDoor(door: Door): void {
 		const doorGraphics = new PIXI.Graphics();
 
 		let doorColor: number;

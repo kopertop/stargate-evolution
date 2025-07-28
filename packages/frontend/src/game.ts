@@ -1,6 +1,6 @@
 import type {
 	RoomTemplate,
-	DoorTemplate,
+	Door,
 	RoomFurniture,
 	NPC,
 } from '@stargate/common';
@@ -73,7 +73,7 @@ export class Game {
 	private furnitureLayer: FurnitureLayer | null = null;
 	private npcLayer: NPCLayer | null = null;
 	private rooms: RoomTemplate[] = [];
-	private doors: DoorTemplate[] = [];
+	private doors: Door[] = [];
 	private furniture: RoomFurniture[] = [];
 
 	// Floor management

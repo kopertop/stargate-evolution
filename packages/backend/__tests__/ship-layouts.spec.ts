@@ -1,7 +1,7 @@
 import { env } from 'cloudflare:test';
 import { describe, it, expect } from 'vitest';
 
-import { getAllLayoutIds, getRoomsByLayoutId, getShipLayoutById, getRoomById } from '../src/templates/ship-layouts';
+import { getAllLayoutIds, getRoomsByLayoutId, getShipLayoutById, getRoomById } from '../src/data/ship-layouts';
 import type { Env } from '../src/types';
 
 describe('ship-layouts', () => {
@@ -27,7 +27,7 @@ describe('ship-layouts', () => {
 	});
 
 	it('returns a room by id', async () => {
-		const room = await getRoomById((env as Env).DB, 'gate_room');
+		const room = await getRoomById((env as Env).DB, 'gate-room-template');
 		expect(room).not.toBeNull();
 	});
 

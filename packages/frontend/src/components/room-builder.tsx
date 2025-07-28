@@ -1,4 +1,4 @@
-import { RoomTemplate, DoorTemplate, RoomFurniture, FurnitureTemplate, roomToWorldCoordinates, worldToRoomCoordinates, mergeFurnitureWithTemplate } from '@stargate/common';
+import { RoomTemplate, Door, RoomFurniture, FurnitureTemplate, roomToWorldCoordinates, worldToRoomCoordinates, mergeFurnitureWithTemplate } from '@stargate/common';
 import { DEFAULT_IMAGE_KEYS } from '@stargate/common/src/models/room-furniture';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Button, Card, Form, Modal, Table, Nav, Tab, Alert, InputGroup, OverlayTrigger, Tooltip, Dropdown, Badge, ButtonGroup } from 'react-bootstrap';
@@ -51,12 +51,12 @@ type Camera = {
 export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloorChange }) => {
 	const canvasRef = useRef<HTMLCanvasElement>(null);
 	const [rooms, setRooms] = useState<RoomTemplate[]>([]);
-	const [doors, setDoors] = useState<DoorTemplate[]>([]);
+	const [doors, setDoors] = useState<Door[]>([]);
 	const [furniture, setFurniture] = useState<RoomFurniture[]>([]);
 	const [furnitureTemplates, setFurnitureTemplates] = useState<FurnitureTemplate[]>([]);
 	const [selectedTemplate, setSelectedTemplate] = useState<FurnitureTemplate | null>(null);
 	const [selectedRoom, setSelectedRoom] = useState<RoomTemplate | null>(null);
-	const [selectedDoor, setSelectedDoor] = useState<DoorTemplate | null>(null);
+	const [selectedDoor, setSelectedDoor] = useState<Door | null>(null);
 	const [selectedFurniture, setSelectedFurniture] = useState<RoomFurniture | null>(null);
 	const [showRoomModal, setShowRoomModal] = useState(false);
 	const [showDoorModal, setShowDoorModal] = useState(false);
@@ -64,7 +64,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 	const [showTemplateSelectionModal, setShowTemplateSelectionModal] = useState(false);
 	const [showInspectorModal, setShowInspectorModal] = useState(false);
 	const [editingRoom, setEditingRoom] = useState<Partial<RoomTemplate>>({});
-	const [editingDoor, setEditingDoor] = useState<Partial<DoorTemplate>>({});
+	const [editingDoor, setEditingDoor] = useState<Partial<Door>>({});
 	const [dragState, setDragState] = useState<DragState>({
 		isDragging: false,
 		dragType: 'none',
@@ -249,7 +249,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 
 			let furnitureTemplatesData: FurnitureTemplate[] = [];
 			try {
-				const response = await apiClient.get('/api/templates/furniture-templates');
+				const response = await apiClient.get('/api/data/furniture-templates');
 				if (response.data) {
 					furnitureTemplatesData = response.data;
 				}
@@ -453,7 +453,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 		}
 	};
 
-	const drawDoor = (ctx: CanvasRenderingContext2D, door: DoorTemplate) => {
+	const drawDoor = (ctx: CanvasRenderingContext2D, door: Door) => {
 		// Convert door position to screen coordinates
 		const screenPos = worldToScreen(door.x, door.y);
 
@@ -559,7 +559,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 		ctx.setLineDash([]);
 	};
 
-	const highlightDoor = (ctx: CanvasRenderingContext2D, door: DoorTemplate) => {
+	const highlightDoor = (ctx: CanvasRenderingContext2D, door: Door) => {
 		// Convert door position to screen coordinates
 		const screenPos = worldToScreen(door.x, door.y);
 
@@ -2214,7 +2214,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 		}
 
 		// Create the door
-		const newDoor: Partial<DoorTemplate> = {
+		const newDoor: Partial<Door> = {
 			id: `door_${Date.now()}_${fromRoom.id}_${toRoom.id}`,
 			name: `Door: ${fromRoom.name} ↔ ${toRoom.name}`,
 			from_room_id: fromRoom.id,
@@ -2327,7 +2327,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 						toast.error('Elevator console must have at least one accessible floor configured');
 						return;
 					}
-					
+
 					// Validate all floors exist
 					const availableFloors = Array.from(new Set(rooms.map(r => r.floor)));
 					const invalidFloors = config.accessibleFloors.filter((floor: number) => !availableFloors.includes(floor));
@@ -3016,7 +3016,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 										}}
 									/>
 									<Form.Text className="text-muted">
-										Enter floor numbers separated by commas (e.g., &quot;0, 1, 2, 3&quot;). 
+										Enter floor numbers separated by commas (e.g., &quot;0, 1, 2, 3&quot;).
 										This will be stored as JSON in the description field.
 									</Form.Text>
 								</div>
@@ -3032,7 +3032,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 										onChange={(e) => {
 											const newType = e.target.value;
 											let updates: Partial<RoomFurniture> = { furniture_type: newType };
-											
+
 											// Set defaults for elevator console
 											if (newType === 'elevator_console') {
 												const availableFloors = Array.from(new Set(rooms.map(r => r.floor))).sort((a, b) => a - b);
@@ -3047,7 +3047,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 													height: 48,
 												};
 											}
-											
+
 											setEditingFurniture({ ...editingFurniture, ...updates });
 										}}
 									>

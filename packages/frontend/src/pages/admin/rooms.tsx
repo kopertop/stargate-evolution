@@ -1,4 +1,4 @@
-import type { DoorTemplate } from '@stargate/common';
+import type { Door } from '@stargate/common';
 import React, { useState, useEffect } from 'react';
 import { Alert, Button, Card, Form, Modal, Table, Badge, ButtonGroup } from 'react-bootstrap';
 import { FaDoorOpen, FaLock, FaUnlock, FaCheck, FaTimes, FaCog, FaFilter } from 'react-icons/fa';
@@ -8,8 +8,8 @@ import { AdminService } from '../../services/admin-service';
 interface DoorRestrictionModalProps {
 	show: boolean;
 	onHide: () => void;
-	door: DoorTemplate | null;
-	onSave: (doorId: string, updates: Partial<DoorTemplate>) => void;
+	door: Door | null;
+	onSave: (doorId: string, updates: Partial<Door>) => void;
 }
 
 const DoorRestrictionModal: React.FC<DoorRestrictionModalProps> = ({ show, onHide, door, onSave }) => {
@@ -47,7 +47,7 @@ const DoorRestrictionModal: React.FC<DoorRestrictionModalProps> = ({ show, onHid
 								From: {door.from_room_id} → To: {door.to_room_id}
 							</small>
 						</div>
-						
+
 						<Form>
 							<Form.Group className="mb-3">
 								<Form.Check
@@ -91,10 +91,10 @@ const DoorRestrictionModal: React.FC<DoorRestrictionModalProps> = ({ show, onHid
 };
 
 export const AdminRooms: React.FC = () => {
-	const [doors, setDoors] = useState<DoorTemplate[]>([]);
+	const [doors, setDoors] = useState<Door[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
-	const [selectedDoor, setSelectedDoor] = useState<DoorTemplate | null>(null);
+	const [selectedDoor, setSelectedDoor] = useState<Door | null>(null);
 	const [showModal, setShowModal] = useState(false);
 	const [filterStatus, setFilterStatus] = useState<'all' | 'cleared' | 'restricted' | 'neither'>('all');
 
@@ -118,12 +118,12 @@ export const AdminRooms: React.FC = () => {
 		}
 	};
 
-	const handleEditDoor = (door: DoorTemplate) => {
+	const handleEditDoor = (door: Door) => {
 		setSelectedDoor(door);
 		setShowModal(true);
 	};
 
-	const handleSaveDoor = async (doorId: string, updates: Partial<DoorTemplate>) => {
+	const handleSaveDoor = async (doorId: string, updates: Partial<Door>) => {
 		try {
 			await adminService.updateDoor(doorId, updates);
 			await loadDoors(); // Reload doors to get fresh data
@@ -161,7 +161,7 @@ export const AdminRooms: React.FC = () => {
 		});
 	};
 
-	const getDoorStatusBadge = (door: DoorTemplate) => {
+	const getDoorStatusBadge = (door: Door) => {
 		const badges = [];
 		if (door.cleared) {
 			badges.push(<Badge key="cleared" bg="success" className="me-1"><FaCheck className="me-1" />Cleared</Badge>);
@@ -261,29 +261,29 @@ export const AdminRooms: React.FC = () => {
 								<FaFilter className="me-2" />
 								<span className="me-2">Filter:</span>
 								<ButtonGroup>
-									<Button 
-										size="sm" 
+									<Button
+										size="sm"
 										variant={filterStatus === 'all' ? 'primary' : 'outline-primary'}
 										onClick={() => setFilterStatus('all')}
 									>
 										All ({doors.length})
 									</Button>
-									<Button 
-										size="sm" 
+									<Button
+										size="sm"
 										variant={filterStatus === 'cleared' ? 'success' : 'outline-success'}
 										onClick={() => setFilterStatus('cleared')}
 									>
 										Cleared ({stats.cleared})
 									</Button>
-									<Button 
-										size="sm" 
+									<Button
+										size="sm"
 										variant={filterStatus === 'restricted' ? 'warning' : 'outline-warning'}
 										onClick={() => setFilterStatus('restricted')}
 									>
 										Restricted ({stats.restricted})
 									</Button>
-									<Button 
-										size="sm" 
+									<Button
+										size="sm"
 										variant={filterStatus === 'neither' ? 'secondary' : 'outline-secondary'}
 										onClick={() => setFilterStatus('neither')}
 									>
@@ -349,7 +349,7 @@ export const AdminRooms: React.FC = () => {
 										</td>
 										<td>
 											<Badge bg={
-												door.state === 'opened' ? 'success' : 
+												door.state === 'opened' ? 'success' :
 													door.state === 'locked' ? 'danger' : 'secondary'
 											}>
 												{door.state}

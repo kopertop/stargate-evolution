@@ -67,12 +67,12 @@ To test the hypothesis that Floor 1 has no doors, you can now use:
 
 3. **Raw query for detailed door analysis:**
    ```
-   execute-sql-query with query="SELECT d.*, r1.name as from_room, r1.floor as from_floor, r2.name as to_room, r2.floor as to_floor FROM door_templates d LEFT JOIN room_templates r1 ON d.from_room_id = r1.id LEFT JOIN room_templates r2 ON d.to_room_id = r2.id WHERE r1.floor = 1 OR r2.floor = 1"
+   execute-sql-query with query="SELECT d.*, r1.name as from_room, r1.floor as from_floor, r2.name as to_room, r2.floor as to_floor FROM doors d LEFT JOIN room_templates r1 ON d.from_room_id = r1.id LEFT JOIN room_templates r2 ON d.to_room_id = r2.id WHERE r1.floor = 1 OR r2.floor = 1"
    ```
 
 4. **Check if any doors exist at all:**
    ```
-   execute-sql-query with query="SELECT COUNT(*) as total_doors FROM door_templates"
+   execute-sql-query with query="SELECT COUNT(*) as total_doors FROM doors"
    ```
 
 ## Access Requirements

@@ -1,7 +1,7 @@
 import { env } from 'cloudflare:test';
 import { describe, it, expect } from 'vitest';
 
-import { getAllRoomTemplates, getRoomTemplateById, getRoomTemplatesByType, getRoomsByLayoutId } from '../src/templates/room-templates';
+import { getAllRoomTemplates, getRoomTemplateById, getRoomTemplatesByType, getRoomsByLayoutId } from '../src/data/room-templates';
 import type { Env } from '../src/types';
 
 describe('room-templates', () => {
@@ -12,9 +12,9 @@ describe('room-templates', () => {
 	});
 
 	it('returns a room by id', async () => {
-		const room = await getRoomTemplateById((env as Env).DB, 'gate_room');
+		const room = await getRoomTemplateById((env as Env).DB, 'gate-room-template');
 		expect(room).not.toBeNull();
-		expect(room?.name).toBe('Gate Room');
+		expect(room?.name).toBe('Gate Room Template');
 	});
 
 	it('returns null for missing room', async () => {

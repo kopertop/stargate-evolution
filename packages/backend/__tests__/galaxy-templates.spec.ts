@@ -1,7 +1,7 @@
 import { env } from 'cloudflare:test';
 import { describe, it, expect } from 'vitest';
 
-import { getAllGalaxyTemplates, getGalaxyTemplateById } from '../src/templates/galaxy-templates';
+import { getAllGalaxyTemplates, getGalaxyTemplateById } from '../src/data/galaxy-templates';
 import type { Env } from '../src/types';
 
 describe('galaxy-templates', () => {
