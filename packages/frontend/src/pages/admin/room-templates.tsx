@@ -14,10 +14,10 @@ import {
 	InputGroup,
 	ButtonGroup,
 } from 'react-bootstrap';
-import { FaPlus, FaEdit, FaTrash, FaSearch, FaEye, FaCubes } from 'react-icons/fa';
+import { FaPlus, FaEdit, FaTrash, FaSearch, FaCubes } from 'react-icons/fa';
 
-import { AdminService } from '../../services/admin-service';
 import { RoomTemplateVisualEditor } from '../../components/room-template-visual-editor';
+import { AdminService } from '../../services/admin-service';
 
 interface RoomTemplateFormData {
 	layout_id: string;
@@ -62,12 +62,12 @@ const defaultFormData: RoomTemplateFormData = {
 const ROOM_TYPES = [
 	'bridge', 'engine_room', 'quarters', 'cargo_bay', 'medical_bay',
 	'lab', 'armory', 'hangar', 'dining_hall', 'hydroponics',
-	'storage', 'corridor', 'transporter_room', 'observation_deck'
+	'storage', 'corridor', 'transporter_room', 'observation_deck',
 ];
 
 const ROOM_CATEGORIES = [
 	'command', 'engineering', 'living', 'storage', 'medical',
-	'research', 'defense', 'transportation', 'recreation', 'utility'
+	'research', 'defense', 'transportation', 'recreation', 'utility',
 ];
 
 export const AdminRoomTemplates: React.FC = () => {
@@ -113,10 +113,10 @@ export const AdminRoomTemplates: React.FC = () => {
 				default_height: template.default_height,
 				default_image: template.default_image || '',
 				category: template.category || '',
-				min_width: template.min_width,
-				max_width: template.max_width,
-				min_height: template.min_height,
-				max_height: template.max_height,
+				min_width: template.min_width || null,
+				max_width: template.max_width || null,
+				min_height: template.min_height || null,
+				max_height: template.max_height || null,
 				placement_requirements: template.placement_requirements || '',
 				compatible_layouts: template.compatible_layouts || '',
 				tags: template.tags || '',
@@ -251,7 +251,7 @@ export const AdminRoomTemplates: React.FC = () => {
 							>
 								<option value="all">All Categories</option>
 								{uniqueCategories.map(category => (
-									<option key={category} value={category}>{category}</option>
+									<option key={category} value={category || ''}>{category}</option>
 								))}
 							</Form.Select>
 						</Col>
@@ -355,7 +355,6 @@ export const AdminRoomTemplates: React.FC = () => {
 				show={showModal}
 				onHide={handleCloseModal}
 				size="xl"
-				style={{ maxWidth: '90vw', maxHeight: '90vh' }}
 			>
 				<Modal.Header closeButton>
 					<Modal.Title>
@@ -371,12 +370,17 @@ export const AdminRoomTemplates: React.FC = () => {
 									<RoomTemplateVisualEditor
 										roomTemplate={{
 											id: editingTemplate.id,
+											layout_id: formData.layout_id,
 											name: formData.name,
 											default_width: formData.default_width,
-											default_height: formData.default_height,
+											version: editingTemplate.version,
+											is_active: editingTemplate.is_active,
+											created_at: editingTemplate.created_at,
+											updated_at: editingTemplate.updated_at,
 											type: formData.type,
 											category: formData.category,
 											description: formData.description,
+											default_height: formData.default_height,
 										}}
 										onRoomSizeChange={(width, height) => {
 											handleInputChange('default_width', width);
@@ -387,7 +391,7 @@ export const AdminRoomTemplates: React.FC = () => {
 							</Col>
 
 							{/* Right Panel - Properties */}
-							<Col md={4} style={{ padding: '1rem', overflowY: 'auto' }}>
+							<Col md={4} style={{ padding: '1rem', overflowY: 'auto', maxHeight: 'calc(90vh - 120px)' }}>
 								<Row>
 									<Col md={12}>
 										<Form.Group className="mb-3">

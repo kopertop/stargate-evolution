@@ -45,6 +45,9 @@ type Camera = {
 	zoom: number; // Zoom level (1.0 = normal)
 };
 
+const MIN_ZOOM = 1.0;
+const MAX_ZOOM = 10.0;
+
 export const RoomTemplateVisualEditor: React.FC<RoomTemplateVisualEditorProps> = ({ roomTemplate, onSave, onRoomSizeChange }) => {
 	const canvasRef = useRef<HTMLCanvasElement>(null);
 	const [furniture, setFurniture] = useState<RoomFurniture[]>([]);
@@ -84,33 +87,10 @@ export const RoomTemplateVisualEditor: React.FC<RoomTemplateVisualEditorProps> =
 
 	const adminService = new AdminService();
 
-	// Canvas settings - same as room-builder
-	const CANVAS_WIDTH = 1200;
-	const CANVAS_HEIGHT = 800;
-	const GRID_SIZE = 1; // 1 room unit grid
-	const MIN_ZOOM = 5.0;
-	const MAX_ZOOM = 50.0;
-
-	// Camera transformation functions - same pattern as room-builder
-	const roomToScreen = (roomX: number, roomY: number) => {
-		const screenX = (CANVAS_WIDTH / 2) + (roomX - camera.x) * camera.zoom;
-		const screenY = (CANVAS_HEIGHT / 2) + (roomY - camera.y) * camera.zoom;
-		return { x: screenX, y: screenY };
-	};
-
-	const screenToRoom = (screenX: number, screenY: number) => {
-		const roomX = camera.x + (screenX - CANVAS_WIDTH / 2) / camera.zoom;
-		const roomY = camera.y + (screenY - CANVAS_HEIGHT / 2) / camera.zoom;
-		return { x: roomX, y: roomY };
-	};
-
 	useEffect(() => {
 		loadData();
 	}, [roomTemplate.id]);
 
-	useEffect(() => {
-		drawCanvas();
-	}, [furniture, technology, selectedFurniture, selectedTechnology, camera, dragState]);
 
 	const loadData = async () => {
 		try {
@@ -132,304 +112,6 @@ export const RoomTemplateVisualEditor: React.FC<RoomTemplateVisualEditorProps> =
 			setError(err instanceof Error ? err.message : 'Failed to load data');
 		} finally {
 			setLoading(false);
-		}
-	};
-
-	const drawCanvas = () => {
-		const canvas = canvasRef.current;
-		if (!canvas) return;
-
-		const ctx = canvas.getContext('2d');
-		if (!ctx) return;
-
-		// Clear canvas
-		ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-
-		// Draw grid
-		drawGrid(ctx);
-
-		// Draw room boundary
-		drawRoomBoundary(ctx);
-
-		// Draw furniture
-		furniture.forEach(item => drawFurniture(ctx, item));
-
-		// Draw technology
-		technology.forEach(item => drawTechnology(ctx, item));
-
-		// Draw selection highlights
-		if (selectedFurniture) {
-			drawSelectionHighlight(ctx, selectedFurniture);
-		}
-		if (selectedTechnology) {
-			drawTechnologySelectionHighlight(ctx, selectedTechnology);
-		}
-	};
-
-	const drawGrid = (ctx: CanvasRenderingContext2D) => {
-		ctx.strokeStyle = '#2d3748';
-		ctx.lineWidth = 1;
-
-		// Get visible area in room coordinates
-		const topLeft = screenToRoom(0, 0);
-		const bottomRight = screenToRoom(CANVAS_WIDTH, CANVAS_HEIGHT);
-
-		// Draw vertical grid lines
-		const startX = Math.floor(topLeft.x / GRID_SIZE) * GRID_SIZE;
-		const endX = Math.ceil(bottomRight.x / GRID_SIZE) * GRID_SIZE;
-
-		for (let x = startX; x <= endX; x += GRID_SIZE) {
-			const screenPos = roomToScreen(x, 0);
-			if (screenPos.x >= 0 && screenPos.x <= CANVAS_WIDTH) {
-				ctx.beginPath();
-				ctx.moveTo(screenPos.x, 0);
-				ctx.lineTo(screenPos.x, CANVAS_HEIGHT);
-				ctx.stroke();
-			}
-		}
-
-		// Draw horizontal grid lines
-		const startY = Math.floor(topLeft.y / GRID_SIZE) * GRID_SIZE;
-		const endY = Math.ceil(bottomRight.y / GRID_SIZE) * GRID_SIZE;
-
-		for (let y = startY; y <= endY; y += GRID_SIZE) {
-			const screenPos = roomToScreen(0, y);
-			if (screenPos.y >= 0 && screenPos.y <= CANVAS_HEIGHT) {
-				ctx.beginPath();
-				ctx.moveTo(0, screenPos.y);
-				ctx.lineTo(CANVAS_WIDTH, screenPos.y);
-				ctx.stroke();
-			}
-		}
-	};
-
-	const drawRoomBoundary = (ctx: CanvasRenderingContext2D) => {
-		// Draw room boundary
-		ctx.strokeStyle = '#4299e1';
-		ctx.lineWidth = 3;
-		ctx.setLineDash([5, 5]);
-
-		const topLeft = roomToScreen(0, 0);
-		const bottomRight = roomToScreen(roomTemplate.default_width, roomTemplate.default_height);
-
-		ctx.beginPath();
-		ctx.rect(topLeft.x, topLeft.y, bottomRight.x - topLeft.x, bottomRight.y - topLeft.y);
-		ctx.stroke();
-
-		ctx.setLineDash([]);
-	};
-
-	const drawFurniture = (ctx: CanvasRenderingContext2D, item: RoomFurniture) => {
-		const screenPos = roomToScreen(item.x, item.y);
-		const screenWidth = item.width * camera.zoom;
-		const screenHeight = item.height * camera.zoom;
-
-		// Skip if off-screen
-		if (screenPos.x < -screenWidth || screenPos.x > CANVAS_WIDTH + screenWidth ||
-			screenPos.y < -screenHeight || screenPos.y > CANVAS_HEIGHT + screenHeight) {
-			return;
-		}
-
-		// Draw furniture rectangle
-		ctx.fillStyle = item.color || '#48bb78';
-		ctx.fillRect(screenPos.x, screenPos.y, screenWidth, screenHeight);
-
-		// Draw border
-		ctx.strokeStyle = '#2d3748';
-		ctx.lineWidth = 1;
-		ctx.strokeRect(screenPos.x, screenPos.y, screenWidth, screenHeight);
-
-		// Draw label
-		ctx.fillStyle = '#ffffff';
-		ctx.font = `${Math.max(10, 12 * camera.zoom / 20)}px Arial`;
-		ctx.textAlign = 'center';
-		ctx.fillText(item.name, screenPos.x + screenWidth / 2, screenPos.y + screenHeight / 2 + 4);
-	};
-
-	const drawTechnology = (ctx: CanvasRenderingContext2D, item: RoomTechnology) => {
-		if (!item.position?.x || !item.position?.y) return;
-
-		const screenPos = roomToScreen(item.position.x, item.position.y);
-		const screenRadius = 8 * camera.zoom / 20;
-
-		// Skip if off-screen
-		if (screenPos.x < -screenRadius || screenPos.x > CANVAS_WIDTH + screenRadius ||
-			screenPos.y < -screenRadius || screenPos.y > CANVAS_HEIGHT + screenRadius) {
-			return;
-		}
-
-		// Draw technology circle
-		ctx.fillStyle = '#ed8936';
-		ctx.beginPath();
-		ctx.arc(screenPos.x, screenPos.y, screenRadius, 0, 2 * Math.PI);
-		ctx.fill();
-
-		// Draw border
-		ctx.strokeStyle = '#2d3748';
-		ctx.lineWidth = 1;
-		ctx.stroke();
-
-		// Draw label
-		ctx.fillStyle = '#ffffff';
-		ctx.font = `${Math.max(8, 10 * camera.zoom / 20)}px Arial`;
-		ctx.textAlign = 'center';
-		ctx.fillText(item.name || '', screenPos.x, screenPos.y + screenRadius + 12);
-	};
-
-	const drawSelectionHighlight = (ctx: CanvasRenderingContext2D, item: RoomFurniture) => {
-		const screenPos = roomToScreen(item.x, item.y);
-		const screenWidth = item.width * camera.zoom;
-		const screenHeight = item.height * camera.zoom;
-
-		ctx.strokeStyle = '#f6ad55';
-		ctx.lineWidth = 3;
-		ctx.setLineDash([5, 5]);
-		ctx.strokeRect(screenPos.x - 2, screenPos.y - 2, screenWidth + 4, screenHeight + 4);
-		ctx.setLineDash([]);
-	};
-
-	const drawTechnologySelectionHighlight = (ctx: CanvasRenderingContext2D, item: RoomTechnology) => {
-		if (!item.position?.x || !item.position?.y) return;
-
-		const screenPos = roomToScreen(item.position.x, item.position.y);
-		const screenRadius = 8 * camera.zoom / 20;
-
-		ctx.strokeStyle = '#f6ad55';
-		ctx.lineWidth = 3;
-		ctx.setLineDash([5, 5]);
-		ctx.beginPath();
-		ctx.arc(screenPos.x, screenPos.y, screenRadius + 2, 0, 2 * Math.PI);
-		ctx.stroke();
-		ctx.setLineDash([]);
-	};
-
-	const handleCanvasMouseDown = (event: React.MouseEvent<HTMLCanvasElement>) => {
-		const canvas = canvasRef.current;
-		if (!canvas) return;
-
-		const rect = canvas.getBoundingClientRect();
-		const scaleX = CANVAS_WIDTH / rect.width;
-		const scaleY = CANVAS_HEIGHT / rect.height;
-
-		const screenX = (event.clientX - rect.left) * scaleX;
-		const screenY = (event.clientY - rect.top) * scaleY;
-		const roomPos = screenToRoom(screenX, screenY);
-
-		setIsMouseDown(true);
-
-		// Check if clicking on furniture
-		const clickedFurniture = furniture.find(item => {
-			const itemScreenPos = roomToScreen(item.x, item.y);
-			const itemScreenWidth = item.width * camera.zoom;
-			const itemScreenHeight = item.height * camera.zoom;
-
-			return screenX >= itemScreenPos.x && screenX <= itemScreenPos.x + itemScreenWidth &&
-				screenY >= itemScreenPos.y && screenY <= itemScreenPos.y + itemScreenHeight;
-		});
-
-		// Check if clicking on technology
-		const clickedTechnology = technology.find((item: RoomTechnology) => {
-			if (!item.position?.x || !item.position?.y) return false;
-			const itemScreenPos = roomToScreen(item.position.x, item.position.y);
-			const itemScreenRadius = 8 * camera.zoom / 20;
-			const distance = Math.sqrt((screenX - itemScreenPos.x) ** 2 + (screenY - itemScreenPos.y) ** 2);
-			return distance <= itemScreenRadius;
-		});
-
-		if (clickedFurniture) {
-			setSelectedFurniture(clickedFurniture);
-			setSelectedTechnology(null);
-			setDragState({
-				isDragging: true,
-				dragType: 'furniture',
-				dragId: clickedFurniture.id,
-				startX: screenX,
-				startY: screenY,
-				currentX: screenX,
-				currentY: screenY,
-				originalPosition: { x: clickedFurniture.x, y: clickedFurniture.y },
-			});
-		} else if (clickedTechnology) {
-			setSelectedTechnology(clickedTechnology);
-			setSelectedFurniture(null);
-			setDragState({
-				isDragging: true,
-				dragType: 'technology',
-				dragId: clickedTechnology.id,
-				startX: screenX,
-				startY: screenY,
-				currentX: screenX,
-				currentY: screenY,
-				originalPosition: { x: clickedTechnology.position?.x || 0, y: clickedTechnology.position?.y || 0 },
-			});
-		} else {
-			// Clicked on empty space - start camera drag
-			setSelectedFurniture(null);
-			setSelectedTechnology(null);
-			setDragState({
-				isDragging: true,
-				dragType: 'camera',
-				dragId: null,
-				startX: screenX,
-				startY: screenY,
-				currentX: screenX,
-				currentY: screenY,
-			});
-		}
-	};
-
-	const handleCanvasMouseMove = (event: React.MouseEvent<HTMLCanvasElement>) => {
-		const canvas = canvasRef.current;
-		if (!canvas) return;
-
-		const rect = canvas.getBoundingClientRect();
-		const scaleX = CANVAS_WIDTH / rect.width;
-		const scaleY = CANVAS_HEIGHT / rect.height;
-
-		const screenX = (event.clientX - rect.left) * scaleX;
-		const screenY = (event.clientY - rect.top) * scaleY;
-
-		if (dragState.isDragging) {
-			setDragState(prev => ({
-				...prev,
-				currentX: screenX,
-				currentY: screenY,
-			}));
-
-			if (dragState.dragType === 'furniture' && dragState.dragId && dragState.originalPosition) {
-				const deltaX = (screenX - dragState.startX) / camera.zoom;
-				const deltaY = (screenY - dragState.startY) / camera.zoom;
-
-				const newX = Math.max(0, Math.min(roomTemplate.default_width - 1, dragState.originalPosition.x + deltaX));
-				const newY = Math.max(0, Math.min(roomTemplate.default_height - 1, dragState.originalPosition.y + deltaY));
-
-				setFurniture(prev => prev.map(item =>
-					item.id === dragState.dragId
-						? { ...item, x: newX, y: newY }
-						: item,
-				));
-			} else if (dragState.dragType === 'technology' && dragState.dragId && dragState.originalPosition) {
-				const deltaX = (screenX - dragState.startX) / camera.zoom;
-				const deltaY = (screenY - dragState.startY) / camera.zoom;
-
-				const newX = Math.max(0, Math.min(roomTemplate.default_width, dragState.originalPosition.x + deltaX));
-				const newY = Math.max(0, Math.min(roomTemplate.default_height, dragState.originalPosition.y + deltaY));
-
-				setTechnology(prev => prev.map(item =>
-					item.id === dragState.dragId
-						? { ...item, x: newX, y: newY }
-						: item,
-				));
-			} else if (dragState.dragType === 'camera') {
-				const deltaX = (screenX - dragState.startX) / camera.zoom;
-				const deltaY = (screenY - dragState.startY) / camera.zoom;
-
-				setCamera(prev => ({
-					...prev,
-					x: prev.x - deltaX,
-					y: prev.y - deltaY,
-				}));
-			}
 		}
 	};
 
@@ -460,19 +142,49 @@ export const RoomTemplateVisualEditor: React.FC<RoomTemplateVisualEditorProps> =
 		setIsMouseDown(false);
 	};
 
+	const handleCanvasMouseDown = (event: React.MouseEvent<HTMLCanvasElement>) => {
+		event.preventDefault();
+		const canvas = canvasRef.current;
+		if (!canvas) return;
+
+		const rect = canvas.getBoundingClientRect();
+		const scaleX = canvas.width / rect.width;
+		const scaleY = canvas.height / rect.height;
+
+		const screenX = (event.clientX - rect.left) * scaleX;
+		const screenY = (event.clientY - rect.top) * scaleY;
+		console.log('[CANVAS] Screen position:', screenX, screenY);
+	};
+
+	const handleCanvasMouseMove = (event: React.MouseEvent<HTMLCanvasElement>) => {
+		event.preventDefault();
+		const canvas = canvasRef.current;
+		if (!canvas) return;
+
+		const rect = canvas.getBoundingClientRect();
+		const scaleX = canvas.width / rect.width;
+		const scaleY = canvas.height / rect.height;
+
+		const screenX = (event.clientX - rect.left) * scaleX;
+		const screenY = (event.clientY - rect.top) * scaleY;
+		console.log('[CANVAS] Screen position:', screenX, screenY);
+	};
+
 	const handleCanvasRightClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
 		event.preventDefault();
 		const canvas = canvasRef.current;
 		if (!canvas) return;
 
 		const rect = canvas.getBoundingClientRect();
-		const scaleX = CANVAS_WIDTH / rect.width;
-		const scaleY = CANVAS_HEIGHT / rect.height;
+		const scaleX = canvas.width / rect.width;
+		const scaleY = canvas.height / rect.height;
 
 		const screenX = (event.clientX - rect.left) * scaleX;
 		const screenY = (event.clientY - rect.top) * scaleY;
-		const roomPos = screenToRoom(screenX, screenY);
+		console.log('[CANVAS] Screen position:', screenX, screenY);
+		// const roomPos = screenToRoom(screenX, screenY);
 
+		/*
 		setContextMenu({
 			visible: true,
 			x: event.clientX,
@@ -481,6 +193,7 @@ export const RoomTemplateVisualEditor: React.FC<RoomTemplateVisualEditorProps> =
 			roomX: roomPos.x,
 			roomY: roomPos.y,
 		});
+		*/
 	};
 
 	const handleWheel = (event: React.WheelEvent<HTMLCanvasElement>) => {
@@ -489,19 +202,19 @@ export const RoomTemplateVisualEditor: React.FC<RoomTemplateVisualEditorProps> =
 		if (!canvas) return;
 
 		const rect = canvas.getBoundingClientRect();
-		const scaleX = CANVAS_WIDTH / rect.width;
-		const scaleY = CANVAS_HEIGHT / rect.height;
+		const scaleX = canvas.width / rect.width;
+		const scaleY = canvas.height / rect.height;
 
 		const screenX = (event.clientX - rect.left) * scaleX;
 		const screenY = (event.clientY - rect.top) * scaleY;
 
 		const zoomFactor = event.deltaY > 0 ? 0.9 : 1.1;
-		const newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, camera.zoom * zoomFactor));
+		const newZoom = Math.max(5.0, Math.min(50.0, camera.zoom * zoomFactor));
 
 		setCamera({
 			zoom: newZoom,
-			x: camera.x + (screenX - CANVAS_WIDTH / 2) / newZoom,
-			y: camera.y + (screenY - CANVAS_HEIGHT / 2) / newZoom,
+			x: camera.x + (screenX - canvas.width / 2) / newZoom,
+			y: camera.y + (screenY - canvas.height / 2) / newZoom,
 		});
 	};
 
@@ -597,7 +310,7 @@ export const RoomTemplateVisualEditor: React.FC<RoomTemplateVisualEditorProps> =
 	}
 
 	return (
-		<div className="room-template-visual-editor" style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: '400px' }}>
+		<div className="room-template-visual-editor">
 			{error && (
 				<Alert variant="danger" dismissible onClose={() => setError(null)}>
 					{error}
@@ -606,89 +319,16 @@ export const RoomTemplateVisualEditor: React.FC<RoomTemplateVisualEditorProps> =
 
 			{/* Canvas Container */}
 			<div className="flex-grow-1 position-relative" style={{ minHeight: '350px', maxHeight: '500px' }}>
-				{/* Top Toolbar */}
-				<div className="d-flex align-items-center gap-2 mb-2 p-2" style={{ backgroundColor: '#f8f9fa', borderBottom: '1px solid #dee2e6' }}>
-					<small className="text-muted me-3">
-						Room: {roomTemplate.default_width} × {roomTemplate.default_height} |
-						Camera: ({camera.x.toFixed(1)}, {camera.y.toFixed(1)}) |
-						Zoom: {(camera.zoom).toFixed(1)}x
-					</small>
 
-					<Dropdown>
-						<Dropdown.Toggle variant="success" size="sm">
-							<FaPlus className="me-1" />
-							Add Furniture
-						</Dropdown.Toggle>
-						<Dropdown.Menu>
-							{furnitureTemplates.map(template => (
-								<Dropdown.Item
-									key={template.id}
-									onClick={() => addFurniture(template.id)}
-								>
-									<strong>{template.name}</strong>
-									<div className="small text-muted">{template.category}</div>
-								</Dropdown.Item>
-							))}
-						</Dropdown.Menu>
-					</Dropdown>
-
-					<Dropdown>
-						<Dropdown.Toggle variant="warning" size="sm">
-							<FaPlus className="me-1" />
-							Add Technology
-						</Dropdown.Toggle>
-						<Dropdown.Menu>
-							{technologyTemplates.map(template => (
-								<Dropdown.Item
-									key={template.id}
-									onClick={() => addTechnology(template.id)}
-								>
-									<strong>{template.name}</strong>
-									<div className="small text-muted">{template.category}</div>
-								</Dropdown.Item>
-							))}
-						</Dropdown.Menu>
-					</Dropdown>
-
-					<Button
-						size="sm"
-						variant="outline-secondary"
-						onClick={() => setCamera({
-							x: roomTemplate.default_width / 2,
-							y: roomTemplate.default_height / 2,
-							zoom: 20.0,
-						})}
-					>
-						Reset View
-					</Button>
-					<Button
-						size="sm"
-						variant="outline-secondary"
-						onClick={() => setCamera(prev => ({ ...prev, zoom: Math.min(MAX_ZOOM, prev.zoom * 1.5) }))}
-					>
-						Zoom In
-					</Button>
-					<Button
-						size="sm"
-						variant="outline-secondary"
-						onClick={() => setCamera(prev => ({ ...prev, zoom: Math.max(MIN_ZOOM, prev.zoom / 1.5) }))}
-					>
-						Zoom Out
-					</Button>
-				</div>
-
+				{/* Canvas
 				<canvas
 					ref={canvasRef}
-					width={CANVAS_WIDTH}
-					height={CANVAS_HEIGHT}
 					style={{
 						border: '1px solid #ccc',
 						backgroundColor: '#1a202c',
 						cursor: dragState.isDragging
 							? (dragState.dragType === 'camera' ? 'grabbing' : 'move')
 							: (selectedFurniture || selectedTechnology) ? 'move' : 'grab',
-						maxWidth: '100%',
-						height: 'auto',
 					}}
 					onMouseDown={handleCanvasMouseDown}
 					onMouseMove={handleCanvasMouseMove}
@@ -697,6 +337,7 @@ export const RoomTemplateVisualEditor: React.FC<RoomTemplateVisualEditorProps> =
 					onContextMenu={handleCanvasRightClick}
 					onWheel={handleWheel}
 				/>
+				*/}
 			</div>
 
 			{/* Context Menu */}
