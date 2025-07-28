@@ -214,6 +214,30 @@ data.get('/technologies/:id', async (c) => {
 	}
 });
 
+data.get('/furniture-templates', async (c) => {
+	try {
+		const { results } = await c.env.DB.prepare('SELECT * FROM furniture_templates WHERE is_active = 1 ORDER BY category, name').all();
+		return c.json(results);
+	} catch (error) {
+		console.error('Failed to fetch furniture templates:', error);
+		return c.json({ error: 'Failed to fetch furniture templates' }, 500);
+	}
+});
+
+data.get('/furniture-templates/:id', async (c) => {
+	try {
+		const id = c.req.param('id');
+		const result = await c.env.DB.prepare('SELECT * FROM furniture_templates WHERE id = ? AND is_active = 1').bind(id).first();
+		if (!result) {
+			return c.json({ error: 'Furniture template not found' }, 404);
+		}
+		return c.json(result);
+	} catch (error) {
+		console.error(`Failed to fetch furniture template ${c.req.param('id')}:`, error);
+		return c.json({ error: 'Failed to fetch furniture template' }, 500);
+	}
+});
+
 data.get('/starting-inventory', async (c) => {
 	try {
 		// Return basic starting inventory items for new games

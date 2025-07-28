@@ -273,6 +273,258 @@ admin.delete('/room-templates/:id', async (c) => {
 	}
 });
 
+// --- Room Template Furniture ---
+admin.get('/room-templates/:id/furniture', async (c) => {
+	try {
+		const templateId = c.req.param('id');
+		if (!templateId) throw new Error('Room template ID required');
+
+		const furniture = await c.env.DB.prepare(`
+			SELECT rtf.*, ft.name as furniture_name, ft.furniture_type, ft.category,
+				   ft.default_width, ft.default_height, ft.default_image
+			FROM room_template_furniture rtf
+			JOIN furniture_templates ft ON rtf.furniture_template_id = ft.id
+			WHERE rtf.room_template_id = ?
+			ORDER BY rtf.placement_order, rtf.name
+		`).bind(templateId).all();
+
+		return c.json(furniture.results);
+	} catch (err: any) {
+		return c.json({ error: err.message || 'Failed to fetch room template furniture' }, 500);
+	}
+});
+
+admin.post('/room-templates/:id/furniture', async (c) => {
+	try {
+		const templateId = c.req.param('id');
+		if (!templateId) throw new Error('Room template ID required');
+
+		const body = await c.req.json();
+		const furnitureId = `${templateId}_${body.furniture_template_id}_${Date.now()}`;
+
+		await c.env.DB.prepare(`
+			INSERT INTO room_template_furniture (
+				id, room_template_id, furniture_template_id, name, description,
+				x, y, z, width, height, rotation,
+				image, color, style, interactive, blocks_movement, power_required,
+				required, optional_variants, placement_order, created_at, updated_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`).bind(
+			furnitureId,
+			templateId,
+			body.furniture_template_id,
+			body.name || 'Unnamed Furniture',
+			body.description || null,
+			body.x || 0.5,
+			body.y || 0.5,
+			body.z || 0,
+			body.width || 32,
+			body.height || 32,
+			body.rotation || 0,
+			body.image || null,
+			body.color || null,
+			body.style || null,
+			body.interactive || null,
+			body.blocks_movement || null,
+			body.power_required || null,
+			body.required !== undefined ? body.required : 1,
+			body.optional_variants ? JSON.stringify(body.optional_variants) : null,
+			body.placement_order || 0,
+			Date.now(),
+			Date.now()
+		).run();
+
+		return c.json({ success: true, id: furnitureId });
+	} catch (err: any) {
+		return c.json({ error: err.message || 'Failed to add furniture to room template' }, 500);
+	}
+});
+
+admin.put('/room-templates/:id/furniture/:furnitureId', async (c) => {
+	try {
+		const templateId = c.req.param('id');
+		const furnitureId = c.req.param('furnitureId');
+		if (!templateId || !furnitureId) throw new Error('IDs required');
+
+		const body = await c.req.json();
+
+		const result = await c.env.DB.prepare(`
+			UPDATE room_template_furniture SET
+				name = ?, description = ?, x = ?, y = ?, z = ?,
+				width = ?, height = ?, rotation = ?, image = ?, color = ?, style = ?,
+				interactive = ?, blocks_movement = ?, power_required = ?,
+				required = ?, optional_variants = ?, placement_order = ?, updated_at = ?
+			WHERE id = ? AND room_template_id = ?
+		`).bind(
+			body.name || 'Unnamed Furniture',
+			body.description || null,
+			body.x || 0.5,
+			body.y || 0.5,
+			body.z || 0,
+			body.width || 32,
+			body.height || 32,
+			body.rotation || 0,
+			body.image || null,
+			body.color || null,
+			body.style || null,
+			body.interactive || null,
+			body.blocks_movement || null,
+			body.power_required || null,
+			body.required !== undefined ? body.required : 1,
+			body.optional_variants ? JSON.stringify(body.optional_variants) : null,
+			body.placement_order || 0,
+			Date.now(),
+			furnitureId,
+			templateId
+		).run();
+
+		if (result.meta.changes === 0) {
+			return c.json({ error: 'Furniture not found' }, 404);
+		}
+
+		return c.json({ success: true });
+	} catch (err: any) {
+		return c.json({ error: err.message || 'Failed to update room template furniture' }, 500);
+	}
+});
+
+admin.delete('/room-templates/:id/furniture/:furnitureId', async (c) => {
+	try {
+		const templateId = c.req.param('id');
+		const furnitureId = c.req.param('furnitureId');
+		if (!templateId || !furnitureId) throw new Error('IDs required');
+
+		const result = await c.env.DB.prepare(`
+			DELETE FROM room_template_furniture 
+			WHERE id = ? AND room_template_id = ?
+		`).bind(furnitureId, templateId).run();
+
+		if (result.meta.changes === 0) {
+			return c.json({ error: 'Furniture not found' }, 404);
+		}
+
+		return c.json({ success: true });
+	} catch (err: any) {
+		return c.json({ error: err.message || 'Failed to delete room template furniture' }, 500);
+	}
+});
+
+// --- Room Template Technology ---
+admin.get('/room-templates/:id/technology', async (c) => {
+	try {
+		const templateId = c.req.param('id');
+		if (!templateId) throw new Error('Room template ID required');
+
+		const technology = await c.env.DB.prepare(`
+			SELECT rtt.*, tt.name as technology_name, tt.description as technology_description, 
+				   tt.category, tt.image
+			FROM room_template_technology rtt
+			JOIN technology_templates tt ON rtt.technology_template_id = tt.id
+			WHERE rtt.room_template_id = ?
+			ORDER BY tt.name
+		`).bind(templateId).all();
+
+		return c.json(technology.results);
+	} catch (err: any) {
+		return c.json({ error: err.message || 'Failed to fetch room template technology' }, 500);
+	}
+});
+
+admin.post('/room-templates/:id/technology', async (c) => {
+	try {
+		const templateId = c.req.param('id');
+		if (!templateId) throw new Error('Room template ID required');
+
+		const body = await c.req.json();
+		const techId = `${templateId}_${body.technology_template_id}`;
+
+		await c.env.DB.prepare(`
+			INSERT INTO room_template_technology (
+				id, room_template_id, technology_template_id, count, description,
+				discovery_chance, discovery_requirements, discovery_message,
+				x, y, hidden_until_discovered, created_at, updated_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`).bind(
+			techId,
+			templateId,
+			body.technology_template_id,
+			body.count || 1,
+			body.description || null,
+			body.discovery_chance !== undefined ? body.discovery_chance : 1.0,
+			body.discovery_requirements ? JSON.stringify(body.discovery_requirements) : null,
+			body.discovery_message || null,
+			body.x || null,
+			body.y || null,
+			body.hidden_until_discovered || 0,
+			Date.now(),
+			Date.now()
+		).run();
+
+		return c.json({ success: true, id: techId });
+	} catch (err: any) {
+		return c.json({ error: err.message || 'Failed to add technology to room template' }, 500);
+	}
+});
+
+admin.put('/room-templates/:id/technology/:techId', async (c) => {
+	try {
+		const templateId = c.req.param('id');
+		const techId = c.req.param('techId');
+		if (!templateId || !techId) throw new Error('IDs required');
+
+		const body = await c.req.json();
+
+		const result = await c.env.DB.prepare(`
+			UPDATE room_template_technology SET
+				count = ?, description = ?, discovery_chance = ?,
+				discovery_requirements = ?, discovery_message = ?,
+				x = ?, y = ?, hidden_until_discovered = ?, updated_at = ?
+			WHERE id = ? AND room_template_id = ?
+		`).bind(
+			body.count || 1,
+			body.description || null,
+			body.discovery_chance !== undefined ? body.discovery_chance : 1.0,
+			body.discovery_requirements ? JSON.stringify(body.discovery_requirements) : null,
+			body.discovery_message || null,
+			body.x || null,
+			body.y || null,
+			body.hidden_until_discovered || 0,
+			Date.now(),
+			techId,
+			templateId
+		).run();
+
+		if (result.meta.changes === 0) {
+			return c.json({ error: 'Technology assignment not found' }, 404);
+		}
+
+		return c.json({ success: true });
+	} catch (err: any) {
+		return c.json({ error: err.message || 'Failed to update room template technology' }, 500);
+	}
+});
+
+admin.delete('/room-templates/:id/technology/:techId', async (c) => {
+	try {
+		const templateId = c.req.param('id');
+		const techId = c.req.param('techId');
+		if (!templateId || !techId) throw new Error('IDs required');
+
+		const result = await c.env.DB.prepare(`
+			DELETE FROM room_template_technology 
+			WHERE id = ? AND room_template_id = ?
+		`).bind(techId, templateId).run();
+
+		if (result.meta.changes === 0) {
+			return c.json({ error: 'Technology assignment not found' }, 404);
+		}
+
+		return c.json({ success: true });
+	} catch (err: any) {
+		return c.json({ error: err.message || 'Failed to delete room template technology' }, 500);
+	}
+});
+
 // --- Character Templates ---
 admin.get('/characters', async (c) => {
 	try {
