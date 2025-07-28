@@ -17,6 +17,7 @@ import {
 import { FaPlus, FaEdit, FaTrash, FaSearch, FaEye, FaCubes } from 'react-icons/fa';
 
 import { AdminService } from '../../services/admin-service';
+import { RoomTemplateVisualEditor } from '../../components/room-template-visual-editor';
 
 interface RoomTemplateFormData {
 	layout_id: string;
@@ -89,7 +90,7 @@ export const AdminRoomTemplates: React.FC = () => {
 	const loadTemplates = async () => {
 		try {
 			setLoading(true);
-			const data = await adminService.getRoomTemplates();
+			const data = await adminService.getAllRoomTemplates();
 			setTemplates(data);
 			setError(null);
 		} catch (err) {
@@ -135,7 +136,7 @@ export const AdminRoomTemplates: React.FC = () => {
 		setFormData(defaultFormData);
 	};
 
-	const handleInputChange = (field: keyof RoomTemplateFormData, value: string | number | boolean) => {
+	const handleInputChange = (field: keyof RoomTemplateFormData, value: string | number | boolean | null) => {
 		setFormData(prev => ({
 			...prev,
 			[field]: value,
@@ -187,10 +188,10 @@ export const AdminRoomTemplates: React.FC = () => {
 		const matchesSearch = template.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
 			template.type.toLowerCase().includes(searchTerm.toLowerCase()) ||
 			(template.description && template.description.toLowerCase().includes(searchTerm.toLowerCase()));
-		
+
 		const matchesCategory = filterCategory === 'all' || template.category === filterCategory;
 		const matchesType = filterType === 'all' || template.type === filterType;
-		
+
 		return matchesSearch && matchesCategory && matchesType;
 	});
 
@@ -350,220 +351,263 @@ export const AdminRoomTemplates: React.FC = () => {
 			</Card>
 
 			{/* Room Template Form Modal */}
-			<Modal show={showModal} onHide={handleCloseModal} size="lg">
+			<Modal
+				show={showModal}
+				onHide={handleCloseModal}
+				size="xl"
+				style={{ maxWidth: '90vw', maxHeight: '90vh' }}
+			>
 				<Modal.Header closeButton>
 					<Modal.Title>
 						{editingTemplate ? 'Edit Room Template' : 'Add Room Template'}
 					</Modal.Title>
 				</Modal.Header>
 				<Form onSubmit={handleSubmit}>
-					<Modal.Body>
-						<Row>
-							<Col md={6}>
+					<Modal.Body style={{ padding: 0, maxHeight: 'calc(90vh - 120px)' }}>
+						<Row style={{ margin: 0, minHeight: '500px' }}>
+							{/* Left Panel - Visual Editor */}
+							<Col md={8} style={{ padding: 0, borderRight: '1px solid #dee2e6', display: 'flex', flexDirection: 'column' }}>
+								{editingTemplate && (
+									<RoomTemplateVisualEditor
+										roomTemplate={{
+											id: editingTemplate.id,
+											name: formData.name,
+											default_width: formData.default_width,
+											default_height: formData.default_height,
+											type: formData.type,
+											category: formData.category,
+											description: formData.description,
+										}}
+										onRoomSizeChange={(width, height) => {
+											handleInputChange('default_width', width);
+											handleInputChange('default_height', height);
+										}}
+									/>
+								)}
+							</Col>
+
+							{/* Right Panel - Properties */}
+							<Col md={4} style={{ padding: '1rem', overflowY: 'auto' }}>
+								<Row>
+									<Col md={12}>
+										<Form.Group className="mb-3">
+											<Form.Label>Name *</Form.Label>
+											<Form.Control
+												type="text"
+												value={formData.name}
+												onChange={(e) => handleInputChange('name', e.target.value)}
+												required
+											/>
+										</Form.Group>
+									</Col>
+								</Row>
+
+								<Row>
+									<Col md={12}>
+										<Form.Group className="mb-3">
+											<Form.Label>Type *</Form.Label>
+											<Form.Select
+												value={formData.type}
+												onChange={(e) => handleInputChange('type', e.target.value)}
+												required
+											>
+												<option value="">Select type...</option>
+												{ROOM_TYPES.map(type => (
+													<option key={type} value={type}>{type}</option>
+												))}
+											</Form.Select>
+										</Form.Group>
+									</Col>
+								</Row>
+
 								<Form.Group className="mb-3">
-									<Form.Label>Name *</Form.Label>
+									<Form.Label>Description</Form.Label>
 									<Form.Control
-										type="text"
-										value={formData.name}
-										onChange={(e) => handleInputChange('name', e.target.value)}
-										required
+										as="textarea"
+										rows={2}
+										value={formData.description}
+										onChange={(e) => handleInputChange('description', e.target.value)}
 									/>
 								</Form.Group>
-							</Col>
-							<Col md={6}>
+
+								<Row>
+									<Col md={12}>
+										<Form.Group className="mb-3">
+											<Form.Label>Layout ID *</Form.Label>
+											<Form.Control
+												type="text"
+												value={formData.layout_id}
+												onChange={(e) => handleInputChange('layout_id', e.target.value)}
+												required
+											/>
+										</Form.Group>
+									</Col>
+								</Row>
+
+								<Row>
+									<Col md={6}>
+										<Form.Group className="mb-3">
+											<Form.Label>Category</Form.Label>
+											<Form.Select
+												value={formData.category}
+												onChange={(e) => handleInputChange('category', e.target.value)}
+											>
+												<option value="">Select category...</option>
+												{ROOM_CATEGORIES.map(category => (
+													<option key={category} value={category || ''}>{category}</option>
+												))}
+											</Form.Select>
+										</Form.Group>
+									</Col>
+									<Col md={6}>
+										<Form.Group className="mb-3">
+											<Form.Label>Version</Form.Label>
+											<Form.Control
+												type="text"
+												value={formData.version}
+												onChange={(e) => handleInputChange('version', e.target.value)}
+											/>
+										</Form.Group>
+									</Col>
+								</Row>
+
+								<Row>
+									<Col md={6}>
+										<Form.Group className="mb-3">
+											<Form.Label>Default Width *</Form.Label>
+											<Form.Control
+												type="number"
+												value={formData.default_width}
+												onChange={(e) => handleInputChange('default_width', parseInt(e.target.value))}
+												required
+												min={1}
+											/>
+										</Form.Group>
+									</Col>
+									<Col md={6}>
+										<Form.Group className="mb-3">
+											<Form.Label>Default Height *</Form.Label>
+											<Form.Control
+												type="number"
+												value={formData.default_height}
+												onChange={(e) => handleInputChange('default_height', parseInt(e.target.value))}
+												required
+												min={1}
+											/>
+										</Form.Group>
+									</Col>
+								</Row>
+
+								<Row>
+									<Col md={6}>
+										<Form.Group className="mb-3">
+											<Form.Label>Min Width</Form.Label>
+											<Form.Control
+												type="number"
+												value={formData.min_width || ''}
+												onChange={(e) => handleInputChange('min_width', e.target.value ? parseInt(e.target.value) : null)}
+												min={1}
+											/>
+										</Form.Group>
+									</Col>
+									<Col md={6}>
+										<Form.Group className="mb-3">
+											<Form.Label>Max Width</Form.Label>
+											<Form.Control
+												type="number"
+												value={formData.max_width || ''}
+												onChange={(e) => handleInputChange('max_width', e.target.value ? parseInt(e.target.value) : null)}
+												min={1}
+											/>
+										</Form.Group>
+									</Col>
+								</Row>
+
+								<Row>
+									<Col md={6}>
+										<Form.Group className="mb-3">
+											<Form.Label>Min Height</Form.Label>
+											<Form.Control
+												type="number"
+												value={formData.min_height || ''}
+												onChange={(e) => handleInputChange('min_height', e.target.value ? parseInt(e.target.value) : null)}
+												min={1}
+											/>
+										</Form.Group>
+									</Col>
+									<Col md={6}>
+										<Form.Group className="mb-3">
+											<Form.Label>Max Height</Form.Label>
+											<Form.Control
+												type="number"
+												value={formData.max_height || ''}
+												onChange={(e) => handleInputChange('max_height', e.target.value ? parseInt(e.target.value) : null)}
+												min={1}
+											/>
+										</Form.Group>
+									</Col>
+								</Row>
+
+								<Row>
+									<Col md={12}>
+										<Form.Group className="mb-3">
+											<Form.Label>Default Image</Form.Label>
+											<Form.Control
+												type="text"
+												value={formData.default_image}
+												onChange={(e) => handleInputChange('default_image', e.target.value)}
+												placeholder="image.png"
+											/>
+										</Form.Group>
+									</Col>
+								</Row>
+
+								<Row>
+									<Col md={12}>
+										<Form.Group className="mb-3">
+											<Form.Label>Tags</Form.Label>
+											<Form.Control
+												type="text"
+												value={formData.tags}
+												onChange={(e) => handleInputChange('tags', e.target.value)}
+												placeholder="tag1,tag2,tag3"
+											/>
+										</Form.Group>
+									</Col>
+								</Row>
+
 								<Form.Group className="mb-3">
-									<Form.Label>Type *</Form.Label>
-									<Form.Select
-										value={formData.type}
-										onChange={(e) => handleInputChange('type', e.target.value)}
-										required
-									>
-										<option value="">Select type...</option>
-										{ROOM_TYPES.map(type => (
-											<option key={type} value={type}>{type}</option>
-										))}
-									</Form.Select>
+									<Form.Label>Compatible Layouts (JSON)</Form.Label>
+									<Form.Control
+										as="textarea"
+										rows={2}
+										value={formData.compatible_layouts}
+										onChange={(e) => handleInputChange('compatible_layouts', e.target.value)}
+										placeholder='["layout1", "layout2"]'
+									/>
+								</Form.Group>
+
+								<Form.Group className="mb-3">
+									<Form.Label>Placement Requirements (JSON)</Form.Label>
+									<Form.Control
+										as="textarea"
+										rows={2}
+										value={formData.placement_requirements}
+										onChange={(e) => handleInputChange('placement_requirements', e.target.value)}
+										placeholder='{"adjacent_to": ["corridor"], "not_adjacent_to": ["engine_room"]}'
+									/>
+								</Form.Group>
+
+								<Form.Group className="mb-3">
+									<Form.Check
+										type="checkbox"
+										label="Active"
+										checked={formData.is_active}
+										onChange={(e) => handleInputChange('is_active', e.target.checked)}
+									/>
 								</Form.Group>
 							</Col>
 						</Row>
-
-						<Form.Group className="mb-3">
-							<Form.Label>Description</Form.Label>
-							<Form.Control
-								as="textarea"
-								rows={3}
-								value={formData.description}
-								onChange={(e) => handleInputChange('description', e.target.value)}
-							/>
-						</Form.Group>
-
-						<Row>
-							<Col md={4}>
-								<Form.Group className="mb-3">
-									<Form.Label>Layout ID *</Form.Label>
-									<Form.Control
-										type="text"
-										value={formData.layout_id}
-										onChange={(e) => handleInputChange('layout_id', e.target.value)}
-										required
-									/>
-								</Form.Group>
-							</Col>
-							<Col md={4}>
-								<Form.Group className="mb-3">
-									<Form.Label>Category</Form.Label>
-									<Form.Select
-										value={formData.category}
-										onChange={(e) => handleInputChange('category', e.target.value)}
-									>
-										<option value="">Select category...</option>
-										{ROOM_CATEGORIES.map(category => (
-											<option key={category} value={category}>{category}</option>
-										))}
-									</Form.Select>
-								</Form.Group>
-							</Col>
-							<Col md={4}>
-								<Form.Group className="mb-3">
-									<Form.Label>Version</Form.Label>
-									<Form.Control
-										type="text"
-										value={formData.version}
-										onChange={(e) => handleInputChange('version', e.target.value)}
-									/>
-								</Form.Group>
-							</Col>
-						</Row>
-
-						<Row>
-							<Col md={3}>
-								<Form.Group className="mb-3">
-									<Form.Label>Default Width *</Form.Label>
-									<Form.Control
-										type="number"
-										value={formData.default_width}
-										onChange={(e) => handleInputChange('default_width', parseInt(e.target.value))}
-										required
-										min={1}
-									/>
-								</Form.Group>
-							</Col>
-							<Col md={3}>
-								<Form.Group className="mb-3">
-									<Form.Label>Default Height *</Form.Label>
-									<Form.Control
-										type="number"
-										value={formData.default_height}
-										onChange={(e) => handleInputChange('default_height', parseInt(e.target.value))}
-										required
-										min={1}
-									/>
-								</Form.Group>
-							</Col>
-							<Col md={3}>
-								<Form.Group className="mb-3">
-									<Form.Label>Min Width</Form.Label>
-									<Form.Control
-										type="number"
-										value={formData.min_width || ''}
-										onChange={(e) => handleInputChange('min_width', e.target.value ? parseInt(e.target.value) : null)}
-										min={1}
-									/>
-								</Form.Group>
-							</Col>
-							<Col md={3}>
-								<Form.Group className="mb-3">
-									<Form.Label>Max Width</Form.Label>
-									<Form.Control
-										type="number"
-										value={formData.max_width || ''}
-										onChange={(e) => handleInputChange('max_width', e.target.value ? parseInt(e.target.value) : null)}
-										min={1}
-									/>
-								</Form.Group>
-							</Col>
-						</Row>
-
-						<Row>
-							<Col md={6}>
-								<Form.Group className="mb-3">
-									<Form.Label>Min Height</Form.Label>
-									<Form.Control
-										type="number"
-										value={formData.min_height || ''}
-										onChange={(e) => handleInputChange('min_height', e.target.value ? parseInt(e.target.value) : null)}
-										min={1}
-									/>
-								</Form.Group>
-							</Col>
-							<Col md={6}>
-								<Form.Group className="mb-3">
-									<Form.Label>Max Height</Form.Label>
-									<Form.Control
-										type="number"
-										value={formData.max_height || ''}
-										onChange={(e) => handleInputChange('max_height', e.target.value ? parseInt(e.target.value) : null)}
-										min={1}
-									/>
-								</Form.Group>
-							</Col>
-						</Row>
-
-						<Row>
-							<Col md={6}>
-								<Form.Group className="mb-3">
-									<Form.Label>Default Image</Form.Label>
-									<Form.Control
-										type="text"
-										value={formData.default_image}
-										onChange={(e) => handleInputChange('default_image', e.target.value)}
-										placeholder="image.png"
-									/>
-								</Form.Group>
-							</Col>
-							<Col md={6}>
-								<Form.Group className="mb-3">
-									<Form.Label>Tags</Form.Label>
-									<Form.Control
-										type="text"
-										value={formData.tags}
-										onChange={(e) => handleInputChange('tags', e.target.value)}
-										placeholder="tag1,tag2,tag3"
-									/>
-								</Form.Group>
-							</Col>
-						</Row>
-
-						<Form.Group className="mb-3">
-							<Form.Label>Compatible Layouts (JSON)</Form.Label>
-							<Form.Control
-								as="textarea"
-								rows={2}
-								value={formData.compatible_layouts}
-								onChange={(e) => handleInputChange('compatible_layouts', e.target.value)}
-								placeholder='["layout1", "layout2"]'
-							/>
-						</Form.Group>
-
-						<Form.Group className="mb-3">
-							<Form.Label>Placement Requirements (JSON)</Form.Label>
-							<Form.Control
-								as="textarea"
-								rows={3}
-								value={formData.placement_requirements}
-								onChange={(e) => handleInputChange('placement_requirements', e.target.value)}
-								placeholder='{"adjacent_to": ["corridor"], "not_adjacent_to": ["engine_room"]}'
-							/>
-						</Form.Group>
-
-						<Form.Group className="mb-3">
-							<Form.Check
-								type="checkbox"
-								label="Active"
-								checked={formData.is_active}
-								onChange={(e) => handleInputChange('is_active', e.target.checked)}
-							/>
-						</Form.Group>
 					</Modal.Body>
 					<Modal.Footer>
 						<Button variant="secondary" onClick={handleCloseModal}>

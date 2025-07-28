@@ -1,4 +1,4 @@
-import { RoomTemplate, TechnologyTemplate } from '@stargate/common';
+import { Room, RoomTemplate, TechnologyTemplate } from '@stargate/common';
 
 import { apiClient } from './api-client';
 
@@ -26,7 +26,7 @@ export class AdminService {
 	}
 
 	// Room Template management
-	async getRoomTemplates(): Promise<RoomTemplate[]> {
+	async getAllRoomTemplates(): Promise<RoomTemplate[]> {
 		const response = await apiClient.get('/api/admin/room-templates', true);
 		if (response.error) {
 			throw new Error(response.error);
@@ -59,8 +59,8 @@ export class AdminService {
 		return response.data;
 	}
 
-	// Room management (legacy - for actual room instances)
-	async getAllRoomTemplates(): Promise<RoomTemplate[]> {
+	// Room management
+	async getAllRooms(): Promise<Room[]> {
 		const response = await apiClient.get('/api/data/rooms', false); // Public endpoint
 		if (response.error) {
 			throw new Error(response.error);
@@ -69,7 +69,7 @@ export class AdminService {
 		return Array.isArray(data) ? data : [];
 	}
 
-	async createRoom(roomData: any) {
+	async createRoom(roomData: Room) {
 		const response = await apiClient.post('/api/admin/rooms', roomData, true);
 		if (response.error) {
 			throw new Error(response.error);
@@ -228,6 +228,35 @@ export class AdminService {
 			throw new Error(response.error);
 		}
 		return response.data;
+	}
+
+	// Room Template Furniture management
+	async getRoomTemplateFurniture(templateId: string) {
+		const response = await apiClient.get(`/api/admin/room-templates/${templateId}/furniture`, true);
+		if (response.error) {
+			throw new Error(response.error);
+		}
+		const data = response.data;
+		return Array.isArray(data) ? data : [];
+	}
+
+	async getRoomTemplateTechnology(templateId: string) {
+		const response = await apiClient.get(`/api/admin/room-templates/${templateId}/technology`, true);
+		if (response.error) {
+			throw new Error(response.error);
+		}
+		const data = response.data;
+		return Array.isArray(data) ? data : [];
+	}
+
+	// Furniture Templates management
+	async getFurnitureTemplates() {
+		const response = await apiClient.get('/api/data/furniture-templates', false); // Public endpoint
+		if (response.error) {
+			throw new Error(response.error);
+		}
+		const data = response.data;
+		return Array.isArray(data) ? data : [];
 	}
 	// Comprehensive template data export/import
 	async exportAllTemplateData() {

@@ -204,6 +204,11 @@ CREATE TABLE IF NOT EXISTS room_technology (
 	discovered BOOLEAN DEFAULT FALSE, -- Whether this tech has been found through exploration
 	created_at INTEGER DEFAULT (strftime('%s','now')),
 	updated_at INTEGER DEFAULT (strftime('%s','now')),
+
+	-- Positioning
+	position_x INTEGER DEFAULT NULL,
+	position_y INTEGER DEFAULT NULL,
+
 	FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE,
 	FOREIGN KEY (technology_template_id) REFERENCES technology_templates(id)
 );

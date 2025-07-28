@@ -1,4 +1,4 @@
-import { RoomTemplate, Door, RoomFurniture, FurnitureTemplate, roomToWorldCoordinates, worldToRoomCoordinates, mergeFurnitureWithTemplate } from '@stargate/common';
+import { Room, Door, RoomFurniture, FurnitureTemplate, roomToWorldCoordinates, worldToRoomCoordinates, mergeFurnitureWithTemplate } from '@stargate/common';
 import { DEFAULT_IMAGE_KEYS } from '@stargate/common/src/models/room-furniture';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Button, Card, Form, Modal, Table, Nav, Tab, Alert, InputGroup, OverlayTrigger, Tooltip, Dropdown, Badge, ButtonGroup } from 'react-bootstrap';
@@ -50,12 +50,12 @@ type Camera = {
 
 export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloorChange }) => {
 	const canvasRef = useRef<HTMLCanvasElement>(null);
-	const [rooms, setRooms] = useState<RoomTemplate[]>([]);
+	const [rooms, setRooms] = useState<Room[]>([]);
 	const [doors, setDoors] = useState<Door[]>([]);
 	const [furniture, setFurniture] = useState<RoomFurniture[]>([]);
 	const [furnitureTemplates, setFurnitureTemplates] = useState<FurnitureTemplate[]>([]);
 	const [selectedTemplate, setSelectedTemplate] = useState<FurnitureTemplate | null>(null);
-	const [selectedRoom, setSelectedRoom] = useState<RoomTemplate | null>(null);
+	const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
 	const [selectedDoor, setSelectedDoor] = useState<Door | null>(null);
 	const [selectedFurniture, setSelectedFurniture] = useState<RoomFurniture | null>(null);
 	const [showRoomModal, setShowRoomModal] = useState(false);
@@ -63,7 +63,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 	const [showFurnitureModal, setShowFurnitureModal] = useState(false);
 	const [showTemplateSelectionModal, setShowTemplateSelectionModal] = useState(false);
 	const [showInspectorModal, setShowInspectorModal] = useState(false);
-	const [editingRoom, setEditingRoom] = useState<Partial<RoomTemplate>>({});
+	const [editingRoom, setEditingRoom] = useState<Partial<Room>>({});
 	const [editingDoor, setEditingDoor] = useState<Partial<Door>>({});
 	const [dragState, setDragState] = useState<DragState>({
 		isDragging: false,
@@ -229,7 +229,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 	const loadData = async () => {
 		try {
 			// Load each data source separately with individual error handling
-			const roomsData = await adminService.getAllRoomTemplates();
+			const roomsData = await adminService.getAllRooms();
 
 			let doorsData: any[] = [];
 			try {
@@ -418,7 +418,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 		}
 	};
 
-	const drawRoom = (ctx: CanvasRenderingContext2D, room: RoomTemplate) => {
+	const drawRoom = (ctx: CanvasRenderingContext2D, room: Room) => {
 		// Convert room bounds to screen coordinates
 		const topLeft = worldToScreen(room.startX, room.startY);
 		const bottomRight = worldToScreen(room.endX, room.endY);
@@ -541,7 +541,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 		ctx.restore();
 	};
 
-	const highlightRoom = (ctx: CanvasRenderingContext2D, room: RoomTemplate) => {
+	const highlightRoom = (ctx: CanvasRenderingContext2D, room: Room) => {
 		// Convert room bounds to screen coordinates
 		const topLeft = worldToScreen(room.startX, room.startY);
 		const bottomRight = worldToScreen(room.endX, room.endY);
@@ -614,7 +614,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 		ctx.restore();
 	};
 
-	const drawResizeHandles = (ctx: CanvasRenderingContext2D, room: RoomTemplate) => {
+	const drawResizeHandles = (ctx: CanvasRenderingContext2D, room: Room) => {
 		// Convert room bounds to screen coordinates
 		const topLeft = worldToScreen(room.startX, room.startY);
 		const bottomRight = worldToScreen(room.endX, room.endY);
@@ -652,7 +652,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 		}
 	};
 
-	const getResizeHandle = (screenX: number, screenY: number, room: RoomTemplate): 'nw' | 'ne' | 'sw' | 'se' | 'n' | 's' | 'e' | 'w' | null => {
+	const getResizeHandle = (screenX: number, screenY: number, room: Room): 'nw' | 'ne' | 'sw' | 'se' | 'n' | 's' | 'e' | 'w' | null => {
 		// Convert room bounds to screen coordinates
 		const topLeft = worldToScreen(room.startX, room.startY);
 		const bottomRight = worldToScreen(room.endX, room.endY);
@@ -1809,7 +1809,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 	/**
 	 * Find the closest room to a given world position
 	 */
-	const findClosestRoom = (worldX: number, worldY: number, otherRooms: RoomTemplate[]) => {
+	const findClosestRoom = (worldX: number, worldY: number, otherRooms: Room[]) => {
 		if (otherRooms.length === 0) return null;
 
 		let closestRoom = otherRooms[0];
@@ -1835,7 +1835,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 	/**
 	 * Check if a room would overlap with any existing rooms
 	 */
-	const checkRoomOverlap = (newRoom: { startX: number; endX: number; startY: number; endY: number }, existingRooms: RoomTemplate[], excludeId?: string) => {
+	const checkRoomOverlap = (newRoom: { startX: number; endX: number; startY: number; endY: number }, existingRooms: Room[], excludeId?: string) => {
 		for (const room of existingRooms) {
 			if (excludeId && room.id === excludeId) continue;
 
@@ -1851,7 +1851,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 	/**
 	 * Find the best position to place a new room adjacent to an existing room
 	 */
-	const findBestAdjacentPosition = (clickX: number, clickY: number, targetRoom: RoomTemplate, newRoomWidth: number = 128, newRoomHeight: number = 128) => {
+	const findBestAdjacentPosition = (clickX: number, clickY: number, targetRoom: Room, newRoomWidth: number = 128, newRoomHeight: number = 128) => {
 		// Define potential positions around the target room
 		const spacing = 8; // Small gap between rooms
 		const positions = [
@@ -1909,7 +1909,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 		return sortedPositions[0];
 	};
 
-	const findSnapPosition = (room: RoomTemplate, otherRooms: RoomTemplate[]) => {
+	const findSnapPosition = (room: Room, otherRooms: Room[]) => {
 		// First, ensure all coordinates are whole numbers
 		const normalizedRoom = {
 			...room,
@@ -2029,8 +2029,8 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 	 * Find snap position for resize operations - snaps to nearby room edges
 	 */
 	const findResizeSnapPosition = (
-		room: RoomTemplate,
-		otherRooms: RoomTemplate[],
+		room: Room,
+		otherRooms: Room[],
 		handle: 'nw' | 'ne' | 'sw' | 'se' | 'n' | 's' | 'e' | 'w',
 	) => {
 		// First, ensure all coordinates are whole numbers
@@ -2143,8 +2143,8 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 		return { snappedRoom, hasSnapped };
 	};
 
-	const findAdjacentRooms = (room: RoomTemplate, otherRooms: RoomTemplate[]) => {
-		const adjacentRooms: Array<{ room: RoomTemplate; side: 'north' | 'south' | 'east' | 'west' }> = [];
+	const findAdjacentRooms = (room: Room, otherRooms: Room[]) => {
+		const adjacentRooms: Array<{ room: Room; side: 'north' | 'south' | 'east' | 'west' }> = [];
 
 		for (const otherRoom of otherRooms) {
 			if (otherRoom.id === room.id) continue; // Skip self
@@ -2175,7 +2175,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 		return adjacentRooms;
 	};
 
-	const createAutomaticDoor = async (fromRoom: RoomTemplate, toRoom: RoomTemplate, side: 'north' | 'south' | 'east' | 'west') => {
+	const createAutomaticDoor = async (fromRoom: Room, toRoom: Room, side: 'north' | 'south' | 'east' | 'west') => {
 		// Calculate door position based on the side where rooms are adjacent
 		let doorX: number, doorY: number, rotation: number;
 

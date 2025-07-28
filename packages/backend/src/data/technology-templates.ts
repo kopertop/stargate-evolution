@@ -35,14 +35,16 @@ export async function getAllRoomTechnology(db: D1Database): Promise<RoomTechnolo
 export async function createRoomTechnology(db: D1Database, roomTech: Omit<RoomTechnology, 'created_at' | 'updated_at'>): Promise<RoomTechnology> {
 	const now = Date.now();
 	await db.prepare(`
-		INSERT INTO room_technology (id, room_id, technology_template_id, count, description, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO room_technology (id, room_id, technology_template_id, count, description, position_x, position_y, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`).bind(
 		roomTech.id,
 		roomTech.room_id,
 		roomTech.technology_template_id,
 		roomTech.count,
 		roomTech.description || null,
+		roomTech.position?.x || null,
+		roomTech.position?.y || null,
 		now,
 		now,
 	).run();

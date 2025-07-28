@@ -6,11 +6,11 @@ export const RoomTemplateSchema = z.object({
 	type: z.string(),
 	name: z.string(),
 	description: z.string().optional().nullable(),
-	
+
 	// Template default dimensions
 	default_width: z.number(),
 	default_height: z.number(),
-	
+
 	// Template properties
 	default_image: z.string().optional().nullable(),
 	category: z.string().optional().nullable(),
@@ -20,12 +20,12 @@ export const RoomTemplateSchema = z.object({
 	max_height: z.number().optional().nullable(),
 	placement_requirements: z.string().optional().nullable(),
 	compatible_layouts: z.string().optional().nullable(),
-	
+
 	// Template metadata
 	tags: z.string().optional().nullable(),
 	version: z.string().default('1.0'),
 	is_active: z.union([z.boolean(), z.number()]).transform((val) => val === true || val === 1).default(true),
-	
+
 	created_at: z.number(),
 	updated_at: z.number(),
 });
@@ -48,13 +48,13 @@ export function mergeRoomWithTemplate(
 		startY: room.startY || 0,
 		endY: room.endY || template.default_height,
 		floor: room.floor || 0,
-		width: room.width,
-		height: room.height,
+		width: room.width || (room.endX || 0) - (room.startX || 0),
+		height: room.height || (room.endY || 0) - (room.startY || 0),
 		found: room.found ?? false,
 		locked: room.locked ?? false,
 		explored: room.explored ?? false,
 		exploration_data: room.exploration_data,
-		image: room.image ?? template.default_image,
+		image: room.image ?? template.default_image ?? null,
 		base_exploration_time: room.base_exploration_time ?? 2,
 		status: room.status ?? 'ok',
 		connection_north: room.connection_north,
@@ -75,7 +75,7 @@ export function validateRoomPlacement(
 	// Check minimum dimensions
 	const roomWidth = (room.endX || 0) - (room.startX || 0);
 	const roomHeight = (room.endY || 0) - (room.startY || 0);
-	
+
 	if (template.min_width && roomWidth < template.min_width) {
 		errors.push(`Room width ${roomWidth} is below minimum ${template.min_width}`);
 	}
