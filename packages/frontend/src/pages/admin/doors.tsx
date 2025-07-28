@@ -90,7 +90,7 @@ const DoorRestrictionModal: React.FC<DoorRestrictionModalProps> = ({ show, onHid
 	);
 };
 
-export const AdminRooms: React.FC = () => {
+export const AdminDoors: React.FC = () => {
 	const [doors, setDoors] = useState<Door[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);

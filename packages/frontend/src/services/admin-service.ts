@@ -25,7 +25,41 @@ export class AdminService {
 		return response.data;
 	}
 
-	// Room management
+	// Room Template management
+	async getRoomTemplates(): Promise<RoomTemplate[]> {
+		const response = await apiClient.get('/api/admin/room-templates', true);
+		if (response.error) {
+			throw new Error(response.error);
+		}
+		const data = response.data;
+		return Array.isArray(data) ? data : [];
+	}
+
+	async createRoomTemplate(templateData: any) {
+		const response = await apiClient.post('/api/admin/room-templates', templateData, true);
+		if (response.error) {
+			throw new Error(response.error);
+		}
+		return response.data;
+	}
+
+	async updateRoomTemplate(templateId: string, templateData: any) {
+		const response = await apiClient.put(`/api/admin/room-templates/${templateId}`, templateData, true);
+		if (response.error) {
+			throw new Error(response.error);
+		}
+		return response.data;
+	}
+
+	async deleteRoomTemplate(templateId: string) {
+		const response = await apiClient.delete(`/api/admin/room-templates/${templateId}`, true);
+		if (response.error) {
+			throw new Error(response.error);
+		}
+		return response.data;
+	}
+
+	// Room management (legacy - for actual room instances)
 	async getAllRoomTemplates(): Promise<RoomTemplate[]> {
 		const response = await apiClient.get('/api/data/rooms', false); // Public endpoint
 		if (response.error) {

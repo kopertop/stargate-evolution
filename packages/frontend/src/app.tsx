@@ -14,7 +14,8 @@ import {
 	AdminCharacters,
 	AdminMapBuilder,
 	AdminUsers,
-	AdminRooms,
+	AdminDoors,
+	AdminRoomTemplates,
 	AdminTechnologies,
 	SqlDebugPage,
 	FurnitureTemplatesAdmin,
@@ -42,7 +43,8 @@ export const App: React.FC = () => {
 							<Route path="characters" element={<AdminCharacters />} />
 							<Route path="map" element={<AdminMapBuilder />} />
 							<Route path="users" element={<AdminUsers />} />
-							<Route path="rooms" element={<AdminRooms />} />
+							<Route path="doors" element={<AdminDoors />} />
+							<Route path="room-templates" element={<AdminRoomTemplates />} />
 							<Route path="furniture-templates" element={<FurnitureTemplatesAdmin />} />
 							<Route path="technologies" element={<AdminTechnologies />} />
 							<Route path="sql-debug" element={<SqlDebugPage />} />
