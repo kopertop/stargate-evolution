@@ -69,6 +69,9 @@ export const RoomTemplateVisualEditor: React.FC<RoomTemplateVisualEditorProps> =
 		roomY: 0,
 	});
 
+	const [showFurniturePopup, setShowFurniturePopup] = useState(false);
+	const [furniturePopupPosition, setFurniturePopupPosition] = useState({ x: 0, y: 0 });
+
 	const adminService = new AdminService();
 
 	// Utility functions for grid snapping and coordinate conversion
@@ -479,8 +482,8 @@ export const RoomTemplateVisualEditor: React.FC<RoomTemplateVisualEditorProps> =
 									variant="outline-light"
 									className="w-100 mb-2"
 									onClick={() => {
-										// TODO: Show furniture selection popup
-										toast.info('Furniture selection popup coming soon');
+										setFurniturePopupPosition({ x: contextMenu.roomX, y: contextMenu.roomY });
+										setShowFurniturePopup(true);
 										setContextMenu({ ...contextMenu, visible: false });
 									}}
 								>
@@ -565,6 +568,99 @@ export const RoomTemplateVisualEditor: React.FC<RoomTemplateVisualEditorProps> =
 							<small className="text-muted">
 								Position: ({contextMenu.roomX}, {contextMenu.roomY})
 							</small>
+						</div>
+					</div>
+				)}
+
+				{/* Furniture Selection Popup */}
+				{showFurniturePopup && (
+					<div
+						style={{
+							position: 'fixed',
+							top: 0,
+							left: 0,
+							right: 0,
+							bottom: 0,
+							backgroundColor: 'rgba(0, 0, 0, 0.7)',
+							zIndex: 1001,
+							display: 'flex',
+							alignItems: 'center',
+							justifyContent: 'center',
+						}}
+						onClick={() => setShowFurniturePopup(false)}
+					>
+						<div
+							style={{
+								backgroundColor: '#1a1a1a',
+								border: '1px solid #333',
+								borderRadius: '8px',
+								padding: '20px',
+								maxWidth: '500px',
+								maxHeight: '80vh',
+								overflow: 'auto',
+								color: 'white',
+								minWidth: '400px',
+							}}
+							onClick={(e) => e.stopPropagation()}
+						>
+							<div className="d-flex justify-content-between align-items-center mb-3">
+								<h5 className="mb-0">Add Furniture</h5>
+								<Button
+									variant="outline-light"
+									size="sm"
+									onClick={() => setShowFurniturePopup(false)}
+								>
+									×
+								</Button>
+							</div>
+
+							<p className="text-muted mb-3">
+								Position: ({furniturePopupPosition.x}, {furniturePopupPosition.y})
+							</p>
+
+							<div
+								style={{
+									display: 'flex',
+									flexWrap: 'wrap',
+									gap: '8px',
+									justifyContent: 'flex-start',
+								}}
+							>
+								{furnitureTemplates.map((template) => (
+									<Button
+										key={template.id}
+										variant="outline-light"
+										className="text-start p-3"
+										style={{
+											flex: '1 1 200px',
+											minHeight: '80px',
+											maxWidth: 'calc(50% - 4px)',
+											borderRadius: '6px',
+											display: 'flex',
+											flexDirection: 'column',
+											justifyContent: 'center',
+										}}
+										onClick={() => {
+											addFurniture(template.id, furniturePopupPosition.x, furniturePopupPosition.y);
+											setShowFurniturePopup(false);
+											toast.success(`Added ${template.name}`);
+										}}
+									>
+										<div className="d-flex flex-column">
+											<strong>{template.name}</strong>
+											<small className="text-muted">
+												{template.default_width}×{template.default_height}
+											</small>
+										</div>
+									</Button>
+								))}
+							</div>
+
+							{furnitureTemplates.length === 0 && (
+								<div className="text-center text-muted py-4">
+									No furniture templates available
+								</div>
+							)}
 						</div>
 					</div>
 				)}
