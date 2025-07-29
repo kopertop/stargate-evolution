@@ -39,17 +39,7 @@ type ContextMenu = {
 	roomY: number;
 };
 
-type Camera = {
-	x: number; // Camera position in room coordinates
-	y: number; // Camera position in room coordinates
-	zoom: number; // Zoom level (1.0 = normal)
-};
-
-const MIN_ZOOM = 1.0;
-const MAX_ZOOM = 10.0;
-
 export const RoomTemplateVisualEditor: React.FC<RoomTemplateVisualEditorProps> = ({ roomTemplate, onSave, onRoomSizeChange }) => {
-	const canvasRef = useRef<HTMLCanvasElement>(null);
 	const [furniture, setFurniture] = useState<RoomFurniture[]>([]);
 	const [technology, setTechnology] = useState<RoomTechnology[]>([]);
 	const [furnitureTemplates, setFurnitureTemplates] = useState<FurnitureTemplate[]>([]);
@@ -79,17 +69,62 @@ export const RoomTemplateVisualEditor: React.FC<RoomTemplateVisualEditorProps> =
 		roomY: 0,
 	});
 
-	const [camera, setCamera] = useState<Camera>({
-		x: roomTemplate.default_width / 2, // Center on room
-		y: roomTemplate.default_height / 2,
-		zoom: 20.0, // Start zoomed in to see room details (20 pixels per room unit)
-	});
-
 	const adminService = new AdminService();
+
+	// Utility functions for grid snapping and coordinate conversion
+	const snapToGrid = (value: number): number => Math.round(value);
+
+	const screenToRoom = (screenX: number, screenY: number, containerRect: DOMRect): { x: number; y: number } => {
+		const roomRect = {
+			left: containerRect.left + (containerRect.width - roomTemplate.default_width) / 2,
+			top: containerRect.top + (containerRect.height - roomTemplate.default_height) / 2,
+		};
+
+		const roomX = screenX - roomRect.left;
+		const roomY = screenY - roomRect.top;
+
+		return {
+			x: snapToGrid(roomX),
+			y: snapToGrid(roomY),
+		};
+	};
+
+	const findItemAtPosition = (x: number, y: number): { type: 'furniture' | 'technology' | 'empty'; item?: RoomFurniture | RoomTechnology } => {
+		// Check furniture first
+		for (const item of furniture) {
+			if (x >= item.x && x < item.x + item.width && y >= item.y && y < item.y + item.height) {
+				return { type: 'furniture', item };
+			}
+		}
+
+		// Check technology
+		for (const item of technology) {
+			if (item.position?.x !== null && item.position?.x !== undefined &&
+				item.position?.y !== null && item.position?.y !== undefined) {
+				if (x >= item.position.x && x < item.position.x + 1 && y >= item.position.y && y < item.position.y + 1) {
+					return { type: 'technology', item };
+				}
+			}
+		}
+
+		return { type: 'empty' };
+	};
 
 	useEffect(() => {
 		loadData();
 	}, [roomTemplate.id]);
+
+	// Close context menu when clicking outside
+	useEffect(() => {
+		const handleGlobalClick = (event: MouseEvent) => {
+			if (contextMenu.visible) {
+				setContextMenu(prev => ({ ...prev, visible: false }));
+			}
+		};
+
+		document.addEventListener('click', handleGlobalClick);
+		return () => document.removeEventListener('click', handleGlobalClick);
+	}, [contextMenu.visible]);
 
 
 	const loadData = async () => {
@@ -142,91 +177,116 @@ export const RoomTemplateVisualEditor: React.FC<RoomTemplateVisualEditorProps> =
 		setIsMouseDown(false);
 	};
 
-	const handleCanvasMouseDown = (event: React.MouseEvent<HTMLCanvasElement>) => {
+	const handleRoomMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
 		event.preventDefault();
-		const canvas = canvasRef.current;
-		if (!canvas) return;
+		const container = event.currentTarget;
+		const rect = container.getBoundingClientRect();
+		const roomPos = screenToRoom(event.clientX, event.clientY, rect);
 
-		const rect = canvas.getBoundingClientRect();
-		const scaleX = canvas.width / rect.width;
-		const scaleY = canvas.height / rect.height;
+		// Check if clicking on an item
+		const itemAtPosition = findItemAtPosition(roomPos.x, roomPos.y);
 
-		const screenX = (event.clientX - rect.left) * scaleX;
-		const screenY = (event.clientY - rect.top) * scaleY;
-		console.log('[CANVAS] Screen position:', screenX, screenY);
+		if (itemAtPosition.type !== 'empty') {
+			// Start dragging the item
+			setDragState({
+				isDragging: true,
+				dragType: itemAtPosition.type,
+				dragId: itemAtPosition.item?.id || null,
+				startX: event.clientX,
+				startY: event.clientY,
+				currentX: event.clientX,
+				currentY: event.clientY,
+				originalPosition: itemAtPosition.type === 'furniture'
+					? { x: (itemAtPosition.item as RoomFurniture).x, y: (itemAtPosition.item as RoomFurniture).y }
+					: { x: (itemAtPosition.item as RoomTechnology).position?.x || 0, y: (itemAtPosition.item as RoomTechnology).position?.y || 0 },
+			});
+
+			// Select the item
+			if (itemAtPosition.type === 'furniture') {
+				setSelectedFurniture(itemAtPosition.item as RoomFurniture);
+				setSelectedTechnology(null);
+			} else {
+				setSelectedTechnology(itemAtPosition.item as RoomTechnology);
+				setSelectedFurniture(null);
+			}
+		} else {
+			// Clear selection if clicking on empty space
+			setSelectedFurniture(null);
+			setSelectedTechnology(null);
+		}
+
+		setIsMouseDown(true);
 	};
 
-	const handleCanvasMouseMove = (event: React.MouseEvent<HTMLCanvasElement>) => {
+	const handleRoomMouseMove = (event: React.MouseEvent<HTMLDivElement>) => {
+		if (!dragState.isDragging) return;
+
 		event.preventDefault();
-		const canvas = canvasRef.current;
-		if (!canvas) return;
+		const container = event.currentTarget;
+		const rect = container.getBoundingClientRect();
+		const roomPos = screenToRoom(event.clientX, event.clientY, rect);
 
-		const rect = canvas.getBoundingClientRect();
-		const scaleX = canvas.width / rect.width;
-		const scaleY = canvas.height / rect.height;
+		setDragState(prev => ({
+			...prev,
+			currentX: event.clientX,
+			currentY: event.clientY,
+		}));
 
-		const screenX = (event.clientX - rect.left) * scaleX;
-		const screenY = (event.clientY - rect.top) * scaleY;
-		console.log('[CANVAS] Screen position:', screenX, screenY);
+		// Update item position
+		if (dragState.dragType === 'furniture' && dragState.dragId) {
+			const item = furniture.find(f => f.id === dragState.dragId);
+			if (item) {
+				setFurniture(prev => prev.map(f =>
+					f.id === dragState.dragId
+						? { ...f, x: roomPos.x, y: roomPos.y }
+						: f,
+				));
+			}
+		} else if (dragState.dragType === 'technology' && dragState.dragId) {
+			const item = technology.find(t => t.id === dragState.dragId);
+			if (item) {
+				setTechnology(prev => prev.map(t =>
+					t.id === dragState.dragId
+						? { ...t, position: { x: roomPos.x, y: roomPos.y } }
+						: t,
+				));
+			}
+		}
 	};
 
-	const handleCanvasRightClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
+	const handleRoomMouseUp = (event: React.MouseEvent<HTMLDivElement>) => {
+		handleCanvasMouseUp();
+	};
+
+	const handleRoomRightClick = (event: React.MouseEvent<HTMLDivElement>) => {
 		event.preventDefault();
-		const canvas = canvasRef.current;
-		if (!canvas) return;
+		const container = event.currentTarget;
+		const rect = container.getBoundingClientRect();
+		const roomPos = screenToRoom(event.clientX, event.clientY, rect);
 
-		const rect = canvas.getBoundingClientRect();
-		const scaleX = canvas.width / rect.width;
-		const scaleY = canvas.height / rect.height;
+		// Check if right-clicking on an item
+		const itemAtPosition = findItemAtPosition(roomPos.x, roomPos.y);
 
-		const screenX = (event.clientX - rect.left) * scaleX;
-		const screenY = (event.clientY - rect.top) * scaleY;
-		console.log('[CANVAS] Screen position:', screenX, screenY);
-		// const roomPos = screenToRoom(screenX, screenY);
-
-		/*
 		setContextMenu({
 			visible: true,
 			x: event.clientX,
 			y: event.clientY,
-			type: 'empty',
+			type: itemAtPosition.type,
+			targetId: itemAtPosition.item?.id,
 			roomX: roomPos.x,
 			roomY: roomPos.y,
 		});
-		*/
 	};
 
-	const handleWheel = (event: React.WheelEvent<HTMLCanvasElement>) => {
-		event.preventDefault();
-		const canvas = canvasRef.current;
-		if (!canvas) return;
-
-		const rect = canvas.getBoundingClientRect();
-		const scaleX = canvas.width / rect.width;
-		const scaleY = canvas.height / rect.height;
-
-		const screenX = (event.clientX - rect.left) * scaleX;
-		const screenY = (event.clientY - rect.top) * scaleY;
-
-		const zoomFactor = event.deltaY > 0 ? 0.9 : 1.1;
-		const newZoom = Math.max(5.0, Math.min(50.0, camera.zoom * zoomFactor));
-
-		setCamera({
-			zoom: newZoom,
-			x: camera.x + (screenX - canvas.width / 2) / newZoom,
-			y: camera.y + (screenY - canvas.height / 2) / newZoom,
-		});
-	};
-
-	const addFurniture = async (templateId: string) => {
+	const addFurniture = async (templateId: string, x?: number, y?: number) => {
 		try {
-			// Add furniture at center of room
+			// Add furniture at specified position or center of room
 			const newFurniture: RoomFurniture = {
 				id: `temp-${Date.now()}`,
 				name: 'New Furniture',
 				furniture_type: 'generic',
-				x: roomTemplate.default_width / 2,
-				y: roomTemplate.default_height / 2,
+				x: x ?? roomTemplate.default_width / 2,
+				y: y ?? roomTemplate.default_height / 2,
 				z: 1,
 				width: 32,
 				height: 32,
@@ -250,9 +310,9 @@ export const RoomTemplateVisualEditor: React.FC<RoomTemplateVisualEditorProps> =
 		}
 	};
 
-	const addTechnology = async (templateId: string) => {
+	const addTechnology = async (templateId: string, x?: number, y?: number) => {
 		try {
-			// Add technology at center of room
+			// Add technology at specified position or center of room
 			const newTechnology: RoomTechnology = {
 				id: `temp-${Date.now()}`,
 				technology_template_id: templateId,
@@ -261,8 +321,8 @@ export const RoomTemplateVisualEditor: React.FC<RoomTemplateVisualEditorProps> =
 				updated_at: 0,
 				room_id: '',
 				position: {
-					x: roomTemplate.default_width / 2,
-					y: roomTemplate.default_height / 2,
+					x: x ?? roomTemplate.default_width / 2,
+					y: y ?? roomTemplate.default_height / 2,
 				},
 			};
 
@@ -328,8 +388,69 @@ export const RoomTemplateVisualEditor: React.FC<RoomTemplateVisualEditorProps> =
 							width: roomTemplate.default_width,
 							height: roomTemplate.default_height,
 							border: '2px solid cyan',
+							position: 'relative',
+							backgroundColor: '#1a202c',
+							cursor: dragState.isDragging ? 'grabbing' : 'grab',
 						}}
+						onMouseDown={handleRoomMouseDown}
+						onMouseUp={handleRoomMouseUp}
+						onMouseMove={handleRoomMouseMove}
+						onContextMenu={handleRoomRightClick}
 					>
+						{/* Render Furniture Items */}
+						{furniture.map((item) => (
+							<div
+								key={item.id}
+								style={{
+									position: 'absolute',
+									left: item.x,
+									top: item.y,
+									width: item.width,
+									height: item.height,
+									backgroundColor: selectedFurniture?.id === item.id ? '#ff6b6b' : '#4ecdc4',
+									border: selectedFurniture?.id === item.id ? '2px solid #ff4757' : '1px solid #2c3e50',
+									borderRadius: '2px',
+									display: 'flex',
+									alignItems: 'center',
+									justifyContent: 'center',
+									fontSize: '10px',
+									color: 'white',
+									userSelect: 'none',
+									zIndex: 10,
+								}}
+							>
+								{item.name}
+							</div>
+						))}
+
+						{/* Render Technology Items */}
+						{technology.map((item) => (
+							item.position?.x !== null && item.position?.x !== undefined &&
+							item.position?.y !== null && item.position?.y !== undefined && (
+								<div
+									key={item.id}
+									style={{
+										position: 'absolute',
+										left: item.position.x,
+										top: item.position.y,
+										width: 16,
+										height: 16,
+										backgroundColor: selectedTechnology?.id === item.id ? '#ff6b6b' : '#f39c12',
+										border: selectedTechnology?.id === item.id ? '2px solid #ff4757' : '1px solid #2c3e50',
+										borderRadius: '50%',
+										display: 'flex',
+										alignItems: 'center',
+										justifyContent: 'center',
+										fontSize: '8px',
+										color: 'white',
+										userSelect: 'none',
+										zIndex: 10,
+									}}
+								>
+									T
+								</div>
+							)
+						))}
 					</div>
 				</div>
 
@@ -340,21 +461,111 @@ export const RoomTemplateVisualEditor: React.FC<RoomTemplateVisualEditorProps> =
 							position: 'fixed',
 							top: contextMenu.y,
 							left: contextMenu.x,
-							backgroundColor: 'white',
-							border: '1px solid #ccc',
-							borderRadius: '4px',
-							padding: '8px',
-							boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
+							backgroundColor: '#1a1a1a',
+							border: '1px solid #333',
+							borderRadius: '6px',
+							padding: '12px',
+							boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
 							zIndex: 1000,
+							minWidth: '180px',
+							color: 'white',
 						}}
 						onMouseLeave={() => setContextMenu({ ...contextMenu, visible: false })}
 					>
-						<p className="mb-2 small text-muted">
-							Position: ({contextMenu.roomX.toFixed(2)}, {contextMenu.roomY.toFixed(2)})
-						</p>
-						<Button size="sm" variant="outline-primary" className="w-100">
-							Add Item Here
-						</Button>
+						{contextMenu.type === 'empty' && (
+							<>
+								<Button
+									size="sm"
+									variant="outline-light"
+									className="w-100 mb-2"
+									onClick={() => {
+										// TODO: Show furniture selection popup
+										toast.info('Furniture selection popup coming soon');
+										setContextMenu({ ...contextMenu, visible: false });
+									}}
+								>
+									Add Furniture
+								</Button>
+							</>
+						)}
+
+						{contextMenu.type === 'furniture' && contextMenu.targetId && (
+							<>
+								<Button
+									size="sm"
+									variant="outline-light"
+									className="w-100 mb-2"
+									onClick={() => {
+										// TODO: Show furniture edit popup
+										toast.info('Furniture edit popup coming soon');
+										setContextMenu({ ...contextMenu, visible: false });
+									}}
+								>
+									Edit Furniture
+								</Button>
+
+								<Button
+									size="sm"
+									variant="outline-danger"
+									className="w-100"
+									onClick={() => {
+										const item = furniture.find(f => f.id === contextMenu.targetId);
+										if (item) {
+											deleteFurniture(item);
+										}
+										setContextMenu({ ...contextMenu, visible: false });
+									}}
+								>
+									Delete Furniture
+								</Button>
+							</>
+						)}
+
+						{contextMenu.type === 'technology' && contextMenu.targetId && (
+							<>
+								<Button
+									size="sm"
+									variant="outline-light"
+									className="w-100 mb-2"
+									onClick={() => {
+										// TODO: Show technology edit popup
+										toast.info('Technology edit popup coming soon');
+										setContextMenu({ ...contextMenu, visible: false });
+									}}
+								>
+									Edit Technology
+								</Button>
+
+								<Button
+									size="sm"
+									variant="outline-danger"
+									className="w-100"
+									onClick={() => {
+										const item = technology.find(t => t.id === contextMenu.targetId);
+										if (item) {
+											deleteTechnology(item);
+										}
+										setContextMenu({ ...contextMenu, visible: false });
+									}}
+								>
+									Delete Technology
+								</Button>
+							</>
+						)}
+
+						{/* Position footer */}
+						<div
+							style={{
+								marginTop: '12px',
+								paddingTop: '8px',
+								borderTop: '1px solid #333',
+								textAlign: 'center',
+							}}
+						>
+							<small className="text-muted">
+								Position: ({contextMenu.roomX}, {contextMenu.roomY})
+							</small>
+						</div>
 					</div>
 				)}
 			</div>
