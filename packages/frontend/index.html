@@ -24,8 +24,17 @@
 			padding: 0;
 			width: 100vw;
 			height: 100vh;
-			overflow: hidden;
 			background: #10101a;
+		}
+
+		/* Default overflow hidden for game pages */
+		body {
+			overflow: hidden;
+		}
+
+		/* Allow scrolling for admin pages */
+		body.admin-page {
+			overflow: auto;
 		}
 
 		#root {

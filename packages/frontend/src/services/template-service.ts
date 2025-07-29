@@ -1,6 +1,6 @@
 import {
 	Character,
-	DoorTemplate,
+	Door,
 	Galaxy,
 	PersonTemplate,
 	RaceTemplate,
@@ -14,7 +14,7 @@ import { apiClient } from './api-client';
 export class TemplateService {
 	// Race templates
 	async getRaces(): Promise<RaceTemplate[]> {
-		const response = await apiClient.get('/api/templates/races', false);
+		const response = await apiClient.get('/api/data/races', false);
 		if (response.error) {
 			throw new Error(response.error);
 		}
@@ -24,7 +24,7 @@ export class TemplateService {
 
 	// Person templates
 	async getPersons(): Promise<PersonTemplate[]> {
-		const response = await apiClient.get('/api/templates/persons', false);
+		const response = await apiClient.get('/api/data/persons', false);
 		if (response.error) {
 			throw new Error(response.error);
 		}
@@ -34,7 +34,7 @@ export class TemplateService {
 
 	// Galaxy templates
 	async getGalaxies(): Promise<Galaxy[]> {
-		const response = await apiClient.get('/api/templates/galaxies', false);
+		const response = await apiClient.get('/api/data/galaxies', false);
 		if (response.error) {
 			throw new Error(response.error);
 		}
@@ -43,7 +43,7 @@ export class TemplateService {
 	}
 
 	async getGalaxy(id: string): Promise<Galaxy> {
-		const response = await apiClient.get(`/api/templates/galaxies/${id}`, false);
+		const response = await apiClient.get(`/api/data/galaxies/${id}`, false);
 		if (response.error) {
 			throw new Error(response.error);
 		}
@@ -52,7 +52,7 @@ export class TemplateService {
 
 	// Room templates
 	async getRooms(): Promise<RoomTemplate[]> {
-		const response = await apiClient.get('/api/templates/rooms', false);
+		const response = await apiClient.get('/api/data/rooms', false);
 		if (response.error) {
 			throw new Error(response.error);
 		}
@@ -61,8 +61,8 @@ export class TemplateService {
 	}
 
 	// Door templates
-	async getDoors(): Promise<DoorTemplate[]> {
-		const response = await apiClient.get('/api/templates/doors', false);
+	async getDoors(): Promise<Door[]> {
+		const response = await apiClient.get('/api/data/doors', false);
 		if (response.error) {
 			throw new Error(response.error);
 		}
@@ -70,8 +70,8 @@ export class TemplateService {
 		return Array.isArray(data) ? data : [];
 	}
 
-	async getDoorsForRoom(roomId: string): Promise<DoorTemplate[]> {
-		const response = await apiClient.get(`/api/templates/doors/room/${roomId}`, false);
+	async getDoorsForRoom(roomId: string): Promise<Door[]> {
+		const response = await apiClient.get(`/api/data/doors/room/${roomId}`, false);
 		if (response.error) {
 			throw new Error(response.error);
 		}
@@ -81,7 +81,7 @@ export class TemplateService {
 
 	// Character templates
 	async getCharacters(): Promise<Character[]> {
-		const response = await apiClient.get('/api/templates/characters', false);
+		const response = await apiClient.get('/api/data/characters', false);
 		if (response.error) {
 			throw new Error(response.error);
 		}
@@ -90,7 +90,7 @@ export class TemplateService {
 	}
 
 	async getCharacter(id: string): Promise<Character> {
-		const response = await apiClient.get(`/api/templates/characters/${id}`, false);
+		const response = await apiClient.get(`/api/data/characters/${id}`, false);
 		if (response.error) {
 			throw new Error(response.error);
 		}
@@ -100,7 +100,7 @@ export class TemplateService {
 	// Technology templates
 	async getTechnologies(): Promise<TechnologyTemplate[]> {
 		// Assuming this is a public endpoint based on admin-service
-		const response = await apiClient.get('/api/templates/technology', false);
+		const response = await apiClient.get('/api/data/technology', false);
 		if (response.error) {
 			throw new Error(response.error);
 		}
@@ -110,7 +110,7 @@ export class TemplateService {
 
 	// Furniture templates
 	async getFurniture(): Promise<RoomFurniture[]> {
-		const response = await apiClient.get('/api/templates/furniture', false);
+		const response = await apiClient.get('/api/data/furniture', false);
 		if (response.error) {
 			throw new Error(response.error);
 		}

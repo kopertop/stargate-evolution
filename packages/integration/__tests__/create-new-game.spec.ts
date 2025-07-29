@@ -13,12 +13,12 @@ describe('createNewGame integration', () => {
 	it('fetches templates from backend APIs', async () => {
 		// Test that all template endpoints are working
 		const [roomsRes, peopleRes, racesRes, galaxiesRes, systemsRes, invRes] = await Promise.all([
-			SELF.fetch('https://example.com/api/templates/rooms'),
-			SELF.fetch('https://example.com/api/templates/people'),
-			SELF.fetch('https://example.com/api/templates/races'),
-			SELF.fetch('https://example.com/api/templates/galaxies'),
-			SELF.fetch('https://example.com/api/templates/star-systems'),
-			SELF.fetch('https://example.com/api/templates/starting-inventory'),
+			SELF.fetch('https://example.com/api/data/rooms'),
+			SELF.fetch('https://example.com/api/data/people'),
+			SELF.fetch('https://example.com/api/data/races'),
+			SELF.fetch('https://example.com/api/data/galaxies'),
+			SELF.fetch('https://example.com/api/data/star-systems'),
+			SELF.fetch('https://example.com/api/data/starting-inventory'),
 		]);
 
 		// Verify all responses are successful
@@ -67,9 +67,9 @@ describe('createNewGame integration', () => {
 		it('should have valid bidirectional connections between rooms', async () => {
 			// Make sure all rooms have valid connections, and all connections
 			// are also connected in reverse (i.e. connection_north on Room A is connection_south on Room B)
-			const roomsRes = await SELF.fetch('https://example.com/api/templates/rooms');
+			const roomsRes = await SELF.fetch('https://example.com/api/data/rooms');
 			const rooms = await roomsRes.json();
-			
+
 			expect(Array.isArray(rooms)).toBe(true);
 			expect(rooms.length).toBeGreaterThan(0);
 
@@ -79,11 +79,11 @@ describe('createNewGame integration', () => {
 					if (room[connection] === null || room[connection] === 'null' || !room[connection]) continue;
 
 					const otherRoom = rooms.find((r: any) => r.id === room[connection]);
-					
+
 					// Verify the connected room exists
 					expect(otherRoom).toBeDefined();
 					expect(otherRoom?.id).toBeDefined();
-					
+
 					// Verify the reverse connection exists and points back to this room
 					expect(otherRoom?.[reverseConnection]).toBe(room.id);
 				}
@@ -93,7 +93,7 @@ describe('createNewGame integration', () => {
 
 	describe('template event mapping', () => {
 		it('roomTemplateToEvent copies fields', async () => {
-			const res = await SELF.fetch('https://example.com/api/templates/rooms');
+			const res = await SELF.fetch('https://example.com/api/data/rooms');
 			const room = (await res.json())[0];
 			const event = roomTemplateToEvent(room);
 			for (const key of Object.keys(event)) {
@@ -103,7 +103,7 @@ describe('createNewGame integration', () => {
 		});
 
 		it('person template maps directly', async () => {
-			const res = await SELF.fetch('https://example.com/api/templates/people');
+			const res = await SELF.fetch('https://example.com/api/data/people');
 			const person = (await res.json())[0];
 			const event = { ...nullToUndefined(person), id: 'new', game_id: 'game' };
 			for (const key of Object.keys(person)) {
@@ -113,7 +113,7 @@ describe('createNewGame integration', () => {
 		});
 
 		it('race template maps directly', async () => {
-			const res = await SELF.fetch('https://example.com/api/templates/races');
+			const res = await SELF.fetch('https://example.com/api/data/races');
 			const race = (await res.json())[0];
 			const event = { ...nullToUndefined(race), id: 'new', game_id: 'game' };
 			for (const key of Object.keys(race)) {
@@ -123,7 +123,7 @@ describe('createNewGame integration', () => {
 		});
 
 		it('galaxy template maps directly', async () => {
-			const res = await SELF.fetch('https://example.com/api/templates/galaxies');
+			const res = await SELF.fetch('https://example.com/api/data/galaxies');
 			const galaxy = (await res.json())[0];
 			const event = { ...nullToUndefined(galaxy), id: 'new', game_id: 'game' };
 			for (const key of Object.keys(galaxy)) {
@@ -133,7 +133,7 @@ describe('createNewGame integration', () => {
 		});
 
 		it('star system template maps directly', async () => {
-			const res = await SELF.fetch('https://example.com/api/templates/star-systems');
+			const res = await SELF.fetch('https://example.com/api/data/star-systems');
 			const system = (await res.json())[0];
 			const event = { ...nullToUndefined(system), id: 'new', game_id: 'game', created_at: new Date(), updated_at: new Date() };
 			for (const key of Object.keys(system)) {
@@ -143,7 +143,7 @@ describe('createNewGame integration', () => {
 		});
 
 		it('inventory template maps directly', async () => {
-			const res = await SELF.fetch('https://example.com/api/templates/starting-inventory');
+			const res = await SELF.fetch('https://example.com/api/data/starting-inventory');
 			const item = (await res.json())[0];
 			const event = { ...nullToUndefined(item), id: 'new', game_id: 'game' };
 			for (const key of Object.keys(item)) {

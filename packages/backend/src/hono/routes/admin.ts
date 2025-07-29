@@ -57,7 +57,7 @@ admin.patch('/users/:id', async (c) => {
 // --- Door Templates ---
 admin.get('/doors', async (c) => {
 	try {
-		const { getAllDoorTemplates } = await import('../../templates/door-templates');
+		const { getAllDoorTemplates } = await import('../../data/doors');
 		const doors = await getAllDoorTemplates(c.env.DB);
 		return c.json(doors);
 	} catch (err: any) {
@@ -67,7 +67,7 @@ admin.get('/doors', async (c) => {
 
 admin.get('/doors/:id', async (c) => {
 	try {
-		const { getDoorTemplateById } = await import('../../templates/door-templates');
+		const { getDoorTemplateById } = await import('../../data/doors');
 		const doorId = c.req.param('id');
 		if (!doorId) throw new Error('Door ID required');
 
@@ -87,7 +87,7 @@ admin.post('/doors', async (c) => {
 	// TODO: Add validation using a library like Zod
 	try {
 		await c.env.DB.prepare(
-			'INSERT INTO door_templates (id, name, from_room_id, to_room_id, x, y, width, height, rotation, state, is_automatic, open_direction, style, power_required, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+			'INSERT INTO doors (id, name, from_room_id, to_room_id, x, y, width, height, rotation, state, is_automatic, open_direction, style, power_required, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
 		)
 			.bind(
 				body.id,
@@ -121,7 +121,7 @@ admin.put('/doors/:id', async (c) => {
 	// TODO: Add validation
 	try {
 		await c.env.DB.prepare(
-			'UPDATE door_templates SET name = ?, from_room_id = ?, to_room_id = ?, x = ?, y = ?, width = ?, height = ?, rotation = ?, state = ?, is_automatic = ?, open_direction = ?, style = ?, power_required = ?, updated_at = ? WHERE id = ?',
+			'UPDATE doors SET name = ?, from_room_id = ?, to_room_id = ?, x = ?, y = ?, width = ?, height = ?, rotation = ?, state = ?, is_automatic = ?, open_direction = ?, style = ?, power_required = ?, updated_at = ? WHERE id = ?',
 		)
 			.bind(
 				body.name,
@@ -151,7 +151,7 @@ admin.put('/doors/:id', async (c) => {
 admin.delete('/doors/:id', async (c) => {
 	const { id } = c.req.param();
 	try {
-		await c.env.DB.prepare('DELETE FROM door_templates WHERE id = ?').bind(id).run();
+		await c.env.DB.prepare('DELETE FROM doors WHERE id = ?').bind(id).run();
 		return c.json({ message: 'Door template deleted successfully' });
 	} catch (error) {
 		console.error(`Failed to delete door template ${id}:`, error);
@@ -160,105 +160,375 @@ admin.delete('/doors/:id', async (c) => {
 });
 
 // --- Room Templates ---
-admin.post('/rooms', async (c) => {
-	const body = await c.req.json();
-	console.log('Create Room', body);
+admin.get('/room-templates', async (c) => {
 	try {
-		RoomTemplateSchema.parse(body);
-	} catch (error) {
-		console.error('Zod validation error:', error);
-		return c.json({
-			error: 'Invalid Room Template',
-			details: error instanceof Error ? error.message : String(error),
-			issues: error instanceof ZodError ? error.issues : [],
-		}, 400);
-	}
-	// TODO: Add validation
-	try {
-		await c.env.DB.prepare(
-			'INSERT INTO room_templates (id, layout_id, type, name, description, startX, endX, startY, endY, floor, image, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-		)
-			.bind(
-				body.id,
-				body.layout_id,
-				body.type,
-				body.name,
-				body.description,
-				body.startX,
-				body.endX,
-				body.startY,
-				body.endY,
-				body.floor,
-				body.image,
-				Date.now(),
-				Date.now(),
-			)
-			.run();
-		return c.json({ message: 'Room template created successfully' }, 201);
-	} catch (error) {
-		console.error('Failed to create room template:', error);
-		return c.json({
-			error: 'Failed to create room template',
-			details: error instanceof Error ? error.message : String(error),
-		}, 500);
+		const { getAllRoomTemplates } = await import('../../data/room-templates');
+		const templates = await getAllRoomTemplates(c.env.DB);
+		return c.json(templates);
+	} catch (err: any) {
+		return c.json({ error: err.message || 'Failed to fetch room templates' }, 500);
 	}
 });
 
-admin.put('/rooms/:id', async (c) => {
-	const { id } = c.req.param();
-	const body = await c.req.json();
-	// TODO: Add validation
+admin.get('/room-templates/:id', async (c) => {
 	try {
-		await c.env.DB.prepare(
-			'UPDATE room_templates SET layout_id = ?, type = ?, name = ?, description = ?, startX = ?, endX = ?, startY = ?, endY = ?, floor = ?, image = ?, updated_at = ? WHERE id = ?',
-		)
-			.bind(
-				body.layout_id,
-				body.type,
-				body.name,
-				body.description,
-				body.startX,
-				body.endX,
-				body.startY,
-				body.endY,
-				body.floor,
-				body.image,
-				Date.now(),
-				id,
-			)
-			.run();
-		return c.json({ message: 'Room template updated successfully' });
-	} catch (error) {
-		console.error(`Failed to update room template ${id}:`, error);
-		return c.json({ error: 'Failed to update room template' }, 500);
+		const { getRoomTemplateById } = await import('../../data/room-templates');
+		const templateId = c.req.param('id');
+		if (!templateId) throw new Error('Template ID required');
+
+		const template = await getRoomTemplateById(c.env.DB, templateId);
+		if (!template) {
+			return c.json({ error: 'Room template not found' }, 404);
+		}
+
+		return c.json(template);
+	} catch (err: any) {
+		return c.json({ error: err.message || 'Failed to fetch room template' }, 500);
 	}
 });
 
-admin.delete('/rooms/:id', async (c) => {
+admin.get('/room-templates/type/:type', async (c) => {
 	try {
-		const roomId = c.req.param('id');
-		if (!roomId) throw new Error('Room ID required');
+		const { getRoomTemplatesByType } = await import('../../data/room-templates');
+		const type = c.req.param('type');
+		if (!type) throw new Error('Type required');
 
-		// Delete all room technology for this room
-		await c.env.DB.prepare('DELETE FROM room_technology WHERE room_id = ?').bind(roomId).run();
+		const templates = await getRoomTemplatesByType(c.env.DB, type);
+		return c.json(templates);
+	} catch (err: any) {
+		return c.json({ error: err.message || 'Failed to fetch room templates by type' }, 500);
+	}
+});
 
-		// Delete the room itself
-		const result = await c.env.DB.prepare('DELETE FROM room_templates WHERE id = ?').bind(roomId).run();
+admin.get('/room-templates/layout/:layoutId', async (c) => {
+	try {
+		const { getRoomsByLayoutId } = await import('../../data/room-templates');
+		const layoutId = c.req.param('layoutId');
+		if (!layoutId) throw new Error('Layout ID required');
 
-		if (result.meta.changes === 0) {
-			return c.json({ error: 'Room not found' }, 404);
+		const templates = await getRoomsByLayoutId(c.env.DB, layoutId);
+		return c.json(templates);
+	} catch (err: any) {
+		return c.json({ error: err.message || 'Failed to fetch room templates by layout' }, 500);
+	}
+});
+
+admin.post('/room-templates', async (c) => {
+	try {
+		const { createRoomTemplate } = await import('../../data/room-templates');
+		const templateData = await c.req.json();
+
+		// Validate the template data
+		try {
+			RoomTemplateSchema.omit({ id: true, created_at: true, updated_at: true }).parse(templateData);
+		} catch (error) {
+			console.error('Zod validation error:', error);
+			return c.json({
+				error: 'Invalid Room Template',
+				details: error instanceof Error ? error.message : String(error),
+				issues: error instanceof ZodError ? error.issues : [],
+			}, 400);
+		}
+
+		const template = await createRoomTemplate(c.env.DB, templateData);
+		return c.json(template, 201);
+	} catch (err: any) {
+		return c.json({ error: err.message || 'Failed to create room template' }, 500);
+	}
+});
+
+admin.put('/room-templates/:id', async (c) => {
+	try {
+		const { updateRoomTemplate } = await import('../../data/room-templates');
+		const templateId = c.req.param('id');
+		if (!templateId) throw new Error('Template ID required');
+
+		const updateData = await c.req.json();
+
+		const template = await updateRoomTemplate(c.env.DB, templateId, updateData);
+		if (!template) {
+			return c.json({ error: 'Room template not found' }, 404);
+		}
+
+		return c.json(template);
+	} catch (err: any) {
+		return c.json({ error: err.message || 'Failed to update room template' }, 500);
+	}
+});
+
+admin.delete('/room-templates/:id', async (c) => {
+	try {
+		const { deleteRoomTemplate } = await import('../../data/room-templates');
+		const templateId = c.req.param('id');
+		if (!templateId) throw new Error('Template ID required');
+
+		const deleted = await deleteRoomTemplate(c.env.DB, templateId);
+		if (!deleted) {
+			return c.json({ error: 'Room template not found' }, 404);
 		}
 
 		return c.json({ success: true });
 	} catch (err: any) {
-		return c.json({ error: err.message || 'Failed to delete room' }, 500);
+		return c.json({ error: err.message || 'Failed to delete room template' }, 500);
+	}
+});
+
+// --- Room Template Furniture ---
+admin.get('/room-templates/:id/furniture', async (c) => {
+	try {
+		const templateId = c.req.param('id');
+		if (!templateId) throw new Error('Room template ID required');
+
+		const furniture = await c.env.DB.prepare(`
+			SELECT rtf.*, ft.name as furniture_name, ft.furniture_type, ft.category,
+				   ft.default_width, ft.default_height, ft.default_image
+			FROM room_template_furniture rtf
+			JOIN furniture_templates ft ON rtf.furniture_template_id = ft.id
+			WHERE rtf.room_template_id = ?
+			ORDER BY rtf.placement_order, rtf.name
+		`).bind(templateId).all();
+
+		return c.json(furniture.results);
+	} catch (err: any) {
+		return c.json({ error: err.message || 'Failed to fetch room template furniture' }, 500);
+	}
+});
+
+admin.post('/room-templates/:id/furniture', async (c) => {
+	try {
+		const templateId = c.req.param('id');
+		if (!templateId) throw new Error('Room template ID required');
+
+		const body = await c.req.json();
+		const furnitureId = `${templateId}_${body.furniture_template_id}_${Date.now()}`;
+
+		await c.env.DB.prepare(`
+			INSERT INTO room_template_furniture (
+				id, room_template_id, furniture_template_id, name, description,
+				x, y, z, width, height, rotation,
+				image, color, style, interactive, blocks_movement, power_required,
+				required, optional_variants, placement_order, created_at, updated_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`).bind(
+			furnitureId,
+			templateId,
+			body.furniture_template_id,
+			body.name || 'Unnamed Furniture',
+			body.description || null,
+			body.x || 0.5,
+			body.y || 0.5,
+			body.z || 0,
+			body.width || 32,
+			body.height || 32,
+			body.rotation || 0,
+			body.image || null,
+			body.color || null,
+			body.style || null,
+			body.interactive || null,
+			body.blocks_movement || null,
+			body.power_required || null,
+			body.required !== undefined ? body.required : 1,
+			body.optional_variants ? JSON.stringify(body.optional_variants) : null,
+			body.placement_order || 0,
+			Date.now(),
+			Date.now()
+		).run();
+
+		return c.json({ success: true, id: furnitureId });
+	} catch (err: any) {
+		return c.json({ error: err.message || 'Failed to add furniture to room template' }, 500);
+	}
+});
+
+admin.put('/room-templates/:id/furniture/:furnitureId', async (c) => {
+	try {
+		const templateId = c.req.param('id');
+		const furnitureId = c.req.param('furnitureId');
+		if (!templateId || !furnitureId) throw new Error('IDs required');
+
+		const body = await c.req.json();
+
+		const result = await c.env.DB.prepare(`
+			UPDATE room_template_furniture SET
+				name = ?, description = ?, x = ?, y = ?, z = ?,
+				width = ?, height = ?, rotation = ?, image = ?, color = ?, style = ?,
+				interactive = ?, blocks_movement = ?, power_required = ?,
+				required = ?, optional_variants = ?, placement_order = ?, updated_at = ?
+			WHERE id = ? AND room_template_id = ?
+		`).bind(
+			body.name || 'Unnamed Furniture',
+			body.description || null,
+			body.x || 0.5,
+			body.y || 0.5,
+			body.z || 0,
+			body.width || 32,
+			body.height || 32,
+			body.rotation || 0,
+			body.image || null,
+			body.color || null,
+			body.style || null,
+			body.interactive || null,
+			body.blocks_movement || null,
+			body.power_required || null,
+			body.required !== undefined ? body.required : 1,
+			body.optional_variants ? JSON.stringify(body.optional_variants) : null,
+			body.placement_order || 0,
+			Date.now(),
+			furnitureId,
+			templateId
+		).run();
+
+		if (result.meta.changes === 0) {
+			return c.json({ error: 'Furniture not found' }, 404);
+		}
+
+		return c.json({ success: true });
+	} catch (err: any) {
+		return c.json({ error: err.message || 'Failed to update room template furniture' }, 500);
+	}
+});
+
+admin.delete('/room-templates/:id/furniture/:furnitureId', async (c) => {
+	try {
+		const templateId = c.req.param('id');
+		const furnitureId = c.req.param('furnitureId');
+		if (!templateId || !furnitureId) throw new Error('IDs required');
+
+		const result = await c.env.DB.prepare(`
+			DELETE FROM room_template_furniture 
+			WHERE id = ? AND room_template_id = ?
+		`).bind(furnitureId, templateId).run();
+
+		if (result.meta.changes === 0) {
+			return c.json({ error: 'Furniture not found' }, 404);
+		}
+
+		return c.json({ success: true });
+	} catch (err: any) {
+		return c.json({ error: err.message || 'Failed to delete room template furniture' }, 500);
+	}
+});
+
+// --- Room Template Technology ---
+admin.get('/room-templates/:id/technology', async (c) => {
+	try {
+		const templateId = c.req.param('id');
+		if (!templateId) throw new Error('Room template ID required');
+
+		const technology = await c.env.DB.prepare(`
+			SELECT rtt.*, tt.name as technology_name, tt.description as technology_description, 
+				   tt.category, tt.image
+			FROM room_template_technology rtt
+			JOIN technology_templates tt ON rtt.technology_template_id = tt.id
+			WHERE rtt.room_template_id = ?
+			ORDER BY tt.name
+		`).bind(templateId).all();
+
+		return c.json(technology.results);
+	} catch (err: any) {
+		return c.json({ error: err.message || 'Failed to fetch room template technology' }, 500);
+	}
+});
+
+admin.post('/room-templates/:id/technology', async (c) => {
+	try {
+		const templateId = c.req.param('id');
+		if (!templateId) throw new Error('Room template ID required');
+
+		const body = await c.req.json();
+		const techId = `${templateId}_${body.technology_template_id}`;
+
+		await c.env.DB.prepare(`
+			INSERT INTO room_template_technology (
+				id, room_template_id, technology_template_id, count, description,
+				discovery_chance, discovery_requirements, discovery_message,
+				x, y, hidden_until_discovered, created_at, updated_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`).bind(
+			techId,
+			templateId,
+			body.technology_template_id,
+			body.count || 1,
+			body.description || null,
+			body.discovery_chance !== undefined ? body.discovery_chance : 1.0,
+			body.discovery_requirements ? JSON.stringify(body.discovery_requirements) : null,
+			body.discovery_message || null,
+			body.x || null,
+			body.y || null,
+			body.hidden_until_discovered || 0,
+			Date.now(),
+			Date.now()
+		).run();
+
+		return c.json({ success: true, id: techId });
+	} catch (err: any) {
+		return c.json({ error: err.message || 'Failed to add technology to room template' }, 500);
+	}
+});
+
+admin.put('/room-templates/:id/technology/:techId', async (c) => {
+	try {
+		const templateId = c.req.param('id');
+		const techId = c.req.param('techId');
+		if (!templateId || !techId) throw new Error('IDs required');
+
+		const body = await c.req.json();
+
+		const result = await c.env.DB.prepare(`
+			UPDATE room_template_technology SET
+				count = ?, description = ?, discovery_chance = ?,
+				discovery_requirements = ?, discovery_message = ?,
+				x = ?, y = ?, hidden_until_discovered = ?, updated_at = ?
+			WHERE id = ? AND room_template_id = ?
+		`).bind(
+			body.count || 1,
+			body.description || null,
+			body.discovery_chance !== undefined ? body.discovery_chance : 1.0,
+			body.discovery_requirements ? JSON.stringify(body.discovery_requirements) : null,
+			body.discovery_message || null,
+			body.x || null,
+			body.y || null,
+			body.hidden_until_discovered || 0,
+			Date.now(),
+			techId,
+			templateId
+		).run();
+
+		if (result.meta.changes === 0) {
+			return c.json({ error: 'Technology assignment not found' }, 404);
+		}
+
+		return c.json({ success: true });
+	} catch (err: any) {
+		return c.json({ error: err.message || 'Failed to update room template technology' }, 500);
+	}
+});
+
+admin.delete('/room-templates/:id/technology/:techId', async (c) => {
+	try {
+		const templateId = c.req.param('id');
+		const techId = c.req.param('techId');
+		if (!templateId || !techId) throw new Error('IDs required');
+
+		const result = await c.env.DB.prepare(`
+			DELETE FROM room_template_technology 
+			WHERE id = ? AND room_template_id = ?
+		`).bind(techId, templateId).run();
+
+		if (result.meta.changes === 0) {
+			return c.json({ error: 'Technology assignment not found' }, 404);
+		}
+
+		return c.json({ success: true });
+	} catch (err: any) {
+		return c.json({ error: err.message || 'Failed to delete room template technology' }, 500);
 	}
 });
 
 // --- Character Templates ---
 admin.get('/characters', async (c) => {
 	try {
-		const { getAllCharacterTemplates } = await import('../../templates/character-templates');
+		const { getAllCharacterTemplates } = await import('../../data/character-templates');
 		const characters = await getAllCharacterTemplates(c.env.DB);
 		return c.json(characters);
 	} catch (err: any) {
@@ -268,7 +538,7 @@ admin.get('/characters', async (c) => {
 
 admin.get('/characters/:id', async (c) => {
 	try {
-		const { getCharacterTemplateById } = await import('../../templates/character-templates');
+		const { getCharacterTemplateById } = await import('../../data/character-templates');
 		const characterId = c.req.param('id');
 		if (!characterId) throw new Error('Character ID required');
 
@@ -474,7 +744,7 @@ admin.delete('/technologies/:id', async (c) => {
 // --- Room Technology ---
 admin.post('/room-technology', async (c) => {
 	try {
-		const { setRoomTechnology } = await import('../../templates/technology-templates');
+		const { setRoomTechnology } = await import('../../data/technology-templates');
 		const { room_id, technologies } = await c.req.json() as { room_id: string; technologies: any[] };
 
 		if (!room_id) throw new Error('Room ID required');
@@ -490,7 +760,7 @@ admin.post('/room-technology', async (c) => {
 
 admin.delete('/room-technology/:id', async (c) => {
 	try {
-		const { deleteRoomTechnology } = await import('../../templates/technology-templates');
+		const { deleteRoomTechnology } = await import('../../data/technology-templates');
 		const techId = c.req.param('id');
 		if (!techId) throw new Error('Technology ID required');
 
@@ -509,7 +779,7 @@ admin.delete('/room-technology/:id', async (c) => {
 // --- Room Furniture ---
 admin.get('/furniture', async (c) => {
 	try {
-		const { getAllRoomFurniture } = await import('../../templates/room-furniture-templates');
+		const { getAllRoomFurniture } = await import('../../data/room-furniture-templates');
 		const furniture = await getAllRoomFurniture(c.env);
 		return c.json(furniture);
 	} catch (err: any) {
@@ -519,7 +789,7 @@ admin.get('/furniture', async (c) => {
 
 admin.get('/furniture/:id', async (c) => {
 	try {
-		const { getRoomFurnitureById } = await import('../../templates/room-furniture-templates');
+		const { getRoomFurnitureById } = await import('../../data/room-furniture-templates');
 		const furnitureId = c.req.param('id');
 		if (!furnitureId) throw new Error('Furniture ID required');
 
@@ -536,7 +806,7 @@ admin.get('/furniture/:id', async (c) => {
 
 admin.get('/rooms/:id/furniture', async (c) => {
 	try {
-		const { getRoomFurniture } = await import('../../templates/room-furniture-templates');
+		const { getRoomFurniture } = await import('../../data/room-furniture-templates');
 		const roomId = c.req.param('id');
 		if (!roomId) throw new Error('Room ID required');
 
@@ -549,7 +819,7 @@ admin.get('/rooms/:id/furniture', async (c) => {
 
 admin.post('/furniture', async (c) => {
 	try {
-		const { createRoomFurniture } = await import('../../templates/room-furniture-templates');
+		const { createRoomFurniture } = await import('../../data/room-furniture-templates');
 		const furnitureData = await c.req.json();
 
 		const furniture = await createRoomFurniture(c.env, furnitureData);
@@ -561,7 +831,7 @@ admin.post('/furniture', async (c) => {
 
 admin.put('/furniture/:id', async (c) => {
 	try {
-		const { updateRoomFurniture } = await import('../../templates/room-furniture-templates');
+		const { updateRoomFurniture } = await import('../../data/room-furniture-templates');
 		const furnitureId = c.req.param('id');
 		if (!furnitureId) throw new Error('Furniture ID required');
 		console.log('updateRoomFurniture', furnitureId);
@@ -583,7 +853,7 @@ admin.put('/furniture/:id', async (c) => {
 
 admin.delete('/furniture/:id', async (c) => {
 	try {
-		const { deleteRoomFurniture } = await import('../../templates/room-furniture-templates');
+		const { deleteRoomFurniture } = await import('../../data/room-furniture-templates');
 		const furnitureId = c.req.param('id');
 		if (!furnitureId) throw new Error('Furniture ID required');
 
@@ -895,7 +1165,7 @@ admin.get('/templates/export', async (c) => {
 			'star_system_templates',
 			'planet_templates',
 			'room_templates',
-			'door_templates',
+			'doors',
 			'room_furniture',
 			'room_technology',
 			'person_templates',
@@ -961,7 +1231,7 @@ admin.post('/templates/import', async (c) => {
 			'star_system_templates',
 			'planet_templates',
 			'room_templates',
-			'door_templates',
+			'doors',
 			'room_furniture',
 			'room_technology',
 			'person_templates',

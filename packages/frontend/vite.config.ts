@@ -1,38 +1,25 @@
 /* eslint-disable unicorn/no-process-exit */
 // import { spawn } from 'node:child_process';
 import react from '@vitejs/plugin-react';
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 import path from 'path';
 
-export default defineConfig({
-	server: {
-		port: process.env.PORT ? Number(process.env.PORT) : 5173,
-	},
-	worker: { format: 'es' },
+export default defineConfig(({ mode }) => {
+	// Load env file based on `mode` in the current working directory.
+	// Set the third parameter to '' to load all env regardless of the `VITE_` prefix.
+	const env = loadEnv(mode, process.cwd(), '');
+
+	return {
+		server: {
+			port: process.env.PORT ? Number(process.env.PORT) : 5173,
+		},
+		worker: { format: 'es' },
+		define: {
+			'import.meta.env.VITE_PUBLIC_API_URL': JSON.stringify(env.VITE_PUBLIC_API_URL || 'http://localhost:8787'),
+		},
 	plugins: [
 		react(),
-		// Running `wrangler dev` as part of `vite dev` needed for `@livestore/sync-cf`
-		// Temporarily disabled to test LiveStore without sync
-		/*
-		{
-			name: 'wrangler-dev',
-			configureServer: async (server) => {
-				const wrangler = spawn('./node_modules/.bin/wrangler', ['dev', '--config', 'wrangler-sync.toml', '--port', '8788'], {
-					stdio: ['ignore', 'inherit', 'inherit'],
-				});
-				const shutdown = () => {
-					if (wrangler.killed === false) {
-						wrangler.kill();
-					}
-					process.exit(0);
-				};
-				server.httpServer?.on('close', shutdown);
-				process.on('SIGTERM', shutdown);
-				process.on('SIGINT', shutdown);
-				wrangler.on('exit', (code) => console.error(`wrangler dev exited with code ${code}`));
-			},
-		},
-		*/
+
 	],
 	root: '.',
 	publicDir: 'public',
@@ -41,11 +28,12 @@ export default defineConfig({
 			'@stargate/common': path.resolve(__dirname, '../common'),
 		},
 	},
-	esbuild: {
-		target: 'es2022',
-	},
-	build: {
-		outDir: 'dist',
-		target: 'es2022',
-	},
+		esbuild: {
+			target: 'es2022',
+		},
+		build: {
+			outDir: 'dist',
+			target: 'es2022',
+		},
+	};
 });

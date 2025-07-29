@@ -1,3 +1,4 @@
+export { RoomSchema } from './models/room';
 export { RoomTemplateSchema } from './models/room-template';
 export { PersonTemplateSchema } from './models/person-template';
 export { RaceTemplateSchema } from './models/race-template';
@@ -18,6 +19,7 @@ export { DoorInfoSchema, DoorRequirementSchema } from './models/door-info';
 export { SessionSchema } from './models/session';
 export { UserSchema } from './models/user';
 
+export type { Room } from './models/room';
 export type { RoomTemplate } from './models/room-template';
 export type { PersonTemplate } from './models/person-template';
 export type { RaceTemplate } from './models/race-template';

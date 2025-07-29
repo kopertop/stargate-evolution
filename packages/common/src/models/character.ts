@@ -8,6 +8,7 @@ export const CharacterSchema = z.object({
 	name: z.string(),
 	role: z.string(),
 	race_template_id: z.string().optional().nullable(),
+	skills: z.string(), // JSON string of character skills
 	progression: ProgressionSchema.default({ total_experience: 0, current_level: 0, skills: [] }),
 	description: z.string().optional().nullable(),
 	image: z.string().optional().nullable(),	

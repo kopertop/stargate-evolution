@@ -285,11 +285,6 @@ export class AdminSqlService {
 				description: 'Show characters with their progression',
 				query: 'SELECT id, name, profession, level, experience FROM characters ORDER BY level DESC, experience DESC LIMIT 15;',
 			},
-			{
-				name: 'Game sessions',
-				description: 'Recent game sessions',
-				query: 'SELECT id, user_id, character_id, created_at, updated_at FROM game_sessions ORDER BY updated_at DESC LIMIT 10;',
-			},
 		];
 	}
 }

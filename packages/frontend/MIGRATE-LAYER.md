@@ -16,7 +16,7 @@ The goal is to extract layer-specific logic from `game.ts` into dedicated layer 
 
 **1.2 Identify Layer-Related Code**
 - Find the layer property declaration (e.g., `private doorsLayer: PIXI.Container | null = null`)
-- Find the layer data arrays (e.g., `private doors: DoorTemplate[] = []`)
+- Find the layer data arrays (e.g., `private doors: Door[] = []`)
 - Locate all methods that operate on the layer:
   - Rendering methods (e.g., `renderDoor()`, `renderRoom()`)
   - Query methods (e.g., `findDoor()`, `findCollidingDoor()`)

@@ -1,4 +1,4 @@
-import type { DoorTemplate, RoomTemplate, NPC } from '@stargate/common';
+import type { Door, RoomTemplate, NPC } from '@stargate/common';
 import * as PIXI from 'pixi.js';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
@@ -36,7 +36,7 @@ vi.mock('../../utils/npc-test-utils', () => ({
 describe('NPCLayer', () => {
 	let npcLayer: NPCLayer;
 	let mockRooms: RoomTemplate[];
-	let mockDoors: DoorTemplate[];
+	let mockDoors: Door[];
 	let mockNPC: NPC;
 
 	beforeEach(() => {
@@ -77,7 +77,7 @@ describe('NPCLayer', () => {
 				created_at: Date.now(),
 				updated_at: Date.now(),
 			},
-		] as DoorTemplate[];
+		] as Door[];
 
 		// Mock NPC data - use as any to avoid type issues in tests
 		mockNPC = {
@@ -114,7 +114,7 @@ describe('NPCLayer', () => {
 			npcLayer.removeNPC('npc1');
 			npcLayer.getNPCs();
 			npcLayer.getNPC('npc1');
-      
+
 			// Verify calls were made to NPCManager (implicitly through mock)
 			expect(true).toBe(true); // NPCManager methods were called
 		});
@@ -123,9 +123,9 @@ describe('NPCLayer', () => {
 			const mockCallback = vi.fn();
 			npcLayer.setRooms(mockRooms);
 			npcLayer.setDoors(mockDoors);
-      
+
 			npcLayer.update(mockCallback);
-      
+
 			// Verify update was called (implicitly through mock)
 			expect(true).toBe(true);
 		});
@@ -134,7 +134,7 @@ describe('NPCLayer', () => {
 	describe('Test utilities', () => {
 		it('should initialize test NPCs when rooms are available', () => {
 			npcLayer.setRooms(mockRooms);
-      
+
 			// Should not throw error
 			expect(() => npcLayer.initializeTestNPCs()).not.toThrow();
 		});
@@ -157,12 +157,12 @@ describe('NPCLayer', () => {
 		it('should handle callbacks through options', () => {
 			const onStateChange = vi.fn();
 			const onInteraction = vi.fn();
-      
+
 			const layerWithCallbacks = new NPCLayer({
 				onNPCStateChange: onStateChange,
 				onNPCInteraction: onInteraction,
 			});
-      
+
 			expect(layerWithCallbacks).toBeDefined();
 		});
 	});

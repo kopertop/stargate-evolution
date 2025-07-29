@@ -1,4 +1,4 @@
-import type { NPC, DoorTemplate, RoomTemplate } from '@stargate/common';
+import type { NPC, Door, RoomTemplate } from '@stargate/common';
 import * as PIXI from 'pixi.js';
 
 export interface NPCUpdateResult {
@@ -63,7 +63,7 @@ export class NPCManager {
 		this.npcs.delete(npcId);
 	}
 
-	public updateNPCs(doors: DoorTemplate[], rooms: RoomTemplate[], activateDoorCallback: (doorId: string, isNPC: boolean) => boolean): NPCUpdateResult[] {
+	public updateNPCs(doors: Door[], rooms: RoomTemplate[], activateDoorCallback: (doorId: string, isNPC: boolean) => boolean): NPCUpdateResult[] {
 		const results: NPCUpdateResult[] = [];
 
 		for (const npc of this.npcs.values()) {
@@ -78,7 +78,7 @@ export class NPCManager {
 		return results;
 	}
 
-	private updateNPC(npc: NPC, doors: DoorTemplate[], rooms: RoomTemplate[], activateDoorCallback: (doorId: string, isNPC: boolean) => boolean): NPCUpdateResult {
+	private updateNPC(npc: NPC, doors: Door[], rooms: RoomTemplate[], activateDoorCallback: (doorId: string, isNPC: boolean) => boolean): NPCUpdateResult {
 		const result: NPCUpdateResult = { moved: false };
 
 		// Update NPC position based on behavior
@@ -102,7 +102,7 @@ export class NPCManager {
 		return result;
 	}
 
-	private updateNPCBehavior(npc: NPC, doors: DoorTemplate[], rooms: RoomTemplate[]): void {
+	private updateNPCBehavior(npc: NPC, doors: Door[], rooms: RoomTemplate[]): void {
 		const currentRoom = rooms.find(r => r.id === npc.current_room_id);
 		if (!currentRoom) return;
 
@@ -127,7 +127,7 @@ export class NPCManager {
 		}
 	}
 
-	private updatePatrolBehavior(npc: NPC, doors: DoorTemplate[], rooms: RoomTemplate[]): void {
+	private updatePatrolBehavior(npc: NPC, doors: Door[], rooms: RoomTemplate[]): void {
 		if (!npc.behavior.patrol_points || npc.behavior.patrol_points.length === 0) {
 			return;
 		}
@@ -253,7 +253,7 @@ export class NPCManager {
 
 	private checkDoorInteractions(
 		npc: NPC,
-		doors: DoorTemplate[],
+		doors: Door[],
 		activateDoorCallback: (doorId: string, isNPC: boolean) => boolean,
 	): {
 		doorId: string;
@@ -287,7 +287,7 @@ export class NPCManager {
 		return null;
 	}
 
-	private npcNeedsDoorOpen(npc: NPC, door: DoorTemplate): boolean {
+	private npcNeedsDoorOpen(npc: NPC, door: Door): boolean {
 		// Check if NPC's target is on the other side of this door
 		if (npc.movement.target_x === null || npc.movement.target_y === null) {
 			return false;
@@ -311,7 +311,7 @@ export class NPCManager {
 		return (npcToDoor + doorToTarget) < (npcToTarget + 20);
 	}
 
-	private moveNPCTowardsTarget(npc: NPC, doors: DoorTemplate[], rooms: RoomTemplate[]): boolean {
+	private moveNPCTowardsTarget(npc: NPC, doors: Door[], rooms: RoomTemplate[]): boolean {
 		if (npc.movement.target_x === null || npc.movement.target_y === null ||
 			npc.movement.target_x === undefined || npc.movement.target_y === undefined) {
 			return false;
@@ -350,7 +350,7 @@ export class NPCManager {
 		return false;
 	}
 
-	private isValidNPCPosition(x: number, y: number, npc: NPC, doors: DoorTemplate[], rooms: RoomTemplate[]): boolean {
+	private isValidNPCPosition(x: number, y: number, npc: NPC, doors: Door[], rooms: RoomTemplate[]): boolean {
 		// Check room boundaries
 		const currentRoom = rooms.find(r => r.id === npc.current_room_id);
 		if (!currentRoom) return false;
@@ -504,15 +504,15 @@ export class NPCManager {
 		console.log(`[NPC-MANAGER] Showing NPCs for floor ${floor}`);
 		let visibleCount = 0;
 		let hiddenCount = 0;
-		
+
 		for (const [npcId, sprite] of this.npcSprites) {
 			const npc = this.npcs.get(npcId);
 			if (npc) {
 				const npcFloor = npc.floor !== undefined ? npc.floor : 0;
 				const shouldShow = npcFloor === floor;
-				
+
 				console.log(`[NPC-MANAGER] NPC ${npc.name} (${npcId}): floor=${npcFloor}, targetFloor=${floor}, visible=${shouldShow}`);
-				
+
 				sprite.visible = shouldShow;
 				if (shouldShow) {
 					visibleCount++;
@@ -524,7 +524,7 @@ export class NPCManager {
 				hiddenCount++;
 			}
 		}
-		
+
 		console.log(`[NPC-MANAGER] Floor ${floor} visibility: ${visibleCount} visible, ${hiddenCount} hidden`);
 	}
 

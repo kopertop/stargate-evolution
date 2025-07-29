@@ -1,28 +1,28 @@
 import type { D1Database } from '@cloudflare/workers-types';
-import { DoorTemplateSchema, type DoorTemplate } from '@stargate/common/models/door-info';
+import { DoorTemplateSchema, type Door } from '@stargate/common/models/door-info';
 
-export async function getAllDoorTemplates(db: D1Database): Promise<DoorTemplate[]> {
-	const result = await db.prepare('SELECT * FROM door_templates ORDER BY from_room_id, to_room_id').all();
+export async function getAllDoorTemplates(db: D1Database): Promise<Door[]> {
+	const result = await db.prepare('SELECT * FROM doors ORDER BY from_room_id, to_room_id').all();
 	return DoorTemplateSchema.array().parse(result.results);
 }
 
-export async function getDoorTemplateById(db: D1Database, doorId: string): Promise<DoorTemplate | null> {
-	const result = await db.prepare('SELECT * FROM door_templates WHERE id = ?').bind(doorId).first();
+export async function getDoorTemplateById(db: D1Database, doorId: string): Promise<Door | null> {
+	const result = await db.prepare('SELECT * FROM doors WHERE id = ?').bind(doorId).first();
 	if (!result) return null;
 	return DoorTemplateSchema.parse(result);
 }
 
-export async function getDoorsForRoom(db: D1Database, roomId: string): Promise<DoorTemplate[]> {
+export async function getDoorsForRoom(db: D1Database, roomId: string): Promise<Door[]> {
 	const result = await db.prepare(
-		'SELECT * FROM door_templates WHERE from_room_id = ? OR to_room_id = ? ORDER BY x, y',
+		'SELECT * FROM doors WHERE from_room_id = ? OR to_room_id = ? ORDER BY x, y',
 	).bind(roomId, roomId).all();
 	return DoorTemplateSchema.array().parse(result.results);
 }
 
-export async function createDoorTemplate(db: D1Database, doorData: Omit<DoorTemplate, 'created_at' | 'updated_at'>): Promise<string> {
+export async function createDoorTemplate(db: D1Database, doorData: Omit<Door, 'created_at' | 'updated_at'>): Promise<string> {
 	const now = Date.now();
 	await db.prepare(`
-		INSERT INTO door_templates (
+		INSERT INTO doors (
 			id, name, from_room_id, to_room_id, x, y, width, height, rotation,
 			state, is_automatic, open_direction, style, color, requirements, power_required, sound_effect,
 			cleared, restricted, created_at, updated_at
@@ -54,10 +54,10 @@ export async function createDoorTemplate(db: D1Database, doorData: Omit<DoorTemp
 	return doorData.id;
 }
 
-export async function updateDoorTemplate(db: D1Database, doorId: string, doorData: Partial<DoorTemplate>): Promise<void> {
+export async function updateDoorTemplate(db: D1Database, doorId: string, doorData: Partial<Door>): Promise<void> {
 	const now = Date.now();
 	await db.prepare(`
-		UPDATE door_templates SET
+		UPDATE doors SET
 			name = ?, from_room_id = ?, to_room_id = ?, x = ?, y = ?, width = ?, height = ?, rotation = ?,
 			state = ?, is_automatic = ?, open_direction = ?, style = ?, color = ?, requirements = ?,
 			power_required = ?, sound_effect = ?, cleared = ?, restricted = ?, updated_at = ?
@@ -87,5 +87,5 @@ export async function updateDoorTemplate(db: D1Database, doorId: string, doorDat
 }
 
 export async function deleteDoorTemplate(db: D1Database, doorId: string): Promise<void> {
-	await db.prepare('DELETE FROM door_templates WHERE id = ?').bind(doorId).run();
+	await db.prepare('DELETE FROM doors WHERE id = ?').bind(doorId).run();
 }

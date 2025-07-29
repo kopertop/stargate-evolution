@@ -24,7 +24,7 @@ function getServer(env: Env, user: User): McpServer {
 	);
 
 	// Register basic test tools
-	
+
 	// Simple greeting tool
 	server.tool(
 		'greet',
@@ -56,9 +56,9 @@ function getServer(env: Env, user: User): McpServer {
 					ORDER BY updated_at DESC
 					LIMIT ?
 				`);
-				
+
 				const result = await stmt.bind(sessionLimit).all();
-				
+
 				if (!result.success) {
 					throw new Error(`Database query failed: ${result.error}`);
 				}
@@ -95,7 +95,7 @@ function getServer(env: Env, user: User): McpServer {
 		},
 	);
 
-	// Get game templates tool  
+	// Get game templates tool
 	server.tool(
 		'get-templates',
 		'Query game templates by type (shows technology templates)',
@@ -291,7 +291,7 @@ function getServer(env: Env, user: User): McpServer {
 
 				const stmt = env.DB.prepare(`
 					INSERT INTO furniture_templates (
-						id, name, furniture_type, description, category, 
+						id, name, furniture_type, description, category,
 						default_width, default_height, default_interactive, default_blocks_movement,
 						compatible_room_types, created_at, updated_at
 					) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -567,11 +567,11 @@ function getServer(env: Env, user: User): McpServer {
 				const separator = columns.map(col => '-'.repeat(Math.min(col.length + 2, maxWidth))).join('|');
 
 				// Create rows
-				const dataRows = rows.slice(0, limit).map(row => 
+				const dataRows = rows.slice(0, limit).map(row =>
 					columns.map(col => {
 						const value = String(row[col] || '');
-						return value.length > maxWidth - 2 
-							? value.substring(0, maxWidth - 5) + '...' 
+						return value.length > maxWidth - 2
+							? value.substring(0, maxWidth - 5) + '...'
 							: value.padEnd(Math.min(col.length + 2, maxWidth));
 					}).join('|'),
 				);
@@ -624,7 +624,7 @@ function getServer(env: Env, user: User): McpServer {
 
 				let query = `
 					SELECT id, name, type, floor, startX, endX, startY, endY, layout_id, description
-					FROM room_templates 
+					FROM room_templates
 					WHERE layout_id = ?
 				`;
 				const params: any[] = [layoutId];
@@ -708,7 +708,7 @@ function getServer(env: Env, user: User): McpServer {
 				const floor = args.floor as number;
 
 				let query = `
-					SELECT 
+					SELECT
 						d.id,
 						d.from_room_id,
 						d.to_room_id,
@@ -719,7 +719,7 @@ function getServer(env: Env, user: User): McpServer {
 						r1.floor as from_floor,
 						r2.name as to_room_name,
 						r2.floor as to_floor
-					FROM door_templates d
+					FROM doors d
 					LEFT JOIN room_templates r1 ON d.from_room_id = r1.id
 					LEFT JOIN room_templates r2 ON d.to_room_id = r2.id
 					WHERE (r1.layout_id = ? OR r2.layout_id = ?)
@@ -741,7 +741,7 @@ function getServer(env: Env, user: User): McpServer {
 				}
 
 				const doors = result.results || [];
-				
+
 				if (doors.length === 0) {
 					const filterText = floor !== undefined ? ` connecting to floor ${floor}` : '';
 					return {
@@ -846,7 +846,7 @@ function getServer(env: Env, user: User): McpServer {
 						};
 					}
 
-					const columns = result.results.map((col: any) => 
+					const columns = result.results.map((col: any) =>
 						`  - **${col.name}** (${col.type}) ${col.notnull ? 'NOT NULL' : ''} ${col.pk ? 'PRIMARY KEY' : ''} ${col.dflt_value ? `DEFAULT ${col.dflt_value}` : ''}`,
 					).join('\n');
 

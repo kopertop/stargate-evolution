@@ -30,7 +30,7 @@ const TABLE_ORDER = [
 	'star_system_templates',
 	'planet_templates',
 	'room_templates',
-	'door_templates',
+	'doors',
 	'room_furniture',
 	'room_technology',
 	'person_templates',

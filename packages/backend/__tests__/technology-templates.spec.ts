@@ -1,7 +1,7 @@
 import { env } from 'cloudflare:test';
 import { describe, it, expect } from 'vitest';
 
-import { getAllTechnologyTemplates, getTechnologyTemplateById, getTechnologyTemplatesByCategory } from '../src/templates/technology-templates';
+import { getAllTechnologyTemplates, getTechnologyTemplateById, getTechnologyTemplatesByCategory } from '../src/data/technology-templates';
 import type { Env } from '../src/types';
 
 describe('technology-templates', () => {

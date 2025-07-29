@@ -1,4 +1,5 @@
-import { DestinyStatus, Character, Galaxy, StarSystem, ExplorationProgress } from '@stargate/common';
+import type { Character, DestinyStatus, ExplorationProgress, Galaxy, StarSystem } from '@stargate/common';
+import type { FloorAwareFogOfWarData } from '@stargate/common/models/game';
 import { toast } from 'react-toastify';
 import { create } from 'zustand';
 import { persist, subscribeWithSelector } from 'zustand/middleware';
@@ -31,11 +32,11 @@ interface BackendGameData {
 	doorStates?: Array<{ id: string; state: string; restricted?: boolean; cleared?: boolean }>;
 	npcs?: Array<{ id: string; name: string; x: number; y: number; roomId: string; floor: number }>;
 	/**
-	 * fogOfWar maps from floor number (number) to a map of room IDs (string) to a boolean indicating
-	 * whether that room has been revealed (true) or is still hidden (false/undefined) for that floor.
-	 * Example: { 1: { "roomA": true, "roomB": false }, 2: { "roomC": true } }
+	 * fogOfWar maps from floor number (string) to a map of room coordinates (string) to a boolean indicating
+	 * whether that tile has been revealed (true) or is still hidden (false/undefined) for that floor.
+	 * Example: { "0": { "0,0": true, "1,1": false }, "1": { "2,2": true } }
 	 */
-	fogOfWar?: Record<number, Record<string, boolean>>;
+	fogOfWar?: FloorAwareFogOfWarData;
 	mapZoom?: number;
 	currentBackgroundType?: 'stars' | 'ftl';
 }
@@ -49,7 +50,7 @@ interface GameEngineState {
 	currentFloor: number;
 
 	// Fog of war data (floor-aware)
-	fogOfWar: Record<number, Record<string, boolean>>;
+	fogOfWar: FloorAwareFogOfWarData;
 
 	// Door states
 	doorStates: Array<{ id: string; state: string; restricted?: boolean; cleared?: boolean }>;
@@ -223,7 +224,7 @@ export const useGameStore = create<GameState>()(
 				}
 				// Trigger fog discovery at new position
 				const { fogOfWar } = get();
-				const fogData = fogOfWar[position.floor] || {};
+				const fogData = fogOfWar[position.floor.toString()] || {};
 				// This will be handled by the game engine when it syncs with the store
 			},
 
@@ -242,17 +243,22 @@ export const useGameStore = create<GameState>()(
 				set((state) => ({
 					fogOfWar: {
 						...state.fogOfWar,
-						[floor]: fogData,
+						[floor.toString()]: fogData,
 					},
 				}));
 			},
 
 			setAllFogData: (fogData) => {
-				set({ fogOfWar: fogData });
+				// Convert number keys to string keys to match FloorAwareFogOfWarData
+				const convertedFogData: FloorAwareFogOfWarData = {};
+				for (const [floor, data] of Object.entries(fogData)) {
+					convertedFogData[floor] = data;
+				}
+				set({ fogOfWar: convertedFogData });
 			},
 
 			getFogDataForFloor: (floor) => {
-				return get().fogOfWar[floor] || {};
+				return get().fogOfWar[floor.toString()] || {};
 			},
 
 			setDoorStates: (doorStates) => {

@@ -1,14 +1,14 @@
 import { env } from 'cloudflare:test';
 import { describe, it, expect } from 'vitest';
 
-import { getDefaultDestinyStatusTemplate } from '../src/templates/destiny-status-template';
-import { getAllGalaxyTemplates } from '../src/templates/galaxy-templates';
-import { getAllPersonTemplates } from '../src/templates/person-templates';
+import { getDefaultDestinyStatusTemplate } from '../src/data/destiny-status-template';
+import { getAllGalaxyTemplates } from '../src/data/galaxy-templates';
+import { getAllPersonTemplates } from '../src/data/person-templates';
 // import { getAllRaceTemplates } from '../src/templates/race-templates'; // Not available
-import { getAllRoomTemplates, getRoomTemplateById } from '../src/templates/room-templates';
-import { getAllLayoutIds } from '../src/templates/ship-layouts';
-import { getAllStarSystemTemplates } from '../src/templates/star-system-templates';
-import { getAllTechnologyTemplates } from '../src/templates/technology-templates';
+import { getAllRoomTemplates, getRoomTemplateById } from '../src/data/room-templates';
+import { getAllLayoutIds } from '../src/data/ship-layouts';
+import { getAllStarSystemTemplates } from '../src/data/star-system-templates';
+import { getAllTechnologyTemplates } from '../src/data/technology-templates';
 import type { Env } from '../src/types';
 
 describe('API Template Functions', () => {
@@ -24,10 +24,9 @@ describe('API Template Functions', () => {
 				expect(room).toHaveProperty('id');
 				expect(room).toHaveProperty('name');
 				expect(room).toHaveProperty('layout_id');
-				expect(room).toHaveProperty('startX');
-				expect(room).toHaveProperty('endX');
-				expect(room).toHaveProperty('startY');
-				expect(room).toHaveProperty('endY');
+				expect(room).toHaveProperty('type');
+				expect(room).toHaveProperty('default_width');
+				expect(room).toHaveProperty('default_height');
 			}
 		});
 

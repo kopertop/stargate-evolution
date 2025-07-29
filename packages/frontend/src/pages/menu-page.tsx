@@ -734,7 +734,7 @@ export const MenuPage: React.FC = () => {
 											onClick={handleNewGame}
 											style={focusedMenuItem === 0 ? { boxShadow: '0 0 10px rgba(25, 135, 84, 0.8)' } : {}}
 										>
-											Start New Game (No Save)
+											Start New Game
 										</Button>
 									</div>
 
@@ -806,12 +806,12 @@ export const MenuPage: React.FC = () => {
 								autoFocus
 								maxLength={100}
 							/>
-								<Form.Text className="text-muted">
-									{user
-										? 'Optional; helps you identify your save game later.'
-										: 'Optional; game will be saved locally only.'
-									}
-								</Form.Text>
+							<Form.Text className="text-muted">
+								{user
+									? 'Optional; helps you identify your save game later.'
+									: 'Optional; game will be saved locally only.'
+								}
+							</Form.Text>
 						</Form.Group>
 					</Form>
 				</Modal.Body>
@@ -822,7 +822,7 @@ export const MenuPage: React.FC = () => {
 					<Button
 						variant="primary"
 						onClick={handleCreateNewGame}
-								disabled={gameState.isLoading}
+						disabled={gameState.isLoading}
 					>
 						{gameState.isLoading ? 'Creating...' : (user ? 'Create Game' : 'Create Game (Local Only)')}
 					</Button>

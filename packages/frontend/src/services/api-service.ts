@@ -70,11 +70,11 @@ class APIService {
 		}
 	}
 
-	
+
 
 	async getRoomTemplateById(id: string): Promise<RoomTemplate | null> {
 		try {
-			return this.fetchWithCache<RoomTemplate>(`/api/templates/rooms/${id}`);
+			return this.fetchWithCache<RoomTemplate>(`/api/data/rooms/${id}`);
 		} catch (error) {
 			if (error instanceof Error && error.message.includes('404')) {
 				return null;
@@ -84,20 +84,20 @@ class APIService {
 	}
 
 	async getAllPersonTemplates(): Promise<PersonTemplate[]> {
-		return this.fetchWithCache<PersonTemplate[]>('/api/templates/people');
+		return this.fetchWithCache<PersonTemplate[]>('/api/data/people');
 	}
 
 	async getAllRaceTemplates(): Promise<RaceTemplate[]> {
-		return this.fetchWithCache<RaceTemplate[]>('/api/templates/races');
+		return this.fetchWithCache<RaceTemplate[]>('/api/data/races');
 	}
 
 	async getAllShipLayouts(): Promise<ShipLayout[]> {
-		return this.fetchWithCache<ShipLayout[]>('/api/templates/ship-layouts');
+		return this.fetchWithCache<ShipLayout[]>('/api/data/ship-layouts');
 	}
 
 	async getShipLayoutById(id: string): Promise<ShipLayout | null> {
 		try {
-			return this.fetchWithCache<ShipLayout>(`/api/templates/ship-layouts/${id}`);
+			return this.fetchWithCache<ShipLayout>(`/api/data/ship-layouts/${id}`);
 		} catch (error) {
 			if (error instanceof Error && error.message.includes('404')) {
 				return null;
@@ -107,24 +107,24 @@ class APIService {
 	}
 
 	async getAllGalaxyTemplates(): Promise<Galaxy[]> {
-		return this.fetchWithCache<Galaxy[]>('/api/templates/galaxies');
+		return this.fetchWithCache<Galaxy[]>('/api/data/galaxies');
 	}
 
 	async getAllStarSystemTemplates(): Promise<StarSystem[]> {
-		return this.fetchWithCache<StarSystem[]>('/api/templates/star-systems');
+		return this.fetchWithCache<StarSystem[]>('/api/data/star-systems');
 	}
 
 	async getDestinyStatusTemplate(): Promise<DestinyStatus> {
-		return this.fetchWithCache<DestinyStatus>('/api/templates/destiny-status');
+		return this.fetchWithCache<DestinyStatus>('/api/data/destiny-status');
 	}
 
 	async getStartingInventory(): Promise<Inventory[]> {
-		return this.fetchWithCache<Inventory[]>('/api/templates/starting-inventory');
+		return this.fetchWithCache<Inventory[]>('/api/data/starting-inventory');
 	}
 
 	async getTechnologyForRoom(templateID: string): Promise<RoomTechnology[]> {
 		try {
-			return this.fetchWithCache<RoomTechnology[]>(`/api/templates/room-technology/${templateID}`);
+			return this.fetchWithCache<RoomTechnology[]>(`/api/data/room-technology/${templateID}`);
 		} catch (error) {
 			// If technology not found for this room type, return empty array
 			if (error instanceof Error && (error.message.includes('404') || error.message.includes('Not found'))) {
@@ -135,7 +135,7 @@ class APIService {
 		}
 	}
 
-	
+
 
 	// Helper methods for parsing JSON fields
 	parseSkills(skillsJson: string | string[]): string[] {

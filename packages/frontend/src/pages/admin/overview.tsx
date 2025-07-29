@@ -34,7 +34,7 @@ export const AdminOverview: React.FC = () => {
 			const [users, characters, rooms, doors, furniture, technologies] = await Promise.all([
 				adminService.getUsers(),
 				characterService.getAllCharacters(),
-				adminService.getAllRoomTemplates(),
+				adminService.getAllRooms(),
 				adminService.getAllDoors(),
 				adminService.getAllFurniture(),
 				adminService.getAllTechnologyTemplates(),
@@ -58,26 +58,26 @@ export const AdminOverview: React.FC = () => {
 	const handleExportTemplates = async () => {
 		try {
 			setTemplateOperations(prev => ({ ...prev, exporting: true, error: null, message: null }));
-			
+
 			await adminService.downloadTemplateData();
-			
-			setTemplateOperations(prev => ({ 
-				...prev, 
-				exporting: false, 
-				message: 'Template data exported successfully!', 
+
+			setTemplateOperations(prev => ({
+				...prev,
+				exporting: false,
+				message: 'Template data exported successfully!',
 			}));
-			
+
 			// Clear message after 3 seconds
 			setTimeout(() => {
 				setTemplateOperations(prev => ({ ...prev, message: null }));
 			}, 3000);
-			
+
 		} catch (error) {
 			console.error('Failed to export templates:', error);
-			setTemplateOperations(prev => ({ 
-				...prev, 
-				exporting: false, 
-				error: error instanceof Error ? error.message : 'Export failed', 
+			setTemplateOperations(prev => ({
+				...prev,
+				exporting: false,
+				error: error instanceof Error ? error.message : 'Export failed',
 			}));
 		}
 	};
@@ -85,29 +85,29 @@ export const AdminOverview: React.FC = () => {
 	const handleImportTemplates = async (file: File) => {
 		try {
 			setTemplateOperations(prev => ({ ...prev, importing: true, error: null, message: null }));
-			
+
 			const result = await adminService.uploadTemplateDataFromFile(file);
-			
-			setTemplateOperations(prev => ({ 
-				...prev, 
-				importing: false, 
-				message: `Import successful! ${result.totalImported} records imported.`, 
+
+			setTemplateOperations(prev => ({
+				...prev,
+				importing: false,
+				message: `Import successful! ${result.totalImported} records imported.`,
 			}));
-			
+
 			// Reload stats to reflect new data
 			loadStats();
-			
+
 			// Clear message after 5 seconds
 			setTimeout(() => {
 				setTemplateOperations(prev => ({ ...prev, message: null }));
 			}, 5000);
-			
+
 		} catch (error) {
 			console.error('Failed to import templates:', error);
-			setTemplateOperations(prev => ({ 
-				...prev, 
-				importing: false, 
-				error: error instanceof Error ? error.message : 'Import failed', 
+			setTemplateOperations(prev => ({
+				...prev,
+				importing: false,
+				error: error instanceof Error ? error.message : 'Import failed',
 			}));
 		}
 	};
@@ -116,9 +116,9 @@ export const AdminOverview: React.FC = () => {
 		const file = event.target.files?.[0];
 		if (file) {
 			if (file.type !== 'application/json') {
-				setTemplateOperations(prev => ({ 
-					...prev, 
-					error: 'Please select a JSON file.', 
+				setTemplateOperations(prev => ({
+					...prev,
+					error: 'Please select a JSON file.',
 				}));
 				return;
 			}
@@ -251,7 +251,7 @@ export const AdminOverview: React.FC = () => {
 									{templateOperations.message}
 								</Alert>
 							)}
-							
+
 							{templateOperations.error && (
 								<Alert variant="danger" dismissible onClose={() => setTemplateOperations(prev => ({ ...prev, error: null }))}>
 									{templateOperations.error}
@@ -265,8 +265,8 @@ export const AdminOverview: React.FC = () => {
 										Download all template data (rooms, doors, furniture, etc.) as a comprehensive JSON file.
 										This creates a complete backup that can be imported later.
 									</p>
-									<Button 
-										variant="primary" 
+									<Button
+										variant="primary"
 										onClick={handleExportTemplates}
 										disabled={templateOperations.exporting}
 									>
@@ -274,16 +274,16 @@ export const AdminOverview: React.FC = () => {
 										{templateOperations.exporting ? 'Exporting...' : 'Export All Templates'}
 									</Button>
 								</div>
-								
+
 								<div className="col-md-6">
 									<h6>Import Template Data</h6>
 									<p className="text-muted small mb-3">
-										Import template data from a JSON file. <strong>Warning:</strong> This will replace all existing 
+										Import template data from a JSON file. <strong>Warning:</strong> This will replace all existing
 										template data (rooms, doors, furniture, etc.). Make sure to export current data first!
 									</p>
 									<div className="d-flex gap-2">
-										<Button 
-											variant="warning" 
+										<Button
+											variant="warning"
 											onClick={() => fileInputRef.current?.click()}
 											disabled={templateOperations.importing}
 										>
@@ -302,7 +302,7 @@ export const AdminOverview: React.FC = () => {
 							</div>
 
 							<hr className="my-4" />
-							
+
 							<div className="row">
 								<div className="col-12">
 									<h6>Current Template Data</h6>

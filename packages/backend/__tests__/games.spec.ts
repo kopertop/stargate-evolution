@@ -4,7 +4,7 @@ import { describe, it, expect } from 'vitest';
 
 describe('Games API - Game Data Validation', () => {
 	const problematicPayload = {
-		'game_data': '{"destinyStatus":{"id":"destiny-1","name":"Destiny","power":85,"max_power":100,"shields":67,"max_shields":100,"hull":92,"max_hull":100,"water":78,"max_water":100,"food":45,"max_food":100,"spare_parts":34,"max_spare_parts":100,"medical_supplies":89,"max_medical_supplies":100,"race_id":"ancient","location":"{\\"system\\":\\"Pegasus Prime\\",\\"galaxy\\":\\"Pegasus\\",\\"sector\\":\\"Alpha\\"}","co2":0.04,"o2":20.9,"co2Scrubbers":5,"weapons":"{}","shuttles":"{}","current_time":25,"next_jump_time":86639.68572530238,"time_speed":1,"ftl_status":"normal_space","next_ftl_transition":24.059634923695103},"characters":[],"technologies":[],"exploredRooms":[],"explorationProgress":[],"currentGalaxy":null,"currentSystem":null,"knownGalaxies":[],"knownSystems":[],"playerPosition":{"x":1395.078210486803,"y":3.764501987817127,"roomId":"control_interface_room"},"doorStates":[{"id":"door_1751652494667_stargate_corridor_north_connector_gate_room","state":"closed","from_room_id":"stargate_corridor_north_connector","to_room_id":"gate_room","x":-4.9744740569846755,"y":-200,"width":32,"height":8,"rotation":0,"is_automatic":0,"open_direction":"inward","style":"standard","color":null,"requirements":null,"power_required":0}],"fogOfWar":{"-5,0":true,"-4,-3":true},"mapZoom":1.024,"currentBackgroundType":"stars"}',
+		'game_data': '{"destinyStatus":{"id":"destiny-1","name":"Destiny","power":85,"max_power":100,"shields":67,"max_shields":100,"hull":92,"max_hull":100,"water":78,"max_water":100,"food":45,"max_food":100,"spare_parts":34,"max_spare_parts":100,"medical_supplies":89,"max_medical_supplies":100,"race_id":"ancient","location":"{\\"system\\":\\"Pegasus Prime\\",\\"galaxy\\":\\"Pegasus\\",\\"sector\\":\\"Alpha\\"}","co2":0.04,"o2":20.9,"co2Scrubbers":5,"weapons":"{}","shuttles":"{}","current_time":25,"next_jump_time":86639.68572530238,"time_speed":1,"ftl_status":"normal_space","next_ftl_transition":24.059634923695103},"characters":[],"technologies":[],"exploredRooms":[],"explorationProgress":[],"currentGalaxy":null,"currentSystem":null,"knownGalaxies":[],"knownSystems":[],"playerPosition":{"x":1395.078210486803,"y":3.764501987817127,"roomId":"control_interface_room"},"doorStates":[{"id":"door_1751652494667_stargate_corridor_north_connector_gate_room","state":"closed","from_room_id":"stargate_corridor_north_connector","to_room_id":"gate_room","x":-4.9744740569846755,"y":-200,"width":32,"height":8,"rotation":0,"is_automatic":0,"open_direction":"inward","style":"standard","color":null,"requirements":null,"power_required":0}],"fogOfWar":{"0":{"-5,0":true,"-4,-3":true}},"mapZoom":1.024,"currentBackgroundType":"stars"}',
 	};
 
 	it('should fail validation when game_data is a JSON string instead of object', () => {
@@ -81,9 +81,13 @@ describe('Games API - Game Data Validation', () => {
 		expect(gameDataObject.fogOfWar).toBeDefined();
 		expect(typeof gameDataObject.fogOfWar).toBe('object');
 
+		// Check that it has floor-aware structure
+		expect(gameDataObject.fogOfWar['0']).toBeDefined();
+		expect(typeof gameDataObject.fogOfWar['0']).toBe('object');
+
 		// Check specific fog tiles
-		expect(gameDataObject.fogOfWar['-5,0']).toBe(true);
-		expect(gameDataObject.fogOfWar['-4,-3']).toBe(true);
+		expect(gameDataObject.fogOfWar['0']['-5,0']).toBe(true);
+		expect(gameDataObject.fogOfWar['0']['-4,-3']).toBe(true);
 	});
 
 	it('should validate door states structure', () => {

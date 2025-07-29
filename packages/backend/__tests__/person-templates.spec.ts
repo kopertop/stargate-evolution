@@ -1,7 +1,7 @@
 import { env } from 'cloudflare:test';
 import { describe, it, expect } from 'vitest';
 
-import { getAllPersonTemplates, getPersonTemplateById, getPersonTemplatesByRole, getAllRaceTemplates, getRaceTemplateById } from '../src/templates/person-templates';
+import { getAllPersonTemplates, getPersonTemplateById, getPersonTemplatesByRole, getAllRaceTemplates, getRaceTemplateById } from '../src/data/person-templates';
 import type { Env } from '../src/types';
 
 describe('person-templates', () => {
