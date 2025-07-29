@@ -1,60 +1,37 @@
-import React from 'react';
-import { Container, Nav, Navbar } from 'react-bootstrap';
-import { FaUsers, FaGamepad, FaCog, FaMap, FaRobot, FaDoorOpen, FaToolbox, FaDatabase, FaCouch } from 'react-icons/fa';
-import { Outlet, useLocation, useNavigate } from 'react-router';
+import React, { useEffect } from 'react';
+import { Container } from 'react-bootstrap';
+import { Outlet, useLocation } from 'react-router';
+
+import { AdminNavbar } from './admin-navbar';
 
 export const AdminLayout: React.FC = () => {
-	const navigate = useNavigate();
 	const location = useLocation();
+	const isMapBuilder = location.pathname === '/admin/map';
 
-	const navItems = [
-		{ path: '/admin', label: 'Overview', icon: <FaCog /> },
-		{ path: '/admin/map', label: 'Map Builder', icon: <FaMap /> },
-		{ path: '/admin/users', label: 'Users', icon: <FaUsers /> },
-		{ path: '/admin/characters', label: 'Characters', icon: <FaRobot /> },
-		{ path: '/admin/rooms', label: 'Room Templates', icon: <FaDoorOpen /> },
-		{ path: '/admin/furniture-templates', label: 'Furniture Templates', icon: <FaCouch /> },
-		{ path: '/admin/technologies', label: 'Technologies', icon: <FaToolbox /> },
-		{ path: '/admin/sql-debug', label: 'SQL Debug', icon: <FaDatabase /> },
-	];
-
-	const isActive = (path: string) => {
-		if (path === '/admin') {
-			return location.pathname === '/admin';
+	// Add/remove admin-page class to body for proper scrolling
+	useEffect(() => {
+		if (!isMapBuilder) {
+			document.body.classList.add('admin-page');
+		} else {
+			document.body.classList.remove('admin-page');
 		}
-		return location.pathname.startsWith(path);
-	};
+
+		// Cleanup when leaving admin section
+		return () => {
+			document.body.classList.remove('admin-page');
+		};
+	}, [isMapBuilder]);
+
+	// Map Builder handles its own layout with fixed positioning
+	if (isMapBuilder) {
+		return <Outlet />;
+	}
 
 	return (
-		<div className="admin-layout">
-			<Navbar bg="dark" variant="dark" expand="lg" className="mb-4">
-				<Container fluid>
-					<Navbar.Brand onClick={() => navigate('/admin')} style={{ cursor: 'pointer' }}>
-						<FaGamepad className="me-2" />
-						Stargate Evolution Admin
-					</Navbar.Brand>
-					<Nav className="me-auto">
-						{navItems.map((item) => (
-							<Nav.Link
-								key={item.path}
-								onClick={() => navigate(item.path)}
-								className={isActive(item.path) ? 'active' : ''}
-								style={{ cursor: 'pointer' }}
-							>
-								{item.icon}
-								<span className="ms-2">{item.label}</span>
-							</Nav.Link>
-						))}
-					</Nav>
-					<Nav>
-						<Nav.Link onClick={() => navigate('/')} style={{ cursor: 'pointer' }}>
-							Back to Game
-						</Nav.Link>
-					</Nav>
-				</Container>
-			</Navbar>
+		<div className="admin-layout" style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
+			<AdminNavbar />
 
-			<Container fluid>
+			<Container fluid style={{ flex: 1, overflow: 'auto', padding: '1rem' }}>
 				<Outlet />
 			</Container>
 		</div>

@@ -1,6 +1,6 @@
 {
 	"name": "stargate-evolution",
-	"version": "0.2.5",
+	"version": "1.0.0",
 	"private": true,
 	"scripts": {
 		"start": "turbo --ui tui run start",
@@ -13,6 +13,9 @@
 		"db:generate": "pnpm --filter backend run db:generate",
 		"db:create-schema": "pnpm --filter backend run db:create-schema",
 		"test": "pnpm -r test",
+		"test:e2e": "playwright test",
+		"test:e2e:ui": "playwright test --ui",
+		"test:e2e:debug": "playwright test --debug",
 		"deploy": "pnpm -r run deploy",
 		"release": "run-s release:*",
 		"release:test": "pnpm --filter backend run test && pnpm --filter frontend run test",
@@ -32,6 +35,7 @@
 		"@eslint/compat": "^1.2.9",
 		"@eslint/eslintrc": "^3.3.1",
 		"@eslint/js": "^9.27.0",
+		"@playwright/test": "^1.54.1",
 		"@types/node": "^22.15.24",
 		"@typescript-eslint/eslint-plugin": "^8.33.0",
 		"@typescript-eslint/parser": "^8.33.0",

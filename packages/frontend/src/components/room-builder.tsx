@@ -1,8 +1,8 @@
-import { RoomTemplate, DoorTemplate, RoomFurniture, FurnitureTemplate, roomToWorldCoordinates, worldToRoomCoordinates, mergeFurnitureWithTemplate } from '@stargate/common';
+import { Room, Door, RoomFurniture, FurnitureTemplate, roomToWorldCoordinates, worldToRoomCoordinates, mergeFurnitureWithTemplate } from '@stargate/common';
 import { DEFAULT_IMAGE_KEYS } from '@stargate/common/src/models/room-furniture';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Button, Card, Form, Modal, Table, Nav, Tab, Alert, InputGroup, OverlayTrigger, Tooltip, Dropdown, Badge } from 'react-bootstrap';
-import { FaPlus, FaEdit, FaTrash, FaEye } from 'react-icons/fa';
+import { Button, Card, Form, Modal, Table, Nav, Tab, Alert, InputGroup, OverlayTrigger, Tooltip, Dropdown, Badge, ButtonGroup } from 'react-bootstrap';
+import { FaPlus, FaEdit, FaTrash, FaEye, FaLayerGroup } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 
 import { adminService } from '../services/admin-service';
@@ -50,21 +50,21 @@ type Camera = {
 
 export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloorChange }) => {
 	const canvasRef = useRef<HTMLCanvasElement>(null);
-	const [rooms, setRooms] = useState<RoomTemplate[]>([]);
-	const [doors, setDoors] = useState<DoorTemplate[]>([]);
+	const [rooms, setRooms] = useState<Room[]>([]);
+	const [doors, setDoors] = useState<Door[]>([]);
 	const [furniture, setFurniture] = useState<RoomFurniture[]>([]);
 	const [furnitureTemplates, setFurnitureTemplates] = useState<FurnitureTemplate[]>([]);
 	const [selectedTemplate, setSelectedTemplate] = useState<FurnitureTemplate | null>(null);
-	const [selectedRoom, setSelectedRoom] = useState<RoomTemplate | null>(null);
-	const [selectedDoor, setSelectedDoor] = useState<DoorTemplate | null>(null);
+	const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
+	const [selectedDoor, setSelectedDoor] = useState<Door | null>(null);
 	const [selectedFurniture, setSelectedFurniture] = useState<RoomFurniture | null>(null);
 	const [showRoomModal, setShowRoomModal] = useState(false);
 	const [showDoorModal, setShowDoorModal] = useState(false);
 	const [showFurnitureModal, setShowFurnitureModal] = useState(false);
 	const [showTemplateSelectionModal, setShowTemplateSelectionModal] = useState(false);
 	const [showInspectorModal, setShowInspectorModal] = useState(false);
-	const [editingRoom, setEditingRoom] = useState<Partial<RoomTemplate>>({});
-	const [editingDoor, setEditingDoor] = useState<Partial<DoorTemplate>>({});
+	const [editingRoom, setEditingRoom] = useState<Partial<Room>>({});
+	const [editingDoor, setEditingDoor] = useState<Partial<Door>>({});
 	const [dragState, setDragState] = useState<DragState>({
 		isDragging: false,
 		dragType: 'none',
@@ -229,7 +229,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 	const loadData = async () => {
 		try {
 			// Load each data source separately with individual error handling
-			const roomsData = await adminService.getAllRoomTemplates();
+			const roomsData = await adminService.getAllRooms();
 
 			let doorsData: any[] = [];
 			try {
@@ -249,7 +249,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 
 			let furnitureTemplatesData: FurnitureTemplate[] = [];
 			try {
-				const response = await apiClient.get('/api/templates/furniture-templates');
+				const response = await apiClient.get('/api/data/furniture-templates');
 				if (response.data) {
 					furnitureTemplatesData = response.data;
 				}
@@ -418,7 +418,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 		}
 	};
 
-	const drawRoom = (ctx: CanvasRenderingContext2D, room: RoomTemplate) => {
+	const drawRoom = (ctx: CanvasRenderingContext2D, room: Room) => {
 		// Convert room bounds to screen coordinates
 		const topLeft = worldToScreen(room.startX, room.startY);
 		const bottomRight = worldToScreen(room.endX, room.endY);
@@ -453,7 +453,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 		}
 	};
 
-	const drawDoor = (ctx: CanvasRenderingContext2D, door: DoorTemplate) => {
+	const drawDoor = (ctx: CanvasRenderingContext2D, door: Door) => {
 		// Convert door position to screen coordinates
 		const screenPos = worldToScreen(door.x, door.y);
 
@@ -520,6 +520,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 		let furnitureColor = '#9333ea'; // purple for general furniture
 		if (item.furniture_type === 'stargate') furnitureColor = '#059669'; // green for stargate
 		if (item.furniture_type === 'console') furnitureColor = '#dc2626'; // red for console
+		if (item.furniture_type === 'elevator_console') furnitureColor = '#f59e0b'; // amber for elevator console
 		if (item.furniture_type === 'bed') furnitureColor = '#7c3aed'; // purple for bed
 
 		ctx.fillStyle = furnitureColor;
@@ -540,7 +541,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 		ctx.restore();
 	};
 
-	const highlightRoom = (ctx: CanvasRenderingContext2D, room: RoomTemplate) => {
+	const highlightRoom = (ctx: CanvasRenderingContext2D, room: Room) => {
 		// Convert room bounds to screen coordinates
 		const topLeft = worldToScreen(room.startX, room.startY);
 		const bottomRight = worldToScreen(room.endX, room.endY);
@@ -558,7 +559,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 		ctx.setLineDash([]);
 	};
 
-	const highlightDoor = (ctx: CanvasRenderingContext2D, door: DoorTemplate) => {
+	const highlightDoor = (ctx: CanvasRenderingContext2D, door: Door) => {
 		// Convert door position to screen coordinates
 		const screenPos = worldToScreen(door.x, door.y);
 
@@ -613,7 +614,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 		ctx.restore();
 	};
 
-	const drawResizeHandles = (ctx: CanvasRenderingContext2D, room: RoomTemplate) => {
+	const drawResizeHandles = (ctx: CanvasRenderingContext2D, room: Room) => {
 		// Convert room bounds to screen coordinates
 		const topLeft = worldToScreen(room.startX, room.startY);
 		const bottomRight = worldToScreen(room.endX, room.endY);
@@ -651,7 +652,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 		}
 	};
 
-	const getResizeHandle = (screenX: number, screenY: number, room: RoomTemplate): 'nw' | 'ne' | 'sw' | 'se' | 'n' | 's' | 'e' | 'w' | null => {
+	const getResizeHandle = (screenX: number, screenY: number, room: Room): 'nw' | 'ne' | 'sw' | 'se' | 'n' | 's' | 'e' | 'w' | null => {
 		// Convert room bounds to screen coordinates
 		const topLeft = worldToScreen(room.startX, room.startY);
 		const bottomRight = worldToScreen(room.endX, room.endY);
@@ -1808,7 +1809,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 	/**
 	 * Find the closest room to a given world position
 	 */
-	const findClosestRoom = (worldX: number, worldY: number, otherRooms: RoomTemplate[]) => {
+	const findClosestRoom = (worldX: number, worldY: number, otherRooms: Room[]) => {
 		if (otherRooms.length === 0) return null;
 
 		let closestRoom = otherRooms[0];
@@ -1834,7 +1835,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 	/**
 	 * Check if a room would overlap with any existing rooms
 	 */
-	const checkRoomOverlap = (newRoom: { startX: number; endX: number; startY: number; endY: number }, existingRooms: RoomTemplate[], excludeId?: string) => {
+	const checkRoomOverlap = (newRoom: { startX: number; endX: number; startY: number; endY: number }, existingRooms: Room[], excludeId?: string) => {
 		for (const room of existingRooms) {
 			if (excludeId && room.id === excludeId) continue;
 
@@ -1850,7 +1851,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 	/**
 	 * Find the best position to place a new room adjacent to an existing room
 	 */
-	const findBestAdjacentPosition = (clickX: number, clickY: number, targetRoom: RoomTemplate, newRoomWidth: number = 128, newRoomHeight: number = 128) => {
+	const findBestAdjacentPosition = (clickX: number, clickY: number, targetRoom: Room, newRoomWidth: number = 128, newRoomHeight: number = 128) => {
 		// Define potential positions around the target room
 		const spacing = 8; // Small gap between rooms
 		const positions = [
@@ -1908,7 +1909,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 		return sortedPositions[0];
 	};
 
-	const findSnapPosition = (room: RoomTemplate, otherRooms: RoomTemplate[]) => {
+	const findSnapPosition = (room: Room, otherRooms: Room[]) => {
 		// First, ensure all coordinates are whole numbers
 		const normalizedRoom = {
 			...room,
@@ -2028,8 +2029,8 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 	 * Find snap position for resize operations - snaps to nearby room edges
 	 */
 	const findResizeSnapPosition = (
-		room: RoomTemplate,
-		otherRooms: RoomTemplate[],
+		room: Room,
+		otherRooms: Room[],
 		handle: 'nw' | 'ne' | 'sw' | 'se' | 'n' | 's' | 'e' | 'w',
 	) => {
 		// First, ensure all coordinates are whole numbers
@@ -2142,8 +2143,8 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 		return { snappedRoom, hasSnapped };
 	};
 
-	const findAdjacentRooms = (room: RoomTemplate, otherRooms: RoomTemplate[]) => {
-		const adjacentRooms: Array<{ room: RoomTemplate; side: 'north' | 'south' | 'east' | 'west' }> = [];
+	const findAdjacentRooms = (room: Room, otherRooms: Room[]) => {
+		const adjacentRooms: Array<{ room: Room; side: 'north' | 'south' | 'east' | 'west' }> = [];
 
 		for (const otherRoom of otherRooms) {
 			if (otherRoom.id === room.id) continue; // Skip self
@@ -2174,7 +2175,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 		return adjacentRooms;
 	};
 
-	const createAutomaticDoor = async (fromRoom: RoomTemplate, toRoom: RoomTemplate, side: 'north' | 'south' | 'east' | 'west') => {
+	const createAutomaticDoor = async (fromRoom: Room, toRoom: Room, side: 'north' | 'south' | 'east' | 'west') => {
 		// Calculate door position based on the side where rooms are adjacent
 		let doorX: number, doorY: number, rotation: number;
 
@@ -2213,7 +2214,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 		}
 
 		// Create the door
-		const newDoor: Partial<DoorTemplate> = {
+		const newDoor: Partial<Door> = {
 			id: `door_${Date.now()}_${fromRoom.id}_${toRoom.id}`,
 			name: `Door: ${fromRoom.name} ↔ ${toRoom.name}`,
 			from_room_id: fromRoom.id,
@@ -2318,6 +2319,28 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 
 	const handleSaveFurniture = async () => {
 		try {
+			// Validate elevator console configuration
+			if (editingFurniture.furniture_type === 'elevator_console') {
+				try {
+					const config = JSON.parse(editingFurniture.description || '{}');
+					if (!config.accessibleFloors || !Array.isArray(config.accessibleFloors) || config.accessibleFloors.length === 0) {
+						toast.error('Elevator console must have at least one accessible floor configured');
+						return;
+					}
+
+					// Validate all floors exist
+					const availableFloors = Array.from(new Set(rooms.map(r => r.floor)));
+					const invalidFloors = config.accessibleFloors.filter((floor: number) => !availableFloors.includes(floor));
+					if (invalidFloors.length > 0) {
+						toast.error(`Invalid floors configured: ${invalidFloors.join(', ')}. Available floors: ${availableFloors.join(', ')}`);
+						return;
+					}
+				} catch (error) {
+					toast.error('Invalid elevator configuration JSON in description field');
+					return;
+				}
+			}
+
 			if (selectedFurniture?.id === editingFurniture.id) {
 				await adminService.updateFurniture(editingFurniture.id!, editingFurniture);
 				toast.success('Furniture updated successfully');
@@ -2355,22 +2378,50 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 
 	return (
 		<div className="room-builder">
+			{/* Floor Switcher Dropdown */}
+			<div
+				className="position-absolute"
+				style={{
+					left: 0,
+					top: -150,
+					zIndex: 1000,
+				}}
+			>
+				<Dropdown>
+					<Dropdown.Toggle variant="dark" size="sm">
+						<FaLayerGroup className="me-2" />
+						Floor {selectedFloor}
+					</Dropdown.Toggle>
+					<Dropdown.Menu variant="dark">
+						{Array.from(new Set(rooms.map(r => r.floor))).sort().map(floor => (
+							<Dropdown.Item
+								key={floor}
+								onClick={() => onFloorChange(floor)}
+								active={floor === selectedFloor}
+							>
+								Floor {floor}
+							</Dropdown.Item>
+						))}
+						<Dropdown.Divider />
+						<Dropdown.Item
+							onClick={() => {
+								const maxFloor = Math.max(...Array.from(new Set(rooms.map(r => r.floor))), -1);
+								onFloorChange(maxFloor + 1);
+							}}
+						>
+							<FaPlus className="me-2" />
+							Add New Floor
+						</Dropdown.Item>
+					</Dropdown.Menu>
+				</Dropdown>
+			</div>
+
 			<div className="d-flex">
 				{/* Left Panel - Tools and Properties */}
 				<div className="room-builder-panel" style={{ width: '300px', padding: '1rem' }}>
 					<h5>Room Builder</h5>
 
-					<div className="mb-3">
-						<Form.Label>Floor</Form.Label>
-						<Form.Select
-							value={selectedFloor}
-							onChange={(e) => onFloorChange(parseInt(e.target.value))}
-						>
-							{Array.from(new Set(rooms.map(r => r.floor))).sort().map(floor => (
-								<option key={floor} value={floor}>Floor {floor}</option>
-							))}
-						</Form.Select>
-					</div>
+
 
 					<div className="d-grid gap-2 mb-3">
 						<Button variant="primary" onClick={handleCreateRoom}>
@@ -2413,7 +2464,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 										size="sm"
 										variant="outline-warning"
 										onClick={() => {
-											setEditingRoom({...selectedRoom});
+											setEditingRoom({ ...selectedRoom });
 											setShowRoomModal(true);
 										}}
 									>
@@ -2455,7 +2506,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 										size="sm"
 										variant="outline-warning"
 										onClick={() => {
-											setEditingDoor({...selectedDoor});
+											setEditingDoor({ ...selectedDoor });
 											setShowDoorModal(true);
 										}}
 									>
@@ -2605,11 +2656,12 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 						onContextMenu={handleContextMenu}
 					/>
 					<small className="text-muted d-block mt-1">
-						<strong>Controls:</strong> Mouse wheel to zoom, click and drag to pan<br/>
-						<strong>Moving Items:</strong> Select an item, then drag to move it (snaps to grid)<br/>
-						<strong>Context Menu:</strong> Right-click for options, Cmd+I for inspector<br/>
+						<strong>Controls:</strong> Mouse wheel to zoom, click and drag to pan<br />
+						<strong>Moving Items:</strong> Select an item, then drag to move it (snaps to grid)<br />
+						<strong>Context Menu:</strong> Right-click for options, Cmd+I for inspector<br />
 						<strong>Keyboard:</strong> WASD/Arrow keys to move, +/- to zoom, 0 to reset view
 					</small>
+
 
 					{/* Context Menu */}
 					{contextMenu.visible && (
@@ -2738,7 +2790,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 							<Form.Control
 								type="text"
 								value={editingDoor.id || ''}
-								onChange={(e) => setEditingDoor({...editingDoor, id: e.target.value})}
+								onChange={(e) => setEditingDoor({ ...editingDoor, id: e.target.value })}
 							/>
 						</Form.Group>
 
@@ -2758,7 +2810,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 									<Form.Label>To Room</Form.Label>
 									<Form.Select
 										value={editingDoor.to_room_id || ''}
-										onChange={(e) => setEditingDoor({...editingDoor, to_room_id: e.target.value})}
+										onChange={(e) => setEditingDoor({ ...editingDoor, to_room_id: e.target.value })}
 									>
 										<option value="">Select room...</option>
 										{availableRoomsForDoor.map(room => (
@@ -2776,7 +2828,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 									<Form.Control
 										type="number"
 										value={editingDoor.x || 0}
-										onChange={(e) => setEditingDoor({...editingDoor, x: parseInt(e.target.value)})}
+										onChange={(e) => setEditingDoor({ ...editingDoor, x: parseInt(e.target.value) })}
 									/>
 								</Form.Group>
 							</div>
@@ -2786,7 +2838,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 									<Form.Control
 										type="number"
 										value={editingDoor.y || 0}
-										onChange={(e) => setEditingDoor({...editingDoor, y: parseInt(e.target.value)})}
+										onChange={(e) => setEditingDoor({ ...editingDoor, y: parseInt(e.target.value) })}
 									/>
 								</Form.Group>
 							</div>
@@ -2795,7 +2847,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 									<Form.Label>Rotation</Form.Label>
 									<Form.Select
 										value={editingDoor.rotation || 0}
-										onChange={(e) => setEditingDoor({...editingDoor, rotation: parseInt(e.target.value)})}
+										onChange={(e) => setEditingDoor({ ...editingDoor, rotation: parseInt(e.target.value) })}
 									>
 										<option value={0}>0° (Horizontal)</option>
 										<option value={90}>90° (Vertical)</option>
@@ -2813,7 +2865,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 									<Form.Control
 										type="number"
 										value={editingDoor.width || 32}
-										onChange={(e) => setEditingDoor({...editingDoor, width: parseInt(e.target.value)})}
+										onChange={(e) => setEditingDoor({ ...editingDoor, width: parseInt(e.target.value) })}
 									/>
 								</Form.Group>
 							</div>
@@ -2823,7 +2875,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 									<Form.Control
 										type="number"
 										value={editingDoor.height || 8}
-										onChange={(e) => setEditingDoor({...editingDoor, height: parseInt(e.target.value)})}
+										onChange={(e) => setEditingDoor({ ...editingDoor, height: parseInt(e.target.value) })}
 									/>
 								</Form.Group>
 							</div>
@@ -2835,7 +2887,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 									<Form.Label>State</Form.Label>
 									<Form.Select
 										value={editingDoor.state || 'closed'}
-										onChange={(e) => setEditingDoor({...editingDoor, state: e.target.value as 'opened' | 'closed' | 'locked'})}
+										onChange={(e) => setEditingDoor({ ...editingDoor, state: e.target.value as 'opened' | 'closed' | 'locked' })}
 									>
 										<option value="closed">Closed</option>
 										<option value="opened">Opened</option>
@@ -2848,7 +2900,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 									<Form.Label>Style</Form.Label>
 									<Form.Select
 										value={editingDoor.style || 'standard'}
-										onChange={(e) => setEditingDoor({...editingDoor, style: e.target.value})}
+										onChange={(e) => setEditingDoor({ ...editingDoor, style: e.target.value })}
 									>
 										<option value="standard">Standard</option>
 										<option value="blast_door">Blast Door</option>
@@ -2861,7 +2913,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 									<Form.Label>Direction</Form.Label>
 									<Form.Select
 										value={editingDoor.open_direction || 'inward'}
-										onChange={(e) => setEditingDoor({...editingDoor, open_direction: e.target.value as 'inward' | 'outward' | 'sliding'})}
+										onChange={(e) => setEditingDoor({ ...editingDoor, open_direction: e.target.value as 'inward' | 'outward' | 'sliding' })}
 									>
 										<option value="inward">Inward</option>
 										<option value="outward">Outward</option>
@@ -2875,7 +2927,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 							type="checkbox"
 							label="Automatic Door"
 							checked={editingDoor.is_automatic || false}
-							onChange={(e) => setEditingDoor({...editingDoor, is_automatic: e.target.checked})}
+							onChange={(e) => setEditingDoor({ ...editingDoor, is_automatic: e.target.checked })}
 						/>
 					</Form>
 				</Modal.Body>
@@ -2910,7 +2962,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 									<Form.Control
 										type="text"
 										value={editingFurniture.id || ''}
-										onChange={(e) => setEditingFurniture({...editingFurniture, id: e.target.value})}
+										onChange={(e) => setEditingFurniture({ ...editingFurniture, id: e.target.value })}
 									/>
 								</Form.Group>
 							</div>
@@ -2920,7 +2972,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 									<Form.Control
 										type="text"
 										value={editingFurniture.name || ''}
-										onChange={(e) => setEditingFurniture({...editingFurniture, name: e.target.value})}
+										onChange={(e) => setEditingFurniture({ ...editingFurniture, name: e.target.value })}
 									/>
 								</Form.Group>
 							</div>
@@ -2932,9 +2984,44 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 								as="textarea"
 								rows={2}
 								value={editingFurniture.description || ''}
-								onChange={(e) => setEditingFurniture({...editingFurniture, description: e.target.value})}
+								onChange={(e) => setEditingFurniture({ ...editingFurniture, description: e.target.value })}
 							/>
 						</Form.Group>
+
+						{/* Elevator Configuration for elevator_console type */}
+						{editingFurniture.furniture_type === 'elevator_console' && (
+							<Form.Group className="mb-3">
+								<Form.Label>Elevator Configuration</Form.Label>
+								<div className="p-3 border rounded bg-light">
+									<Form.Label className="small fw-bold">Accessible Floors (comma-separated)</Form.Label>
+									<Form.Control
+										type="text"
+										placeholder="0, 1, 2, 3"
+										value={(() => {
+											try {
+												const config = JSON.parse(editingFurniture.description || '{}');
+												return config.accessibleFloors ? config.accessibleFloors.join(', ') : '';
+											} catch {
+												return '';
+											}
+										})()}
+										onChange={(e) => {
+											try {
+												const floors = e.target.value.split(',').map(f => parseInt(f.trim())).filter(f => !isNaN(f));
+												const config = { accessibleFloors: floors };
+												setEditingFurniture({ ...editingFurniture, description: JSON.stringify(config) });
+											} catch (error) {
+												console.warn('Error parsing elevator configuration:', error);
+											}
+										}}
+									/>
+									<Form.Text className="text-muted">
+										Enter floor numbers separated by commas (e.g., &quot;0, 1, 2, 3&quot;).
+										This will be stored as JSON in the description field.
+									</Form.Text>
+								</div>
+							</Form.Group>
+						)}
 
 						<div className="row">
 							<div className="col-md-6">
@@ -2942,9 +3029,30 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 									<Form.Label>Type</Form.Label>
 									<Form.Select
 										value={editingFurniture.furniture_type || 'console'}
-										onChange={(e) => setEditingFurniture({...editingFurniture, furniture_type: e.target.value})}
+										onChange={(e) => {
+											const newType = e.target.value;
+											let updates: Partial<RoomFurniture> = { furniture_type: newType };
+
+											// Set defaults for elevator console
+											if (newType === 'elevator_console') {
+												const availableFloors = Array.from(new Set(rooms.map(r => r.floor))).sort((a, b) => a - b);
+												const defaultConfig = { accessibleFloors: availableFloors };
+												updates = {
+													...updates,
+													name: 'Elevator Console',
+													description: JSON.stringify(defaultConfig),
+													interactive: true,
+													blocks_movement: false,
+													width: 48,
+													height: 48,
+												};
+											}
+
+											setEditingFurniture({ ...editingFurniture, ...updates });
+										}}
 									>
 										<option value="console">Console</option>
+										<option value="elevator_console">Elevator Console</option>
 										<option value="stargate">Stargate</option>
 										<option value="stargate_dialer">Stargate Dialer</option>
 										<option value="bed">Bed</option>
@@ -2961,7 +3069,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 									<Form.Label>Room</Form.Label>
 									<Form.Select
 										value={editingFurniture.room_id || ''}
-										onChange={(e) => setEditingFurniture({...editingFurniture, room_id: e.target.value})}
+										onChange={(e) => setEditingFurniture({ ...editingFurniture, room_id: e.target.value })}
 									>
 										{floorRooms.map(room => (
 											<option key={room.id} value={room.id}>{room.name}</option>
@@ -2979,7 +3087,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 										type="number"
 										step="8"
 										value={editingFurniture.x || 0}
-										onChange={(e) => setEditingFurniture({...editingFurniture, x: parseInt(e.target.value)})}
+										onChange={(e) => setEditingFurniture({ ...editingFurniture, x: parseInt(e.target.value) })}
 									/>
 								</Form.Group>
 							</div>
@@ -2990,7 +3098,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 										type="number"
 										step="8"
 										value={editingFurniture.y || 0}
-										onChange={(e) => setEditingFurniture({...editingFurniture, y: parseInt(e.target.value)})}
+										onChange={(e) => setEditingFurniture({ ...editingFurniture, y: parseInt(e.target.value) })}
 									/>
 								</Form.Group>
 							</div>
@@ -3001,7 +3109,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 										type="number"
 										step="8"
 										value={editingFurniture.width || 32}
-										onChange={(e) => setEditingFurniture({...editingFurniture, width: parseInt(e.target.value)})}
+										onChange={(e) => setEditingFurniture({ ...editingFurniture, width: parseInt(e.target.value) })}
 									/>
 								</Form.Group>
 							</div>
@@ -3012,7 +3120,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 										type="number"
 										step="8"
 										value={editingFurniture.height || 32}
-										onChange={(e) => setEditingFurniture({...editingFurniture, height: parseInt(e.target.value)})}
+										onChange={(e) => setEditingFurniture({ ...editingFurniture, height: parseInt(e.target.value) })}
 									/>
 								</Form.Group>
 							</div>
@@ -3024,7 +3132,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 									<Form.Label>Rotation</Form.Label>
 									<Form.Select
 										value={editingFurniture.rotation || 0}
-										onChange={(e) => setEditingFurniture({...editingFurniture, rotation: parseInt(e.target.value)})}
+										onChange={(e) => setEditingFurniture({ ...editingFurniture, rotation: parseInt(e.target.value) })}
 									>
 										<option value={0}>0° (North)</option>
 										<option value={90}>90° (East)</option>
@@ -3039,7 +3147,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 									<Form.Control
 										type="number"
 										value={editingFurniture.power_required || 0}
-										onChange={(e) => setEditingFurniture({...editingFurniture, power_required: parseInt(e.target.value)})}
+										onChange={(e) => setEditingFurniture({ ...editingFurniture, power_required: parseInt(e.target.value) })}
 									/>
 								</Form.Group>
 							</div>
@@ -3049,7 +3157,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 									<Form.Control
 										type="color"
 										value={editingFurniture.color || '#ffffff'}
-										onChange={(e) => setEditingFurniture({...editingFurniture, color: e.target.value})}
+										onChange={(e) => setEditingFurniture({ ...editingFurniture, color: e.target.value })}
 									/>
 								</Form.Group>
 							</div>
@@ -3062,7 +3170,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 										type="checkbox"
 										label="Interactive"
 										checked={editingFurniture.interactive || false}
-										onChange={(e) => setEditingFurniture({...editingFurniture, interactive: e.target.checked})}
+										onChange={(e) => setEditingFurniture({ ...editingFurniture, interactive: e.target.checked })}
 									/>
 								</Form.Group>
 							</div>
@@ -3071,7 +3179,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 									type="checkbox"
 									label="Active"
 									checked={editingFurniture.active || false}
-									onChange={(e) => setEditingFurniture({...editingFurniture, active: e.target.checked})}
+									onChange={(e) => setEditingFurniture({ ...editingFurniture, active: e.target.checked })}
 								/>
 							</div>
 							<div className="col-md-3">
@@ -3079,7 +3187,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 									type="checkbox"
 									label="Discovered"
 									checked={editingFurniture.discovered || false}
-									onChange={(e) => setEditingFurniture({...editingFurniture, discovered: e.target.checked})}
+									onChange={(e) => setEditingFurniture({ ...editingFurniture, discovered: e.target.checked })}
 								/>
 							</div>
 							<div className="col-md-3">
@@ -3087,7 +3195,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 									type="checkbox"
 									label="Blocks Movement"
 									checked={editingFurniture.blocks_movement || false}
-									onChange={(e) => setEditingFurniture({...editingFurniture, blocks_movement: e.target.checked})}
+									onChange={(e) => setEditingFurniture({ ...editingFurniture, blocks_movement: e.target.checked })}
 								/>
 							</div>
 						</div>
@@ -3203,7 +3311,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 								onChange={(e) => {
 									try {
 										const requirements = e.target.value ? JSON.parse(e.target.value) : null;
-										setEditingFurniture({...editingFurniture, requirements});
+										setEditingFurniture({ ...editingFurniture, requirements });
 									} catch (err) {
 										// Invalid JSON - don't update the state, let user continue typing
 									}
@@ -3239,7 +3347,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 									<Form.Control
 										type="text"
 										value={editingRoom.id || ''}
-										onChange={(e) => setEditingRoom({...editingRoom, id: e.target.value})}
+										onChange={(e) => setEditingRoom({ ...editingRoom, id: e.target.value })}
 									/>
 								</Form.Group>
 							</div>
@@ -3249,7 +3357,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 									<Form.Control
 										type="text"
 										value={editingRoom.name || ''}
-										onChange={(e) => setEditingRoom({...editingRoom, name: e.target.value})}
+										onChange={(e) => setEditingRoom({ ...editingRoom, name: e.target.value })}
 									/>
 								</Form.Group>
 							</div>
@@ -3261,7 +3369,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 								as="textarea"
 								rows={2}
 								value={editingRoom.description || ''}
-								onChange={(e) => setEditingRoom({...editingRoom, description: e.target.value})}
+								onChange={(e) => setEditingRoom({ ...editingRoom, description: e.target.value })}
 							/>
 						</Form.Group>
 
@@ -3271,7 +3379,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 									<Form.Label>Layout ID</Form.Label>
 									<Form.Select
 										value={editingRoom.layout_id || 'destiny'}
-										onChange={(e) => setEditingRoom({...editingRoom, layout_id: e.target.value})}
+										onChange={(e) => setEditingRoom({ ...editingRoom, layout_id: e.target.value })}
 									>
 										<option value="destiny">Destiny</option>
 										<option value="atlantis">Atlantis</option>
@@ -3283,7 +3391,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 									<Form.Label>Type</Form.Label>
 									<Form.Select
 										value={editingRoom.type || 'corridor'}
-										onChange={(e) => setEditingRoom({...editingRoom, type: e.target.value})}
+										onChange={(e) => setEditingRoom({ ...editingRoom, type: e.target.value })}
 									>
 										<option value="corridor">Corridor</option>
 										<option value="gate_room">Gate Room</option>
@@ -3304,7 +3412,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 									<Form.Control
 										type="number"
 										value={editingRoom.floor || selectedFloor}
-										onChange={(e) => setEditingRoom({...editingRoom, floor: parseInt(e.target.value)})}
+										onChange={(e) => setEditingRoom({ ...editingRoom, floor: parseInt(e.target.value) })}
 									/>
 								</Form.Group>
 							</div>
@@ -3322,7 +3430,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 										onChange={(e) => {
 											const startX = parseInt(e.target.value);
 											const width = (editingRoom.endX || 0) - startX;
-											setEditingRoom({...editingRoom, startX, width});
+											setEditingRoom({ ...editingRoom, startX, width });
 										}}
 									/>
 								</Form.Group>
@@ -3337,7 +3445,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 										onChange={(e) => {
 											const endX = parseInt(e.target.value);
 											const width = endX - (editingRoom.startX || 0);
-											setEditingRoom({...editingRoom, endX, width});
+											setEditingRoom({ ...editingRoom, endX, width });
 										}}
 									/>
 								</Form.Group>
@@ -3352,7 +3460,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 										onChange={(e) => {
 											const startY = parseInt(e.target.value);
 											const height = (editingRoom.endY || 0) - startY;
-											setEditingRoom({...editingRoom, startY, height});
+											setEditingRoom({ ...editingRoom, startY, height });
 										}}
 									/>
 								</Form.Group>
@@ -3367,7 +3475,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 										onChange={(e) => {
 											const endY = parseInt(e.target.value);
 											const height = endY - (editingRoom.startY || 0);
-											setEditingRoom({...editingRoom, endY, height});
+											setEditingRoom({ ...editingRoom, endY, height });
 										}}
 									/>
 								</Form.Group>
@@ -3403,7 +3511,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 									<Form.Label>Status</Form.Label>
 									<Form.Select
 										value={editingRoom.status || 'ok'}
-										onChange={(e) => setEditingRoom({...editingRoom, status: e.target.value})}
+										onChange={(e) => setEditingRoom({ ...editingRoom, status: e.target.value })}
 									>
 										<option value="ok">OK</option>
 										<option value="damaged">Damaged</option>
@@ -3419,7 +3527,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 										type="number"
 										min="0"
 										value={editingRoom.base_exploration_time || 2}
-										onChange={(e) => setEditingRoom({...editingRoom, base_exploration_time: parseInt(e.target.value)})}
+										onChange={(e) => setEditingRoom({ ...editingRoom, base_exploration_time: parseInt(e.target.value) })}
 									/>
 								</Form.Group>
 							</div>
@@ -3431,7 +3539,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 									type="checkbox"
 									label="Found"
 									checked={editingRoom.found || false}
-									onChange={(e) => setEditingRoom({...editingRoom, found: e.target.checked})}
+									onChange={(e) => setEditingRoom({ ...editingRoom, found: e.target.checked })}
 								/>
 							</div>
 							<div className="col-md-4">
@@ -3439,7 +3547,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 									type="checkbox"
 									label="Locked"
 									checked={editingRoom.locked || false}
-									onChange={(e) => setEditingRoom({...editingRoom, locked: e.target.checked})}
+									onChange={(e) => setEditingRoom({ ...editingRoom, locked: e.target.checked })}
 								/>
 							</div>
 							<div className="col-md-4">
@@ -3447,7 +3555,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 									type="checkbox"
 									label="Explored"
 									checked={editingRoom.explored || false}
-									onChange={(e) => setEditingRoom({...editingRoom, explored: e.target.checked})}
+									onChange={(e) => setEditingRoom({ ...editingRoom, explored: e.target.checked })}
 								/>
 							</div>
 						</div>
@@ -3491,7 +3599,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 							</Table>
 							<div className="d-flex gap-2">
 								<Button variant="primary" onClick={() => {
-									setEditingRoom({...selectedRoom});
+									setEditingRoom({ ...selectedRoom });
 									setShowRoomModal(true);
 									setShowInspectorModal(false);
 								}}>
@@ -3561,7 +3669,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 							</Table>
 							<div className="d-flex gap-2">
 								<Button variant="primary" onClick={() => {
-									setEditingDoor({...selectedDoor});
+									setEditingDoor({ ...selectedDoor });
 									setShowDoorModal(true);
 									setShowInspectorModal(false);
 								}}>
@@ -3660,7 +3768,7 @@ export const RoomBuilder: React.FC<RoomBuilderProps> = ({ selectedFloor, onFloor
 							</Table>
 							<div className="d-flex gap-2">
 								<Button variant="primary" onClick={() => {
-									setEditingFurniture({...selectedFurniture});
+									setEditingFurniture({ ...selectedFurniture });
 									setShowFurnitureModal(true);
 									setShowInspectorModal(false);
 								}}>

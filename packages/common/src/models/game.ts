@@ -25,12 +25,20 @@ export const FogOfWarDataSchema = z.record(z.string(), z.boolean());
 export type FogOfWarData = z.infer<typeof FogOfWarDataSchema>;
 
 /**
+ * Represents the floor-aware fog of war data structure.
+ * Maps floor numbers to fog data for that floor.
+ */
+export const FloorAwareFogOfWarDataSchema = z.record(z.string(), FogOfWarDataSchema);
+export type FloorAwareFogOfWarData = z.infer<typeof FloorAwareFogOfWarDataSchema>;
+
+/**
  * Represents the player's position on the map.
  */
 export const PlayerPositionSchema = z.object({
 	x: z.number(),
 	y: z.number(),
 	roomId: z.string(),
+	floor: z.number().optional(),
 });
 export type PlayerPosition = z.infer<typeof PlayerPositionSchema>;
 
@@ -79,8 +87,8 @@ export const GameDataSchema = z.object({
 	// Game engine state (may be present from game engine)
 	playerPosition: PlayerPositionSchema.optional(),
 	doorStates: z.array(DoorStateSchema).optional(),
-	fogOfWar: FogOfWarDataSchema.optional(),
-	fog_of_war: FogOfWarDataSchema.optional(), // Support both naming conventions
+	fogOfWar: FloorAwareFogOfWarDataSchema.optional(),
+	fog_of_war: FloorAwareFogOfWarDataSchema.optional(), // Support both naming conventions
 	mapZoom: z.number().optional(),
 	currentBackgroundType: z.string().optional(),
 });

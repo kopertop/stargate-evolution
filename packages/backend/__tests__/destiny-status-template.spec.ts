@@ -1,7 +1,7 @@
 import { DestinyStatusSchema } from '@stargate/common/models/destiny-status';
 import { describe, it, expect } from 'vitest';
 
-import { getDefaultDestinyStatusTemplate } from '../src/templates/destiny-status-template';
+import { getDefaultDestinyStatusTemplate } from '../src/data/destiny-status-template';
 
 describe('destiny-status-template', () => {
 	it('returns a valid default destiny status', () => {

@@ -34,7 +34,7 @@ export const DoorTemplateSchema = z.object({
 	requirements: z.array(DoorRequirementSchema).optional().nullable(),
 	power_required: z.number().default(0), // Power needed to operate
 	sound_effect: z.string().optional().nullable(), // Sound to play when opened/closed
-	
+
 	// NPC access control
 	cleared: z.union([z.boolean(), z.number()]).transform((val) => val === true || val === 1).default(false), // Opened by user for first time
 	restricted: z.union([z.boolean(), z.number()]).transform((val) => val === true || val === 1).default(false), // Only user can open
@@ -51,6 +51,6 @@ export const DoorInfoSchema = z.object({
 	requirements: z.array(DoorRequirementSchema).optional().nullable(),
 });
 
-export type DoorTemplate = z.infer<typeof DoorTemplateSchema>;
+export type Door = z.infer<typeof DoorTemplateSchema>;
 export type DoorInfo = z.infer<typeof DoorInfoSchema>;
 export type DoorRequirement = z.infer<typeof DoorRequirementSchema>;

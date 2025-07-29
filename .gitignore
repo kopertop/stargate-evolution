@@ -84,3 +84,7 @@ dev-debug.log
 
 # misc
 .dev.vars
+
+# Test Reports
+playwright-report/
+test-results/

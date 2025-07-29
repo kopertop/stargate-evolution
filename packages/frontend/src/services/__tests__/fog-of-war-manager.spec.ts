@@ -20,7 +20,7 @@ describe('FogOfWarManager', () => {
 			const config = defaultManager.getConfig();
 
 			expect(config.tileSize).toBe(64);
-			expect(config.visibilityRange).toBe(5);
+			expect(config.visibilityRange).toBe(3.5);
 			expect(config.useLineOfSight).toBe(true);
 		});
 
@@ -38,7 +38,7 @@ describe('FogOfWarManager', () => {
 				'1,1': true,
 				'2,2': false,
 			};
-			const playerPos: PlayerPosition = { x: 32, y: 32, roomId: 'test-room' };
+			const playerPos: PlayerPosition = { x: 32, y: 32, roomId: 'test-room', floor: 0 };
 
 			fogManager.initialize(existingFogData, playerPos);
 
@@ -67,7 +67,7 @@ describe('FogOfWarManager', () => {
 
 	describe('visibility and discovery', () => {
 		it('should discover tiles when player moves', () => {
-			const playerPos: PlayerPosition = { x: 32, y: 32, roomId: 'test-room' }; // Center of tile (0,0)
+			const playerPos: PlayerPosition = { x: 32, y: 32, roomId: 'test-room', floor: 0 }; // Center of tile (0,0)
 
 			const hasNewDiscoveries = fogManager.updatePlayerPosition(playerPos);
 
@@ -83,7 +83,7 @@ describe('FogOfWarManager', () => {
 		});
 
 		it('should not discover tiles outside visibility range', () => {
-			const playerPos: PlayerPosition = { x: 32, y: 32, roomId: 'test-room' }; // Center of tile (0,0)
+			const playerPos: PlayerPosition = { x: 32, y: 32, roomId: 'test-room', floor: 0 }; // Center of tile (0,0)
 
 			fogManager.updatePlayerPosition(playerPos);
 
@@ -93,7 +93,7 @@ describe('FogOfWarManager', () => {
 		});
 
 		it('should discover tiles in circular pattern', () => {
-			const playerPos: PlayerPosition = { x: 160, y: 160, roomId: 'test-room' }; // Center of tile (2,2)
+			const playerPos: PlayerPosition = { x: 160, y: 160, roomId: 'test-room', floor: 0 }; // Center of tile (2,2)
 
 			fogManager.updatePlayerPosition(playerPos);
 
@@ -109,14 +109,14 @@ describe('FogOfWarManager', () => {
 		});
 
 		it('should not discover new tiles if player stays in same tile', () => {
-			const playerPos: PlayerPosition = { x: 32, y: 32, roomId: 'test-room' };
+			const playerPos: PlayerPosition = { x: 32, y: 32, roomId: 'test-room', floor: 0 };
 
 			// First update should discover tiles
 			const firstUpdate = fogManager.updatePlayerPosition(playerPos);
 			expect(firstUpdate).toBe(true);
 
 			// Moving within same tile should not discover new tiles
-			const samePos = { x: 40, y: 40, roomId: 'test-room' }; // Still in tile (0,0)
+			const samePos = { x: 40, y: 40, roomId: 'test-room', floor: 0 }; // Still in tile (0,0)
 			const secondUpdate = fogManager.updatePlayerPosition(samePos);
 			expect(secondUpdate).toBe(false);
 		});
@@ -124,7 +124,7 @@ describe('FogOfWarManager', () => {
 
 	describe('fog data management', () => {
 		it('should return current fog data', () => {
-			const playerPos: PlayerPosition = { x: 32, y: 32, roomId: 'test-room' };
+			const playerPos: PlayerPosition = { x: 32, y: 32, roomId: 'test-room', floor: 0 };
 			fogManager.updatePlayerPosition(playerPos);
 
 			const fogData = fogManager.getFogData();
@@ -134,7 +134,7 @@ describe('FogOfWarManager', () => {
 		});
 
 		it('should get list of discovered tiles', () => {
-			const playerPos: PlayerPosition = { x: 32, y: 32, roomId: 'test-room' };
+			const playerPos: PlayerPosition = { x: 32, y: 32, roomId: 'test-room', floor: 0 };
 			fogManager.updatePlayerPosition(playerPos);
 
 			const discoveredTiles = fogManager.getDiscoveredTiles();
@@ -156,7 +156,7 @@ describe('FogOfWarManager', () => {
 		});
 
 		it('should clear all fog data', () => {
-			const playerPos: PlayerPosition = { x: 32, y: 32, roomId: 'test-room' };
+			const playerPos: PlayerPosition = { x: 32, y: 32, roomId: 'test-room', floor: 0 };
 			fogManager.updatePlayerPosition(playerPos);
 
 			// Verify some tiles are discovered
@@ -204,7 +204,7 @@ describe('FogOfWarManager', () => {
 	describe('line of sight', () => {
 		it('should respect line of sight setting', () => {
 			// Test with line of sight enabled
-			const playerPos: PlayerPosition = { x: 32, y: 32, roomId: 'test-room' };
+			const playerPos: PlayerPosition = { x: 32, y: 32, roomId: 'test-room', floor: 0 };
 			fogManager.updatePlayerPosition(playerPos);
 
 			const tilesWithLOS = fogManager.getDiscoveredTiles().length;
@@ -242,7 +242,7 @@ describe('FogOfWarManager', () => {
 
 		it('should affect discovery after config update', () => {
 			// Initial discovery with range 3
-			const playerPos: PlayerPosition = { x: 32, y: 32, roomId: 'test-room' };
+			const playerPos: PlayerPosition = { x: 32, y: 32, roomId: 'test-room', floor: 0 };
 			fogManager.updatePlayerPosition(playerPos);
 			const initialTiles = fogManager.getDiscoveredTiles().length;
 
@@ -259,7 +259,7 @@ describe('FogOfWarManager', () => {
 
 	describe('edge cases', () => {
 		it('should handle very large coordinates', () => {
-			const largePos: PlayerPosition = { x: 1000000, y: 1000000, roomId: 'test-room' };
+			const largePos: PlayerPosition = { x: 1000000, y: 1000000, roomId: 'test-room', floor: 0 };
 
 			expect(() => {
 				fogManager.updatePlayerPosition(largePos);
@@ -270,7 +270,7 @@ describe('FogOfWarManager', () => {
 
 		it('should handle zero visibility range', () => {
 			fogManager.updateConfig({ visibilityRange: 0 });
-			const playerPos: PlayerPosition = { x: 32, y: 32, roomId: 'test-room' };
+			const playerPos: PlayerPosition = { x: 32, y: 32, roomId: 'test-room', floor: 0 };
 
 			fogManager.updatePlayerPosition(playerPos);
 
@@ -280,12 +280,189 @@ describe('FogOfWarManager', () => {
 		});
 
 		it('should handle fractional coordinates', () => {
-			const playerPos: PlayerPosition = { x: 32.5, y: 32.7, roomId: 'test-room' };
+			const playerPos: PlayerPosition = { x: 32.5, y: 32.7, roomId: 'test-room', floor: 0 };
 
 			fogManager.updatePlayerPosition(playerPos);
 
 			// Should still work with fractional coordinates
 			expect(fogManager.isTileDiscovered(32, 32)).toBe(true);
+		});
+	});
+
+	describe('floor management', () => {
+		it('should initialize fog data for new floors', () => {
+			const manager = new FogOfWarManager();
+
+			// Start on floor 0
+			expect(manager.getCurrentFloor()).toBe(0);
+
+			// Change to floor 1
+			manager.setCurrentFloor(1);
+			expect(manager.getCurrentFloor()).toBe(1);
+
+			// Floor 1 should have empty fog data
+			const fogData = manager.getFogData();
+			expect(Object.keys(fogData)).toHaveLength(0);
+		});
+
+		it('should preserve fog data when switching floors', () => {
+			const manager = new FogOfWarManager();
+
+			// Discover some tiles on floor 0
+			manager.forceDiscoverTile(100, 100);
+			manager.forceDiscoverTile(200, 200);
+
+			const floor0Data = manager.getFogData();
+			expect(Object.keys(floor0Data)).toHaveLength(2);
+
+			// Switch to floor 1
+			manager.setCurrentFloor(1);
+			expect(manager.getCurrentFloor()).toBe(1);
+
+			// Floor 1 should be empty
+			const floor1Data = manager.getFogData();
+			expect(Object.keys(floor1Data)).toHaveLength(0);
+
+			// Switch back to floor 0
+			manager.setCurrentFloor(0);
+			expect(manager.getCurrentFloor()).toBe(0);
+
+			// Floor 0 data should be preserved
+			const restoredFloor0Data = manager.getFogData();
+			expect(Object.keys(restoredFloor0Data)).toHaveLength(2);
+			expect(restoredFloor0Data).toEqual(floor0Data);
+		});
+
+		it('should handle floor-specific fog data operations', () => {
+			const manager = new FogOfWarManager();
+
+			// Set fog data for floor 0
+			const floor0Data = { '0,0': true, '1,1': true };
+			manager.setFogDataForFloor(0, floor0Data);
+
+			// Set fog data for floor 1
+			const floor1Data = { '2,2': true, '3,3': true };
+			manager.setFogDataForFloor(1, floor1Data);
+
+			// Verify floor 0 data
+			manager.setCurrentFloor(0);
+			expect(manager.getFogData()).toEqual(floor0Data);
+
+			// Verify floor 1 data
+			manager.setCurrentFloor(1);
+			expect(manager.getFogData()).toEqual(floor1Data);
+		});
+
+		it('should get all fog data for all floors', () => {
+			const manager = new FogOfWarManager();
+
+			// Set fog data for multiple floors
+			const floor0Data = { '0,0': true };
+			const floor1Data = { '1,1': true };
+			const floor2Data = { '2,2': true };
+
+			manager.setFogDataForFloor(0, floor0Data);
+			manager.setFogDataForFloor(1, floor1Data);
+			manager.setFogDataForFloor(2, floor2Data);
+
+			const allData = manager.getAllFogData();
+			expect(allData).toEqual({
+				0: floor0Data,
+				1: floor1Data,
+				2: floor2Data,
+			});
+		});
+
+		it('should set all fog data for all floors', () => {
+			const manager = new FogOfWarManager();
+
+			const allData = {
+				0: { '0,0': true },
+				1: { '1,1': true },
+				2: { '2,2': true },
+			};
+
+			manager.setAllFogData(allData);
+
+			// Verify each floor
+			manager.setCurrentFloor(0);
+			expect(manager.getFogData()).toEqual(allData[0]);
+
+			manager.setCurrentFloor(1);
+			expect(manager.getFogData()).toEqual(allData[1]);
+
+			manager.setCurrentFloor(2);
+			expect(manager.getFogData()).toEqual(allData[2]);
+		});
+
+		it('should clear fog for current floor only', () => {
+			const manager = new FogOfWarManager();
+
+			// Set fog data for multiple floors
+			manager.setFogDataForFloor(0, { '0,0': true });
+			manager.setFogDataForFloor(1, { '1,1': true });
+
+			// Clear fog for current floor (0)
+			manager.clearFog();
+
+			// Floor 0 should be cleared
+			expect(manager.getFogData()).toEqual({});
+
+			// Floor 1 should still have data
+			manager.setCurrentFloor(1);
+			expect(manager.getFogData()).toEqual({ '1,1': true });
+		});
+
+		it('should clear fog for all floors', () => {
+			const manager = new FogOfWarManager();
+
+			// Set fog data for multiple floors
+			manager.setFogDataForFloor(0, { '0,0': true });
+			manager.setFogDataForFloor(1, { '1,1': true });
+
+			// Clear all fog
+			manager.clearAllFog();
+
+			// All floors should be cleared
+			manager.setCurrentFloor(0);
+			expect(manager.getFogData()).toEqual({});
+
+			manager.setCurrentFloor(1);
+			expect(manager.getFogData()).toEqual({});
+		});
+	});
+
+	describe('player position management', () => {
+		it('should trigger fog discovery when player position is set', () => {
+			const manager = new FogOfWarManager();
+			const playerPosition = { x: 100, y: 100, roomId: 'test-room', floor: 0 };
+
+			// Set player position - this should trigger fog discovery
+			manager.updatePlayerPosition(playerPosition);
+
+			// Check that tiles around the player position are discovered
+			// The discovery radius should be 3 tiles (48 pixels / 16 pixels per tile)
+			expect(manager.isTileDiscovered(100, 100)).toBe(true); // Player position
+			expect(manager.isTileDiscovered(80, 80)).toBe(true);   // Within discovery radius
+			expect(manager.isTileDiscovered(160, 160)).toBe(true); // Within discovery radius
+			expect(manager.isTileDiscovered(200, 200)).toBe(false); // Outside discovery radius
+		});
+
+		it('should not rediscover already discovered tiles', () => {
+			const manager = new FogOfWarManager();
+			const playerPosition = { x: 100, y: 100, roomId: 'test-room', floor: 0 };
+
+			// First discovery
+			manager.updatePlayerPosition(playerPosition);
+			const firstDiscoveryCount = Object.keys(manager.getFogData()).length;
+
+			// Move player to a position that will discover some new tiles but not too many
+			manager.updatePlayerPosition({ x: 150, y: 150, roomId: 'test-room', floor: 0 });
+			const secondDiscoveryCount = Object.keys(manager.getFogData()).length;
+
+			// Should discover some new tiles but not too many since some overlap
+			expect(secondDiscoveryCount).toBeGreaterThan(firstDiscoveryCount);
+			expect(secondDiscoveryCount - firstDiscoveryCount).toBeLessThan(20); // Only a few new tiles
 		});
 	});
 });

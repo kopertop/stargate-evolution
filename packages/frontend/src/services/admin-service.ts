@@ -1,4 +1,4 @@
-import { RoomTemplate, TechnologyTemplate } from '@stargate/common';
+import { Room, RoomTemplate, TechnologyTemplate } from '@stargate/common';
 
 import { apiClient } from './api-client';
 
@@ -25,9 +25,9 @@ export class AdminService {
 		return response.data;
 	}
 
-	// Room management
+	// Room Template management
 	async getAllRoomTemplates(): Promise<RoomTemplate[]> {
-		const response = await apiClient.get('/api/templates/rooms', false); // Public endpoint
+		const response = await apiClient.get('/api/admin/room-templates', true);
 		if (response.error) {
 			throw new Error(response.error);
 		}
@@ -35,7 +35,41 @@ export class AdminService {
 		return Array.isArray(data) ? data : [];
 	}
 
-	async createRoom(roomData: any) {
+	async createRoomTemplate(templateData: any) {
+		const response = await apiClient.post('/api/admin/room-templates', templateData, true);
+		if (response.error) {
+			throw new Error(response.error);
+		}
+		return response.data;
+	}
+
+	async updateRoomTemplate(templateId: string, templateData: any) {
+		const response = await apiClient.put(`/api/admin/room-templates/${templateId}`, templateData, true);
+		if (response.error) {
+			throw new Error(response.error);
+		}
+		return response.data;
+	}
+
+	async deleteRoomTemplate(templateId: string) {
+		const response = await apiClient.delete(`/api/admin/room-templates/${templateId}`, true);
+		if (response.error) {
+			throw new Error(response.error);
+		}
+		return response.data;
+	}
+
+	// Room management
+	async getAllRooms(): Promise<Room[]> {
+		const response = await apiClient.get('/api/data/rooms', false); // Public endpoint
+		if (response.error) {
+			throw new Error(response.error);
+		}
+		const data = response.data;
+		return Array.isArray(data) ? data : [];
+	}
+
+	async createRoom(roomData: Room) {
 		const response = await apiClient.post('/api/admin/rooms', roomData, true);
 		if (response.error) {
 			throw new Error(response.error);
@@ -61,7 +95,7 @@ export class AdminService {
 
 	// Technology management
 	async getAllTechnologyTemplates(): Promise<TechnologyTemplate[]> {
-		const response = await apiClient.get('/api/templates/technology', false); // Public endpoint
+		const response = await apiClient.get('/api/data/technology', false); // Public endpoint
 		if (response.error) {
 			throw new Error(response.error);
 		}
@@ -195,6 +229,67 @@ export class AdminService {
 		}
 		return response.data;
 	}
+
+	// Room Template Furniture management
+	async getRoomTemplateFurniture(templateId: string) {
+		const response = await apiClient.get(`/api/admin/room-templates/${templateId}/furniture`, true);
+		if (response.error) {
+			throw new Error(response.error);
+		}
+		const data = response.data;
+		return Array.isArray(data) ? data : [];
+	}
+
+	async deleteRoomTemplateFurniture(templateId: string, furnitureId: string) {
+		const response = await apiClient.delete(`/api/admin/room-templates/${templateId}/furniture/${furnitureId}`, true);
+		if (response.error) {
+			throw new Error(response.error);
+		}
+		return response.data;
+	}
+
+	async updateRoomTemplateFurniture(templateId: string, furnitureId: string, furnitureData: any) {
+		const response = await apiClient.put(`/api/admin/room-templates/${templateId}/furniture/${furnitureId}`, furnitureData, true);
+		if (response.error) {
+			throw new Error(response.error);
+		}
+		return response.data;
+	}
+
+	async getRoomTemplateTechnology(templateId: string) {
+		const response = await apiClient.get(`/api/admin/room-templates/${templateId}/technology`, true);
+		if (response.error) {
+			throw new Error(response.error);
+		}
+		const data = response.data;
+		return Array.isArray(data) ? data : [];
+	}
+
+	async deleteRoomTemplateTechnology(templateId: string, technologyId: string) {
+		const response = await apiClient.delete(`/api/admin/room-templates/${templateId}/technology/${technologyId}`, true);
+		if (response.error) {
+			throw new Error(response.error);
+		}
+		return response.data;
+	}
+
+	async updateRoomTemplateTechnology(templateId: string, technologyId: string, technologyData: any) {
+		const response = await apiClient.put(`/api/admin/room-templates/${templateId}/technology/${technologyId}`, technologyData, true);
+		if (response.error) {
+			throw new Error(response.error);
+		}
+		return response.data;
+	}
+
+	// Furniture Templates management
+	async getFurnitureTemplates() {
+		const response = await apiClient.get('/api/data/furniture-templates', false); // Public endpoint
+		if (response.error) {
+			throw new Error(response.error);
+		}
+		const data = response.data;
+		return Array.isArray(data) ? data : [];
+	}
 	// Comprehensive template data export/import
 	async exportAllTemplateData() {
 		const response = await apiClient.get('/api/admin/templates/export', true);
@@ -216,11 +311,11 @@ export class AdminService {
 	async downloadTemplateData() {
 		try {
 			const data = await this.exportAllTemplateData();
-			
+
 			// Create downloadable file
 			const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
 			const url = URL.createObjectURL(blob);
-			
+
 			// Create download link
 			const link = document.createElement('a');
 			link.href = url;
@@ -229,7 +324,7 @@ export class AdminService {
 			link.click();
 			document.body.removeChild(link);
 			URL.revokeObjectURL(url);
-			
+
 			return data;
 		} catch (error) {
 			console.error('Failed to download template data:', error);

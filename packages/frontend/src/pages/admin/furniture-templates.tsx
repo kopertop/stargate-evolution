@@ -1,15 +1,15 @@
 import { FurnitureTemplate, DEFAULT_IMAGE_KEYS } from '@stargate/common';
 import React, { useState, useEffect } from 'react';
-import { 
-	Container, 
-	Row, 
-	Col, 
-	Card, 
-	Button, 
-	Table, 
-	Modal, 
-	Form, 
-	Alert, 
+import {
+	Container,
+	Row,
+	Col,
+	Card,
+	Button,
+	Table,
+	Modal,
+	Form,
+	Alert,
 	Badge,
 	InputGroup,
 	ButtonGroup,
@@ -92,7 +92,7 @@ export const FurnitureTemplatesAdmin: React.FC = () => {
 	const loadTemplates = async () => {
 		try {
 			setLoading(true);
-			const response = await apiClient.get('/api/templates/furniture-templates');
+			const response = await apiClient.get('/api/data/furniture-templates');
 			if (response.data) {
 				setTemplates(response.data);
 			} else {
@@ -154,7 +154,7 @@ export const FurnitureTemplatesAdmin: React.FC = () => {
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
-		
+
 		try {
 			// Validate JSON fields
 			try {
@@ -181,8 +181,8 @@ export const FurnitureTemplatesAdmin: React.FC = () => {
 			};
 
 			const response = editingTemplate
-				? await apiClient.put(`/api/templates/furniture-templates/${editingTemplate.id}`, templateData)
-				: await apiClient.post('/api/templates/furniture-templates', templateData);
+				? await apiClient.put(`/api/data/furniture-templates/${editingTemplate.id}`, templateData)
+				: await apiClient.post('/api/data/furniture-templates', templateData);
 
 			if (response.data) {
 				await loadTemplates();
@@ -201,7 +201,7 @@ export const FurnitureTemplatesAdmin: React.FC = () => {
 		}
 
 		try {
-			const response = await apiClient.delete(`/api/templates/furniture-templates/${template.id}`);
+			const response = await apiClient.delete(`/api/data/furniture-templates/${template.id}`);
 			if (response.data) {
 				await loadTemplates();
 			} else {
@@ -213,13 +213,13 @@ export const FurnitureTemplatesAdmin: React.FC = () => {
 	};
 
 	const filteredTemplates = templates.filter(template => {
-		const matchesSearch = !searchTerm || 
+		const matchesSearch = !searchTerm ||
 			template.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
 			template.furniture_type.toLowerCase().includes(searchTerm.toLowerCase()) ||
 			(template.description || '').toLowerCase().includes(searchTerm.toLowerCase());
-		
+
 		const matchesCategory = !categoryFilter || template.category === categoryFilter;
-		
+
 		return matchesSearch && matchesCategory;
 	});
 
@@ -321,7 +321,7 @@ export const FurnitureTemplatesAdmin: React.FC = () => {
 												<strong>{template.name}</strong>
 												{template.description && (
 													<div className="text-muted small">
-														{template.description.length > 50 
+														{template.description.length > 50
 															? `${template.description.substring(0, 50)}...`
 															: template.description
 														}
@@ -350,22 +350,22 @@ export const FurnitureTemplatesAdmin: React.FC = () => {
 											</td>
 											<td>
 												<ButtonGroup size="sm">
-													<Button 
-														variant="outline-info" 
+													<Button
+														variant="outline-info"
 														onClick={() => handleViewTemplate(template)}
 														title="View Details"
 													>
 														<FaEye />
 													</Button>
-													<Button 
-														variant="outline-primary" 
+													<Button
+														variant="outline-primary"
 														onClick={() => handleOpenModal(template)}
 														title="Edit"
 													>
 														<FaEdit />
 													</Button>
-													<Button 
-														variant="outline-danger" 
+													<Button
+														variant="outline-danger"
 														onClick={() => handleDelete(template)}
 														title="Delete"
 													>
@@ -681,7 +681,7 @@ export const FurnitureTemplatesAdmin: React.FC = () => {
 									<p><strong>Active:</strong> {viewingTemplate.default_active ? 'Yes' : 'No'}</p>
 								</Col>
 							</Row>
-							
+
 							{viewingTemplate.compatible_room_types && (
 								<div className="mt-3">
 									<h6>Compatible Room Types</h6>
@@ -690,7 +690,7 @@ export const FurnitureTemplatesAdmin: React.FC = () => {
 									</pre>
 								</div>
 							)}
-							
+
 							{viewingTemplate.tags && (
 								<div className="mt-3">
 									<h6>Tags</h6>

@@ -13,7 +13,9 @@
 	<link rel="manifest" href="/assets/site.webmanifest" />
 	<link rel="apple-touch-icon" href="/assets/android-chrome-192x192.png" />
 	<title>Stargate Evolution</title>
-	<script src="https://accounts.google.com/gsi/client" async defer></script>
+	<script src="https://accounts.google.com/gsi/client" async defer
+		onerror="console.error('[GOOGLE-AUTH] Failed to load Google Identity Services script'); window.googleScriptLoadError = true;"
+		onload="console.log('[GOOGLE-AUTH] Google Identity Services script loaded successfully'); window.googleScriptLoaded = true;"></script>
 	<style>
 		html,
 		body {
@@ -22,8 +24,17 @@
 			padding: 0;
 			width: 100vw;
 			height: 100vh;
-			overflow: hidden;
 			background: #10101a;
+		}
+
+		/* Default overflow hidden for game pages */
+		body {
+			overflow: hidden;
+		}
+
+		/* Allow scrolling for admin pages */
+		body.admin-page {
+			overflow: auto;
 		}
 
 		#root {
@@ -61,10 +72,12 @@
 				transform: scale(0);
 				opacity: 1;
 			}
+
 			50% {
 				transform: scale(1);
 				opacity: 0.7;
 			}
+
 			100% {
 				transform: scale(2);
 				opacity: 0;
@@ -78,15 +91,95 @@
 	<button id="fullscreen-btn">Fullscreen</button>
 	<!-- React app will render here -->
 	<script type="module" src="/src/main.tsx"></script>
+
+	<!-- Google Identity Services Error Handling -->
+	<script>
+		// Global flags for Google script loading state
+		window.googleScriptLoaded = false;
+		window.googleScriptLoadError = false;
+		window.googleScriptRetryCount = 0;
+		window.maxGoogleScriptRetries = 3;
+
+		/**
+		 * Retry loading Google Identity Services script
+		 */
+		function retryGoogleScript() {
+			if (window.googleScriptRetryCount >= window.maxGoogleScriptRetries) {
+				console.error('[GOOGLE-AUTH] Max retries exceeded for Google Identity Services script');
+				return;
+			}
+
+			window.googleScriptRetryCount++;
+			console.log(`[GOOGLE-AUTH] Retrying Google Identity Services script load (attempt ${window.googleScriptRetryCount})`);
+
+			// Remove existing script if present
+			const existingScript = document.querySelector('script[src*="accounts.google.com/gsi/client"]');
+			if (existingScript) {
+				existingScript.remove();
+			}
+
+			// Create new script element
+			const script = document.createElement('script');
+			script.src = 'https://accounts.google.com/gsi/client';
+			script.async = true;
+			script.defer = true;
+
+			script.onload = function () {
+				console.log(`[GOOGLE-AUTH] Google Identity Services script loaded successfully on retry ${window.googleScriptRetryCount}`);
+				window.googleScriptLoaded = true;
+				window.googleScriptLoadError = false;
+			};
+
+			script.onerror = function () {
+				console.error(`[GOOGLE-AUTH] Google Identity Services script failed to load on retry ${window.googleScriptRetryCount}`);
+				window.googleScriptLoadError = true;
+
+				// Try again after a delay if we haven't exceeded max retries
+				if (window.googleScriptRetryCount < window.maxGoogleScriptRetries) {
+					setTimeout(retryGoogleScript, 2000 * window.googleScriptRetryCount); // Exponential backoff
+				}
+			};
+
+			document.head.appendChild(script);
+		}
+
+		// Check if script failed to load after a timeout
+		setTimeout(function () {
+			if (!window.googleScriptLoaded && !window.googleScriptLoadError) {
+				console.warn('[GOOGLE-AUTH] Google Identity Services script taking too long to load, initiating retry');
+				window.googleScriptLoadError = true;
+				retryGoogleScript();
+			}
+		}, 10000); // 10 second timeout
+
+		// Expose retry function globally for manual retries
+		window.retryGoogleScript = retryGoogleScript;
+	</script>
 	<script>
 		const btn = document.getElementById('fullscreen-btn');
 
-		// Enhanced PWA and fullscreen detection
-		const isPWA = window.matchMedia('(display-mode: standalone)').matches ||
-			window.navigator.standalone === true ||
-			window.matchMedia('(display-mode: fullscreen)').matches ||
-			window.matchMedia('(display-mode: minimal-ui)').matches;
+		/**
+		 * Check if app is in fullscreen mode (via Fullscreen API)
+		 */
+		function isAppFullscreen() {
+			return !!(
+				document.fullscreenElement ||
+				document.webkitFullscreenElement ||
+				document.mozFullScreenElement ||
+				document.msFullscreenElement
+			);
+		}
 
+		/**
+		 * Check if running as PWA (standalone mode)
+		 */
+		function isPWA() {
+			return window.navigator.standalone === true;
+		}
+
+		/**
+		 * Request fullscreen for the app
+		 */
 		btn.onclick = () => {
 			const el = document.documentElement;
 			if (el.requestFullscreen) el.requestFullscreen();
@@ -95,26 +188,23 @@
 			else if (el.msRequestFullscreen) el.msRequestFullscreen();
 		};
 
-		const checkFullscreen = () => {
-			const isDocumentFullscreen = !!(
-				document.fullscreenElement ||
-				document.webkitFullscreenElement ||
-				document.mozFullScreenElement ||
-				document.msFullscreenElement
-			);
+		/**
+		 * Update fullscreen button visibility
+		 */
+		function updateButtonVisibility() {
+			// Hide button if app is already fullscreen OR if running as PWA
+			const shouldHide = isAppFullscreen() || isPWA();
+			btn.style.display = shouldHide ? 'none' : 'block';
+		}
 
-			// Hide button if in actual fullscreen OR if in PWA mode
-			const shouldHideButton = isDocumentFullscreen || isPWA;
-			btn.style.display = shouldHideButton ? 'none' : 'block';
-		};
-
-		document.addEventListener('fullscreenchange', checkFullscreen);
-		document.addEventListener('webkitfullscreenchange', checkFullscreen);
-		document.addEventListener('mozfullscreenchange', checkFullscreen);
-		document.addEventListener('MSFullscreenChange', checkFullscreen);
+		// Listen for fullscreen changes
+		document.addEventListener('fullscreenchange', updateButtonVisibility);
+		document.addEventListener('webkitfullscreenchange', updateButtonVisibility);
+		document.addEventListener('mozfullscreenchange', updateButtonVisibility);
+		document.addEventListener('MSFullscreenChange', updateButtonVisibility);
 
 		// Initial check
-		checkFullscreen();
+		updateButtonVisibility();
 	</script>
 </body>
 

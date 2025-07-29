@@ -8,7 +8,7 @@ export class ApiService {
 	 * Fetch all technology templates for a specific room
 	 */
 	static async getRoomTechnology(templateId: string): Promise<RoomTechnology[]> {
-		const response = await apiClient.get(`/api/templates/room-technology/${templateId}`, false); // Public endpoint
+		const response = await apiClient.get(`/api/data/room-technology/${templateId}`, false); // Public endpoint
 		if (response.error) {
 			throw new Error(`Failed to fetch room technology: ${response.error}`);
 		}
@@ -19,7 +19,7 @@ export class ApiService {
 	 * Fetch technology template by ID
 	 */
 	static async getTechnologyTemplate(technologyId: string): Promise<TechnologyTemplate> {
-		const response = await apiClient.get(`/api/templates/technology/${technologyId}`, false); // Public endpoint
+		const response = await apiClient.get(`/api/data/technology/${technologyId}`, false); // Public endpoint
 		if (response.error) {
 			throw new Error(`Failed to fetch technology template: ${response.error}`);
 		}
@@ -30,7 +30,7 @@ export class ApiService {
 	 * Fetch all technology templates
 	 */
 	static async getAllTechnologyTemplates(): Promise<TechnologyTemplate[]> {
-		const response = await apiClient.get('/api/templates/technology', false); // Public endpoint
+		const response = await apiClient.get('/api/data/technology', false); // Public endpoint
 		if (response.error) {
 			throw new Error(`Failed to fetch technology templates: ${response.error}`);
 		}

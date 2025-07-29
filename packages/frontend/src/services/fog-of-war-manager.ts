@@ -10,9 +10,14 @@ export interface FogOfWarConfig {
 }
 
 export class FogOfWarManager {
-	private fogData: FogOfWarData = {};
+	private fogData: Record<number, FogOfWarData> = {}; // Floor -> fog data
 	private config: FogOfWarConfig;
 	private playerPosition: PlayerPosition | null = null;
+	private currentFloor: number = 0;
+
+	// Floor-specific player position tracking
+	private floorPlayerPositions: Record<number, PlayerPosition | null> = {}; // Floor -> last known player position
+	private floorLastTilePositions: Record<number, { tileX: number; tileY: number }> = {}; // Floor -> last tile position
 
 	// Performance optimization fields
 	private lastPlayerTileX: number = Number.MAX_SAFE_INTEGER;
@@ -23,9 +28,11 @@ export class FogOfWarManager {
 	// Pre-calculated visibility pattern for circular discovery
 	private visibilityPattern: Array<{ dx: number; dy: number; distance: number }> = [];
 
+	private obstacleChecker: ((tileX: number, tileY: number) => boolean) | null = null;
+
 	constructor(config: FogOfWarConfig = {
 		tileSize: 64,
-		visibilityRange: 5,
+		visibilityRange: 3.5,
 		useLineOfSight: true,
 	}) {
 		this.config = config;
@@ -57,16 +64,12 @@ export class FogOfWarManager {
 	 * Initialize the fog of war with existing data
 	 */
 	public initialize(fogData: FogOfWarData, playerPosition: PlayerPosition): void {
-		this.fogData = { ...fogData };
+		// Initialize fog data for current floor
+		this.fogData[this.currentFloor] = { ...fogData };
 		this.playerPosition = { ...playerPosition };
 
-		// Update cache
-		this.discoveredTilesCache.clear();
-		for (const [key, value] of Object.entries(this.fogData)) {
-			if (value) {
-				this.discoveredTilesCache.add(key);
-			}
-		}
+		// Update cache for current floor
+		this.updateCacheForCurrentFloor();
 
 		// Reset position tracking
 		const { tileX, tileY } = this.worldToFogTile(playerPosition.x, playerPosition.y);
@@ -76,23 +79,122 @@ export class FogOfWarManager {
 	}
 
 	/**
-	 * Get the current fog of war data
+	 * Set the current floor and initialize fog data for it if needed
+	 */
+	public setCurrentFloor(floor: number): void {
+		if (this.currentFloor !== floor) {
+			console.log('[FOG] Changing floor from', this.currentFloor, 'to', floor);
+			
+			// Save current player position and tile position for the old floor
+			if (this.playerPosition) {
+				this.floorPlayerPositions[this.currentFloor] = { ...this.playerPosition };
+				this.floorLastTilePositions[this.currentFloor] = {
+					tileX: this.lastPlayerTileX,
+					tileY: this.lastPlayerTileY,
+				};
+				console.log('[FOG] Saved player position for floor', this.currentFloor, 'at', this.floorPlayerPositions[this.currentFloor]);
+			}
+
+			this.currentFloor = floor;
+
+			// Initialize fog data for new floor if it doesn't exist
+			if (!this.fogData[floor]) {
+				this.fogData[floor] = {};
+				console.log('[FOG] Initialized fog data for floor', floor);
+			}
+
+			// Restore player position and tile position for the new floor if available
+			const savedPosition = this.floorPlayerPositions[floor];
+			const savedTilePosition = this.floorLastTilePositions[floor];
+			
+			if (savedPosition && savedTilePosition) {
+				this.playerPosition = { ...savedPosition };
+				this.lastPlayerTileX = savedTilePosition.tileX;
+				this.lastPlayerTileY = savedTilePosition.tileY;
+				console.log('[FOG] Restored player position for floor', floor, 'at', savedPosition, 'tile:', savedTilePosition);
+			} else {
+				// Reset position tracking for new floor if no saved position
+				this.lastPlayerTileX = Number.MAX_SAFE_INTEGER;
+				this.lastPlayerTileY = Number.MAX_SAFE_INTEGER;
+				console.log('[FOG] No saved position for floor', floor, '- position tracking reset');
+			}
+
+			// Update cache for current floor
+			this.updateCacheForCurrentFloor();
+			this.hasNewDiscoveriesFlag = false;
+		}
+	}
+
+	/**
+	 * Get the current floor
+	 */
+	public getCurrentFloor(): number {
+		return this.currentFloor;
+	}
+
+	/**
+	 * Update the discovered tiles cache for the current floor
+	 */
+	private updateCacheForCurrentFloor(): void {
+		this.discoveredTilesCache.clear();
+		const currentFloorData = this.fogData[this.currentFloor] || {};
+		for (const [key, value] of Object.entries(currentFloorData)) {
+			if (value) {
+				this.discoveredTilesCache.add(key);
+			}
+		}
+	}
+
+	/**
+	 * Get fog data for a specific floor
+	 */
+	public getFogDataForFloor(floor: number): FogOfWarData {
+		return { ...(this.fogData[floor] || {}) };
+	}
+
+	/**
+	 * Set fog data for a specific floor
+	 */
+	public setFogDataForFloor(floor: number, fogData: FogOfWarData): void {
+		this.fogData[floor] = { ...fogData };
+		if (floor === this.currentFloor) {
+			this.updateCacheForCurrentFloor();
+		}
+	}
+
+	/**
+	 * Get all fog data for all floors
+	 */
+	public getAllFogData(): Record<number, FogOfWarData> {
+		return { ...this.fogData };
+	}
+
+	/**
+	 * Set all fog data for all floors
+	 */
+	public setAllFogData(allFogData: Record<number, FogOfWarData>): void {
+		this.fogData = { ...allFogData };
+		this.updateCacheForCurrentFloor();
+	}
+
+	/**
+	 * Get the current fog of war data for the current floor
 	 */
 	public getFogData(): FogOfWarData {
-		return { ...this.fogData };
+		return { ...(this.fogData[this.currentFloor] || {}) };
 	}
 
 	/**
 	 * Update the player's position and discover new tiles
 	 * Returns true if new tiles were discovered
 	 */
-	public updatePlayerPosition(position: PlayerPosition): boolean {
+	public updatePlayerPosition(position: PlayerPosition, force: boolean = false): boolean {
 		this.playerPosition = { ...position };
 
 		const { tileX, tileY } = this.worldToFogTile(position.x, position.y);
 
-		// Check if player moved to a different tile
-		if (tileX === this.lastPlayerTileX && tileY === this.lastPlayerTileY) {
+		// Check if player moved to a different tile (unless forced)
+		if (!force && tileX === this.lastPlayerTileX && tileY === this.lastPlayerTileY) {
 			return false; // No tile change, no need to discover
 		}
 
@@ -139,7 +241,7 @@ export class FogOfWarManager {
 	}
 
 	/**
-	 * Check if a tile is discovered
+	 * Check if a tile is discovered on the current floor
 	 */
 	public isTileDiscovered(worldX: number, worldY: number): boolean {
 		const { tileX, tileY } = this.worldToFogTile(worldX, worldY);
@@ -153,7 +255,11 @@ export class FogOfWarManager {
 	private discoverTile(tileX: number, tileY: number): void {
 		const key = this.getTileKey(tileX, tileY);
 		if (!this.discoveredTilesCache.has(key)) {
-			this.fogData[key] = true;
+			// Ensure current floor data exists
+			if (!this.fogData[this.currentFloor]) {
+				this.fogData[this.currentFloor] = {};
+			}
+			this.fogData[this.currentFloor][key] = true;
 			this.discoveredTilesCache.add(key);
 			this.hasNewDiscoveriesFlag = true;
 		}
@@ -188,10 +294,13 @@ export class FogOfWarManager {
 			this.playerPosition.y,
 		);
 
+		// Always discover the player's own tile
+		this.discoverTile(playerTileX, playerTileY);
+
 		// Use pre-calculated visibility pattern for efficiency
 		for (const { dx, dy } of this.visibilityPattern) {
-			const targetTileX = playerTileX + dx;
-			const targetTileY = playerTileY + dy;
+			const targetTileX = Math.floor(playerTileX + dx);
+			const targetTileY = Math.floor(playerTileY + dy);
 
 			if (!this.config.useLineOfSight || this.hasLineOfSight(playerTileX, playerTileY, targetTileX, targetTileY)) {
 				this.discoverTile(targetTileX, targetTileY);
@@ -256,12 +365,9 @@ export class FogOfWarManager {
 	 * This is a placeholder that can be enhanced to check against actual room/wall data
 	 */
 	private isObstacle(tileX: number, tileY: number): boolean {
-		// For now, no obstacles are considered
-		// This can be enhanced to check against:
-		// - Room boundaries
-		// - Wall positions
-		// - Closed doors
-		// - Furniture that blocks sight
+		if (this.obstacleChecker) {
+			return this.obstacleChecker(tileX, tileY);
+		}
 		return false;
 	}
 
@@ -277,9 +383,23 @@ export class FogOfWarManager {
 	}
 
 	/**
-	 * Clear all fog data (for debugging or new game)
+	 * Clear fog data for current floor only
 	 */
 	public clearFog(): void {
+		this.fogData[this.currentFloor] = {};
+		this.discoveredTilesCache.clear();
+		this.hasNewDiscoveriesFlag = false;
+
+		// Reset position tracking to force rediscovery on next update
+		this.lastPlayerTileX = Number.MAX_SAFE_INTEGER;
+		this.lastPlayerTileY = Number.MAX_SAFE_INTEGER;
+		console.log('[FOG] Fog of war cleared for floor', this.currentFloor);
+	}
+
+	/**
+	 * Clear fog for all floors
+	 */
+	public clearAllFog(): void {
 		this.fogData = {};
 		this.discoveredTilesCache.clear();
 		this.hasNewDiscoveriesFlag = false;
@@ -287,6 +407,7 @@ export class FogOfWarManager {
 		// Reset position tracking to force rediscovery on next update
 		this.lastPlayerTileX = Number.MAX_SAFE_INTEGER;
 		this.lastPlayerTileY = Number.MAX_SAFE_INTEGER;
+		console.log('[FOG] Fog of war cleared for all floors');
 	}
 
 	/**
@@ -335,5 +456,38 @@ export class FogOfWarManager {
 		if (oldRange !== this.config.visibilityRange) {
 			this.precalculateVisibilityPattern();
 		}
+	}
+
+	public setObstacleChecker(checker: (tileX: number, tileY: number) => boolean) {
+		this.obstacleChecker = checker;
+	}
+
+	/**
+	 * Get the last known player position for a specific floor
+	 */
+	public getLastPlayerPositionForFloor(floor: number): PlayerPosition | null {
+		return this.floorPlayerPositions[floor] || null;
+	}
+
+	/**
+	 * Set the last known player position for a specific floor (used for restoration)
+	 */
+	public setLastPlayerPositionForFloor(floor: number, position: PlayerPosition): void {
+		this.floorPlayerPositions[floor] = { ...position };
+		const { tileX, tileY } = this.worldToFogTile(position.x, position.y);
+		this.floorLastTilePositions[floor] = { tileX, tileY };
+		console.log('[FOG] Set last position for floor', floor, 'at', position, 'tile:', { tileX, tileY });
+	}
+
+	/**
+	 * Clear all position tracking (useful for testing or reset)
+	 */
+	public clearAllPositionTracking(): void {
+		this.floorPlayerPositions = {};
+		this.floorLastTilePositions = {};
+		this.playerPosition = null;
+		this.lastPlayerTileX = Number.MAX_SAFE_INTEGER;
+		this.lastPlayerTileY = Number.MAX_SAFE_INTEGER;
+		console.log('[FOG] Cleared all position tracking');
 	}
 }

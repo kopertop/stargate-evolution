@@ -130,7 +130,7 @@ export const openApiSpec: OpenAPIV3_1.Document = {
 		},
 
 		// Template Endpoints (Public - NO AUTHENTICATION REQUIRED)
-		'/api/templates/rooms': {
+		'/api/data/rooms': {
 			get: {
 				tags: ['Templates'],
 				summary: 'Get all room templates',
@@ -151,7 +151,7 @@ export const openApiSpec: OpenAPIV3_1.Document = {
 				},
 			},
 		},
-		'/api/templates/technology': {
+		'/api/data/technology': {
 			get: {
 				tags: ['Templates'],
 				summary: 'Get all technology templates',
@@ -172,7 +172,7 @@ export const openApiSpec: OpenAPIV3_1.Document = {
 				},
 			},
 		},
-		'/api/templates/ship-layouts': {
+		'/api/data/ship-layouts': {
 			get: {
 				tags: ['Templates'],
 				summary: 'Get all ship layout IDs',
@@ -194,7 +194,7 @@ export const openApiSpec: OpenAPIV3_1.Document = {
 				},
 			},
 		},
-		'/api/templates/doors': {
+		'/api/data/doors': {
 			get: {
 				tags: ['Templates'],
 				summary: 'Get all door templates',
@@ -207,7 +207,7 @@ export const openApiSpec: OpenAPIV3_1.Document = {
 							'application/json': {
 								schema: {
 									type: 'array',
-									items: { $ref: '#/components/schemas/DoorTemplate' },
+									items: { $ref: '#/components/schemas/Door' },
 								},
 							},
 						},
@@ -529,7 +529,7 @@ export const openApiSpec: OpenAPIV3_1.Document = {
 					},
 				},
 			},
-			DoorTemplate: {
+			Door: {
 				type: 'object',
 				description: 'Door template connecting two rooms',
 				properties: {

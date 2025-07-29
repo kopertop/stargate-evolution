@@ -1,20 +1,21 @@
-import { Ticker } from 'pixi.js';
 import * as PIXI from 'pixi.js';
 import { InputDevice } from 'pixijs-input-devices';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Button, Container, Modal, Form, Row, Col, Table } from 'react-bootstrap';
 import { useNavigate, useParams } from 'react-router';
 
 import { renderGoogleSignInButton } from '../auth/google-auth';
+import { ElevatorConsoleModal, type ElevatorConfig } from '../components/elevator-console-modal';
 import { InventoryModal } from '../components/inventory-modal';
 import { ResourceBar } from '../components/resource-bar';
-import { TouchFeedback } from '../components/touch-feedback';
 import { TouchControlsHelp } from '../components/touch-controls-help';
+import { TouchFeedback } from '../components/touch-feedback';
 import { GAMEPAD_BUTTONS } from '../constants/gamepad';
 import { useAuth } from '../contexts/auth-context';
-import { useGameState } from '../contexts/game-state-context';
 import { Game } from '../game';
+import { useGameEngineSync } from '../hooks/use-game-engine-sync';
 import { useGameController } from '../services/game-controller';
+import { useGameStore } from '../stores/game-store';
 import { onFullscreenChange, getDeviceInfo, isMobileDevice } from '../utils/mobile-utils';
 
 type Direction = 'up' | 'down' | 'left' | 'right';
@@ -56,6 +57,8 @@ const GameRenderer: React.FC<GameRendererProps> = ({ gameId, savedGameData }) =>
 	const [showDebug, setShowDebug] = useState(false);
 	const [showInventory, setShowInventory] = useState(false);
 	const [inventoryTab, setInventoryTab] = useState(0);
+	const [showElevatorConsole, setShowElevatorConsole] = useState(false);
+	const [elevatorConfig, setElevatorConfig] = useState<ElevatorConfig | null>(null);
 	const [speed, setSpeed] = useState(4);
 	const [keybindings, setKeybindings] = useState<Keybindings>(DEFAULT_KEYBINDINGS);
 	const [gamepadBindings, setGamepadBindings] = useState<GamepadBindings>(DEFAULT_GAMEPAD_BINDINGS);
@@ -64,6 +67,7 @@ const GameRenderer: React.FC<GameRendererProps> = ({ gameId, savedGameData }) =>
 	const [gamepadDebugState, setGamepadDebugState] = useState<any[]>([]); // Debug state for gamepad info
 	const [isFullscreen, setIsFullscreen] = useState(false);
 	const [showReAuthModal, setShowReAuthModal] = useState(false);
+	const [showLoginModal, setShowLoginModal] = useState(false);
 
 	// Use the centralized game controller service
 	const controller = useGameController();
@@ -72,7 +76,10 @@ const GameRenderer: React.FC<GameRendererProps> = ({ gameId, savedGameData }) =>
 	const auth = useAuth();
 
 	// Game state for resource management
-	const gameState = useGameState();
+	const gameState = useGameStore();
+
+	// Sync game engine with store
+	const { syncToStore, syncToEngine } = useGameEngineSync(gameRef);
 
 	// Fullscreen detection
 	useEffect(() => {
@@ -125,6 +132,18 @@ const GameRenderer: React.FC<GameRendererProps> = ({ gameId, savedGameData }) =>
 					onAxisChange: controller.onAxisChange,
 					getAxisValue: controller.getAxisValue,
 					isPressed: controller.isPressed,
+					// Floor management - sync with React context
+					currentFloor: gameState.currentFloor,
+					onFloorChange: (newFloor: number) => {
+						console.log('[GAME-PAGE] Floor change from Game:', newFloor);
+						gameState.setCurrentFloor(newFloor);
+					},
+					// Elevator system
+					onElevatorActivation: (config: ElevatorConfig, currentFloor: number) => {
+						console.log('[GAME-PAGE] Elevator activation requested:', config);
+						setElevatorConfig(config);
+						setShowElevatorConsole(true);
+					},
 				});
 				gameRef.current = game;
 
@@ -163,17 +182,36 @@ const GameRenderer: React.FC<GameRendererProps> = ({ gameId, savedGameData }) =>
 
 		return () => {
 			destroyed = true;
+
+			// Clean up game instance first
 			if (gameRef.current) {
-				gameRef.current.destroy();
-				gameRef.current = null;
+				try {
+					gameRef.current.destroy();
+				} catch (error) {
+					console.warn('[GAME-PAGE] Error destroying game:', error);
+				} finally {
+					gameRef.current = null;
+				}
 			}
+
+			// Clean up PIXI app
 			if (pixiAppRef.current) {
-				pixiAppRef.current.destroy(true);
-				pixiAppRef.current = null;
+				try {
+					// Remove from DOM before destroying
+					if (pixiAppRef.current.canvas?.parentNode) {
+						pixiAppRef.current.canvas.parentNode.removeChild(pixiAppRef.current.canvas);
+					}
+					pixiAppRef.current.destroy(true, { children: true, texture: true });
+				} catch (error) {
+					console.warn('[GAME-PAGE] Error destroying PIXI app:', error);
+				} finally {
+					pixiAppRef.current = null;
+				}
 			}
 		};
 
-	}, [speed, keybindings, gamepadBindings, savedGameData]);
+	}, [speed, keybindings, gamepadBindings, savedGameData, gameState.currentFloor]);
+
 
 	// Use refs to avoid stale closure issues
 	const stateRef = useRef({
@@ -181,6 +219,7 @@ const GameRenderer: React.FC<GameRendererProps> = ({ gameId, savedGameData }) =>
 		showSettings,
 		showDebug,
 		showInventory,
+		showElevatorConsole,
 		focusedMenuItem,
 		inventoryTab,
 	});
@@ -192,10 +231,11 @@ const GameRenderer: React.FC<GameRendererProps> = ({ gameId, savedGameData }) =>
 			showSettings,
 			showDebug,
 			showInventory,
+			showElevatorConsole,
 			focusedMenuItem,
 			inventoryTab,
 		};
-	}, [showPause, showSettings, showDebug, showInventory, focusedMenuItem, inventoryTab]);
+	}, [showPause, showSettings, showDebug, showInventory, showElevatorConsole, focusedMenuItem, inventoryTab]);
 
 	// Game controller event subscriptions
 	useEffect(() => {
@@ -253,6 +293,9 @@ const GameRenderer: React.FC<GameRendererProps> = ({ gameId, savedGameData }) =>
 			} else if (state.showInventory) {
 				console.log('[GAME-PAGE-CONTROLLER] D-pad UP released - inventory tab navigation');
 				setInventoryTab(prev => (prev > 0 ? prev - 1 : 4));
+			} else if (state.showElevatorConsole) {
+				console.log('[GAME-PAGE-CONTROLLER] D-pad UP released - elevator floor navigation');
+				setFocusedMenuItem(prev => (prev > 0 ? prev - 1 : (elevatorConfig?.accessibleFloors.length || 1) - 1));
 			}
 		});
 
@@ -265,6 +308,10 @@ const GameRenderer: React.FC<GameRendererProps> = ({ gameId, savedGameData }) =>
 			} else if (state.showInventory) {
 				console.log('[GAME-PAGE-CONTROLLER] D-pad DOWN released - inventory tab navigation');
 				setInventoryTab(prev => (prev < 4 ? prev + 1 : 0));
+			} else if (state.showElevatorConsole) {
+				console.log('[GAME-PAGE-CONTROLLER] D-pad DOWN released - elevator floor navigation');
+				const maxItems = (elevatorConfig?.accessibleFloors.length || 1) - 1;
+				setFocusedMenuItem(prev => (prev < maxItems ? prev + 1 : 0));
 			}
 		});
 
@@ -296,6 +343,9 @@ const GameRenderer: React.FC<GameRendererProps> = ({ gameId, savedGameData }) =>
 			} else if (state.showInventory) {
 				console.log('[GAME-PAGE-CONTROLLER] B button released - closing inventory');
 				setShowInventory(false);
+			} else if (state.showElevatorConsole) {
+				console.log('[GAME-PAGE-CONTROLLER] B button released - closing elevator console');
+				setShowElevatorConsole(false);
 			}
 		});
 
@@ -341,6 +391,16 @@ const GameRenderer: React.FC<GameRendererProps> = ({ gameId, savedGameData }) =>
 				console.log('[GAME-PAGE-CONTROLLER] A button released - inventory interaction');
 				// For now, just close inventory on A press - could add item selection later
 				setShowInventory(false);
+			} else if (state.showElevatorConsole) {
+				console.log('[GAME-PAGE-CONTROLLER] A button released - elevator floor selection:', state.focusedMenuItem);
+				if (elevatorConfig && elevatorConfig.accessibleFloors.length > state.focusedMenuItem) {
+					const sortedFloors = [...elevatorConfig.accessibleFloors].sort((a, b) => b - a);
+					const selectedFloor = sortedFloors[state.focusedMenuItem];
+					if (selectedFloor !== elevatorConfig.currentFloor) {
+						handleFloorSelect(selectedFloor);
+					}
+				}
+				setShowElevatorConsole(false);
 			}
 		});
 
@@ -363,7 +423,7 @@ const GameRenderer: React.FC<GameRendererProps> = ({ gameId, savedGameData }) =>
 	// Update game menu state when any menu opens/closes
 	useEffect(() => {
 		if (gameRef.current) {
-			const menuOpen = showPause || showSettings || showDebug || showInventory;
+			const menuOpen = showPause || showSettings || showDebug || showInventory || showElevatorConsole;
 			gameRef.current.setMenuOpen(menuOpen);
 			console.log('[GAME-PAGE-CONTROLLER] Game menu state updated:', {
 				menuOpen,
@@ -371,14 +431,71 @@ const GameRenderer: React.FC<GameRendererProps> = ({ gameId, savedGameData }) =>
 				showSettings,
 				showDebug,
 				showInventory,
+				showElevatorConsole,
 				timestamp: new Date().toISOString(),
 			});
 		}
-	}, [showPause, showSettings, showDebug, showInventory]);
+	}, [showPause, showSettings, showDebug, showInventory, showElevatorConsole]);
+
+	// Handle elevator floor selection
+	const handleFloorSelect = useCallback((targetFloor: number) => {
+		console.log('[GAME-PAGE] Floor selected:', targetFloor);
+
+		if (!gameRef.current || !elevatorConfig) {
+			console.warn('[GAME-PAGE] No game instance or elevator config available');
+			return;
+		}
+
+		// Use the new handleElevatorTransition method for proper floor transitions
+		const success = gameRef.current.handleElevatorTransition(targetFloor);
+		if (!success) {
+			console.warn('[GAME-PAGE] Failed to handle elevator transition to floor:', targetFloor);
+			return;
+		}
+
+		// The game engine's handleElevatorTransition method will:
+		// 1. Save current position for the old floor
+		// 2. Change to target floor (triggers onFloorChange callback)
+		// 3. Set player position to elevator location
+		// 4. Handle fog restoration internally
+
+		console.log('[GAME-PAGE] Player transported to floor', targetFloor);
+
+		// Close the modal after a brief delay to allow the transition animation to complete
+		setTimeout(() => {
+			setShowElevatorConsole(false);
+		}, 100);
+	}, [gameRef, elevatorConfig]);
 
 	// Keyboard controls
 	useEffect(() => {
 		const handleKeyDown = (e: KeyboardEvent) => {
+			// Handle elevator console navigation
+			if (showElevatorConsole) {
+				if (e.key === 'ArrowUp') {
+					e.preventDefault();
+					setFocusedMenuItem(prev => (prev > 0 ? prev - 1 : (elevatorConfig?.accessibleFloors.length || 1) - 1));
+				} else if (e.key === 'ArrowDown') {
+					e.preventDefault();
+					const maxItems = (elevatorConfig?.accessibleFloors.length || 1) - 1;
+					setFocusedMenuItem(prev => (prev < maxItems ? prev + 1 : 0));
+				} else if (e.key === 'Enter') {
+					e.preventDefault();
+					if (elevatorConfig && elevatorConfig.accessibleFloors.length > focusedMenuItem) {
+						const sortedFloors = [...elevatorConfig.accessibleFloors].sort((a, b) => b - a);
+						const selectedFloor = sortedFloors[focusedMenuItem];
+						if (selectedFloor !== elevatorConfig.currentFloor) {
+							handleFloorSelect(selectedFloor);
+						}
+					}
+					setShowElevatorConsole(false);
+				} else if (e.key === 'Escape') {
+					e.preventDefault();
+					setShowElevatorConsole(false);
+				}
+				return; // Don't process other keys when elevator console is open
+			}
+
 			if (e.key === 'Escape') {
 				setShowPause((prev) => !prev);
 			}
@@ -401,7 +518,7 @@ const GameRenderer: React.FC<GameRendererProps> = ({ gameId, savedGameData }) =>
 		};
 		document.addEventListener('keydown', handleKeyDown);
 		return () => document.removeEventListener('keydown', handleKeyDown);
-	}, [listeningKey]);
+	}, [listeningKey, showElevatorConsole, elevatorConfig, focusedMenuItem, handleFloorSelect]);
 
 	// Monitor FTL status changes and update game background
 	useEffect(() => {
@@ -432,6 +549,16 @@ const GameRenderer: React.FC<GameRendererProps> = ({ gameId, savedGameData }) =>
 		}
 	};
 
+	// Handle Google Sign-In for initial login
+	const handleLogin = async (idToken: string) => {
+		try {
+			await auth.signIn(idToken);
+			setShowLoginModal(false);
+		} catch (error) {
+			// Error handling is done in the auth context
+		}
+	};
+
 	// Set up Google Sign-In button for re-authentication modal
 	useEffect(() => {
 		if (showReAuthModal) {
@@ -446,6 +573,21 @@ const GameRenderer: React.FC<GameRendererProps> = ({ gameId, savedGameData }) =>
 			return () => clearTimeout(timer);
 		}
 	}, [showReAuthModal]);
+
+	// Set up Google Sign-In button for login modal
+	useEffect(() => {
+		if (showLoginModal) {
+			const timer = setTimeout(() => {
+				const container = document.getElementById('login-google-signin-button');
+				if (container) {
+					container.innerHTML = ''; // Clear any existing content
+					renderGoogleSignInButton('login-google-signin-button', handleLogin);
+				}
+			}, 100); // Small delay to ensure DOM is ready
+
+			return () => clearTimeout(timer);
+		}
+	}, [showLoginModal]);
 
 	// Show loading state while game initializes
 	if (!gameState.isInitialized || !gameState.destinyStatus) {
@@ -547,8 +689,13 @@ const GameRenderer: React.FC<GameRendererProps> = ({ gameId, savedGameData }) =>
 							variant={focusedMenuItem === 2 ? 'primary' : 'outline-secondary'}
 							size="lg"
 							onClick={() => {
-								gameState.saveGame(undefined, gameRef.current);
-								setShowPause(false);
+								if (!auth.user) {
+									setShowLoginModal(true);
+									setShowPause(false);
+								} else {
+									gameState.saveGame(undefined, gameRef.current);
+									setShowPause(false);
+								}
 							}}
 							disabled={gameState.isLoading}
 							title={gameState.gameName ? `Save "${gameState.gameName}"` : 'Save current game'}
@@ -737,6 +884,15 @@ const GameRenderer: React.FC<GameRendererProps> = ({ gameId, savedGameData }) =>
 				onSetTimeSpeed={gameState.setTimeSpeed}
 			/>
 
+			{/* Elevator Console Modal */}
+			<ElevatorConsoleModal
+				show={showElevatorConsole}
+				onHide={() => setShowElevatorConsole(false)}
+				elevatorConfig={elevatorConfig}
+				onFloorSelect={handleFloorSelect}
+				focusedMenuItem={focusedMenuItem}
+			/>
+
 			{/* Re-Authentication Modal */}
 			<Modal show={showReAuthModal} centered backdrop="static" keyboard={false}>
 				<Modal.Header>
@@ -768,6 +924,38 @@ const GameRenderer: React.FC<GameRendererProps> = ({ gameId, savedGameData }) =>
 					</Button>
 				</Modal.Footer>
 			</Modal>
+
+			{/* Login Modal */}
+			<Modal show={showLoginModal} centered backdrop="static" keyboard={false}>
+				<Modal.Header>
+					<Modal.Title>Sign In Required</Modal.Title>
+				</Modal.Header>
+				<Modal.Body>
+					<div className="text-center">
+						<p className="mb-3">
+							You need to sign in to save your game progress to the server.
+						</p>
+						<p className="mb-4">
+							Sign in with Google to save your progress and access it from any device.
+						</p>
+						<div id="login-google-signin-button" className="d-flex justify-content-center" />
+						<div className="mt-3">
+							<small className="text-muted">
+								You can continue playing without signing in, but your progress will only be saved locally.
+							</small>
+						</div>
+					</div>
+				</Modal.Body>
+				<Modal.Footer>
+					<Button
+						variant="secondary"
+						onClick={() => setShowLoginModal(false)}
+						title="Continue playing without server saves"
+					>
+						Continue Without Saving
+					</Button>
+				</Modal.Footer>
+			</Modal>
 		</Container>
 	);
 };
@@ -776,7 +964,7 @@ export const GamePage: React.FC = () => {
 	const { id: gameIdFromUrl } = useParams<{ id: string }>();
 	const navigate = useNavigate();
 	const auth = useAuth();
-	const gameState = useGameState();
+	const gameState = useGameStore();
 	const [savedGameData, setSavedGameData] = useState<any>(null);
 	const [isLoadingGameData, setIsLoadingGameData] = useState(false);
 	const [loadError, setLoadError] = useState<string | null>(null);
@@ -800,7 +988,15 @@ export const GamePage: React.FC = () => {
 			if (gameState.gameId === gameIdFromUrl && gameState.isInitialized) {
 				console.log('[GAME-PAGE] Correct game already loaded:', gameIdFromUrl);
 
-				// Try to get the full game data from localStorage first
+				// Check for auto-save data first (most recent)
+				const autoSaveData = gameState.getAutoSaveData(gameIdFromUrl);
+				if (autoSaveData) {
+					console.log('[GAME-PAGE] Found auto-save data, using for restoration');
+					setSavedGameData(autoSaveData);
+					return;
+				}
+
+				// Fallback to full game data from localStorage
 				const storedGameData = localStorage.getItem(`stargate-game-${gameIdFromUrl}`);
 				if (storedGameData) {
 					try {
@@ -830,11 +1026,16 @@ export const GamePage: React.FC = () => {
 				return;
 			}
 
-			// Check authentication - if not authenticated, redirect but be patient with token refresh
+			// Check authentication - allow unauthenticated users for local games
 			if (!auth.isAuthenticated || auth.isTokenExpired) {
-				console.log('[GAME-PAGE] User not authenticated - redirecting to menu');
-				navigate('/');
-				return;
+				// Allow access to local games without authentication
+				if (gameIdFromUrl.startsWith('local-')) {
+					console.log('[GAME-PAGE] Unauthenticated user accessing local game - allowing access');
+				} else {
+					console.log('[GAME-PAGE] User not authenticated and trying to access server game - redirecting to menu');
+					navigate('/');
+					return;
+				}
 			}
 
 			// If we have a different game loaded, or no game loaded, try to load the URL game
@@ -848,13 +1049,21 @@ export const GamePage: React.FC = () => {
 					if (gameIdFromUrl.startsWith('local-')) {
 						console.log('[GAME-PAGE] Loading local game from localStorage:', gameIdFromUrl);
 
-						// Try to load from localStorage
-						const storedGameData = localStorage.getItem(`stargate-game-${gameIdFromUrl}`);
-						if (!storedGameData) {
-							throw new Error('Local game data not found. The game may have been deleted.');
-						}
+						// Check for auto-save data first (most recent for local games)
+						const autoSaveData = gameState.getAutoSaveData(gameIdFromUrl);
+						let gameData;
 
-						const gameData = JSON.parse(storedGameData);
+						if (autoSaveData) {
+							console.log('[GAME-PAGE] Found auto-save data for local game, using for restoration');
+							gameData = autoSaveData;
+						} else {
+							// Try to load from localStorage
+							const storedGameData = localStorage.getItem(`stargate-game-${gameIdFromUrl}`);
+							if (!storedGameData) {
+								throw new Error('Local game data not found. The game may have been deleted.');
+							}
+							gameData = JSON.parse(storedGameData);
+						}
 
 						// Set context state directly for local games
 						gameState.setGameId(gameIdFromUrl);
@@ -882,15 +1091,22 @@ export const GamePage: React.FC = () => {
 						await gameState.loadGame(gameIdFromUrl);
 						console.log('[GAME-PAGE] Successfully loaded game from URL:', gameIdFromUrl);
 
-						// Get the full game data that was just loaded and stored in localStorage
-						const storedGameData = localStorage.getItem(`stargate-game-${gameIdFromUrl}`);
-						if (storedGameData) {
-							try {
-								const fullGameData = JSON.parse(storedGameData);
-								console.log('[GAME-PAGE] Setting full loaded game data for restoration');
-								setSavedGameData(fullGameData);
-							} catch (error) {
-								console.warn('[GAME-PAGE] Failed to parse newly loaded game data:', error);
+						// Check for auto-save data first (most recent)
+						const autoSaveData = gameState.getAutoSaveData(gameIdFromUrl);
+						if (autoSaveData) {
+							console.log('[GAME-PAGE] Found auto-save data for backend game, using for restoration');
+							setSavedGameData(autoSaveData);
+						} else {
+							// Get the full game data that was just loaded and stored in localStorage
+							const storedGameData = localStorage.getItem(`stargate-game-${gameIdFromUrl}`);
+							if (storedGameData) {
+								try {
+									const fullGameData = JSON.parse(storedGameData);
+									console.log('[GAME-PAGE] Setting full loaded game data for restoration');
+									setSavedGameData(fullGameData);
+								} catch (error) {
+									console.warn('[GAME-PAGE] Failed to parse newly loaded game data:', error);
+								}
 							}
 						}
 					}

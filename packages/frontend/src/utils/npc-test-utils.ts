@@ -30,6 +30,7 @@ export function createTestNPC(overrides: Partial<NPC> = {}): NPC {
 		// NPC-specific properties
 		is_npc: true,
 		active: true,
+		floor: 0, // Default to floor 0, can be overridden
 
 		movement: {
 			x: 0, // Always start at 0,0 - gate spawning will position correctly
@@ -203,18 +204,19 @@ export function addTestNPCsToGame(game: any, roomData: Array<{id: string, center
 	// Set default room ID for NPCs (prefer gate room if found)
 	const defaultRoomId = gateRoom ? gateRoom.id : (roomData.length > 0 ? roomData[0].id : 'gate_room');
 
-	// Add NPCs that spawn from the gate
+	// Add NPCs that spawn from the gate - all start on Floor 0 in gate room
 	const npcConfigs = [
-		{ name: 'Security Officer Alpha', role: 'security', color: '#00aa44' },
-		{ name: 'Medical Officer', role: 'medical', color: '#00aaff' },
-		{ name: 'Engineer Beta', role: 'engineer', color: '#0088cc' },
-		{ name: 'Science Officer', role: 'science', color: '#00bbdd' },
+		{ name: 'Security Officer Alpha', role: 'security', color: '#00aa44', floor: 0 },
+		{ name: 'Medical Officer', role: 'medical', color: '#00aaff', floor: 0 },
+		{ name: 'Engineer Beta', role: 'engineer', color: '#0088cc', floor: 0 },
+		{ name: 'Science Officer', role: 'science', color: '#00bbdd', floor: 0 },
 	];
 
 	npcConfigs.forEach((config, index) => {
 		const npc = createTestNPC({
 			...config,
 			current_room_id: defaultRoomId,
+			floor: config.floor, // Assign NPCs to specific floors
 			behavior: {
 				type: 'gate_spawning',
 				patrol_points: null,

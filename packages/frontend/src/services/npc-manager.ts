@@ -1,4 +1,4 @@
-import type { NPC, DoorTemplate, RoomTemplate } from '@stargate/common';
+import type { NPC, Door, RoomTemplate } from '@stargate/common';
 import * as PIXI from 'pixi.js';
 
 export interface NPCUpdateResult {
@@ -63,7 +63,7 @@ export class NPCManager {
 		this.npcs.delete(npcId);
 	}
 
-	public updateNPCs(doors: DoorTemplate[], rooms: RoomTemplate[], activateDoorCallback: (doorId: string, isNPC: boolean) => boolean): NPCUpdateResult[] {
+	public updateNPCs(doors: Door[], rooms: RoomTemplate[], activateDoorCallback: (doorId: string, isNPC: boolean) => boolean): NPCUpdateResult[] {
 		const results: NPCUpdateResult[] = [];
 
 		for (const npc of this.npcs.values()) {
@@ -78,7 +78,7 @@ export class NPCManager {
 		return results;
 	}
 
-	private updateNPC(npc: NPC, doors: DoorTemplate[], rooms: RoomTemplate[], activateDoorCallback: (doorId: string, isNPC: boolean) => boolean): NPCUpdateResult {
+	private updateNPC(npc: NPC, doors: Door[], rooms: RoomTemplate[], activateDoorCallback: (doorId: string, isNPC: boolean) => boolean): NPCUpdateResult {
 		const result: NPCUpdateResult = { moved: false };
 
 		// Update NPC position based on behavior
@@ -102,7 +102,7 @@ export class NPCManager {
 		return result;
 	}
 
-	private updateNPCBehavior(npc: NPC, doors: DoorTemplate[], rooms: RoomTemplate[]): void {
+	private updateNPCBehavior(npc: NPC, doors: Door[], rooms: RoomTemplate[]): void {
 		const currentRoom = rooms.find(r => r.id === npc.current_room_id);
 		if (!currentRoom) return;
 
@@ -127,7 +127,7 @@ export class NPCManager {
 		}
 	}
 
-	private updatePatrolBehavior(npc: NPC, doors: DoorTemplate[], rooms: RoomTemplate[]): void {
+	private updatePatrolBehavior(npc: NPC, doors: Door[], rooms: RoomTemplate[]): void {
 		if (!npc.behavior.patrol_points || npc.behavior.patrol_points.length === 0) {
 			return;
 		}
@@ -157,7 +157,6 @@ export class NPCManager {
 	private updateWanderBehavior(npc: NPC, currentRoom: RoomTemplate): void {
 		// Start fidget loop if not already running
 		if (!this.fidgetLoops.has(npc.id)) {
-			console.log(`[NPC] Starting fidget loop for wandering ${npc.name}`);
 			this.startFidgetLoop(npc, currentRoom);
 		}
 		// Fidget loop handles all movement and pausing
@@ -197,7 +196,6 @@ export class NPCManager {
 			// Still in spawn delay - stay at stargate position
 			npc.movement.target_x = null;
 			npc.movement.target_y = null;
-			console.log(`[NPC] ${npc.name} waiting in spawn delay (${timeSinceSpawn}ms < ${npc.behavior.exit_gate_delay}ms)`);
 			return;
 		}
 
@@ -236,7 +234,6 @@ export class NPCManager {
 					npc.behavior.has_exited_gate = true;
 					npc.movement.target_x = null;
 					npc.movement.target_y = null;
-					console.log(`[NPC] ${npc.name} has exited stargate, starting fidget loop`);
 
 					// Start the fidget loop
 					this.startFidgetLoop(npc, gateRoom);
@@ -256,7 +253,7 @@ export class NPCManager {
 
 	private checkDoorInteractions(
 		npc: NPC,
-		doors: DoorTemplate[],
+		doors: Door[],
 		activateDoorCallback: (doorId: string, isNPC: boolean) => boolean,
 	): {
 		doorId: string;
@@ -290,7 +287,7 @@ export class NPCManager {
 		return null;
 	}
 
-	private npcNeedsDoorOpen(npc: NPC, door: DoorTemplate): boolean {
+	private npcNeedsDoorOpen(npc: NPC, door: Door): boolean {
 		// Check if NPC's target is on the other side of this door
 		if (npc.movement.target_x === null || npc.movement.target_y === null) {
 			return false;
@@ -314,7 +311,7 @@ export class NPCManager {
 		return (npcToDoor + doorToTarget) < (npcToTarget + 20);
 	}
 
-	private moveNPCTowardsTarget(npc: NPC, doors: DoorTemplate[], rooms: RoomTemplate[]): boolean {
+	private moveNPCTowardsTarget(npc: NPC, doors: Door[], rooms: RoomTemplate[]): boolean {
 		if (npc.movement.target_x === null || npc.movement.target_y === null ||
 			npc.movement.target_x === undefined || npc.movement.target_y === undefined) {
 			return false;
@@ -348,15 +345,12 @@ export class NPCManager {
 			npc.movement.y = newY;
 			npc.movement.last_updated = Date.now();
 			return true;
-		} else {
-			// Debug: Log why movement was blocked
-			console.log(`[NPC] ${npc.name} movement blocked from (${npc.movement.x}, ${npc.movement.y}) to (${newX}, ${newY})`);
 		}
 
 		return false;
 	}
 
-	private isValidNPCPosition(x: number, y: number, npc: NPC, doors: DoorTemplate[], rooms: RoomTemplate[]): boolean {
+	private isValidNPCPosition(x: number, y: number, npc: NPC, doors: Door[], rooms: RoomTemplate[]): boolean {
 		// Check room boundaries
 		const currentRoom = rooms.find(r => r.id === npc.current_room_id);
 		if (!currentRoom) return false;
@@ -380,12 +374,10 @@ export class NPCManager {
 						// Allow larger radius for movement during gate spawning phase
 						const allowedRadius = npc.behavior.has_exited_gate ? npc.size + 5 : npc.size + 15;
 						if (distanceFromStargate <= allowedRadius) {
-							console.log(`[NPC] ${npc.name} allowed to move within stargate area (distance: ${distanceFromStargate.toFixed(1)}, allowed: ${allowedRadius})`);
 							return true;
 						}
 					}
 				}
-				console.log(`[NPC] ${npc.name} blocked by furniture: ${collidingFurniture.id}`);
 				return false;
 			}
 		}
@@ -422,7 +414,6 @@ export class NPCManager {
 					const otherDistance = Math.sqrt((x - otherNpc.movement.x) ** 2 + (y - otherNpc.movement.y) ** 2);
 					const minNpcDistance = npc.size + otherNpc.size + 3; // Both NPC radii + small buffer
 					if (otherDistance < minNpcDistance) {
-						console.log(`[NPC] ${npc.name} blocked from stopping near ${otherNpc.name} (distance: ${otherDistance.toFixed(1)})`);
 						return false;
 					}
 				}
@@ -503,6 +494,40 @@ export class NPCManager {
 		return this.npcs.get(id);
 	}
 
+	public hideAllNPCs(): void {
+		for (const sprite of this.npcSprites.values()) {
+			sprite.visible = false;
+		}
+	}
+
+	public showNPCsOnFloor(floor: number): void {
+		console.log(`[NPC-MANAGER] Showing NPCs for floor ${floor}`);
+		let visibleCount = 0;
+		let hiddenCount = 0;
+
+		for (const [npcId, sprite] of this.npcSprites) {
+			const npc = this.npcs.get(npcId);
+			if (npc) {
+				const npcFloor = npc.floor !== undefined ? npc.floor : 0;
+				const shouldShow = npcFloor === floor;
+
+				console.log(`[NPC-MANAGER] NPC ${npc.name} (${npcId}): floor=${npcFloor}, targetFloor=${floor}, visible=${shouldShow}`);
+
+				sprite.visible = shouldShow;
+				if (shouldShow) {
+					visibleCount++;
+				} else {
+					hiddenCount++;
+				}
+			} else {
+				sprite.visible = false;
+				hiddenCount++;
+			}
+		}
+
+		console.log(`[NPC-MANAGER] Floor ${floor} visibility: ${visibleCount} visible, ${hiddenCount} hidden`);
+	}
+
 	private startFidgetLoop(npc: NPC, room: RoomTemplate): void {
 		// Clear any existing loop for this NPC
 		const existingLoop = this.fidgetLoops.get(npc.id);
@@ -539,10 +564,9 @@ export class NPCManager {
 				// Calculate durations based on game time speed (faster game = shorter real-time delays)
 				const gameTimeSpeed = this.gameInstance?.getTimeSpeed ? this.gameInstance.getTimeSpeed() : 1;
 				const timeMultiplier = gameTimeSpeed > 0 ? 1 / gameTimeSpeed : 0; // Pause if speed is 0
-				
+
 				const baseMoveTime = 5000 + Math.random() * 25000; // 5-30 seconds in game time
 				const moveDuration = baseMoveTime * timeMultiplier; // Adjust for real time
-				console.log(`[NPC] ${npc.name} starting ${(baseMoveTime/1000).toFixed(1)}s game-time move (${(moveDuration/1000).toFixed(1)}s real-time) to (${safePosition.x.toFixed(1)}, ${safePosition.y.toFixed(1)})`);
 
 				// After move duration, stop and pause
 				const moveTimeout = setTimeout(() => {
@@ -552,7 +576,6 @@ export class NPCManager {
 
 					const basePauseTime = 30000 + Math.random() * 90000; // 30-120 seconds in game time
 					const pauseDuration = basePauseTime * timeMultiplier; // Adjust for real time
-					console.log(`[NPC] ${npc.name} pausing for ${(basePauseTime/1000).toFixed(1)}s game-time (${(pauseDuration/1000).toFixed(1)}s real-time)`);
 
 					// After pause, start the next loop iteration
 					const pauseTimeout = setTimeout(() => {
@@ -565,7 +588,6 @@ export class NPCManager {
 				this.fidgetLoops.set(npc.id, moveTimeout);
 			} else {
 				// If no safe position found, just pause and try again
-				console.warn(`[NPC] ${npc.name} could not find safe fidget position, pausing`);
 				const retryTimeout = setTimeout(() => {
 					fidgetLoop();
 				}, 10000); // Retry in 10 seconds

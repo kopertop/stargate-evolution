@@ -4,11 +4,11 @@ describe('API Endpoint Logic', () => {
 	describe('URL Pattern Matching', () => {
 		it('should match template room endpoints correctly', () => {
 			// Test the URL patterns that are used in the backend
-			const templateRoomsUrl = new URL('http://localhost:8787/api/templates/rooms');
+			const templateRoomsUrl = new URL('http://localhost:8787/api/data/rooms');
 			const wrongRoomsUrl = new URL('http://localhost:8787/api/rooms/templates');
 
 			// This is what the backend currently supports
-			expect(templateRoomsUrl.pathname).toBe('/api/templates/rooms');
+			expect(templateRoomsUrl.pathname).toBe('/api/data/rooms');
 
 			// This is what the frontend was incorrectly calling (now fixed)
 			expect(wrongRoomsUrl.pathname).toBe('/api/rooms/templates');

@@ -4,17 +4,18 @@ import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import 'bootstrap/dist/css/bootstrap.min.css';
 
-import { AuthProvider } from './contexts/auth-context';
-import { GameStateProvider } from './contexts/game-state-context';
 import { MobileGuard } from './components/mobile-guard';
 import { PWARouter } from './components/pwa-router';
+import { AuthProvider } from './contexts/auth-context';
+import { GameStateProvider } from './contexts/game-state-context';
 import {
 	AdminLayout,
 	AdminOverview,
 	AdminCharacters,
 	AdminMapBuilder,
 	AdminUsers,
-	AdminRooms,
+	AdminDoors,
+	AdminRoomTemplates,
 	AdminTechnologies,
 	SqlDebugPage,
 	FurnitureTemplatesAdmin,
@@ -42,7 +43,8 @@ export const App: React.FC = () => {
 							<Route path="characters" element={<AdminCharacters />} />
 							<Route path="map" element={<AdminMapBuilder />} />
 							<Route path="users" element={<AdminUsers />} />
-							<Route path="rooms" element={<AdminRooms />} />
+							<Route path="doors" element={<AdminDoors />} />
+							<Route path="room-templates" element={<AdminRoomTemplates />} />
 							<Route path="furniture-templates" element={<FurnitureTemplatesAdmin />} />
 							<Route path="technologies" element={<AdminTechnologies />} />
 							<Route path="sql-debug" element={<SqlDebugPage />} />

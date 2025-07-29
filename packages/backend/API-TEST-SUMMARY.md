@@ -4,7 +4,7 @@
 
 ### 1. Frontend/Backend Endpoint Mismatch
 
-**Problem**: The frontend admin service was calling `/api/rooms/templates` but the backend only had `/api/templates/rooms`.
+**Problem**: The frontend admin service was calling `/api/rooms/templates` but the backend only had `/api/data/rooms`.
 
 **Fix**: Updated `packages/frontend/src/services/admin-service.ts` line 45:
 ```typescript
@@ -12,7 +12,7 @@
 const response = await fetch(`${API_URL}/api/rooms/templates`, {
 
 // After  
-const response = await fetch(`${API_URL}/api/templates/rooms`, {
+const response = await fetch(`${API_URL}/api/data/rooms`, {
 ```
 
 ### 2. Door Endpoint Mismatch
@@ -31,7 +31,7 @@ const response = await fetch(`${API_URL}/api/admin/rooms/${roomId}/doors`, {
 ## Test Files Created
 
 ### 1. `packages/backend/test/api-endpoints.spec.ts`
-- Tests all public template endpoints (`/api/templates/*`)
+- Tests all public template endpoints (`/api/data/*`)
 - Tests CORS headers
 - Tests error handling
 - Uses Wrangler's unstable_dev for full integration testing
@@ -51,17 +51,17 @@ const response = await fetch(`${API_URL}/api/admin/rooms/${roomId}/doors`, {
 ## Current API Endpoints
 
 ### Public Template Endpoints (No Auth Required)
-- `GET /api/templates/rooms` - Get all room templates
-- `GET /api/templates/rooms/{id}` - Get specific room template
-- `GET /api/templates/technology` - Get all technology templates  
-- `GET /api/templates/people` - Get all person templates
-- `GET /api/templates/races` - Get all race templates
-- `GET /api/templates/galaxies` - Get all galaxy templates
-- `GET /api/templates/star-systems` - Get all star system templates
-- `GET /api/templates/ship-layouts` - Get all ship layouts
-- `GET /api/templates/destiny-status` - Get destiny status template
-- `GET /api/templates/starting-inventory` - Get starting inventory
-- `GET /api/templates/room-technology/{roomId}` - Get technology for room
+- `GET /api/data/rooms` - Get all room templates
+- `GET /api/data/rooms/{id}` - Get specific room template
+- `GET /api/data/technology` - Get all technology templates  
+- `GET /api/data/people` - Get all person templates
+- `GET /api/data/races` - Get all race templates
+- `GET /api/data/galaxies` - Get all galaxy templates
+- `GET /api/data/star-systems` - Get all star system templates
+- `GET /api/data/ship-layouts` - Get all ship layouts
+- `GET /api/data/destiny-status` - Get destiny status template
+- `GET /api/data/starting-inventory` - Get starting inventory
+- `GET /api/data/room-technology/{roomId}` - Get technology for room
 
 ### Admin Endpoints (Auth Required)
 - `GET /api/admin/users` - Get all users
@@ -118,7 +118,7 @@ While automated tests are being fixed, you can manually test the endpoints using
 
 ```bash
 # Test public room templates (should work)
-curl http://localhost:8787/api/templates/rooms
+curl http://localhost:8787/api/data/rooms
 
 # Test admin endpoints (should return 401 without auth)
 curl http://localhost:8787/api/admin/users

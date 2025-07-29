@@ -41,6 +41,7 @@ export const NPCSchema = CharacterSchema.extend({
 	
 	// Movement and positioning
 	movement: NPCMovementSchema,
+	floor: z.number().default(0), // Floor this NPC belongs to and should remain on
 	
 	// Behavior and AI
 	behavior: NPCBehaviorSchema,

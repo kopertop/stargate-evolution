@@ -1,26 +1,28 @@
 import type {
 	RoomTemplate,
-	DoorTemplate,
+	Door,
 	RoomFurniture,
 	NPC,
 } from '@stargate/common';
 import * as PIXI from 'pixi.js';
 
+import { BackgroundLayer } from './components/background-layer';
+import { DoorsLayer } from './components/doors-layer';
+import { FogLayer } from './components/fog-layer';
+import { FurnitureLayer, type ElevatorConfig } from './components/furniture-layer';
+import { MapLayer } from './components/map-layer';
+import { NPCLayer } from './components/npc-layer';
+import { RoomsLayer } from './components/rooms-layer';
 import { HelpPopover } from './help-popover';
-import { FogOfWarManager } from './services/fog-of-war-manager';
 import type { GamepadAxis, GamepadButton } from './services/game-controller';
-import { NPCManager } from './services/npc-manager';
 import { SavedGameService } from './services/saved-game-service';
 import { TemplateService } from './services/template-service';
-import { exposeNPCTestUtils, addTestNPCsToGame } from './utils/npc-test-utils';
-import { TouchControlManager, TouchUtils } from './utils/touch-controls';
+import { debugLogger } from './utils/debug-logger';
 import { isMobileDevice } from './utils/mobile-utils';
+import { TouchControlManager, TouchUtils } from './utils/touch-controls';
 
 const SHIP_SPEED = 4;
-const SPEED_MULTIPLIER = 5; // 5x speed when running (Shift/Right Trigger)
-const STAR_COUNT = 200;
-const STAR_COLOR = 0xffffff;
-const STAR_RADIUS = 1.5;
+const SPEED_MULTIPLIER = 5; // 5x speed when running (Shift/Right Trigger);
 
 // Player configuration constants
 const PLAYER_RADIUS = 5; // Player radius (was 10, now halved)
@@ -37,6 +39,11 @@ export interface GameOptions {
 	onAxisChange?: (axis: GamepadAxis, callback: (value: number) => void) => () => void;
 	getAxisValue?: (axis: GamepadAxis) => number;
 	isPressed?: (button: GamepadButton) => boolean;
+	// Floor management
+	currentFloor?: number;
+	onFloorChange?: (floor: number) => void;
+	// Elevator system
+	onElevatorActivation?: (elevatorConfig: ElevatorConfig, currentFloor: number) => void;
 }
 
 export class Game {
@@ -48,61 +55,73 @@ export class Game {
 	private gameData: any;
 	private wasRunning: boolean = false;
 	private mapZoom: number = DEFAULT_ZOOM;
-	private mapLayer: PIXI.Container | null = null;
+	private mapLayer: MapLayer | null = null;
 	private focusSystem: any = null;
 	private focusPlanet: any = null;
 	private menuOpen: boolean = false;
 	private options: GameOptions;
 
 	// Dynamic background system
-	private backgroundLayer: PIXI.Container | null = null;
-	private ftlStreaksLayer: PIXI.Container | null = null;
-	private currentBackgroundType: 'stars' | 'ftl' = 'stars';
-	private ftlStreaks: PIXI.Graphics[] = [];
-	private animationFrame: number = 0;
+	private backgroundLayer: BackgroundLayer | null = null;
 
 	// Controller subscription cleanup functions
 	private controllerUnsubscribers: (() => void)[] = [];
 
 	// Room rendering system
-	private roomsLayer: PIXI.Container | null = null;
-	private doorsLayer: PIXI.Container | null = null;
-	private furnitureLayer: PIXI.Container | null = null;
-	private npcLayer: PIXI.Container | null = null;
+	private roomsLayer: RoomsLayer | null = null;
+	private doorsLayer: DoorsLayer | null = null;
+	private furnitureLayer: FurnitureLayer | null = null;
+	private npcLayer: NPCLayer | null = null;
 	private rooms: RoomTemplate[] = [];
-	private doors: DoorTemplate[] = [];
+	private doors: Door[] = [];
 	private furniture: RoomFurniture[] = [];
 
+	// Floor management
+	private currentFloor: number = 0;
+
 	// NPC system
-	private npcManager: NPCManager | null = null;
 
 	// Pending restoration data (stored until room system is ready)
 	private pendingRestoration: any = null;
 	private isDestroyed = false;
 
-	// Fog of War manager
-	private fogOfWarManager: FogOfWarManager | null = null;
-	private fogLayer: PIXI.Container | null = null;
-	// Fog tile object pool for performance
-	private fogTilePool: PIXI.Graphics[] = [];
-	private activeFogTiles: PIXI.Graphics[] = [];
-	private lastViewportBounds: { left: number; right: number; top: number; bottom: number } | null = null;
+	// Fog of War system
+	private fogLayer: FogLayer | null = null;
 
-	private furnitureTextureCache: Record<string, PIXI.Texture> = {};
 
 	// Touch control properties
 	private touchControlManager: TouchControlManager | null = null;
 	private touchMovement: { x: number; y: number } = { x: 0, y: 0 };
 	private isTouchRunning: boolean = false;
 
+	// Window event handlers for cleanup
+	private resizeHandler?: () => void;
+	private keydownHandler?: (e: KeyboardEvent) => void;
+	private keyupHandler?: (e: KeyboardEvent) => void;
+	private helpKeyHandler?: (e: KeyboardEvent) => void;
+	private zoomKeyHandler?: (e: KeyboardEvent) => void;
+
 	constructor(app: PIXI.Application, options: GameOptions = {}, gameData?: any) {
 		this.app = app;
 		this.options = options;
 		this.world = new PIXI.Container();
-		this.starfield = this.createStarfield();
 		this.gameData = gameData;
-		// Only add starfield if we don't have room data - we'll render rooms instead
-		this.world.addChild(this.starfield);
+
+		// Initialize floor management
+		this.currentFloor = options.currentFloor ?? 0;
+
+		// Create background layer system
+		this.backgroundLayer = new BackgroundLayer({
+			onBackgroundTypeChange: (newType: 'stars' | 'ftl') => {
+				console.log('[GAME] Background type changed to:', newType);
+			},
+		});
+
+		// Add background layer at the bottom
+		this.world.addChildAt(this.backgroundLayer, 0);
+
+		// Create deprecated starfield for backward compatibility
+		this.starfield = this.createStarfield();
 		// Create player as circular character sprite
 		const playerGraphics = new PIXI.Graphics();
 		playerGraphics.circle(0, 0, PLAYER_RADIUS).fill(0xFF6600); // Bright orange circle for player
@@ -117,7 +136,10 @@ export class Game {
 		this.setupInput();
 		this.setupControllerInput();
 		this.resizeToWindow();
-		window.addEventListener('resize', () => this.resizeToWindow());
+
+		// Store resize handler for cleanup
+		this.resizeHandler = () => this.resizeToWindow();
+		window.addEventListener('resize', this.resizeHandler);
 		if (this.app.ticker) {
 			this.app.ticker.add(() => this.update());
 		}
@@ -132,124 +154,109 @@ export class Game {
 		});
 
 		// Initialize Fog of War manager
-		this.fogOfWarManager = new FogOfWarManager();
-
-		// Initialize fog layer
-		this.fogLayer = new PIXI.Container();
+		// Initialize fog layer with smaller tiles for better room boundaries
+		this.fogLayer = new FogLayer({
+			onFogDiscovery: (newTilesDiscovered: number) => {
+				console.log('[GAME] New fog tiles discovered:', newTilesDiscovered);
+			},
+			onFogClear: () => {
+				console.log('[GAME] Fog of war cleared');
+			},
+		});
 		this.world.addChild(this.fogLayer);
+		// Inject obstacle checker for fog line-of-sight
+		// Allow visibility of current room + adjacent walls, but block other rooms
+		this.fogLayer.setObstacleChecker((tileX, tileY) => {
+			const playerPos = this.getPlayerPosition();
+			const tileSize = 16; // Must match the fog tile size
+
+			// Convert tile coordinates to world coordinates (tile center)
+			const tileWorldX = tileX * tileSize + tileSize / 2;
+			const tileWorldY = tileY * tileSize + tileSize / 2;
+
+			// Find which room the target tile is in
+			const targetRoom = this.rooms.find(room =>
+				tileWorldX >= room.startX && tileWorldX < room.endX &&
+				tileWorldY >= room.startY && tileWorldY < room.endY,
+			);
+
+			// Find which room the player is in
+			const playerRoom = this.rooms.find(room =>
+				playerPos.x >= room.startX && playerPos.x < room.endX &&
+				playerPos.y >= room.startY && playerPos.y < room.endY,
+			);
+
+			// Allow visibility of tiles in the player's current room
+			if (targetRoom && playerRoom && targetRoom.id === playerRoom.id) {
+				return false; // Same room = visible
+			}
+
+			// Allow visibility of wall tiles adjacent to the player's room
+			if (!targetRoom && playerRoom) {
+				// This is a wall tile - check if it's adjacent to the player's room
+				const wallBuffer = 32; // Allow seeing walls within 32px of room boundary
+				const isAdjacentToPlayerRoom = (
+					tileWorldX >= playerRoom.startX - wallBuffer && tileWorldX <= playerRoom.endX + wallBuffer &&
+					tileWorldY >= playerRoom.startY - wallBuffer && tileWorldY <= playerRoom.endY + wallBuffer
+				);
+				return !isAdjacentToPlayerRoom; // Show adjacent walls, block distant walls
+			}
+
+			// Block all other tiles (different rooms, undefined states)
+			return true;
+		});
+
+		// Initialize map layer
+		this.mapLayer = new MapLayer({
+			onSystemFocus: (systemId: string) => {
+				console.log('[GAME] System focused via map:', systemId);
+			},
+			onPlanetFocus: (planetId: string) => {
+				console.log('[GAME] Planet focused via map:', planetId);
+			},
+			onZoomChange: (newZoom: number) => {
+				console.log('[GAME] Map zoom changed to:', newZoom);
+				this.mapZoom = newZoom;
+			},
+		});
 
 		// Setup touch controls for mobile
 		this.setupTouchControls();
 	}
 
+
 	private createStarfield(): PIXI.Graphics {
-		const g = new PIXI.Graphics();
-		for (let i = 0; i < STAR_COUNT; i++) {
-			const x = Math.random() * 4000 - 2000;
-			const y = Math.random() * 4000 - 2000;
-			g.circle(x, y, STAR_RADIUS).fill(STAR_COLOR);
-		}
-		return g;
-	}
-
-	private createFTLStreaks(): PIXI.Container {
-		const container = new PIXI.Container();
-		this.ftlStreaks = [];
-
-		// Create 100 FTL streak lines
-		for (let i = 0; i < 100; i++) {
-			const streak = new PIXI.Graphics();
-			const x = Math.random() * this.app.screen.width;
-			const y = Math.random() * this.app.screen.height;
-			const length = 200 + Math.random() * 400; // Variable length streaks
-
-			// Create blue gradient streak
-			streak.moveTo(x, y)
-				.lineTo(x + length, y)
-				.stroke({
-					color: 0x0066ff,
-					width: 2 + Math.random() * 3,
-					alpha: 0.6 + Math.random() * 0.4,
-				});
-
-			// Add slight glow effect
-			streak.moveTo(x, y)
-				.lineTo(x + length, y)
-				.stroke({
-					color: 0x66aaff,
-					width: 1,
-					alpha: 0.8,
-				});
-
-			container.addChild(streak);
-			this.ftlStreaks.push(streak);
-		}
-
-		return container;
-	}
-
-	private animateFTLStreaks() {
-		if (this.currentBackgroundType !== 'ftl' || !this.ftlStreaksLayer) return;
-
-		this.animationFrame++;
-		const speed = 8; // Speed of streak movement
-
-		this.ftlStreaks.forEach((streak, index) => {
-			// Move streaks horizontally
-			streak.x -= speed + (index % 3); // Varying speeds for depth effect
-
-			// Reset streak position when it goes off screen
-			if (streak.x < -500) {
-				streak.x = this.app.screen.width + Math.random() * 200;
-				streak.y = Math.random() * this.app.screen.height;
-			}
-		});
+		// Kept for backward compatibility - actual starfield is handled by BackgroundLayer
+		return new PIXI.Graphics();
 	}
 
 	public setBackgroundType(type: 'stars' | 'ftl') {
-		if (this.currentBackgroundType === type) return;
-
-		this.currentBackgroundType = type;
-
-		if (type === 'ftl') {
-			// Hide starfield and show FTL streaks
-			this.starfield.visible = false;
-
-			if (!this.ftlStreaksLayer) {
-				this.ftlStreaksLayer = this.createFTLStreaks();
-				this.world.addChildAt(this.ftlStreaksLayer, 0); // Add at bottom layer
-			}
-			this.ftlStreaksLayer.visible = true;
-
-			console.log('[GAME] Switched to FTL streak background');
-		} else {
-			// Show starfield and hide FTL streaks
-			this.starfield.visible = true;
-
-			if (this.ftlStreaksLayer) {
-				this.ftlStreaksLayer.visible = false;
-			}
-
-			console.log('[GAME] Switched to starfield background');
+		if (this.backgroundLayer) {
+			this.backgroundLayer.setBackgroundType(type);
 		}
 	}
 
 	public updateFTLStatus(ftlStatus: string) {
-		const backgroundType = ftlStatus === 'ftl' ? 'ftl' : 'stars';
-		this.setBackgroundType(backgroundType);
+		if (this.backgroundLayer) {
+			this.backgroundLayer.updateFTLStatus(ftlStatus);
+		}
 	}
 
 	private setupInput() {
-		window.addEventListener('keydown', (e) => {
+		this.keydownHandler = (e: KeyboardEvent) => {
 			this.keys[e.key.toLowerCase()] = true;
 			if (e.key.toLowerCase() === 'e' || e.key === 'Enter' || e.key === ' ') {
 				this.handleDoorActivation();
-				this.handleFurnitureActivation();
+				this.furnitureLayer?.handleFurnitureActivation(this.player.x, this.player.y, this.currentFloor);
 			}
-		});
-		window.addEventListener('keyup', (e) => {
+		};
+
+		this.keyupHandler = (e: KeyboardEvent) => {
 			this.keys[e.key.toLowerCase()] = false;
-		});
+		};
+
+		window.addEventListener('keydown', this.keydownHandler);
+		window.addEventListener('keyup', this.keyupHandler);
 	}
 
 	private setupTouchControls() {
@@ -272,27 +279,27 @@ export class Game {
 				// Convert touch delta to movement with sensitivity adjustment
 				const sensitivity = 0.003; // Adjust this to control movement speed
 				const movement = TouchUtils.deltaToMovement(deltaX, deltaY, sensitivity);
-				
+
 				this.touchMovement.x = movement.x;
 				this.touchMovement.y = movement.y;
-				
+
 				// Enable running if the drag distance is large (fast movement)
 				const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
 				this.isTouchRunning = distance > 100; // Adjust threshold as needed
 			},
-			
+
 			onDragEnd: () => {
 				// Stop movement when touch ends
 				this.touchMovement.x = 0;
 				this.touchMovement.y = 0;
 				this.isTouchRunning = false;
 			},
-			
+
 			onTap: (x: number, y: number) => {
 				// Handle tap to activate interactables
 				this.handleTouchTap(x, y);
 			},
-			
+
 			deadZone: 15, // Minimum movement to start dragging
 			tapThreshold: 25, // Maximum movement for tap detection
 			tapTimeThreshold: 300, // Maximum time for tap detection
@@ -301,10 +308,10 @@ export class Game {
 
 	private handleTouchTap(screenX: number, screenY: number) {
 		console.log('[GAME] Touch tap detected - activating nearby interactables (like spacebar)');
-		
+
 		// Just do exactly what spacebar does - check for nearby doors and furniture
 		this.handleDoorActivation();
-		this.handleFurnitureActivation();
+		this.furnitureLayer?.handleFurnitureActivation(screenX, screenY, this.currentFloor);
 	}
 
 	private setupControllerInput() {
@@ -334,7 +341,7 @@ export class Game {
 			if (!this.menuOpen) {
 				console.log('[GAME-INPUT] A button released - checking for door/furniture activation');
 				this.handleDoorActivation();
-				this.handleFurnitureActivation();
+				this.furnitureLayer?.handleFurnitureActivation(this.player.x, this.player.y, this.currentFloor);
 			}
 		});
 
@@ -378,7 +385,7 @@ export class Game {
 			dx += this.touchMovement.x;
 			dy += this.touchMovement.y;
 			isRunning = isRunning || this.isTouchRunning;
-			
+
 			// Debug touch input
 			console.log('[GAME-INPUT] Touch movement:', this.touchMovement.x.toFixed(3), this.touchMovement.y.toFixed(3), 'running:', this.isTouchRunning);
 		}
@@ -479,8 +486,10 @@ export class Game {
 		// Check for door interactions
 		this.checkDoorInteraction();
 
-		// Animate FTL streaks if in FTL mode
-		this.animateFTLStreaks();
+		// Update background layer (handles FTL animation)
+		if (this.backgroundLayer) {
+			this.backgroundLayer.update();
+		}
 
 		// Center camera on player (accounting for world scale)
 		const centerX = this.app.screen.width / 2;
@@ -490,22 +499,22 @@ export class Game {
 		this.world.y = centerY - (this.player.y * this.world.scale.y);
 
 		// Update NPCs
-		if (this.npcManager) {
-			this.npcManager.updateNPCs(this.doors, this.rooms, (doorId, isNPC) => this.activateDoor(doorId, isNPC));
+		if (this.npcLayer) {
+			this.npcLayer.update((doorId, isNPC) => this.activateDoor(doorId, isNPC));
 		}
 
-		// Update Fog of War manager
-		if (this.fogOfWarManager) {
-			const currentRoom = this.findRoomContainingPoint(this.player.x, this.player.y);
-			const hasNewDiscoveries = this.fogOfWarManager.updatePlayerPosition({
-				x: this.player.x,
-				y: this.player.y,
+		// Update fog discovery based on player position before rendering fog
+		if (this.fogLayer) {
+			const playerPos = this.getPlayerPosition();
+			const currentRoom = this.findRoomContainingPoint(playerPos.x, playerPos.y);
+			this.fogLayer.updatePlayerPosition({
+				x: playerPos.x,
+				y: playerPos.y,
 				roomId: currentRoom?.id || 'unknown',
+				floor: this.currentFloor,
 			});
-			// Only re-render fog layer when player discovers new tiles
-			if (hasNewDiscoveries) {
-				this.renderFogOfWar();
-			}
+			const viewportBounds = this.getViewportBounds();
+			this.fogLayer.renderFogOfWar(viewportBounds);
 		}
 	}
 
@@ -572,24 +581,40 @@ export class Game {
 	}
 
 	private findRoomContainingPoint(x: number, y: number): RoomTemplate | null {
+		// Only consider rooms on the current floor
 		return this.rooms.find(room =>
+			room.floor === this.currentFloor &&
 			x >= room.startX && x <= room.endX &&
 			y >= room.startY && y <= room.endY,
 		) || null;
 	}
 
 	private findRoomContainingPointWithThreshold(x: number, y: number, threshold: number): RoomTemplate | null {
+		// Only consider rooms on the current floor
 		return this.rooms.find(room =>
+			room.floor === this.currentFloor &&
 			x >= room.startX + threshold && x <= room.endX - threshold &&
 			y >= room.startY + threshold && y <= room.endY - threshold,
 		) || null;
 	}
 
 	private findDoorBetweenRooms(roomId1: string, roomId2: string): any | null {
-		return this.doors.find(door =>
-			(door.from_room_id === roomId1 && door.to_room_id === roomId2) ||
-			(door.from_room_id === roomId2 && door.to_room_id === roomId1),
-		) || null;
+		// Only consider doors between rooms on the current floor
+		return this.doors.find(door => {
+			const fromRoom = this.rooms.find(r => r.id === door.from_room_id);
+			const toRoom = this.rooms.find(r => r.id === door.to_room_id);
+
+			// Include doors where at least one room is on the current floor
+			// This matches the main floor filtering logic used in setCurrentFloor
+			const fromOnCurrentFloor = fromRoom?.floor === this.currentFloor;
+			const toOnCurrentFloor = toRoom?.floor === this.currentFloor;
+			const isCurrentFloor = fromOnCurrentFloor || toOnCurrentFloor;
+
+			return isCurrentFloor && (
+				(door.from_room_id === roomId1 && door.to_room_id === roomId2) ||
+				(door.from_room_id === roomId2 && door.to_room_id === roomId1)
+			);
+		}) || null;
 	}
 
 	private isPassingThroughDoor(currentX: number, currentY: number, newX: number, newY: number, door: any): boolean {
@@ -626,47 +651,47 @@ export class Game {
 	}
 
 	private findNearbyOpenDoor(x: number, y: number, radius: number): any | null {
+		// Only consider doors on the current floor
 		return this.doors.find(door => {
 			if (door.state !== 'opened') return false;
+
+			// Check if door is on current floor
+			const fromRoom = this.rooms.find(r => r.id === door.from_room_id);
+			const toRoom = this.rooms.find(r => r.id === door.to_room_id);
+
+			// Include doors where at least one room is on the current floor
+			// This matches the main floor filtering logic used in setCurrentFloor
+			const fromOnCurrentFloor = fromRoom?.floor === this.currentFloor;
+			const toOnCurrentFloor = toRoom?.floor === this.currentFloor;
+
+			if (!fromOnCurrentFloor && !toOnCurrentFloor) {
+				return false;
+			}
+
 			const distance = Math.sqrt((x - door.x) ** 2 + (y - door.y) ** 2);
 			return distance <= radius;
 		}) || null;
 	}
 
 	private findCollidingFurniture(x: number, y: number, playerRadius: number): RoomFurniture | null {
-		for (const furniture of this.furniture) {
-			if (!furniture.blocks_movement) continue;
-
-			// Find the room this furniture belongs to
-			const room = this.rooms.find(r => r.id === furniture.room_id);
-			if (!room) continue;
-
-			// Calculate furniture world position
-			const roomCenterX = room.startX + (room.endX - room.startX) / 2;
-			const roomCenterY = room.startY + (room.endY - room.startY) / 2;
-			const furnitureWorldX = roomCenterX + furniture.x;
-			const furnitureWorldY = roomCenterY + furniture.y;
-
-			// Check collision with furniture bounding box
-			const furnitureLeft = furnitureWorldX - furniture.width / 2;
-			const furnitureRight = furnitureWorldX + furniture.width / 2;
-			const furnitureTop = furnitureWorldY - furniture.height / 2;
-			const furnitureBottom = furnitureWorldY + furniture.height / 2;
-
-			// Check if player circle intersects with furniture rectangle
-			const closestX = Math.max(furnitureLeft, Math.min(x, furnitureRight));
-			const closestY = Math.max(furnitureTop, Math.min(y, furnitureBottom));
-			const distance = Math.sqrt((x - closestX) ** 2 + (y - closestY) ** 2);
-
-			if (distance <= playerRadius) {
-				return furniture;
-			}
-		}
-		return null;
+		return this.furnitureLayer?.findCollidingFurniture(x, y, playerRadius) || null;
 	}
 
 	private findCollidingDoor(x: number, y: number, playerRadius: number): any | null {
-		for (const door of this.doors) {
+		// Only consider doors on the current floor
+		const currentFloorDoors = this.doors.filter(door => {
+			const fromRoom = this.rooms.find(r => r.id === door.from_room_id);
+			const toRoom = this.rooms.find(r => r.id === door.to_room_id);
+
+			// Include doors where at least one room is on the current floor
+			// This matches the main floor filtering logic used in setCurrentFloor
+			const fromOnCurrentFloor = fromRoom?.floor === this.currentFloor;
+			const toOnCurrentFloor = toRoom?.floor === this.currentFloor;
+
+			return fromOnCurrentFloor || toOnCurrentFloor;
+		});
+
+		for (const door of currentFloorDoors) {
 			// Transform player position to door's local coordinate system to handle rotation
 			const dx = x - door.x;
 			const dy = y - door.y;
@@ -861,11 +886,24 @@ export class Game {
 	private handleDoorActivation(): void {
 		const interactionRadius = 25; // Slightly reduced for smaller player (was 30, now 25)
 
-		// Find the closest door within interaction range
+		// Find the closest door within interaction range on current floor
 		let closestDoor: any = null;
 		let closestDistance = Infinity;
 
-		for (const door of this.doors) {
+		// Only consider doors on the current floor
+		const currentFloorDoors = this.doors.filter(door => {
+			const fromRoom = this.rooms.find(r => r.id === door.from_room_id);
+			const toRoom = this.rooms.find(r => r.id === door.to_room_id);
+
+			// Include doors where at least one room is on the current floor
+			// This matches the main floor filtering logic used in setCurrentFloor
+			const fromOnCurrentFloor = fromRoom?.floor === this.currentFloor;
+			const toOnCurrentFloor = toRoom?.floor === this.currentFloor;
+
+			return fromOnCurrentFloor || toOnCurrentFloor;
+		});
+
+		for (const door of currentFloorDoors) {
 			const distance = Math.sqrt((this.player.x - door.x) ** 2 + (this.player.y - door.y) ** 2);
 			if (distance <= interactionRadius && distance < closestDistance) {
 				closestDistance = distance;
@@ -876,7 +914,7 @@ export class Game {
 		if (closestDoor) {
 			this.activateDoor(closestDoor.id);
 		} else {
-			console.log('[INTERACTION] No doors nearby to activate');
+			console.log('[INTERACTION] No doors nearby to activate on floor', this.currentFloor);
 		}
 	}
 
@@ -884,6 +922,14 @@ export class Game {
 		const door = this.doors.find(d => d.id === doorId);
 		if (!door) {
 			console.log('[DOOR] Door not found:', doorId);
+			return false;
+		}
+
+		// Verify door is on current floor
+		const fromRoom = this.rooms.find(r => r.id === door.from_room_id);
+		const toRoom = this.rooms.find(r => r.id === door.to_room_id);
+		if (fromRoom?.floor !== this.currentFloor || toRoom?.floor !== this.currentFloor) {
+			console.log('[DOOR] Door not on current floor:', doorId, 'floor:', fromRoom?.floor, toRoom?.floor, 'current:', this.currentFloor);
 			return false;
 		}
 
@@ -944,25 +990,25 @@ export class Game {
 
 	// NPC management methods
 	public addNPC(npc: NPC): void {
-		if (this.npcManager) {
-			this.npcManager.addNPC(npc);
+		if (this.npcLayer) {
+			this.npcLayer.addNPC(npc);
 			console.log('[GAME] Added NPC:', npc.id);
 		}
 	}
 
 	public removeNPC(npcId: string): void {
-		if (this.npcManager) {
-			this.npcManager.removeNPC(npcId);
+		if (this.npcLayer) {
+			this.npcLayer.removeNPC(npcId);
 			console.log('[GAME] Removed NPC:', npcId);
 		}
 	}
 
 	public getNPCs(): NPC[] {
-		return this.npcManager ? this.npcManager.getNPCs() : [];
+		return this.npcLayer ? this.npcLayer.getNPCs() : [];
 	}
 
 	public getNPC(id: string): NPC | undefined {
-		return this.npcManager ? this.npcManager.getNPC(id) : undefined;
+		return this.npcLayer ? this.npcLayer.getNPC(id) : undefined;
 	}
 
 	// Door restriction management
@@ -991,47 +1037,114 @@ export class Game {
 
 	// Initialize test NPCs for development
 	private initializeTestNPCs(): void {
-		if (this.rooms.length === 0) {
-			console.log('[NPC-TEST] No rooms available - skipping test NPC initialization');
-			return;
-		}
-
-		// Prepare room data for test utility
-		const roomData = this.rooms.map(room => ({
-			id: room.id,
-			centerX: room.startX + (room.endX - room.startX) / 2,
-			centerY: room.startY + (room.endY - room.startY) / 2,
-		}));
-
-		// Add test NPCs
-		try {
-			addTestNPCsToGame(this, roomData);
-			console.log('[NPC-TEST] Test NPCs initialized successfully');
-		} catch (error) {
-			console.error('[NPC-TEST] Failed to initialize test NPCs:', error);
+		if (this.npcLayer) {
+			this.npcLayer.initializeTestNPCs();
 		}
 	}
 
 	public destroy() {
+		if (this.isDestroyed) {
+			console.warn('[GAME] Attempted to destroy already destroyed game instance');
+			return;
+		}
+
 		this.isDestroyed = true;
+		console.log('[GAME] Starting game destruction...');
 
-		// Clean up controller subscriptions
-		this.controllerUnsubscribers.forEach(unsubscribe => unsubscribe());
-		this.controllerUnsubscribers = [];
+		try {
+			// Clean up window event listeners
+			if (this.resizeHandler) {
+				window.removeEventListener('resize', this.resizeHandler);
+			}
+			if (this.keydownHandler) {
+				window.removeEventListener('keydown', this.keydownHandler);
+			}
+			if (this.keyupHandler) {
+				window.removeEventListener('keyup', this.keyupHandler);
+			}
+			if (this.helpKeyHandler) {
+				window.removeEventListener('keydown', this.helpKeyHandler);
+			}
+			if (this.zoomKeyHandler) {
+				window.removeEventListener('keydown', this.zoomKeyHandler);
+			}
 
-		// Clean up touch controls
-		if (this.touchControlManager) {
-			this.touchControlManager.destroy();
-			this.touchControlManager = null;
+			// Clean up controller subscriptions
+			this.controllerUnsubscribers.forEach(unsubscribe => {
+				try {
+					unsubscribe();
+				} catch (error) {
+					console.warn('[GAME] Error unsubscribing controller:', error);
+				}
+			});
+			this.controllerUnsubscribers = [];
+
+			// Clean up touch controls
+			if (this.touchControlManager) {
+				try {
+					this.touchControlManager.destroy();
+					this.touchControlManager = null;
+				} catch (error) {
+					console.warn('[GAME] Error destroying touch controls:', error);
+				}
+			}
+
+			// Clean up layer components
+			try {
+				this.backgroundLayer?.destroy();
+			} catch (error) {
+				console.warn('[GAME] Error destroying background layer:', error);
+			}
+
+			try {
+				this.roomsLayer?.destroy();
+			} catch (error) {
+				console.warn('[GAME] Error destroying rooms layer:', error);
+			}
+
+			try {
+				this.doorsLayer?.destroy();
+			} catch (error) {
+				console.warn('[GAME] Error destroying doors layer:', error);
+			}
+
+			try {
+				this.furnitureLayer?.destroy();
+			} catch (error) {
+				console.warn('[GAME] Error destroying furniture layer:', error);
+			}
+
+			try {
+				this.npcLayer?.destroy();
+			} catch (error) {
+				console.warn('[GAME] Error destroying NPC layer:', error);
+			}
+
+			try {
+				this.fogLayer?.destroy();
+			} catch (error) {
+				console.warn('[GAME] Error destroying fog layer:', error);
+			}
+
+			try {
+				this.mapLayer?.destroy();
+			} catch (error) {
+				console.warn('[GAME] Error destroying map layer:', error);
+			}
+
+			// Stop ticker but don't destroy the app (managed by React component)
+			try {
+				if (this.app.ticker) {
+					this.app.ticker.stop();
+				}
+			} catch (error) {
+				console.warn('[GAME] Error stopping ticker:', error);
+			}
+
+			console.log('[GAME] Game destruction completed successfully');
+		} catch (error) {
+			console.error('[GAME] Critical error during game destruction:', error);
 		}
-
-		// Clean up fog resources
-		this.destroyFogResources();
-
-		if (this.app.ticker) {
-			this.app.ticker.stop();
-		}
-		this.app.destroy();
 	}
 
 	// Game state restoration methods
@@ -1045,9 +1158,27 @@ export class Game {
 			const room = this.rooms.find(r => r.id === roomId);
 			if (room) {
 				console.log('[GAME] Player is in room:', room.name || room.id);
+
+				// Auto-switch to the correct floor if player is in a room on a different floor
+				if (room.floor !== this.currentFloor) {
+					console.log(`[GAME] Player is on floor ${room.floor}, but current floor is ${this.currentFloor}. Switching floors...`);
+					this.setCurrentFloor(room.floor);
+				}
 			} else {
 				console.warn('[GAME] Room not found for roomId:', roomId);
 			}
+		}
+
+		// Trigger fog discovery at the new position
+		if (this.fogLayer) {
+			const currentRoom = this.findRoomContainingPoint(this.player.x, this.player.y);
+			this.fogLayer.updatePlayerPosition({
+				x: this.player.x,
+				y: this.player.y,
+				roomId: currentRoom?.id || 'unknown',
+				floor: this.currentFloor,
+			}, true); // Force discovery after potential floor change
+			console.log('[GAME] Fog discovery triggered at new player position');
 		}
 	}
 
@@ -1078,6 +1209,60 @@ export class Game {
 		// This method should be implemented to return the current game time speed
 		// For now, return 1 as default. This should be connected to the actual time speed system.
 		return 1;
+	}
+
+	// Floor management methods
+	public getCurrentFloor(): number {
+		return this.currentFloor;
+	}
+
+	public setCurrentFloor(floor: number): void {
+		if (this.currentFloor !== floor) {
+			debugLogger.floor(`Changing floor from ${this.currentFloor} to ${floor}`);
+			console.log('[GAME] Changing floor from', this.currentFloor, 'to', floor);
+
+			// Save current player position for the old floor
+			const currentPlayerPos = this.getPlayerPosition();
+			const currentRoom = this.findRoomContainingPoint(currentPlayerPos.x, currentPlayerPos.y);
+			if (this.fogLayer) {
+				this.fogLayer.setLastPlayerPositionForFloor(this.currentFloor, {
+					x: currentPlayerPos.x,
+					y: currentPlayerPos.y,
+					roomId: currentRoom?.id || 'unknown',
+					floor: this.currentFloor,
+				});
+			}
+
+			// Update fog layer to the new floor before changing current floor
+			if (this.fogLayer) {
+				this.fogLayer.setCurrentFloor(floor);
+			}
+
+			this.currentFloor = floor;
+
+			// Re-render rooms to show only the current floor
+			this.renderRooms();
+
+			// Note: Fog discovery is now handled by the caller after positioning
+			// This prevents interference with elevator positioning
+
+			// Notify listeners of floor change
+			if (this.options.onFloorChange) {
+				this.options.onFloorChange(floor);
+			}
+		}
+	}
+
+	public getAvailableFloors(): number[] {
+		// Get unique floor numbers from all rooms, sorted
+		const floors = Array.from(new Set(this.rooms.map(room => room.floor))).sort((a, b) => a - b);
+		console.log('[GAME] Available floors:', floors);
+		return floors;
+	}
+
+	public findElevatorPosition(targetFloor: number): { x: number; y: number } | null {
+		// Delegate to furniture layer
+		return this.furnitureLayer?.findElevatorPosition(targetFloor) || null;
 	}
 
 	public getStargatePosition(): { x: number; y: number } | null {
@@ -1138,6 +1323,7 @@ export class Game {
 		const playerPosition = this.getPlayerPosition();
 		const doorStates = this.getDoorStates();
 		const currentRoomId = this.getCurrentRoomId();
+		const npcs = this.getNPCs();
 
 		return {
 			playerPosition: {
@@ -1146,10 +1332,12 @@ export class Game {
 				roomId: currentRoomId,
 			},
 			doorStates,
-			fogOfWar: this.fogOfWarManager?.getFogData() || {},
+			fogOfWar: this.fogLayer?.getAllFogData() || {}, // Save all floor fog data
+			npcs, // Include NPC data in save state
 			// Add other game state as needed
 			mapZoom: this.mapZoom,
-			currentBackgroundType: this.currentBackgroundType,
+			currentBackgroundType: this.backgroundLayer?.getCurrentBackgroundType() || 'stars',
+			currentFloor: this.currentFloor,
 		};
 	}
 
@@ -1232,16 +1420,40 @@ export class Game {
 			this.restoreDoorStatesGracefully(gameData.doorStates);
 		}
 
-		// Restore fog of war data
-		if (gameData.fogOfWar && this.fogOfWarManager) {
+		// Restore fog of war data (now floor-aware via FogLayer)
+		if (gameData.fogOfWar && this.fogLayer) {
+			// Check if this is the new floor-aware format or old single-floor format
+			if (typeof gameData.fogOfWar === 'object' && !Array.isArray(gameData.fogOfWar)) {
+				// New format: floor-aware fog data
+				this.fogLayer.setAllFogData(gameData.fogOfWar);
+				console.log('[GAME] Floor-aware fog of war data restored');
+			} else {
+				// Old format: single floor fog data - migrate to new format
+				const playerPos = this.getPlayerPosition();
+				const currentRoom = this.findRoomContainingPoint(playerPos.x, playerPos.y);
+				this.fogLayer.initializeFogData(gameData.fogOfWar, {
+					x: playerPos.x,
+					y: playerPos.y,
+					roomId: currentRoom?.id || 'unknown',
+					floor: this.currentFloor,
+				});
+				console.log('[GAME] Migrated old fog data to new floor-aware format');
+			}
+
+			// Trigger initial fog discovery at current player position after restoration
 			const playerPos = this.getPlayerPosition();
 			const currentRoom = this.findRoomContainingPoint(playerPos.x, playerPos.y);
-			this.fogOfWarManager.initialize(gameData.fogOfWar, {
+			this.fogLayer.updatePlayerPosition({
 				x: playerPos.x,
 				y: playerPos.y,
 				roomId: currentRoom?.id || 'unknown',
-			});
-			console.log('[GAME] Fog of war data restored');
+				floor: this.currentFloor,
+			}, true); // Force discovery on restoration
+			console.log('[GAME] Initial fog discovery triggered after restoration');
+
+			// Force fog render after restoration
+			const viewportBounds = this.getViewportBounds();
+			this.fogLayer.renderFogOfWar(viewportBounds);
 		}
 
 		// Restore other game engine state
@@ -1253,138 +1465,95 @@ export class Game {
 			this.setBackgroundType(gameData.currentBackgroundType);
 		}
 
+		// Restore current floor
+		if (gameData.currentFloor !== undefined) {
+			this.setCurrentFloor(gameData.currentFloor);
+		}
+
+		// Restore NPCs
+		if (gameData.npcs && Array.isArray(gameData.npcs) && this.npcLayer) {
+			console.log('[GAME] Restoring NPCs:', gameData.npcs.length, 'NPCs');
+
+			// Clear existing NPCs first
+			const existingNPCs = this.getNPCs();
+			existingNPCs.forEach(npc => this.removeNPC(npc.id));
+
+			// Add saved NPCs
+			gameData.npcs.forEach((npc: any) => {
+				// Ensure NPCs have the floor property (migration for old saves)
+				if (npc.floor === undefined) {
+					npc.floor = 0; // Default to floor 0 for old NPCs
+					console.log('[GAME] Migrated NPC', npc.name, 'to floor 0 (missing floor property)');
+				}
+				this.addNPC(npc);
+			});
+
+			console.log('[GAME] NPCs restored successfully');
+		}
+
 		console.log('[GAME] Game state restoration completed');
 	}
 
 	// Graceful door state restoration that skips missing doors
 	private restoreDoorStatesGracefully(savedDoorStates: any[]): void {
 		console.log('[GAME] Restoring door states gracefully:', savedDoorStates.length, 'saved doors');
+		this.doorsLayer?.restoreDoorStates(savedDoorStates);
 
-		let restoredCount = 0;
-		let skippedCount = 0;
-
-		savedDoorStates.forEach(savedDoor => {
-			const doorIndex = this.doors.findIndex(d => d.id === savedDoor.id);
-			if (doorIndex !== -1) {
-				// Update the door state
-				this.doors[doorIndex] = { ...this.doors[doorIndex], ...savedDoor };
-				restoredCount++;
-				console.log('[GAME] Restored door state:', savedDoor.id, 'state:', savedDoor.state);
-			} else {
-				skippedCount++;
-				console.log('[GAME] Skipped missing door:', savedDoor.id);
-			}
-		});
-
-		console.log(`[GAME] Door restoration complete: ${restoredCount} restored, ${skippedCount} skipped`);
-
-		// Re-render rooms to reflect door state changes
-		this.renderRooms();
+		// Update internal doors array to stay in sync
+		this.doors = this.doorsLayer?.getDoors() || [];
 	}
 
 	private setupLegendPopover() {
-		window.addEventListener('keydown', (e) => {
+		this.helpKeyHandler = (e: KeyboardEvent) => {
 			if (e.key === '?' || e.key === '/') {
 				HelpPopover.toggle();
 			}
-		});
+		};
+		window.addEventListener('keydown', this.helpKeyHandler);
 	}
 
 	private setupMapZoomControls() {
-		window.addEventListener('keydown', (e) => {
+		this.zoomKeyHandler = (e: KeyboardEvent) => {
 			if (document.activeElement && (document.activeElement as HTMLElement).tagName === 'INPUT') return;
 			if ((e.key === '+' || e.key === '=') && !document.getElementById('map-popover')) {
 				this.zoomIn();
 			} else if (e.key === '-' && !document.getElementById('map-popover')) {
 				this.zoomOut();
 			}
-		});
+		};
+		window.addEventListener('keydown', this.zoomKeyHandler);
 	}
 
 	private renderGalaxyForDestiny() {
-		const destiny = (this.gameData.ships || []).find((s: any) => s.name === 'Destiny');
-		if (!destiny) return;
-		const systemId = destiny.location?.systemId;
-		// Find the galaxy containing this system
-		let foundGalaxy = null;
-		let foundSystem = null;
-		for (const galaxy of this.gameData.galaxies) {
-			const sys = (galaxy.starSystems || []).find((s: any) => s.id === systemId);
-			if (sys) {
-				foundGalaxy = galaxy;
-				foundSystem = sys;
-				break;
+		if (this.mapLayer) {
+			this.mapLayer.renderGalaxyForDestiny(this.gameData);
+			// Add map layer to world if not already added
+			if (!this.world.children.includes(this.mapLayer)) {
+				this.world.addChild(this.mapLayer);
 			}
 		}
-		if (!foundGalaxy) return;
-		this.renderGalaxyMap(foundGalaxy, foundSystem, destiny);
 	}
 
 	private renderGalaxyMap(galaxy: any, focusSystem?: any, shipData?: any) {
 		if (this.mapLayer) {
-			this.world.removeChild(this.mapLayer);
+			this.mapLayer.renderGalaxyMap(galaxy, focusSystem, shipData);
+			// Add map layer to world if not already added
+			if (!this.world.children.includes(this.mapLayer)) {
+				this.world.addChild(this.mapLayer);
+			}
+			// Apply current zoom level to map layer
+			this.mapLayer.setMapZoom(this.mapZoom);
 		}
-		const mapLayer = new PIXI.Container();
-		this.mapLayer = mapLayer;
-		const systems = galaxy.starSystems || [];
-		// Star type to color mapping
-		const STAR_COLORS: Record<string, number> = {
-			'yellow dwarf': 0xffe066,
-			'red giant': 0xff6666,
-			'white dwarf': 0xe0e0ff,
-			'neutron star': 0xccccff,
-			'black hole': 0x222233,
-			'multi': 0x66ffcc, // For multi-star systems
-			'unknown': 0x888888,
-		};
-		// Find bounds for centering
-		let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-		systems.forEach((sys: any) => {
-			if (sys.position.x < minX) minX = sys.position.x;
-			if (sys.position.y < minY) minY = sys.position.y;
-			if (sys.position.x > maxX) maxX = sys.position.x;
-			if (sys.position.y > maxY) maxY = sys.position.y;
-		});
-		const offsetX = (minX + maxX) / 2;
-		const offsetY = (minY + maxY) / 2;
-		const scale = 2; // base scale
-		systems.forEach((sys: any) => {
-			const x = (sys.position.x - offsetX) * scale;
-			const y = (sys.position.y - offsetY) * scale;
-			let color = STAR_COLORS['unknown'];
-			if (sys.stars && sys.stars.length > 0) {
-				if (sys.stars.length === 1) {
-					color = STAR_COLORS[sys.stars[0].type] || STAR_COLORS['unknown'];
-				} else {
-					color = STAR_COLORS['multi'];
-				}
-			}
-			const g = new PIXI.Graphics();
-			g.circle(x, y, 18).fill(color);
-			mapLayer.addChild(g);
-			const label = new PIXI.Text({
-				text: sys.name,
-				style: { fill: '#fff', fontSize: 14, fontWeight: 'bold', align: 'center' },
-			});
-			label.x = x - label.width / 2;
-			label.y = y + 22;
-			mapLayer.addChild(label);
-			// If this is the focus system and ship is present, place the ship here
-			if (focusSystem && sys.id === focusSystem.id && shipData) {
-				this.player.x = x;
-				this.player.y = y - 30; // Slightly above the system
-				this.world.addChild(this.player);
-			}
-		});
-		mapLayer.scale.set(this.mapZoom);
-		this.world.addChild(mapLayer);
 	}
 
 	public setMapZoom(zoom: number) {
 		this.mapZoom = Math.max(0.2, Math.min(zoom, 8));
+
+		// Update MapLayer zoom if it exists
 		if (this.mapLayer) {
-			this.mapLayer.scale.set(this.mapZoom);
+			this.mapLayer.setMapZoom(this.mapZoom);
 		}
+
 		// Also zoom the world container for room system
 		if (this.world) {
 			this.world.scale.set(this.mapZoom);
@@ -1405,10 +1574,35 @@ export class Game {
 			console.log('[DEBUG] Initializing room system...');
 
 			// Create rendering layers
-			this.roomsLayer = new PIXI.Container();
-			this.doorsLayer = new PIXI.Container();
-			this.furnitureLayer = new PIXI.Container();
-			this.npcLayer = new PIXI.Container();
+			this.roomsLayer = new RoomsLayer({
+				onRoomStateChange: (roomId: string, newState: string) => {
+					// Handle room state changes if needed
+					console.log('[GAME] Room state changed:', roomId, 'to', newState);
+				},
+			});
+			this.doorsLayer = new DoorsLayer({
+				onDoorStateChange: (doorId: string, newState: string) => {
+					// Handle door state changes if needed
+					console.log('[GAME] Door state changed:', doorId, 'to', newState);
+				},
+			});
+			this.furnitureLayer = new FurnitureLayer({
+				onFurnitureStateChange: (furnitureId: string, newState: string) => {
+					console.log('[GAME] Furniture state changed:', furnitureId, 'to', newState);
+				},
+				onElevatorActivation: (elevatorConfig: ElevatorConfig, currentFloor: number) => {
+					console.log('[GAME] Elevator activation requested:', elevatorConfig);
+					if (this.options.onElevatorActivation) {
+						this.options.onElevatorActivation(elevatorConfig, currentFloor);
+					}
+				},
+			});
+			this.npcLayer = new NPCLayer({
+				onNPCStateChange: (npcId: string, newState: string) => {
+					console.log('[GAME] NPC state changed:', npcId, 'to', newState);
+				},
+				gameInstance: this,
+			});
 
 			console.log('[DEBUG] Created rendering layers');
 
@@ -1419,9 +1613,6 @@ export class Game {
 			this.world.addChild(this.npcLayer);
 			this.world.addChild(this.player); // Add player on top of everything
 
-			// Initialize NPC manager
-			this.npcManager = new NPCManager(this.npcLayer, this);
-			console.log('[DEBUG] Initialized NPC manager');
 
 			console.log('[DEBUG] Added layers to world');
 
@@ -1446,8 +1637,56 @@ export class Game {
 			this.initializeTestNPCs();
 
 			// Expose NPC test utilities to console for development
+			if (import.meta.env.DEV && this.npcLayer) {
+				this.npcLayer.exposeTestUtilities();
+			}
+
+			// Expose elevator debug tools
 			if (import.meta.env.DEV) {
-				exposeNPCTestUtils();
+				debugLogger.exposeTestTools();
+				(window as any).elevatorDebug = {
+					...((window as any).elevatorDebug || {}),
+					logRooms: () => {
+						debugLogger.floor('All rooms:', this.rooms.map(r => ({
+							id: r.id,
+							name: r.name,
+							floor: r.floor,
+							type: r.type,
+						})));
+					},
+					logDoors: () => {
+						debugLogger.door('All doors:', this.doors.map(d => ({
+							id: d.id,
+							from: d.from_room_id,
+							to: d.to_room_id,
+							state: d.state,
+							position: { x: d.x, y: d.y },
+						})));
+					},
+					logFurniture: () => {
+						debugLogger.furniture('All furniture:', this.furniture.map(f => ({
+							id: f.id,
+							type: f.furniture_type,
+							room: f.room_id,
+							position: { x: f.x, y: f.y },
+						})));
+					},
+					logNPCs: () => {
+						debugLogger.npc('All NPCs:', this.getNPCs().map(n => ({
+							id: n.id,
+							name: n.name,
+							position: { x: n.movement.x, y: n.movement.y },
+							room: n.current_room_id,
+							floor: n.floor || 0,
+						})));
+					},
+					getCurrentFloor: () => this.currentFloor,
+					testElevatorSpawn: (floor: number) => {
+						const position = this.findElevatorPosition(floor);
+						debugLogger.elevator(`Test spawn on floor ${floor}:`, position);
+						return position;
+					},
+				};
 			}
 
 			// Check for pending restoration data now that room system is ready
@@ -1468,7 +1707,12 @@ export class Game {
 
 		const templateService = new TemplateService();
 		const realRooms = await templateService.getRooms();
+
+		console.log('[DEBUG] About to load doors...');
 		const realDoors = await templateService.getDoors();
+		console.log('[DEBUG] Door loading completed, got:', realDoors.length, 'doors');
+		console.log('[DEBUG] First few doors:', realDoors.slice(0, 3).map(d => ({ id: d.id, from: d.from_room_id, to: d.to_room_id })));
+
 		const realFurniture = await templateService.getFurniture();
 
 		console.log(`[DEBUG] Loaded ${realRooms.length} rooms, ${realDoors.length} doors, ${realFurniture.length} furniture from API`);
@@ -1482,11 +1726,33 @@ export class Game {
 		this.doors = realDoors;
 		this.furniture = realFurniture;
 
+		// Initialize layers with data
+		if (this.roomsLayer) {
+			this.roomsLayer.setRooms(this.rooms);
+		}
+		if (this.doorsLayer) {
+			this.doorsLayer.setDoors(this.doors);
+			this.doorsLayer.setRooms(this.rooms);
+		}
+		if (this.furnitureLayer) {
+			this.furnitureLayer.setRooms(this.rooms);
+			// Note: Don't set all furniture here - it will be set per-floor in setCurrentFloor()
+			// But update the elevator manager with all furniture for cross-floor positioning
+			this.furnitureLayer.updateElevatorManagerWithAllFurniture(this.furniture);
+		}
+		if (this.npcLayer) {
+			this.npcLayer.setRooms(this.rooms);
+			this.npcLayer.setDoors(this.doors);
+		}
+
 		console.log('[DEBUG] Loaded room data from API successfully');
 		console.log('[DEBUG] Rooms:', this.rooms.map(r => ({ id: r.id, name: r.name, type: r.type })));
 
 		// Hide starfield since we have rooms
 		this.starfield.visible = false;
+		if (this.backgroundLayer) {
+			this.backgroundLayer.setStarfieldVisible(false);
+		}
 		// Change background color for room view
 		this.app.renderer.background.color = 0x111111;
 	}
@@ -1495,183 +1761,151 @@ export class Game {
 	private renderRooms() {
 		if (!this.roomsLayer) return;
 
-		console.log('[DEBUG] Rendering rooms...');
+		debugLogger.floor(`Rendering rooms for floor ${this.currentFloor}...`);
+		console.log('[DEBUG] Rendering rooms for floor', this.currentFloor, '...');
+
+		// Debug: Log all doors in the system for Floor 1 analysis
+		if (this.currentFloor === 1) {
+			debugLogger.door(`Total doors in system: ${this.doors.length}`);
+			debugLogger.door('All doors:', this.doors.map(d => ({
+				id: d.id,
+				from: d.from_room_id,
+				to: d.to_room_id,
+				state: d.state,
+				position: { x: d.x, y: d.y },
+			})));
+		}
+
+		// Filter rooms, doors, furniture, and NPCs by current floor
+		const floorRooms = this.rooms.filter(room => room.floor === this.currentFloor);
+		const floorDoors = this.doors.filter(door => {
+			const fromRoom = this.rooms.find(r => r.id === door.from_room_id);
+			const toRoom = this.rooms.find(r => r.id === door.to_room_id);
+
+			// Include doors where at least one room is on the current floor
+			// This includes both same-floor doors and inter-floor doors (like elevators/stairs)
+			const fromOnCurrentFloor = fromRoom?.floor === this.currentFloor;
+			const toOnCurrentFloor = toRoom?.floor === this.currentFloor;
+
+			// Enhanced debugging for door filtering
+			if (this.currentFloor === 1) {
+				debugLogger.door(`Evaluating door ${door.id}:`, {
+					fromRoom: fromRoom ? { id: fromRoom.id, name: fromRoom.name, floor: fromRoom.floor } : 'NOT FOUND',
+					toRoom: toRoom ? { id: toRoom.id, name: toRoom.name, floor: toRoom.floor } : 'NOT FOUND',
+					fromOnCurrentFloor,
+					toOnCurrentFloor,
+					included: fromOnCurrentFloor || toOnCurrentFloor,
+				});
+			}
+
+			return fromOnCurrentFloor || toOnCurrentFloor;
+		});
+		const floorFurniture = this.furniture.filter(f => {
+			const room = this.rooms.find(r => r.id === f.room_id);
+			const isOnCurrentFloor = room?.floor === this.currentFloor;
+
+			// Debug furniture filtering for Floor 1
+			if (this.currentFloor === 1) {
+				console.log(`[DEBUG] Furniture ${f.id} (${f.furniture_type}) in room ${f.room_id}:`, {
+					roomFound: !!room,
+					roomFloor: room?.floor,
+					currentFloor: this.currentFloor,
+					included: isOnCurrentFloor,
+				});
+			}
+
+			return isOnCurrentFloor;
+		});
+
+		// Debug logging
+		debugLogger.floor(`Floor ${this.currentFloor} has:`, {
+			rooms: floorRooms.length,
+			doors: floorDoors.length,
+			furniture: floorFurniture.length,
+		});
+
+		debugLogger.door(`Doors on floor ${this.currentFloor}:`,
+			floorDoors.map(d => ({
+				id: d.id,
+				from: d.from_room_id,
+				to: d.to_room_id,
+				state: d.state,
+				position: { x: d.x, y: d.y },
+			})),
+		);
+
+		debugLogger.furniture(`Furniture on floor ${this.currentFloor}:`,
+			floorFurniture.map(f => ({
+				id: f.id,
+				type: f.furniture_type,
+				room: f.room_id,
+				position: { x: f.x, y: f.y },
+			})),
+		);
+
+		console.log('[DEBUG] Floor', this.currentFloor, 'has', floorRooms.length, 'rooms,', floorDoors.length, 'doors,', floorFurniture.length, 'furniture');
+		console.log('[DEBUG] Floor doors:', floorDoors.map(d => ({ id: d.id, from: d.from_room_id, to: d.to_room_id, state: d.state })));
 
 		// Clear existing rooms
-		this.roomsLayer.removeChildren();
-		this.doorsLayer?.removeChildren();
 		this.furnitureLayer?.removeChildren();
 
-		// Render each room
-		this.rooms.forEach(room => {
-			this.renderRoom(room);
-		});
-
-		// Render doors
-		this.doors.forEach(door => {
-			this.renderDoor(door);
-		});
-
-		// Render furniture
-		this.furniture.forEach(furniture => {
-			this.renderFurnitureItem(furniture);
-		});
-
-		console.log('[DEBUG] Room rendering complete');
-	}
-
-	private renderRoom(room: RoomTemplate) {
-		if (!this.roomsLayer) return;
-
-		// Calculate room dimensions from coordinates
-		const width = room.endX - room.startX;
-		const height = room.endY - room.startY;
-		const centerX = room.startX + width / 2;
-		const centerY = room.startY + height / 2;
-
-		// Create room graphics
-		const roomGraphics = new PIXI.Graphics();
-
-		// Room floor (bright color for visibility)
-		roomGraphics.rect(-width/2, -height/2, width, height).fill(0x333355); // Dark blue-gray floor
-
-		// Room walls (bright border)
-		roomGraphics.rect(-width/2, -height/2, width, height).stroke({ color: 0x88AAFF, width: 8 }); // Light blue border - very visible
-
-		// Position room
-		roomGraphics.x = centerX;
-		roomGraphics.y = centerY;
-
-		// Add room label (larger and brighter)
-		const label = new PIXI.Text({
-			text: room.name,
-			style: {
-				fontFamily: 'Arial',
-				fontSize: 18,
-				fill: 0xFFFF00, // Yellow text - very visible
-				align: 'center',
-			},
-		});
-		label.anchor.set(0.5);
-		label.x = centerX;
-		label.y = centerY - height/2 - 30;
-
-		this.roomsLayer.addChild(roomGraphics);
-		this.roomsLayer.addChild(label);
-
-		console.log(`[DEBUG] Rendered room: ${room.name} at (${centerX}, ${centerY}) size (${width}x${height})`);
-	}
-
-	private renderDoor(door: DoorTemplate) {
-		if (!this.doorsLayer) return;
-
-		// Create door graphics with color based on state
-		const doorGraphics = new PIXI.Graphics();
-
-		// Choose color based on door state
-		let doorColor: number;
-		switch (door.state) {
-		case 'opened':
-			doorColor = 0x00FF00; // Green for open doors
-			break;
-		case 'locked':
-			doorColor = 0x800000; // Dark red for locked doors
-			break;
-		case 'closed':
-		default:
-			doorColor = 0xFF0000; // Red for closed doors
-			break;
+		// Update rooms in RoomsLayer with filtered data
+		if (this.roomsLayer) {
+			this.roomsLayer.setRooms(floorRooms);
 		}
 
-		doorGraphics.rect(-door.width/2, -door.height/2, door.width, door.height).fill(doorColor);
+		// Update doors in DoorsLayer with filtered data
+		if (this.doorsLayer) {
+			this.doorsLayer.setRooms(floorRooms);
+			this.doorsLayer.setDoors(floorDoors);
+		}
 
-		// Add a white border for visibility
-		doorGraphics.rect(-door.width/2, -door.height/2, door.width, door.height).stroke({ color: 0xFFFFFF, width: 2 });
+		// Update furniture in FurnitureLayer with filtered data
+		if (this.furnitureLayer) {
+			// FurnitureLayer needs ALL rooms to determine available floors for elevators
+			this.furnitureLayer.setRooms(this.rooms);
 
-		// Position door
-		doorGraphics.x = door.x;
-		doorGraphics.y = door.y;
-		doorGraphics.rotation = (door.rotation * Math.PI) / 180; // Convert degrees to radians
+			// Debug furniture filtering
+			console.log(`[DEBUG] Setting ${floorFurniture.length} furniture items for floor ${this.currentFloor}:`);
+			console.log('[DEBUG] Floor furniture:', floorFurniture.map(f => ({
+				id: f.id,
+				type: f.furniture_type,
+				room: f.room_id,
+				position: `(${f.x}, ${f.y})`,
+			})));
 
-		this.doorsLayer.addChild(doorGraphics);
+			// Set the filtered furniture for rendering
+			this.furnitureLayer.setFurniture(floorFurniture);
+		}
 
-		console.log(`[DEBUG] Rendered door at (${door.x}, ${door.y}) size (${door.width}x${door.height}) rotation: ${door.rotation}° state: ${door.state}`);
+		// Update NPCs in NPCLayer with filtered data (NPCs should stay on their original floors)
+		if (this.npcLayer) {
+			const allNPCs = this.npcLayer.getNPCs();
+			debugLogger.npc(`Updating NPC layer for floor ${this.currentFloor}. Total NPCs: ${allNPCs.length}`);
+			debugLogger.npc('All NPCs:', allNPCs.map(n => ({
+				id: n.id,
+				name: n.name,
+				position: { x: n.movement.x, y: n.movement.y },
+				room: n.current_room_id,
+				floor: n.floor || 0, // Now using the floor property
+			})));
+
+			// Filter NPCs to only show those on the current floor
+			const floorNPCs = allNPCs.filter(npc => (npc.floor || 0) === this.currentFloor);
+			debugLogger.npc(`NPCs on floor ${this.currentFloor}: ${floorNPCs.length}`,
+				floorNPCs.map(n => ({ id: n.id, name: n.name, floor: n.floor || 0 })),
+			);
+
+			this.npcLayer.setRooms(floorRooms);
+			this.npcLayer.setDoors(floorDoors);
+			this.npcLayer.setVisibleFloor(this.currentFloor);
+		}
+
+		console.log('[DEBUG] Room rendering complete for floor', this.currentFloor);
 	}
 
-	private async renderFurnitureItem(furniture: RoomFurniture) {
-		if (!this.furnitureLayer) return;
 
-		// Find the room this furniture belongs to
-		const room = this.rooms.find(r => r.id === furniture.room_id);
-		if (!room) {
-			console.warn(`[DEBUG] Furniture ${furniture.name} has invalid room_id: ${furniture.room_id}`);
-			return;
-		}
 
-		// Calculate room center
-		const roomCenterX = room.startX + (room.endX - room.startX) / 2;
-		const roomCenterY = room.startY + (room.endY - room.startY) / 2;
-
-		// --- IMAGE LOGIC ---
-		let imageUrl: string | undefined;
-		if (furniture.image && typeof furniture.image === 'object') {
-			// Try to pick the best image key based on state
-			if (furniture.active && furniture.image.active) imageUrl = furniture.image.active;
-			else if (furniture.image.default) imageUrl = furniture.image.default;
-			else {
-				// Try other common keys
-				const fallbackKeys = ['broken', 'locked', 'danger'];
-				for (const key of fallbackKeys) {
-					if (furniture.image[key]) {
-						imageUrl = furniture.image[key];
-						break;
-					}
-				}
-			}
-		} else if (typeof furniture.image === 'string') {
-			imageUrl = furniture.image;
-		}
-
-		if (imageUrl) {
-			let texture = this.furnitureTextureCache[imageUrl];
-			if (!texture) {
-				try {
-					texture = await PIXI.Assets.load(imageUrl);
-					this.furnitureTextureCache[imageUrl] = texture;
-				} catch (err) {
-					console.warn(`[DEBUG] Failed to load furniture image: ${imageUrl}`, err);
-				}
-			}
-			if (texture) {
-				const sprite = new PIXI.Sprite(texture);
-				// Set anchor to center
-				sprite.anchor.set(0.5);
-				// Stretch to furniture width/height
-				sprite.width = furniture.width;
-				sprite.height = furniture.height;
-				// Position relative to room center
-				sprite.x = roomCenterX + furniture.x;
-				sprite.y = roomCenterY + furniture.y;
-				sprite.rotation = (furniture.rotation * Math.PI) / 180;
-				this.furnitureLayer.addChild(sprite);
-				console.log(`[DEBUG] Rendered furniture image: ${furniture.name} at room-relative (${furniture.x}, ${furniture.y})`);
-				return;
-			}
-		}
-
-		// Fallback: Create furniture graphics (bright color for visibility)
-		const furnitureGraphics = new PIXI.Graphics();
-		furnitureGraphics.rect(-furniture.width/2, -furniture.height/2, furniture.width, furniture.height).fill(0x00FF88); // Bright green color
-		furnitureGraphics.rect(-furniture.width/2, -furniture.height/2, furniture.width, furniture.height).stroke({ color: 0xFFFFFF, width: 2 }); // White border
-
-		// Position furniture relative to room center
-		furnitureGraphics.x = roomCenterX + furniture.x;
-		furnitureGraphics.y = roomCenterY + furniture.y;
-		furnitureGraphics.rotation = (furniture.rotation * Math.PI) / 180;
-
-		this.furnitureLayer.addChild(furnitureGraphics);
-		console.log(`[DEBUG] Rendered furniture: ${furniture.name} at room-relative (${furniture.x}, ${furniture.y})`);
-	}
 
 	private positionPlayerInStartingRoom() {
 		// Position player at world origin (0, 0)
@@ -1679,16 +1913,30 @@ export class Game {
 		this.player.y = 0;
 
 		console.log('[DEBUG] Player positioned at origin (0, 0)');
+
+		// Trigger initial fog discovery at starting position
+		if (this.fogLayer) {
+			const currentRoom = this.findRoomContainingPoint(this.player.x, this.player.y);
+			this.fogLayer.updatePlayerPosition({
+				x: this.player.x,
+				y: this.player.y,
+				roomId: currentRoom?.id || 'unknown',
+				floor: this.currentFloor,
+			}, true); // Force discovery on initial load
+			console.log('[DEBUG] Initial fog discovery triggered at starting position');
+		}
 	}
 
 	private centerCameraOnRooms() {
-		if (this.rooms.length === 0) return;
+		// Get rooms on current floor
+		const currentFloorRooms = this.rooms.filter(room => room.floor === this.currentFloor);
+		if (currentFloorRooms.length === 0) return;
 
-		// Calculate center point of all rooms
+		// Calculate center point of rooms on current floor
 		let minX = Infinity, maxX = -Infinity;
 		let minY = Infinity, maxY = -Infinity;
 
-		this.rooms.forEach(room => {
+		currentFloorRooms.forEach(room => {
 			minX = Math.min(minX, room.startX);
 			maxX = Math.max(maxX, room.endX);
 			minY = Math.min(minY, room.startY);
@@ -1705,151 +1953,69 @@ export class Game {
 		this.world.x = screenCenterX - (centerX * this.world.scale.x);
 		this.world.y = screenCenterY - (centerY * this.world.scale.y);
 
-		console.log(`[DEBUG] Camera centered on rooms at (${centerX}, ${centerY})`);
+		console.log(`[DEBUG] Camera centered on floor ${this.currentFloor} rooms at (${centerX}, ${centerY})`);
 	}
 
 	public focusOnSystem(systemId: string) {
-		const galaxy = (this.gameData.galaxies || []).find((g: any) => (g.starSystems || []).some((s: any) => s.id === systemId));
-		if (!galaxy) return;
-		const system = (galaxy.starSystems || []).find((s: any) => s.id === systemId);
-		if (!system) return;
-		this.focusSystem = system;
-		this.focusPlanet = null;
-		this.renderGalaxyMap(galaxy, system, this.gameData.ships?.find((s: any) => s.name === 'Destiny'));
+		if (this.mapLayer) {
+			const success = this.mapLayer.focusOnSystem(systemId, this.gameData.galaxies || []);
+			if (success) {
+				this.focusSystem = this.mapLayer.getFocusSystem();
+				this.focusPlanet = null;
+				// Add map layer to world if not already added
+				if (!this.world.children.includes(this.mapLayer)) {
+					this.world.addChild(this.mapLayer);
+				}
+			}
+		}
 	}
 
 	public focusOnPlanet(planetId: string) {
-		for (const galaxy of this.gameData.galaxies || []) {
-			for (const system of galaxy.starSystems || []) {
-				const planet = (system.planets || []).find((p: any) => p.id === planetId);
-				if (planet) {
-					this.focusSystem = system;
-					this.focusPlanet = planet;
-					this.renderGalaxyMap(galaxy, system, this.gameData.ships?.find((s: any) => s.name === 'Destiny'));
-					return;
-				}
-			}
-		}
-	}
-
-	// Fog of War methods
-	public getFogOfWarManager(): FogOfWarManager | null {
-		return this.fogOfWarManager;
-	}
-
-	public isTileDiscovered(worldX: number, worldY: number): boolean {
-		return this.fogOfWarManager?.isTileDiscovered(worldX, worldY) || false;
-	}
-
-	public forceDiscoverArea(centerX: number, centerY: number, radius: number): void {
-		this.fogOfWarManager?.forceDiscoverArea(centerX, centerY, radius);
-	}
-
-	public clearFogOfWar(): void {
-		this.fogOfWarManager?.clearFog();
-	}
-
-	private renderFogOfWar(): void {
-		if (!this.fogLayer || !this.fogOfWarManager) return;
-
-		// Get the current viewport bounds to determine what tiles to render
-		const viewportBounds = this.getViewportBounds();
-		const config = this.fogOfWarManager.getConfig();
-
-		// Check if viewport has changed significantly to avoid unnecessary work
-		if (this.lastViewportBounds &&
-			Math.abs(viewportBounds.left - this.lastViewportBounds.left) < config.tileSize &&
-			Math.abs(viewportBounds.right - this.lastViewportBounds.right) < config.tileSize &&
-			Math.abs(viewportBounds.top - this.lastViewportBounds.top) < config.tileSize &&
-			Math.abs(viewportBounds.bottom - this.lastViewportBounds.bottom) < config.tileSize) {
-			return; // Viewport hasn't changed enough to warrant re-rendering
-		}
-
-		this.lastViewportBounds = { ...viewportBounds };
-
-		// Return all active fog tiles to the pool
-		this.returnFogTilesToPool();
-
-		// Calculate tile bounds to render
-		const startTileX = Math.floor(viewportBounds.left / config.tileSize);
-		const endTileX = Math.ceil(viewportBounds.right / config.tileSize);
-		const startTileY = Math.floor(viewportBounds.top / config.tileSize);
-		const endTileY = Math.ceil(viewportBounds.bottom / config.tileSize);
-
-		// Render fog tiles
-		for (let tileX = startTileX; tileX <= endTileX; tileX++) {
-			for (let tileY = startTileY; tileY <= endTileY; tileY++) {
-				const worldX = tileX * config.tileSize;
-				const worldY = tileY * config.tileSize;
-
-				// Check if this tile is discovered
-				const isDiscovered = this.fogOfWarManager.isTileDiscovered(worldX, worldY);
-
-				if (!isDiscovered) {
-					// Get or create fog tile from pool
-					const fogTile = this.getFogTileFromPool();
-					fogTile.x = worldX;
-					fogTile.y = worldY;
-					fogTile.visible = true;
-
-					this.fogLayer.addChild(fogTile);
-					this.activeFogTiles.push(fogTile);
+		if (this.mapLayer) {
+			const success = this.mapLayer.focusOnPlanet(planetId, this.gameData.galaxies || []);
+			if (success) {
+				this.focusSystem = this.mapLayer.getFocusSystem();
+				this.focusPlanet = this.mapLayer.getFocusPlanet();
+				// Add map layer to world if not already added
+				if (!this.world.children.includes(this.mapLayer)) {
+					this.world.addChild(this.mapLayer);
 				}
 			}
 		}
 	}
 
 	/**
-	 * Get a fog tile from the pool or create a new one
+	 * Find a safe position within the current room for the player
+	 * @param originalX Current player X position
+	 * @param originalY Current player Y position
+	 * @returns Safe position coordinates or null if none found
 	 */
-	private getFogTileFromPool(): PIXI.Graphics {
-		if (this.fogTilePool.length > 0) {
-			return this.fogTilePool.pop()!;
-		}
+	private findSafePositionInRoom(originalX: number, originalY: number): { x: number; y: number } | null {
+		const playerRadius = PLAYER_RADIUS;
+		const wallThreshold = 15; // Larger threshold for safety
 
-		// Create new fog tile
-		const fogTile = new PIXI.Graphics();
-		const config = this.fogOfWarManager?.getConfig();
-		if (config) {
-			fogTile.rect(0, 0, config.tileSize, config.tileSize)
-				.fill({ color: 0x000000, alpha: 0.7 }); // Semi-transparent black
-		}
-		return fogTile;
-	}
+		// Get candidate safe positions from RoomsLayer
+		const candidatePositions = this.roomsLayer?.findSafePositionInRoom(originalX, originalY, playerRadius, wallThreshold) || [];
+		if (candidatePositions.length === 0) return null;
 
-	/**
-	 * Return all active fog tiles to the pool
-	 */
-	private returnFogTilesToPool(): void {
-		// Remove from display and return to pool
-		for (const fogTile of this.activeFogTiles) {
-			if (fogTile.parent) {
-				fogTile.parent.removeChild(fogTile);
+		// Test each candidate position with collision detection
+		for (const candidatePosition of candidatePositions) {
+			const validatedPosition = this.checkCollision(originalX, originalY, candidatePosition.x, candidatePosition.y);
+
+			// If the validated position matches the candidate, it's safe
+			if (Math.abs(validatedPosition.x - candidatePosition.x) < 0.1 &&
+				Math.abs(validatedPosition.y - candidatePosition.y) < 0.1) {
+
+				console.log('[DOOR] Found safe position:', candidatePosition.x.toFixed(1), candidatePosition.y.toFixed(1));
+				return { x: candidatePosition.x, y: candidatePosition.y };
 			}
-			fogTile.visible = false;
-			this.fogTilePool.push(fogTile);
 		}
-		this.activeFogTiles = [];
-	}
 
-	/**
-	 * Clean up fog resources
-	 */
-	private destroyFogResources(): void {
-		this.returnFogTilesToPool();
-
-		// Destroy all pooled fog tiles
-		for (const fogTile of this.fogTilePool) {
-			fogTile.destroy();
-		}
-		this.fogTilePool = [];
-
-		// Clear viewport tracking
-		this.lastViewportBounds = null;
+		console.log('[DOOR] No safe position found in room');
+		return null;
 	}
 
 	private getViewportBounds(): { left: number; right: number; top: number; bottom: number } {
-		// Calculate world coordinates of the viewport
 		const screenWidth = this.app.screen.width;
 		const screenHeight = this.app.screen.height;
 		const worldScale = this.world.scale.x;
@@ -1863,95 +2029,100 @@ export class Game {
 		return { left, right, top, bottom };
 	}
 
-	private handleFurnitureActivation(): void {
-		const interactionRadius = 25;
-		let closestFurniture: RoomFurniture | null = null;
-		let closestDistance = Infinity;
-		for (const furniture of this.furniture) {
-			if (!furniture.interactive) continue;
-			// Find the room this furniture belongs to
-			const room = this.rooms.find(r => r.id === furniture.room_id);
-			if (!room) continue;
-			const roomCenterX = room.startX + (room.endX - room.startX) / 2;
-			const roomCenterY = room.startY + (room.endY - room.startY) / 2;
-			const furnitureWorldX = roomCenterX + furniture.x;
-			const furnitureWorldY = roomCenterY + furniture.y;
-			const distance = Math.sqrt((this.player.x - furnitureWorldX) ** 2 + (this.player.y - furnitureWorldY) ** 2);
-			if (distance <= interactionRadius && distance < closestDistance) {
-				closestDistance = distance;
-				closestFurniture = furniture;
-			}
+	/**
+	 * Get all fog of war data for all floors
+	 */
+	public getAllFogData(): any {
+		return this.fogLayer?.getAllFogData() || {};
+	}
+
+	public setAllFogData(allFogData: Record<number, any>): void {
+		if (this.fogLayer) {
+			this.fogLayer.setAllFogData(allFogData);
 		}
-		if (closestFurniture && closestFurniture.image && typeof closestFurniture.image === 'object' && 'active' in closestFurniture.image) {
-			closestFurniture.active = !closestFurniture.active;
-			this.renderRooms();
-			console.log(`[INTERACTION] Toggled furniture '${closestFurniture.name}' to active=${closestFurniture.active}`);
-		} else {
-			console.log('[INTERACTION] No interactive furniture nearby to activate');
+	}
+
+	public restoreFogDataForFloor(floor: number, fogData: Record<string, boolean>): void {
+		if (this.fogLayer) {
+			console.log('[GAME] Restoring fog data for floor', floor, 'with', Object.keys(fogData).length, 'tiles');
+			this.fogLayer.setFogDataForFloor(floor, fogData);
 		}
+	}
+
+	public triggerFogDiscovery(x: number, y: number, floor: number): void {
+		if (this.fogLayer) {
+			const currentRoom = this.findRoomContainingPoint(x, y);
+			this.fogLayer.updatePlayerPosition({
+				x,
+				y,
+				roomId: currentRoom?.id || 'unknown',
+				floor,
+			}, true); // Force discovery when manually triggered
+			console.log('[GAME] Fog discovery triggered at position', { x, y, floor });
+		}
+	}
+
+	public findRoomContainingPointPublic(x: number, y: number): RoomTemplate | null {
+		return this.findRoomContainingPoint(x, y);
 	}
 
 	/**
-	 * Find a safe position within the current room for the player
-	 * @param originalX Current player X position
-	 * @param originalY Current player Y position
-	 * @returns Safe position coordinates or null if none found
+	 * Get the last known player position for a specific floor
 	 */
-	private findSafePositionInRoom(originalX: number, originalY: number): { x: number; y: number } | null {
-		const currentRoom = this.findRoomContainingPoint(originalX, originalY);
-		if (!currentRoom) return null;
+	public getLastPlayerPositionForFloor(floor: number): any {
+		return this.fogLayer?.getLastPlayerPositionForFloor(floor) || null;
+	}
 
-		const playerRadius = PLAYER_RADIUS;
-		const wallThreshold = 15; // Larger threshold for safety
-		const stepSize = 10; // Grid step size for testing positions
+	/**
+	 * Set the last known player position for a specific floor
+	 */
+	public setLastPlayerPositionForFloor(floor: number, position: any): void {
+		this.fogLayer?.setLastPlayerPositionForFloor(floor, position);
+	}
 
-		// Calculate safe bounds within the room
-		const safeStartX = currentRoom.startX + wallThreshold;
-		const safeEndX = currentRoom.endX - wallThreshold;
-		const safeStartY = currentRoom.startY + wallThreshold;
-		const safeEndY = currentRoom.endY - wallThreshold;
+	/**
+	 * Clear all position tracking (useful for reset/testing)
+	 */
+	public clearAllPositionTracking(): void {
+		this.fogLayer?.clearAllPositionTracking();
+	}
 
-		// Try positions in a spiral pattern starting from room center
-		const roomCenterX = currentRoom.startX + (currentRoom.endX - currentRoom.startX) / 2;
-		const roomCenterY = currentRoom.startY + (currentRoom.endY - currentRoom.startY) / 2;
+	/**
+	 * Handle elevator transition to a target floor with proper fog restoration
+	 */
+	public handleElevatorTransition(targetFloor: number): boolean {
+		console.log('[GAME] Handling elevator transition to floor', targetFloor);
 
-		// Test positions in expanding rings around the center
-		for (let radius = 0; radius < Math.max(currentRoom.endX - currentRoom.startX, currentRoom.endY - currentRoom.startY) / 2; radius += stepSize) {
-			const testPositions = [];
-
-			if (radius === 0) {
-				// Test center position first
-				testPositions.push({ x: roomCenterX, y: roomCenterY });
-			} else {
-				// Test positions in a circle around the center
-				const numSteps = Math.max(8, Math.floor(radius / stepSize * 2));
-				for (let i = 0; i < numSteps; i++) {
-					const angle = (i / numSteps) * 2 * Math.PI;
-					const testX = roomCenterX + Math.cos(angle) * radius;
-					const testY = roomCenterY + Math.sin(angle) * radius;
-
-					// Keep within room bounds
-					if (testX >= safeStartX && testX <= safeEndX && testY >= safeStartY && testY <= safeEndY) {
-						testPositions.push({ x: testX, y: testY });
-					}
-				}
-			}
-
-			// Test each position
-			for (const testPos of testPositions) {
-				const validatedPosition = this.checkCollision(originalX, originalY, testPos.x, testPos.y);
-
-				// If the validated position matches the test position, it's safe
-				if (Math.abs(validatedPosition.x - testPos.x) < 0.1 &&
-					Math.abs(validatedPosition.y - testPos.y) < 0.1) {
-
-					console.log(`[DOOR] Found safe position at radius ${radius}:`, testPos.x.toFixed(1), testPos.y.toFixed(1));
-					return { x: testPos.x, y: testPos.y };
-				}
-			}
+		// Find elevator position on target floor
+		const elevatorPosition = this.findElevatorPosition(targetFloor);
+		if (!elevatorPosition) {
+			console.warn('[GAME] No elevator found on target floor:', targetFloor);
+			return false;
 		}
 
-		console.log('[DOOR] No safe position found in room');
-		return null;
+		// Save current player position for the current floor
+		const currentPlayerPos = this.getPlayerPosition();
+		const currentRoom = this.findRoomContainingPoint(currentPlayerPos.x, currentPlayerPos.y);
+		if (this.fogLayer) {
+			this.fogLayer.setLastPlayerPositionForFloor(this.currentFloor, {
+				x: currentPlayerPos.x,
+				y: currentPlayerPos.y,
+				roomId: currentRoom?.id || 'unknown',
+				floor: this.currentFloor,
+			});
+		}
+
+		// Change to target floor (this will trigger onFloorChange callback)
+		this.setCurrentFloor(targetFloor);
+
+		// Set player position to elevator location
+		this.setPlayerPosition(elevatorPosition.x, elevatorPosition.y);
+
+		// Trigger fog discovery at the new elevator position
+		this.triggerFogDiscovery(elevatorPosition.x, elevatorPosition.y, targetFloor);
+
+		console.log('[GAME] Elevator transition completed to floor', targetFloor, 'at position:', elevatorPosition);
+		return true;
 	}
+
 }

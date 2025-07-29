@@ -450,10 +450,10 @@
     },
     {
       "type": "table",
-      "name": "door_templates",
-      "tbl_name": "door_templates",
+      "name": "doors",
+      "tbl_name": "doors",
       "rootpage": 18,
-      "sql": "CREATE TABLE door_templates (\n\tid TEXT PRIMARY KEY,\n\tname TEXT,\n\tfrom_room_id TEXT NOT NULL,\n\tto_room_id TEXT NOT NULL,\n\n\t\n\tx INTEGER NOT NULL, \n\ty INTEGER NOT NULL, \n\twidth INTEGER DEFAULT 32, \n\theight INTEGER DEFAULT 8, \n\trotation INTEGER DEFAULT 0 CHECK (rotation IN (0, 90, 180, 270)), \n\n\t\n\tstate TEXT DEFAULT 'closed' CHECK (state IN ('opened', 'closed', 'locked')),\n\tis_automatic BOOLEAN DEFAULT FALSE,\n\topen_direction TEXT DEFAULT 'inward' CHECK (open_direction IN ('inward', 'outward', 'sliding')),\n\n\t\n\tstyle TEXT DEFAULT 'standard',\n\tcolor TEXT, \n\n\t\n\trequirements TEXT, \n\tpower_required INTEGER DEFAULT 0,\n\tsound_effect TEXT,\n\n\tcreated_at INTEGER DEFAULT (strftime('%s','now')),\n\tupdated_at INTEGER DEFAULT (strftime('%s','now')),\n\n\tFOREIGN KEY (from_room_id) REFERENCES room_templates(id) ON DELETE CASCADE,\n\tFOREIGN KEY (to_room_id) REFERENCES room_templates(id) ON DELETE CASCADE\n)",
+      "sql": "CREATE TABLE doors (\n\tid TEXT PRIMARY KEY,\n\tname TEXT,\n\tfrom_room_id TEXT NOT NULL,\n\tto_room_id TEXT NOT NULL,\n\n\t\n\tx INTEGER NOT NULL, \n\ty INTEGER NOT NULL, \n\twidth INTEGER DEFAULT 32, \n\theight INTEGER DEFAULT 8, \n\trotation INTEGER DEFAULT 0 CHECK (rotation IN (0, 90, 180, 270)), \n\n\t\n\tstate TEXT DEFAULT 'closed' CHECK (state IN ('opened', 'closed', 'locked')),\n\tis_automatic BOOLEAN DEFAULT FALSE,\n\topen_direction TEXT DEFAULT 'inward' CHECK (open_direction IN ('inward', 'outward', 'sliding')),\n\n\t\n\tstyle TEXT DEFAULT 'standard',\n\tcolor TEXT, \n\n\t\n\trequirements TEXT, \n\tpower_required INTEGER DEFAULT 0,\n\tsound_effect TEXT,\n\n\tcreated_at INTEGER DEFAULT (strftime('%s','now')),\n\tupdated_at INTEGER DEFAULT (strftime('%s','now')),\n\n\tFOREIGN KEY (from_room_id) REFERENCES room_templates(id) ON DELETE CASCADE,\n\tFOREIGN KEY (to_room_id) REFERENCES room_templates(id) ON DELETE CASCADE\n)",
       "columns": [
         {
           "name": "id",

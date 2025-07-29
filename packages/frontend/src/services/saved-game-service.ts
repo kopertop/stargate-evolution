@@ -46,8 +46,8 @@ export class SavedGameService {
 	/**
 	 * Create a new saved game
 	 */
-	static async createSavedGame(data: CreateSavedGame): Promise<SavedGame> {
-		const response = await apiClient.post('/api/games/saves', data, true); // true = authenticated
+	static async createSavedGame(data: CreateSavedGame, authenticated = true): Promise<SavedGame> {
+		const response = await apiClient.post('/api/games/saves', data, authenticated);
 		if (response.error) {
 			throw new Error(response.error);
 		}
@@ -83,13 +83,14 @@ export class SavedGameService {
 		name: string,
 		description: string | undefined,
 		gameState: any,
+		authenticated = true,
 	): Promise<SavedGame> {
 		// Send the game state object directly (not as JSON string)
 		return this.createSavedGame({
 			name,
 			description,
 			game_data: gameState,
-		});
+		}, authenticated);
 	}
 
 	/**
