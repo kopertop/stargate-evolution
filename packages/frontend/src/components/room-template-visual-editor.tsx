@@ -41,9 +41,6 @@ type ContextMenu = {
 	roomY: number;
 };
 
-const MIN_ZOOM = 1.0;
-const MAX_ZOOM = 10.0;
-
 interface EditFurnitureFormProps {
 	furniture: RoomFurniture;
 	furnitureTemplates: FurnitureTemplate[];
@@ -216,6 +213,102 @@ export const RoomTemplateVisualEditor: React.FC<RoomTemplateVisualEditorProps> =
 	// Utility functions for grid snapping and coordinate conversion
 	const snapToGrid = (value: number): number => Math.round(value);
 
+	// Check if a position would cause collision with other furniture
+	const checkCollision = (x: number, y: number, width: number, height: number, excludeId?: string): boolean => {
+		for (const item of furniture) {
+			if (excludeId && item.id === excludeId) continue;
+
+			// Check if rectangles overlap
+			const itemLeft = item.x - item.width / 2;
+			const itemRight = item.x + item.width / 2;
+			const itemTop = item.y - item.height / 2;
+			const itemBottom = item.y + item.height / 2;
+
+			const newLeft = x - width / 2;
+			const newRight = x + width / 2;
+			const newTop = y - height / 2;
+			const newBottom = y + height / 2;
+
+			if (newLeft < itemRight && newRight > itemLeft && newTop < itemBottom && newBottom > itemTop) {
+				return true; // Collision detected
+			}
+		}
+		return false;
+	};
+
+	// Check if position is within room boundaries
+	const isWithinRoomBounds = (x: number, y: number, width: number, height: number): boolean => {
+		const roomHalfWidth = roomTemplate.default_width / 2;
+		const roomHalfHeight = roomTemplate.default_height / 2;
+
+		const itemLeft = x - width / 2;
+		const itemRight = x + width / 2;
+		const itemTop = y - height / 2;
+		const itemBottom = y + height / 2;
+
+		return itemLeft >= -roomHalfWidth &&
+			   itemRight <= roomHalfWidth &&
+			   itemTop >= -roomHalfHeight &&
+			   itemBottom <= roomHalfHeight;
+	};
+
+	// Find the nearest valid position that doesn't collide and is within bounds
+	const findNearestValidPosition = (x: number, y: number, width: number, height: number, excludeId?: string): { x: number; y: number } => {
+		let bestX = x;
+		let bestY = y;
+		let bestDistance = Infinity;
+
+		// Try positions in a spiral pattern around the target
+		const maxRadius = 50;
+		for (let radius = 0; radius <= maxRadius; radius += 8) {
+			for (let angle = 0; angle < 360; angle += 45) {
+				const testX = x + Math.cos(angle * Math.PI / 180) * radius;
+				const testY = y + Math.sin(angle * Math.PI / 180) * radius;
+
+				if (!checkCollision(testX, testY, width, height, excludeId) &&
+					isWithinRoomBounds(testX, testY, width, height)) {
+					const distance = Math.sqrt((testX - x) ** 2 + (testY - y) ** 2);
+					if (distance < bestDistance) {
+						bestDistance = distance;
+						bestX = testX;
+						bestY = testY;
+					}
+				}
+			}
+		}
+
+		return { x: snapToGrid(bestX), y: snapToGrid(bestY) };
+	};
+
+	// Snap to walls when close to them
+	const snapToWalls = (x: number, y: number, width: number, height: number): { x: number; y: number } => {
+		const wallSnapDistance = 16; // Distance to snap to walls
+		const roomHalfWidth = roomTemplate.default_width / 2;
+		const roomHalfHeight = roomTemplate.default_height / 2;
+
+		let snappedX = x;
+		let snappedY = y;
+
+		// Snap to left wall
+		if (Math.abs(x - width / 2 - (-roomHalfWidth)) < wallSnapDistance) {
+			snappedX = -roomHalfWidth + width / 2;
+		}
+		// Snap to right wall
+		if (Math.abs(x + width / 2 - roomHalfWidth) < wallSnapDistance) {
+			snappedX = roomHalfWidth - width / 2;
+		}
+		// Snap to top wall
+		if (Math.abs(y - height / 2 - (-roomHalfHeight)) < wallSnapDistance) {
+			snappedY = -roomHalfHeight + height / 2;
+		}
+		// Snap to bottom wall
+		if (Math.abs(y + height / 2 - roomHalfHeight) < wallSnapDistance) {
+			snappedY = roomHalfHeight - height / 2;
+		}
+
+		return { x: snapToGrid(snappedX), y: snapToGrid(snappedY) };
+	};
+
 	const screenToRoom = (screenX: number, screenY: number, containerRect: DOMRect): { x: number; y: number } => {
 		const roomRect = {
 			left: containerRect.left + (containerRect.width - roomTemplate.default_width) / 2,
@@ -330,14 +423,183 @@ export const RoomTemplateVisualEditor: React.FC<RoomTemplateVisualEditorProps> =
 	const handleCanvasMouseUp = async () => {
 		if (dragState.isDragging) {
 			// Save changes if furniture or technology was moved
-			if (dragState.dragType === 'furniture' || dragState.dragType === 'technology') {
+			if (dragState.dragType === 'furniture' && dragState.dragId) {
 				try {
-					// Here you would save the changes to the backend
-					// For now, we'll just log the changes
-					console.log('Saving changes...');
+					const item = furniture.find(f => f.id === dragState.dragId);
+					if (item && dragState.originalPosition) {
+						// Check if position actually changed
+						const hasChanged = item.x !== dragState.originalPosition.x || item.y !== dragState.originalPosition.y;
+
+						if (hasChanged) {
+							// Apply wall snapping and collision detection on release
+							let finalX = item.x;
+							let finalY = item.y;
+
+							// First try wall snapping
+							const snappedPos = snapToWalls(item.x, item.y, item.width, item.height);
+							finalX = snappedPos.x;
+							finalY = snappedPos.y;
+
+							// Check for collisions and reposition if necessary
+							if (checkCollision(finalX, finalY, item.width, item.height, item.id)) {
+								// If collision, find nearest valid position
+								const validPos = findNearestValidPosition(item.x, item.y, item.width, item.height, item.id);
+								finalX = validPos.x;
+								finalY = validPos.y;
+
+								toast.warning('Repositioned due to collision');
+							}
+
+							// Ensure it's within room bounds
+							if (!isWithinRoomBounds(finalX, finalY, item.width, item.height)) {
+								const validPos = findNearestValidPosition(item.x, item.y, item.width, item.height, item.id);
+								finalX = validPos.x;
+								finalY = validPos.y;
+
+								toast.warning('Repositioned to stay within room bounds');
+							}
+
+							// Update local state to show the final position
+							setFurniture(prev => prev.map(f =>
+								f.id === dragState.dragId
+									? { ...f, x: finalX, y: finalY }
+									: f,
+							));
+
+							// Final collision check before saving
+							if (checkCollision(finalX, finalY, item.width, item.height, item.id)) {
+								// If there's still a collision, find the nearest valid position
+								const validPos = findNearestValidPosition(finalX, finalY, item.width, item.height, item.id);
+								finalX = validPos.x;
+								finalY = validPos.y;
+
+								// Update local state with the corrected position
+								setFurniture(prev => prev.map(f =>
+									f.id === dragState.dragId
+										? { ...f, x: finalX, y: finalY }
+										: f,
+								));
+
+								toast.warning('Repositioned due to collision');
+							}
+
+							// Save the updated position to the backend
+							await adminService.updateRoomTemplateFurniture(roomTemplate.id, item.id, {
+								name: item.name,
+								description: item.description,
+								x: finalX,
+								y: finalY,
+								z: item.z,
+								width: item.width,
+								height: item.height,
+								rotation: item.rotation,
+								image: item.image ? JSON.stringify(item.image) : null,
+								color: item.color,
+								style: item.style,
+								interactive: item.interactive,
+								blocks_movement: item.blocks_movement,
+								power_required: item.power_required,
+							});
+
+							toast.success(`Moved ${item.name}`);
+						}
+					}
 				} catch (err) {
-					console.error('Failed to save changes:', err);
-					toast.error('Failed to save changes');
+					console.error('Failed to save furniture position:', err);
+					toast.error('Failed to save position changes');
+
+					// Revert the position change on error
+					if (dragState.originalPosition && dragState.dragId) {
+						setFurniture(prev => prev.map(f =>
+							f.id === dragState.dragId
+								? { ...f, x: dragState.originalPosition!.x, y: dragState.originalPosition!.y }
+								: f,
+						));
+					}
+				}
+			} else if (dragState.dragType === 'technology' && dragState.dragId) {
+				try {
+					const item = technology.find(t => t.id === dragState.dragId);
+					if (item && dragState.originalPosition) {
+						// Check if position actually changed
+						const hasChanged = item.position?.x !== dragState.originalPosition.x || item.position?.y !== dragState.originalPosition.y;
+
+						if (hasChanged) {
+							// Apply wall snapping and collision detection on release
+							let finalX = item.position?.x || 0;
+							let finalY = item.position?.y || 0;
+
+							// First try wall snapping
+							const snappedPos = snapToWalls(finalX, finalY, 1, 1);
+							finalX = snappedPos.x;
+							finalY = snappedPos.y;
+
+							// Check for collisions and reposition if necessary
+							if (checkCollision(finalX, finalY, 1, 1)) {
+								// If collision, find nearest valid position
+								const validPos = findNearestValidPosition(item.position?.x || 0, item.position?.y || 0, 1, 1);
+								finalX = validPos.x;
+								finalY = validPos.y;
+
+								toast.warning('Repositioned due to collision');
+							}
+
+							// Ensure it's within room bounds
+							if (!isWithinRoomBounds(finalX, finalY, 1, 1)) {
+								const validPos = findNearestValidPosition(item.position?.x || 0, item.position?.y || 0, 1, 1);
+								finalX = validPos.x;
+								finalY = validPos.y;
+
+								toast.warning('Repositioned to stay within room bounds');
+							}
+
+							// Update local state to show the final position
+							setTechnology(prev => prev.map(t =>
+								t.id === dragState.dragId
+									? { ...t, position: { x: finalX, y: finalY } }
+									: t,
+							));
+
+							// Final collision check before saving
+							if (checkCollision(finalX, finalY, 1, 1)) {
+								// If there's still a collision, find the nearest valid position
+								const validPos = findNearestValidPosition(finalX, finalY, 1, 1);
+								finalX = validPos.x;
+								finalY = validPos.y;
+
+								// Update local state with the corrected position
+								setTechnology(prev => prev.map(t =>
+									t.id === dragState.dragId
+										? { ...t, position: { x: finalX, y: finalY } }
+										: t,
+								));
+
+								toast.warning('Repositioned due to collision');
+							}
+
+							// Save the updated position to the backend
+							await adminService.updateRoomTemplateTechnology(roomTemplate.id, item.id, {
+								technology_template_id: item.technology_template_id,
+								count: item.count,
+								description: item.description,
+								position: { x: finalX, y: finalY },
+							});
+
+							toast.success('Moved technology');
+						}
+					}
+				} catch (err) {
+					console.error('Failed to save technology position:', err);
+					toast.error('Failed to save position changes');
+
+					// Revert the position change on error
+					if (dragState.originalPosition && dragState.dragId) {
+						setTechnology(prev => prev.map(t =>
+							t.id === dragState.dragId
+								? { ...t, position: { x: dragState.originalPosition!.x, y: dragState.originalPosition!.y } }
+								: t,
+						));
+					}
 				}
 			}
 
@@ -409,7 +671,7 @@ export const RoomTemplateVisualEditor: React.FC<RoomTemplateVisualEditorProps> =
 			currentY: event.clientY,
 		}));
 
-		// Update item position
+		// Update item position - natural dragging without any constraints
 		if (dragState.dragType === 'furniture' && dragState.dragId) {
 			const item = furniture.find(f => f.id === dragState.dragId);
 			if (item) {
@@ -464,11 +726,35 @@ export const RoomTemplateVisualEditor: React.FC<RoomTemplateVisualEditorProps> =
 				return;
 			}
 
+			// Determine initial position with collision detection
+			let initialX = x ?? 0;
+			let initialY = y ?? 0;
+
+			// If position is provided, try to use it with collision detection
+			if (x !== undefined && y !== undefined) {
+				// First try wall snapping
+				let newPos = snapToWalls(x, y, template.default_width, template.default_height);
+
+				// Check for collisions
+				if (checkCollision(newPos.x, newPos.y, template.default_width, template.default_height)) {
+					// If collision, find nearest valid position
+					newPos = findNearestValidPosition(x, y, template.default_width, template.default_height);
+				}
+
+				// Ensure it's within room bounds
+				if (!isWithinRoomBounds(newPos.x, newPos.y, template.default_width, template.default_height)) {
+					newPos = findNearestValidPosition(x, y, template.default_width, template.default_height);
+				}
+
+				initialX = newPos.x;
+				initialY = newPos.y;
+			}
+
 			// Create base furniture data with position
 			const baseFurniture = {
 				room_id: roomTemplate.id, // Use room template ID
-				x: x ?? 0, // Room center
-				y: y ?? 0, // Room center
+				x: initialX,
+				y: initialY,
 				z: 1,
 			};
 
@@ -534,10 +820,21 @@ export const RoomTemplateVisualEditor: React.FC<RoomTemplateVisualEditorProps> =
 
 	const deleteFurniture = async (item: RoomFurniture) => {
 		try {
+			// Confirm deletion
+			if (!confirm(`Are you sure you want to delete "${item.name}"?`)) {
+				return;
+			}
+
+			// Call backend API to delete the furniture
+			await adminService.deleteRoomTemplateFurniture(roomTemplate.id, item.id);
+
+			// Remove from local state
 			setFurniture(prev => prev.filter(f => f.id !== item.id));
 			if (selectedFurniture?.id === item.id) {
 				setSelectedFurniture(null);
 			}
+
+			toast.success(`Deleted ${item.name}`);
 		} catch (err) {
 			console.error('Failed to delete furniture:', err);
 			toast.error('Failed to delete furniture');
@@ -546,10 +843,21 @@ export const RoomTemplateVisualEditor: React.FC<RoomTemplateVisualEditorProps> =
 
 	const deleteTechnology = async (item: RoomTechnology) => {
 		try {
+			// Confirm deletion
+			if (!confirm('Are you sure you want to delete this technology?')) {
+				return;
+			}
+
+			// Call backend API to delete the technology
+			await adminService.deleteRoomTemplateTechnology(roomTemplate.id, item.id);
+
+			// Remove from local state
 			setTechnology(prev => prev.filter(t => t.id !== item.id));
 			if (selectedTechnology?.id === item.id) {
 				setSelectedTechnology(null);
 			}
+
+			toast.success(`Deleted ${item.technology_template_id}`);
 		} catch (err) {
 			console.error('Failed to delete technology:', err);
 			toast.error('Failed to delete technology');
@@ -595,30 +903,65 @@ export const RoomTemplateVisualEditor: React.FC<RoomTemplateVisualEditorProps> =
 						onContextMenu={handleRoomRightClick}
 					>
 						{/* Render Furniture Items */}
-						{furniture.map((item) => (
-							<div
-								key={item.id}
-								style={{
-									position: 'absolute',
-									left: roomTemplate.default_width / 2 + item.x - item.width / 2,
-									top: roomTemplate.default_height / 2 + item.y - item.height / 2,
-									width: item.width,
-									height: item.height,
-									backgroundColor: selectedFurniture?.id === item.id ? '#ff6b6b' : '#4ecdc4',
-									border: selectedFurniture?.id === item.id ? '2px solid #ff4757' : '1px solid #2c3e50',
-									borderRadius: '2px',
-									display: 'flex',
-									alignItems: 'center',
-									justifyContent: 'center',
-									fontSize: '10px',
-									color: 'white',
-									userSelect: 'none',
-									zIndex: 10,
-								}}
-							>
-								{item.name}
-							</div>
-						))}
+						{furniture.map((item) => {
+							// Check for collision and boundary issues
+							const hasCollision = checkCollision(item.x, item.y, item.width, item.height, item.id);
+							const isOutOfBounds = !isWithinRoomBounds(item.x, item.y, item.width, item.height);
+
+							// Determine visual styling based on state
+							let backgroundColor = selectedFurniture?.id === item.id ? '#ff6b6b' : '#4ecdc4';
+							let borderColor = selectedFurniture?.id === item.id ? '#ff4757' : '#2c3e50';
+							let borderWidth = selectedFurniture?.id === item.id ? '2px' : '1px';
+
+							if (hasCollision || isOutOfBounds) {
+								backgroundColor = '#e74c3c'; // Red for invalid position
+								borderColor = '#c0392b';
+								borderWidth = '3px';
+							}
+
+							return (
+								<div
+									key={item.id}
+									style={{
+										position: 'absolute',
+										left: roomTemplate.default_width / 2 + item.x - item.width / 2,
+										top: roomTemplate.default_height / 2 + item.y - item.height / 2,
+										width: item.width,
+										height: item.height,
+										backgroundColor,
+										border: `${borderWidth} solid ${borderColor}`,
+										borderRadius: '2px',
+										display: 'flex',
+										alignItems: 'center',
+										justifyContent: 'center',
+										fontSize: '10px',
+										color: 'white',
+										userSelect: 'none',
+										zIndex: 10,
+										opacity: (hasCollision || isOutOfBounds) ? 0.8 : 1,
+									}}
+								>
+									{item.name}
+									{(hasCollision || isOutOfBounds) && (
+										<div style={{
+											position: 'absolute',
+											top: '-20px',
+											left: '50%',
+											transform: 'translateX(-50%)',
+											backgroundColor: '#e74c3c',
+											color: 'white',
+											padding: '2px 6px',
+											borderRadius: '3px',
+											fontSize: '8px',
+											whiteSpace: 'nowrap',
+											zIndex: 11,
+										}}>
+											{hasCollision ? 'Collision!' : 'Out of bounds!'}
+										</div>
+									)}
+								</div>
+							);
+						})}
 
 						{/* Render Technology Items */}
 						{technology.map((item) => (
@@ -905,13 +1248,37 @@ export const RoomTemplateVisualEditor: React.FC<RoomTemplateVisualEditorProps> =
 							<EditFurnitureForm
 								furniture={editingFurniture}
 								furnitureTemplates={furnitureTemplates}
-								onSave={(updatedFurniture) => {
-									setFurniture(prev => prev.map(f =>
-										f.id === editingFurniture.id ? updatedFurniture : f,
-									));
-									setShowEditFurniturePopup(false);
-									setEditingFurniture(null);
-									toast.success('Furniture updated successfully');
+								onSave={async (updatedFurniture) => {
+									try {
+										// Save changes to the backend
+										await adminService.updateRoomTemplateFurniture(roomTemplate.id, updatedFurniture.id, {
+											name: updatedFurniture.name,
+											description: updatedFurniture.description,
+											x: updatedFurniture.x,
+											y: updatedFurniture.y,
+											z: updatedFurniture.z,
+											width: updatedFurniture.width,
+											height: updatedFurniture.height,
+											rotation: updatedFurniture.rotation,
+											image: updatedFurniture.image,
+											color: updatedFurniture.color,
+											style: updatedFurniture.style,
+											interactive: updatedFurniture.interactive,
+											blocks_movement: updatedFurniture.blocks_movement,
+											power_required: updatedFurniture.power_required,
+										});
+
+										// Update local state
+										setFurniture(prev => prev.map(f =>
+											f.id === editingFurniture.id ? updatedFurniture : f,
+										));
+										setShowEditFurniturePopup(false);
+										setEditingFurniture(null);
+										toast.success('Furniture updated successfully');
+									} catch (err) {
+										console.error('Failed to update furniture:', err);
+										toast.error('Failed to update furniture');
+									}
 								}}
 								onCancel={() => {
 									setShowEditFurniturePopup(false);

@@ -240,6 +240,22 @@ export class AdminService {
 		return Array.isArray(data) ? data : [];
 	}
 
+	async deleteRoomTemplateFurniture(templateId: string, furnitureId: string) {
+		const response = await apiClient.delete(`/api/admin/room-templates/${templateId}/furniture/${furnitureId}`, true);
+		if (response.error) {
+			throw new Error(response.error);
+		}
+		return response.data;
+	}
+
+	async updateRoomTemplateFurniture(templateId: string, furnitureId: string, furnitureData: any) {
+		const response = await apiClient.put(`/api/admin/room-templates/${templateId}/furniture/${furnitureId}`, furnitureData, true);
+		if (response.error) {
+			throw new Error(response.error);
+		}
+		return response.data;
+	}
+
 	async getRoomTemplateTechnology(templateId: string) {
 		const response = await apiClient.get(`/api/admin/room-templates/${templateId}/technology`, true);
 		if (response.error) {
@@ -247,6 +263,22 @@ export class AdminService {
 		}
 		const data = response.data;
 		return Array.isArray(data) ? data : [];
+	}
+
+	async deleteRoomTemplateTechnology(templateId: string, technologyId: string) {
+		const response = await apiClient.delete(`/api/admin/room-templates/${templateId}/technology/${technologyId}`, true);
+		if (response.error) {
+			throw new Error(response.error);
+		}
+		return response.data;
+	}
+
+	async updateRoomTemplateTechnology(templateId: string, technologyId: string, technologyData: any) {
+		const response = await apiClient.put(`/api/admin/room-templates/${templateId}/technology/${technologyId}`, technologyData, true);
+		if (response.error) {
+			throw new Error(response.error);
+		}
+		return response.data;
 	}
 
 	// Furniture Templates management
