@@ -355,17 +355,32 @@ export const AdminRoomTemplates: React.FC = () => {
 				show={showModal}
 				onHide={handleCloseModal}
 				size="xl"
+				style={{ padding: 0 }}
 			>
 				<Modal.Header closeButton>
 					<Modal.Title>
 						{editingTemplate ? 'Edit Room Template' : 'Add Room Template'}
 					</Modal.Title>
 				</Modal.Header>
-				<Form onSubmit={handleSubmit}>
-					<Modal.Body style={{ padding: 0, maxHeight: 'calc(90vh - 120px)' }}>
-						<Row style={{ margin: 0, minHeight: '500px' }}>
+				<Form onSubmit={handleSubmit} style={{ margin: 0, padding: 0 }}>
+					<Modal.Body style={{ padding: 0, margin: 0, maxHeight: 'calc(90vh - 120px)' }}>
+						<Row style={{
+							margin: 0,
+							padding: 0,
+							minHeight: '500px',
+							boxSizing: 'border-box',
+						}} className="g-0">
 							{/* Left Panel - Visual Editor */}
-							<Col md={8} style={{ padding: 0, borderRight: '1px solid #dee2e6', display: 'flex', flexDirection: 'column' }}>
+							<Col
+								className="g-0"
+								md={8}
+								style={{
+									padding: 0,
+									margin: 0,
+									borderRight: '1px solid #dee2e6',
+									display: 'flex',
+									flexDirection: 'column',
+								}}>
 								{editingTemplate && (
 									<RoomTemplateVisualEditor
 										roomTemplate={{

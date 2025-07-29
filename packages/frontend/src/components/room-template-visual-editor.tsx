@@ -310,60 +310,54 @@ export const RoomTemplateVisualEditor: React.FC<RoomTemplateVisualEditorProps> =
 	}
 
 	return (
-		<div className="room-template-visual-editor">
-			{error && (
-				<Alert variant="danger" dismissible onClose={() => setError(null)}>
-					{error}
-				</Alert>
-			)}
+		<>
+			<div className="room-template-visual-editor g-0" style={{
+				height: '100%',
+			}}>
+				{error && (
+					<Alert variant="danger" dismissible onClose={() => setError(null)}>
+						{error}
+					</Alert>
+				)}
 
-			{/* Canvas Container */}
-			<div className="flex-grow-1 position-relative" style={{ minHeight: '350px', maxHeight: '500px' }}>
-
-				{/* Canvas
-				<canvas
-					ref={canvasRef}
-					style={{
-						border: '1px solid #ccc',
-						backgroundColor: '#1a202c',
-						cursor: dragState.isDragging
-							? (dragState.dragType === 'camera' ? 'grabbing' : 'move')
-							: (selectedFurniture || selectedTechnology) ? 'move' : 'grab',
-					}}
-					onMouseDown={handleCanvasMouseDown}
-					onMouseMove={handleCanvasMouseMove}
-					onMouseUp={handleCanvasMouseUp}
-					onMouseLeave={handleCanvasMouseUp}
-					onContextMenu={handleCanvasRightClick}
-					onWheel={handleWheel}
-				/>
-				*/}
-			</div>
-
-			{/* Context Menu */}
-			{contextMenu.visible && (
-				<div
-					style={{
-						position: 'fixed',
-						top: contextMenu.y,
-						left: contextMenu.x,
-						backgroundColor: 'white',
-						border: '1px solid #ccc',
-						borderRadius: '4px',
-						padding: '8px',
-						boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
-						zIndex: 1000,
-					}}
-					onMouseLeave={() => setContextMenu({ ...contextMenu, visible: false })}
-				>
-					<p className="mb-2 small text-muted">
-						Position: ({contextMenu.roomX.toFixed(2)}, {contextMenu.roomY.toFixed(2)})
-					</p>
-					<Button size="sm" variant="outline-primary" className="w-100">
-						Add Item Here
-					</Button>
+				{/* Canvas Container */}
+				<div className="room-container g-0" style={{ height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+					<div
+						className="room g-0"
+						style={{
+							width: roomTemplate.default_width,
+							height: roomTemplate.default_height,
+							border: '2px solid cyan',
+						}}
+					>
+					</div>
 				</div>
-			)}
-		</div>
+
+				{/* Context Menu */}
+				{contextMenu.visible && (
+					<div
+						style={{
+							position: 'fixed',
+							top: contextMenu.y,
+							left: contextMenu.x,
+							backgroundColor: 'white',
+							border: '1px solid #ccc',
+							borderRadius: '4px',
+							padding: '8px',
+							boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
+							zIndex: 1000,
+						}}
+						onMouseLeave={() => setContextMenu({ ...contextMenu, visible: false })}
+					>
+						<p className="mb-2 small text-muted">
+							Position: ({contextMenu.roomX.toFixed(2)}, {contextMenu.roomY.toFixed(2)})
+						</p>
+						<Button size="sm" variant="outline-primary" className="w-100">
+							Add Item Here
+						</Button>
+					</div>
+				)}
+			</div>
+		</>
 	);
 };
