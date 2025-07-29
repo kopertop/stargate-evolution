@@ -5,12 +5,14 @@ import type {
 	FurnitureTemplate,
 	TechnologyTemplate,
 } from '@stargate/common';
+import { mergeFurnitureWithTemplate } from '@stargate/common';
 import React, { useState, useEffect, useRef } from 'react';
 import { Button, Alert, Dropdown } from 'react-bootstrap';
 import { FaPlus } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 
 import { AdminService } from '../services/admin-service';
+import { apiClient } from '../services/api-client';
 
 interface RoomTemplateVisualEditorProps {
 	roomTemplate: RoomTemplate;
@@ -37,6 +39,140 @@ type ContextMenu = {
 	targetId?: string;
 	roomX: number;
 	roomY: number;
+};
+
+const MIN_ZOOM = 1.0;
+const MAX_ZOOM = 10.0;
+
+interface EditFurnitureFormProps {
+	furniture: RoomFurniture;
+	furnitureTemplates: FurnitureTemplate[];
+	onSave: (updatedFurniture: RoomFurniture) => void;
+	onCancel: () => void;
+}
+
+const EditFurnitureForm: React.FC<EditFurnitureFormProps> = ({ furniture, furnitureTemplates, onSave, onCancel }) => {
+	const [formData, setFormData] = useState({
+		name: furniture.name,
+		furniture_type: furniture.furniture_type,
+		x: furniture.x,
+		y: furniture.y,
+		width: furniture.width,
+		height: furniture.height,
+	});
+
+	// Get unique furniture types from templates
+	const furnitureTypes = Array.from(new Set(furnitureTemplates.map(t => t.furniture_type))).sort();
+
+	const handleInputChange = (field: keyof typeof formData, value: string | number) => {
+		setFormData(prev => ({
+			...prev,
+			[field]: typeof value === 'number' ? Math.max(1, Math.round(value)) : value, // Ensure positive integers for numeric fields
+		}));
+	};
+
+	const handleSave = () => {
+		const updatedFurniture: RoomFurniture = {
+			...furniture,
+			name: formData.name,
+			furniture_type: formData.furniture_type,
+			x: formData.x,
+			y: formData.y,
+			width: formData.width,
+			height: formData.height,
+		};
+		onSave(updatedFurniture);
+	};
+
+	return (
+		<div>
+			<div className="mb-3">
+				<label className="form-label text-light">Name</label>
+				<input
+					type="text"
+					className="form-control bg-dark text-light border-secondary"
+					placeholder="Furniture Name"
+					value={formData.name}
+					onChange={(e) => handleInputChange('name', e.target.value)}
+				/>
+			</div>
+
+			<div className="mb-3">
+				<label className="form-label text-light">Type</label>
+				<select
+					className="form-select bg-dark text-light border-secondary"
+					value={formData.furniture_type}
+					onChange={(e) => handleInputChange('furniture_type', e.target.value)}
+				>
+					{furnitureTypes.map((type) => (
+						<option key={type} value={type}>
+							{type}
+						</option>
+					))}
+				</select>
+			</div>
+
+			<div className="mb-3">
+				<label className="form-label text-light">Position (relative to room center)</label>
+				<div className="row g-2">
+					<div className="col-6">
+						<input
+							type="number"
+							className="form-control bg-dark text-light border-secondary"
+							placeholder="X"
+							value={formData.x}
+							onChange={(e) => handleInputChange('x', parseInt(e.target.value) || 0)}
+						/>
+					</div>
+					<div className="col-6">
+						<input
+							type="number"
+							className="form-control bg-dark text-light border-secondary"
+							placeholder="Y"
+							value={formData.y}
+							onChange={(e) => handleInputChange('y', parseInt(e.target.value) || 0)}
+						/>
+					</div>
+				</div>
+				<small className="text-muted">(0,0) = room center, negative = left/up, positive = right/down</small>
+			</div>
+
+			<div className="mb-3">
+				<label className="form-label text-light">Size</label>
+				<div className="row g-2">
+					<div className="col-6">
+						<input
+							type="number"
+							className="form-control bg-dark text-light border-secondary"
+							placeholder="Width"
+							value={formData.width}
+							onChange={(e) => handleInputChange('width', parseInt(e.target.value) || 1)}
+							min="1"
+						/>
+					</div>
+					<div className="col-6">
+						<input
+							type="number"
+							className="form-control bg-dark text-light border-secondary"
+							placeholder="Height"
+							value={formData.height}
+							onChange={(e) => handleInputChange('height', parseInt(e.target.value) || 1)}
+							min="1"
+						/>
+					</div>
+				</div>
+			</div>
+
+			<div className="d-flex gap-2">
+				<Button variant="outline-light" onClick={onCancel} className="flex-fill">
+					Cancel
+				</Button>
+				<Button variant="primary" onClick={handleSave} className="flex-fill">
+					Save Changes
+				</Button>
+			</div>
+		</div>
+	);
 };
 
 export const RoomTemplateVisualEditor: React.FC<RoomTemplateVisualEditorProps> = ({ roomTemplate, onSave, onRoomSizeChange }) => {
@@ -72,6 +208,9 @@ export const RoomTemplateVisualEditor: React.FC<RoomTemplateVisualEditorProps> =
 	const [showFurniturePopup, setShowFurniturePopup] = useState(false);
 	const [furniturePopupPosition, setFurniturePopupPosition] = useState({ x: 0, y: 0 });
 
+	const [showEditFurniturePopup, setShowEditFurniturePopup] = useState(false);
+	const [editingFurniture, setEditingFurniture] = useState<RoomFurniture | null>(null);
+
 	const adminService = new AdminService();
 
 	// Utility functions for grid snapping and coordinate conversion
@@ -86,9 +225,13 @@ export const RoomTemplateVisualEditor: React.FC<RoomTemplateVisualEditorProps> =
 		const roomX = screenX - roomRect.left;
 		const roomY = screenY - roomRect.top;
 
+		// Convert to room-relative coordinates (0,0 at room center)
+		const roomRelativeX = roomX - roomTemplate.default_width / 2;
+		const roomRelativeY = roomY - roomTemplate.default_height / 2;
+
 		return {
-			x: snapToGrid(roomX),
-			y: snapToGrid(roomY),
+			x: snapToGrid(roomRelativeX),
+			y: snapToGrid(roomRelativeY),
 		};
 	};
 
@@ -140,7 +283,38 @@ export const RoomTemplateVisualEditor: React.FC<RoomTemplateVisualEditorProps> =
 				adminService.getAllTechnologyTemplates(),
 			]);
 
-			setFurniture(furnitureData);
+			console.log('Room template furniture data:', furnitureData);
+			console.log('Room template technology data:', technologyData);
+
+			// Convert room template furniture data to RoomFurniture format
+			const convertedFurniture: RoomFurniture[] = furnitureData.map((item: any) => ({
+				id: item.id,
+				room_id: item.room_template_id, // Use room_template_id as room_id for display purposes
+				furniture_type: item.furniture_type || 'generic',
+				name: item.name,
+				description: item.description,
+				x: item.x,
+				y: item.y,
+				z: item.z,
+				width: item.width,
+				height: item.height,
+				rotation: item.rotation,
+				image: item.image ? JSON.parse(item.image) : undefined,
+				color: item.color,
+				style: item.style,
+				interactive: item.interactive === 1,
+				blocks_movement: item.blocks_movement === 1,
+				requirements: item.optional_variants,
+				power_required: item.power_required || 0,
+				active: true, // Default to active
+				discovered: true, // Default to discovered
+				created_at: item.created_at,
+				updated_at: item.updated_at,
+			}));
+
+			console.log('Converted furniture:', convertedFurniture);
+
+			setFurniture(convertedFurniture);
 			setTechnology(technologyData);
 			setFurnitureTemplates(furnitureTemplatesData);
 			setTechnologyTemplates(technologyTemplatesData);
@@ -283,30 +457,50 @@ export const RoomTemplateVisualEditor: React.FC<RoomTemplateVisualEditorProps> =
 
 	const addFurniture = async (templateId: string, x?: number, y?: number) => {
 		try {
-			// Add furniture at specified position or center of room
-			const newFurniture: RoomFurniture = {
-				id: `temp-${Date.now()}`,
-				name: 'New Furniture',
-				furniture_type: 'generic',
-				x: x ?? roomTemplate.default_width / 2,
-				y: y ?? roomTemplate.default_height / 2,
+			// Find the furniture template
+			const template = furnitureTemplates.find(t => t.id === templateId);
+			if (!template) {
+				toast.error('Furniture template not found');
+				return;
+			}
+
+			// Create base furniture data with position
+			const baseFurniture = {
+				room_id: roomTemplate.id, // Use room template ID
+				x: x ?? 0, // Room center
+				y: y ?? 0, // Room center
 				z: 1,
-				width: 32,
-				height: 32,
-				rotation: 0,
-				created_at: 0,
-				updated_at: 0,
-				room_id: '',
-				interactive: false,
-				blocks_movement: false,
-				power_required: 0,
-				active: false,
-				discovered: false,
 			};
 
-			setFurniture(prev => [...prev, newFurniture]);
-			setSelectedFurniture(newFurniture);
-			setSelectedTechnology(null);
+			// Merge template defaults with base furniture data
+			const mergedFurniture = mergeFurnitureWithTemplate(baseFurniture, template);
+
+			// Save to backend
+			const response = await apiClient.post(`/api/admin/room-templates/${roomTemplate.id}/furniture`, {
+				furniture_template_id: templateId,
+				name: mergedFurniture.name,
+				description: mergedFurniture.description,
+				x: mergedFurniture.x,
+				y: mergedFurniture.y,
+				z: mergedFurniture.z,
+				width: mergedFurniture.width,
+				height: mergedFurniture.height,
+				rotation: mergedFurniture.rotation,
+				image: mergedFurniture.image,
+				color: mergedFurniture.color,
+				style: mergedFurniture.style,
+				interactive: mergedFurniture.interactive,
+				blocks_movement: mergedFurniture.blocks_movement,
+				power_required: mergedFurniture.power_required,
+			}, true);
+
+			if (response.error) {
+				throw new Error(response.error);
+			}
+
+			// Reload data to get the updated furniture list
+			await loadData();
+			toast.success(`Added ${template.name}`);
 		} catch (err) {
 			console.error('Failed to add furniture:', err);
 			toast.error('Failed to add furniture');
@@ -315,7 +509,7 @@ export const RoomTemplateVisualEditor: React.FC<RoomTemplateVisualEditorProps> =
 
 	const addTechnology = async (templateId: string, x?: number, y?: number) => {
 		try {
-			// Add technology at specified position or center of room
+			// Add technology at specified position or center of room (0,0)
 			const newTechnology: RoomTechnology = {
 				id: `temp-${Date.now()}`,
 				technology_template_id: templateId,
@@ -324,8 +518,8 @@ export const RoomTemplateVisualEditor: React.FC<RoomTemplateVisualEditorProps> =
 				updated_at: 0,
 				room_id: '',
 				position: {
-					x: x ?? roomTemplate.default_width / 2,
-					y: y ?? roomTemplate.default_height / 2,
+					x: x ?? 0, // Room center
+					y: y ?? 0, // Room center
 				},
 			};
 
@@ -406,8 +600,8 @@ export const RoomTemplateVisualEditor: React.FC<RoomTemplateVisualEditorProps> =
 								key={item.id}
 								style={{
 									position: 'absolute',
-									left: item.x,
-									top: item.y,
+									left: roomTemplate.default_width / 2 + item.x - item.width / 2,
+									top: roomTemplate.default_height / 2 + item.y - item.height / 2,
 									width: item.width,
 									height: item.height,
 									backgroundColor: selectedFurniture?.id === item.id ? '#ff6b6b' : '#4ecdc4',
@@ -434,8 +628,8 @@ export const RoomTemplateVisualEditor: React.FC<RoomTemplateVisualEditorProps> =
 									key={item.id}
 									style={{
 										position: 'absolute',
-										left: item.position.x,
-										top: item.position.y,
+										left: roomTemplate.default_width / 2 + item.position.x - 8,
+										top: roomTemplate.default_height / 2 + item.position.y - 8,
 										width: 16,
 										height: 16,
 										backgroundColor: selectedTechnology?.id === item.id ? '#ff6b6b' : '#f39c12',
@@ -499,8 +693,11 @@ export const RoomTemplateVisualEditor: React.FC<RoomTemplateVisualEditorProps> =
 									variant="outline-light"
 									className="w-100 mb-2"
 									onClick={() => {
-										// TODO: Show furniture edit popup
-										toast.info('Furniture edit popup coming soon');
+										const item = furniture.find(f => f.id === contextMenu.targetId);
+										if (item) {
+											setEditingFurniture(item);
+											setShowEditFurniturePopup(true);
+										}
 										setContextMenu({ ...contextMenu, visible: false });
 									}}
 								>
@@ -661,6 +858,66 @@ export const RoomTemplateVisualEditor: React.FC<RoomTemplateVisualEditorProps> =
 									No furniture templates available
 								</div>
 							)}
+						</div>
+					</div>
+				)}
+
+				{/* Edit Furniture Popup */}
+				{showEditFurniturePopup && editingFurniture && (
+					<div
+						style={{
+							position: 'fixed',
+							top: 0,
+							left: 0,
+							right: 0,
+							bottom: 0,
+							backgroundColor: 'rgba(0, 0, 0, 0.7)',
+							zIndex: 1001,
+							display: 'flex',
+							alignItems: 'center',
+							justifyContent: 'center',
+						}}
+						onClick={() => setShowEditFurniturePopup(false)}
+					>
+						<div
+							style={{
+								backgroundColor: '#1a1a1a',
+								border: '1px solid #333',
+								borderRadius: '8px',
+								padding: '20px',
+								maxWidth: '400px',
+								color: 'white',
+								minWidth: '350px',
+							}}
+							onClick={(e) => e.stopPropagation()}
+						>
+							<div className="d-flex justify-content-between align-items-center mb-3">
+								<h5 className="mb-0">Edit Furniture</h5>
+								<Button
+									variant="outline-light"
+									size="sm"
+									onClick={() => setShowEditFurniturePopup(false)}
+								>
+									×
+								</Button>
+							</div>
+
+							<EditFurnitureForm
+								furniture={editingFurniture}
+								furnitureTemplates={furnitureTemplates}
+								onSave={(updatedFurniture) => {
+									setFurniture(prev => prev.map(f =>
+										f.id === editingFurniture.id ? updatedFurniture : f,
+									));
+									setShowEditFurniturePopup(false);
+									setEditingFurniture(null);
+									toast.success('Furniture updated successfully');
+								}}
+								onCancel={() => {
+									setShowEditFurniturePopup(false);
+									setEditingFurniture(null);
+								}}
+							/>
 						</div>
 					</div>
 				)}
