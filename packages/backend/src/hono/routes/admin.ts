@@ -331,7 +331,7 @@ admin.post('/room-templates/:id/furniture', async (c) => {
 			body.optional_variants ? JSON.stringify(body.optional_variants) : null,
 			body.placement_order || 0,
 			Date.now(),
-			Date.now()
+			Date.now(),
 		).run();
 
 		return c.json({ success: true, id: furnitureId });
@@ -375,7 +375,7 @@ admin.put('/room-templates/:id/furniture/:furnitureId', async (c) => {
 			body.placement_order || 0,
 			Date.now(),
 			furnitureId,
-			templateId
+			templateId,
 		).run();
 
 		if (result.meta.changes === 0) {
@@ -457,7 +457,7 @@ admin.post('/room-templates/:id/technology', async (c) => {
 			body.y || null,
 			body.hidden_until_discovered || 0,
 			Date.now(),
-			Date.now()
+			Date.now(),
 		).run();
 
 		return c.json({ success: true, id: techId });
@@ -491,7 +491,7 @@ admin.put('/room-templates/:id/technology/:techId', async (c) => {
 			body.hidden_until_discovered || 0,
 			Date.now(),
 			techId,
-			templateId
+			templateId,
 		).run();
 
 		if (result.meta.changes === 0) {

@@ -152,7 +152,7 @@ export const GameStateProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 			};
 
 			// Determine game name (optional)
-			const effectiveName = newGameName?.trim() || `New Game`;
+			const effectiveName = newGameName?.trim() || 'New Game';
 
 			let savedGameId: string;
 			let backendSaveSuccessful = false;
@@ -406,33 +406,33 @@ export const GameStateProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 	const loadGame = async (newGameId: string) => {
 		setIsLoading(true);
 		try {
-		let gameData: any;
-		if (newGameId.startsWith('local-')) {
+			let gameData: any;
+			if (newGameId.startsWith('local-')) {
 			// Load from local storage
-			const raw = localStorage.getItem(`stargate-game-${newGameId}`);
-			if (!raw) {
-				toast.error('Local save not found');
-				throw new Error('Local save not found');
-			}
-			gameData = JSON.parse(raw);
-			console.log('[GAME-STATE] Loaded saved game from localStorage:', newGameId);
-		} else {
+				const raw = localStorage.getItem(`stargate-game-${newGameId}`);
+				if (!raw) {
+					toast.error('Local save not found');
+					throw new Error('Local save not found');
+				}
+				gameData = JSON.parse(raw);
+				console.log('[GAME-STATE] Loaded saved game from localStorage:', newGameId);
+			} else {
 			// Server-stored games require auth
-			if (!auth.isAuthenticated || auth.isTokenExpired) {
-				console.warn('[GAME-STATE] User not authenticated or token expired');
-				toast.error('Please sign in to load saved games');
-				throw new Error('Authentication required to load saved games');
+				if (!auth.isAuthenticated || auth.isTokenExpired) {
+					console.warn('[GAME-STATE] User not authenticated or token expired');
+					toast.error('Please sign in to load saved games');
+					throw new Error('Authentication required to load saved games');
+				}
+				const savedGame = await SavedGameService.getSavedGame(newGameId);
+				console.log('[GAME-STATE] Loaded saved game from backend:', {
+					gameId: newGameId,
+					gameName: savedGame.name,
+					gameDataType: typeof savedGame.game_data,
+					gameDataKeys: savedGame.game_data ? Object.keys(savedGame.game_data) : [],
+				});
+				gameData = savedGame.game_data;
+				setGameName(savedGame.name);
 			}
-			const savedGame = await SavedGameService.getSavedGame(newGameId);
-			console.log('[GAME-STATE] Loaded saved game from backend:', {
-				gameId: newGameId,
-				gameName: savedGame.name,
-				gameDataType: typeof savedGame.game_data,
-				gameDataKeys: savedGame.game_data ? Object.keys(savedGame.game_data) : [],
-			});
-			gameData = savedGame.game_data;
-			setGameName(savedGame.name);
-		}
 
 			// Set context state (non-game-engine data)
 			setDestinyStatus(gameData.destinyStatus);

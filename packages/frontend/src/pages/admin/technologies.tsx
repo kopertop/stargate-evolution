@@ -38,7 +38,7 @@ const defaultFormData: TechnologyTemplateFormData = {
 
 const TECHNOLOGY_CATEGORIES = [
 	'ship_systems', 'ancient_technology', 'weapons', 'medical',
-	'research', 'engineering', 'communication', 'defense'
+	'research', 'engineering', 'communication', 'defense',
 ];
 
 export const AdminTechnologies: React.FC = () => {

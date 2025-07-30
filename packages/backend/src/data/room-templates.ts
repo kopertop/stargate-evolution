@@ -53,7 +53,7 @@ export async function createRoomTemplate(db: D1Database, templateData: Omit<Room
 		templateData.version,
 		templateData.is_active,
 		now,
-		now
+		now,
 	).run();
 
 	if (!result.success) {

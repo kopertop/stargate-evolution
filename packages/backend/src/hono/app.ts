@@ -2,7 +2,7 @@ import { Hono, type Context } from 'hono';
 import { cors } from 'hono/cors';
 
 import type { Env } from '../types';
-import { generateOpenAPISchema } from './schema';
+
 
 import admin from './routes/admin';
 import auth from './routes/auth';
@@ -10,6 +10,7 @@ import data from './routes/data';
 import games from './routes/games';
 import status from './routes/status';
 import upload from './routes/upload';
+import { generateOpenAPISchema } from './schema';
 
 const app = new Hono<{ Bindings: Env }>();
 

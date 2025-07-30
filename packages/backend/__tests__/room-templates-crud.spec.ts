@@ -6,7 +6,7 @@ import {
 	getRoomTemplateById,
 	createRoomTemplate,
 	updateRoomTemplate,
-	deleteRoomTemplate
+	deleteRoomTemplate,
 } from '../src/data/room-templates';
 import type { Env } from '../src/types';
 

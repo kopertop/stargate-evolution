@@ -24,31 +24,37 @@ interface SyncOptions {
 
 // Define tables in dependency order (dependencies first)
 const TABLE_ORDER = [
-	// Core user and authentication tables
+	// Core user and authentication tables (no dependencies)
 	'users',
 
-	// Template tables (base definitions)
+	// Base template tables (no foreign key dependencies)
 	'race_templates',
 	'technology_templates',
 	'furniture_templates',
 	'galaxy_templates',
-	'star_system_templates',
-	'planet_templates',
-	'room_templates',
 
-	// Junction tables for room templates
-	'room_template_furniture',
-	'room_template_technology',
+	// Template tables that depend on base templates
+	'star_system_templates', // depends on galaxy_templates
+	'planet_templates', // depends on star_system_templates
+	'room_templates', // no dependencies
+
+	// Junction tables for room templates (depend on room_templates and other templates)
+	'room_template_furniture', // depends on room_templates, furniture_templates
+	'room_template_technology', // depends on room_templates, technology_templates
+
+	// Person templates (depends on race_templates)
+	'person_templates',
 
 	// Game instance tables (depend on templates)
-	'rooms',
-	'doors',
-	'room_furniture',
-	'room_technology',
-	'person_templates',
+	'rooms', // depends on room_templates
+	'doors', // depends on rooms
+	'room_furniture', // depends on rooms, furniture_templates
+	'room_technology', // depends on rooms, technology_templates
+
+	// Character instances (depends on users, person_templates)
 	'characters',
 
-	// Game state tables
+	// Game state tables (depends on users)
 	'saved_games',
 ];
 
@@ -161,11 +167,27 @@ function exportTableData(tableName: string): string | null {
 
 		// Get column names from first row
 		const columns = Object.keys(rows[0]);
-		const columnList = columns.map(col => `"${col}"`).join(', ');
+
+		// Handle table-specific column mapping for schema differences
+		let columnsToInsert = columns;
+
+		// For tables with default values for created_at and updated_at, exclude them
+		if (tableName === 'room_templates' || tableName === 'rooms') {
+			columnsToInsert = columns.filter(col => col !== 'created_at' && col !== 'updated_at');
+		}
+
+		// For rooms table, also exclude width and height columns (generated columns)
+		if (tableName === 'rooms') {
+			columnsToInsert = columnsToInsert.filter(col => col !== 'width' && col !== 'height');
+		}
+
+		// For other tables, keep all columns as they might be required
+
+		const columnList = columnsToInsert.map(col => `"${col}"`).join(', ');
 
 		// Generate INSERT statements using local table name
 		const insertStatements = rows.map(row => {
-			const values = columns.map(col => {
+			const values = columnsToInsert.map(col => {
 				const value = row[col];
 				if (value === null || value === undefined) return 'NULL';
 				if (typeof value === 'string') return `'${value.replace(/'/g, "''")}'`;
@@ -207,8 +229,9 @@ function importTableData(sqlFile: string, tableName: string): void {
 			return;
 		}
 
-		// Fix schema differences for room_templates
+		// Fix schema differences for tables with generated columns or column mismatches
 		let processedSqlContent = sqlContent;
+
 		if (tableName === 'room_templates') {
 			// Remove width and height columns from INSERT statements since they're generated in local schema
 			processedSqlContent = processedSqlContent.replace(/, "width", "height"/g, '');
@@ -216,28 +239,75 @@ function importTableData(sqlFile: string, tableName: string): void {
 			processedSqlContent = processedSqlContent.replace(/, (\d+), (\d+)\);/g, ');');
 		}
 
-		// Create a single SQL script that disables FK constraints, clears table, imports data, and re-enables constraints
-		const combinedSql = `
-			PRAGMA foreign_keys = OFF;
-			DELETE FROM ${tableName};
-			${processedSqlContent}
-			PRAGMA foreign_keys = ON;
-		`;
+		if (tableName === 'rooms') {
+			// Remove width and height columns from INSERT statements since they're generated columns
+			processedSqlContent = processedSqlContent.replace(/, "width", "height"/g, '');
+			// Remove the corresponding values (last two values in the INSERT)
+			processedSqlContent = processedSqlContent.replace(/, (\d+), (\d+)\);/g, ');');
+		}
+
+		// Create a simple SQL script that just imports the data
+		// Using INSERT OR REPLACE to handle existing records
+		const combinedSql = processedSqlContent;
 
 		// Write combined content to temp file
 		const processedFile = sqlFile.replace('.sql', '_processed.sql');
 		writeFileSync(processedFile, combinedSql);
 
 		// Execute the combined script
-		execCommand(
-			`wrangler d1 execute stargate-game --local --file "${processedFile}"`,
-			`Importing ${tableName} data to local database`,
-		);
+		try {
+			execCommand(
+				`wrangler d1 execute stargate-game --local --file "${processedFile}"`,
+				`Importing ${tableName} data to local database`,
+			);
 
-		log(`  ✅ Imported ${tableName} data successfully`);
+			log(`  ✅ Imported ${tableName} data successfully`);
+		} catch (execError: any) {
+			// If the import fails, try to get more detailed error information
+			log(`  ❌ Failed to import ${tableName}: ${execError.message}`);
+
+			// Log the processed SQL content for debugging
+			if (process.argv.includes('--verbose')) {
+				log(`  Debug: Processed SQL for ${tableName}:`, true);
+				log(processedSqlContent, true);
+			}
+
+			throw execError;
+		}
 
 	} catch (error: any) {
 		log(`  ❌ Failed to import ${tableName}: ${error.message}`);
+		throw error;
+	}
+}
+
+
+
+function validateTableSchema(tableName: string): boolean {
+	try {
+		// Get remote table schema
+		const remoteSchemaCommand = `wrangler d1 execute stargate-game --remote --command "PRAGMA table_info(${tableName})" --json`;
+		const remoteSchemaOutput = execSync(remoteSchemaCommand, { encoding: 'utf8', stdio: 'pipe' });
+		const remoteSchema = JSON.parse(remoteSchemaOutput);
+
+		// Get local table schema
+		const localSchemaCommand = `wrangler d1 execute stargate-game --local --command "PRAGMA table_info(${tableName})" --json`;
+		const localSchemaOutput = execSync(localSchemaCommand, { encoding: 'utf8', stdio: 'pipe' });
+		const localSchema = JSON.parse(localSchemaOutput);
+
+		// Compare column counts
+		const remoteColumns = remoteSchema[0]?.results?.length || 0;
+		const localColumns = localSchema[0]?.results?.length || 0;
+
+		if (remoteColumns !== localColumns) {
+			log(`  ⚠️  Schema mismatch for ${tableName}: remote=${remoteColumns} columns, local=${localColumns} columns`);
+			return false;
+		}
+
+		return true;
+	} catch (error) {
+		log(`  ⚠️  Could not validate schema for ${tableName}: ${error}`);
+		return true; // Assume OK if we can't check
 	}
 }
 
@@ -298,8 +368,10 @@ async function main(): Promise<void> {
 			for (const { table, file } of exportedFiles) {
 				importTableData(file, table);
 			}
+		}
 
-			// Step 3: Validate sync
+		// Step 3: Validate sync (only if not dry run)
+		if (!options.dryRun) {
 			console.log('\n✅ Validating sync results...');
 			const validationResults = tablesToSync.map(table => ({
 				table,
