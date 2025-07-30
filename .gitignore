@@ -85,6 +85,7 @@ dev-debug.log
 # misc
 .dev.vars
 exports/
+.temp-*/
 
 # Test Reports
 playwright-report/
