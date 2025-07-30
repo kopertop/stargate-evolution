@@ -17,23 +17,39 @@ import { writeFileSync, readFileSync, existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
 
 interface SyncOptions {
-  tables?: string[];
-  dryRun?: boolean;
-  verbose?: boolean;
+	tables?: string[];
+	dryRun?: boolean;
+	verbose?: boolean;
 }
 
 // Define tables in dependency order (dependencies first)
 const TABLE_ORDER = [
+	// Core user and authentication tables
+	'users',
+
+	// Template tables (base definitions)
 	'race_templates',
 	'technology_templates',
+	'furniture_templates',
 	'galaxy_templates',
 	'star_system_templates',
 	'planet_templates',
 	'room_templates',
+
+	// Junction tables for room templates
+	'room_template_furniture',
+	'room_template_technology',
+
+	// Game instance tables (depend on templates)
+	'rooms',
 	'doors',
 	'room_furniture',
 	'room_technology',
 	'person_templates',
+	'characters',
+
+	// Game state tables
+	'saved_games',
 ];
 
 const TEMP_DIR = join(process.cwd(), '.temp-sync');
